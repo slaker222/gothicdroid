@@ -9,6 +9,7 @@
 
 #include "common.glsl"
 #include "scene.glsl"
+#include "rtsm/rtsm_common.glsl"
 
 layout(local_size_x = 32, local_size_y = 32) in;
 
@@ -25,17 +26,17 @@ layout(push_constant, std430) uniform UboPush {
   int meshletCount;
   } push;
 //layout(binding = 0, rgba8)  uniform image2D     outputImage;
-layout(binding = 0, r32ui)  uniform uimage2D    outputImage;
-layout(binding = 1, std140) uniform UboScene    { SceneDesc scene;       };
-layout(binding = 2)         uniform utexture2D  gbufNormal;
-layout(binding = 3)         uniform texture2D   depth;
+layout(binding = 0, r32ui)  uniform  uimage2D   outputImage;
+layout(binding = 1, std140) uniform  UboScene   { SceneDesc scene;       };
+layout(binding = 2)         uniform  utexture2D gbufNormal;
+layout(binding = 3)         uniform  texture2D  depth;
 
-layout(binding = 4, std430) readonly buffer Cbo { Cluster clusters[];    };
-layout(binding = 5, std430) readonly buffer Mem { uint    instanceMem[]; };
-layout(binding = 6, std430) readonly buffer Ibo { uint    indexes [];    } ibo[];
-layout(binding = 7, std430) readonly buffer Vbo { float   vertices[];    } vbo[];
-layout(binding = 8)         uniform  texture2D  textureMain[];
-layout(binding = 9)         uniform  sampler    samplerMain;
+layout(binding = 5, std430) readonly buffer Cbo { Cluster clusters[];    };
+layout(binding = 6, std430) readonly buffer Mem { uint    instanceMem[]; };
+layout(binding = 7, std430) readonly buffer Ibo { uint    indexes [];    } ibo[];
+layout(binding = 8, std430) readonly buffer Vbo { float   vertices[];    } vbo[];
+layout(binding = 9)         uniform  texture2D  textureMain[];
+layout(binding = 10)        uniform  sampler    samplerMain;
 
 vec3  dbgColor  = vec3(0);
 ivec2 fragCoord = ivec2(gl_GlobalInvocationID.xy);
@@ -56,26 +57,6 @@ uint mergeCounter(uint cnt) {
   }
 
 // utility
-uint floatToOrderedUint(float value) {
-  uint uvalue = floatBitsToUint(value);
-  uint mask = -int(uvalue >> 31) | 0x80000000;
-  return uvalue ^ mask;
-  }
-
-float orderedUintToFloat(uint value) {
-  uint mask = ((value >> 31) - 1) | 0x80000000;
-  return uintBitsToFloat(value ^ mask);
-  }
-
-vec4 orderedUintToFloat(uvec4 value) {
-  vec4 r;
-  r.x = orderedUintToFloat(value.x);
-  r.y = orderedUintToFloat(value.y);
-  r.z = orderedUintToFloat(value.z);
-  r.w = orderedUintToFloat(value.w);
-  return r;
-  }
-
 shared uvec4 rayPacketBbox;
 shared uint  rayMinDepth;
 void rayBbox(vec3 orig, bool activeRay) {
@@ -108,13 +89,6 @@ vec4 bboxOf(vec2 a, vec2 b, vec2 c) {
   }
 
 // light/occlusion/matrix
-bool planetOcclusion(float viewPos) {
-  const float y = RPlanet + max(viewPos*0.1, 0);
-  if(rayIntersect(vec3(0,y,0), scene.sunDir, RPlanet)>0)
-    return true;
-  return false;
-  }
-
 float lambert(vec3 normal) {
   return max(0.0, dot(scene.sunDir,normal));
   }
@@ -133,14 +107,6 @@ vec3 shadowPos(vec4 wpos) {
   }
 
 // meshlets
-bool bboxIntersect(vec4 a, vec4 b) {
-  if(b.z < a.x || b.x > a.z)
-    return false;
-  if(b.w < a.y || b.y > a.w)
-    return false;
-  return true;
-  }
-
 bool projectSphere(const vec4 sphere, out vec4 aabb, out float depthMax) {
   const vec3  c = (scene.viewVirtualShadowLwc * vec4(sphere.xyz, 1)).xyz;
   const float R = sphere.w;
@@ -365,6 +331,21 @@ bool isMeshletVisible(uint i, const vec4 rbbox) {
   return true;
   }
 
+void pullMeshlets(const uint step, const vec4 rbbox) {
+  const uint laneID = gl_LocalInvocationIndex;
+
+  numVisMeshlets = 0;
+  barrier();
+
+  const uint i = step*NumThreads + laneID;
+  if(isMeshletVisible(i, rbbox)) {
+    uint id = atomicAdd(numVisMeshlets, 1);
+    meshletsId[id] = i;
+    ++numMeshlets;
+    };
+  barrier();
+  }
+
 bool tracePacket(const vec3 ray, const vec4 rbbox) {
   if(isnan(rbbox.x))
     return false;
@@ -374,19 +355,9 @@ bool tracePacket(const vec3 ray, const vec4 rbbox) {
 
   const uint laneID = gl_LocalInvocationIndex;
   const uint steps  = ((push.meshletCount + NumThreads - 1)/NumThreads);
-  for(uint id=0; id<steps; ++id) {
-    numVisMeshlets = 0;
-    barrier();
-
-    const uint i = id*NumThreads + laneID;
-    if(isMeshletVisible(i, rbbox)) {
-      uint id = atomicAdd(numVisMeshlets, 1);
-      meshletsId[id] = i;
-      ++numMeshlets;
-      };
-
-    //continue;
-    barrier();
+  for(uint i=0; i<steps; ++i) {
+    pullMeshlets(i, rbbox);
+    // continue;
 
     for(uint r=0; r<numVisMeshlets; ++r) {
       uvec3 ids = processMeshlet(meshletsId[r], rbbox);
@@ -419,7 +390,7 @@ void main() {
 
   bool        shadow = false;
   shadow             = shadow || (dot(scene.sunDir, normal) <= 0 && z!=1.0);
-  shadow             = shadow || planetOcclusion(wpos.y/wpos.w);
+  shadow             = shadow || planetOcclusion(wpos.y/wpos.w, scene.sunDir);
 
   const bool  actRay = (z < 1) && !shadow;
 
