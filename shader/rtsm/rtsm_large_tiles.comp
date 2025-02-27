@@ -8,16 +8,13 @@
 
 layout(local_size_x = 16, local_size_y = 16) in;
 
-      float FLT_MAX    = uintBitsToFloat(0x7F7FFFFF);
-      float FLT_MIN    = uintBitsToFloat(0xFF7FFFFF);
-const uint  NumThreads = gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
-const uint  MaxSlices  = 16;
+const uint NumThreads = gl_WorkGroupSize.x*gl_WorkGroupSize.y*gl_WorkGroupSize.z;
 
 layout(binding = 0)         uniform texture2D   outputImage;
 layout(binding = 1, std140) uniform UboScene    { SceneDesc scene;       };
 layout(binding = 2)         uniform utexture2D  gbufNormal;
 layout(binding = 3)         uniform texture2D   depth;
-layout(binding = 4, std430) readonly buffer Rt  { RtsmHeader header; uvec2 visList[]; } rtsm;
+//layout(binding = 4, std430) readonly buffer Rt  { RtsmHeader header; uvec2 visList[]; } rtsm;
 layout(binding = 5, std430)          buffer Pos { uint       alloc;  uint  data[];    } pos;
 layout(binding = 6, rg32ui) uniform writeonly uimage2D largeTiles;
 
@@ -31,6 +28,11 @@ shared uint  meshletsId[2*1024];
 shared uint  numMeshlets;
 
 shared uint  meshListPtr;
+
+uvec2 pullMeshList() {
+  const uint visCount = pos.data[0];
+  return uvec2(1, visCount);
+  }
 
 // ray related
 vec3 calcRayOrigin(const vec4 wpos) {
@@ -118,7 +120,7 @@ void tileBbox() {
   }
 
 // meshlets
-bool isMeshletVisibleAabb(const vec4 aabb, const float depthMax) {
+bool isAabbVisible(const vec4 aabb, const float depthMax) {
   for(uint i=0; i<numSlices; ++i) {
     vec4 rbb; float rayd;
     rbb.x = uintBitsToFloat(rayTileBbox[i].x);
@@ -145,15 +147,14 @@ bool isMeshletVisible(uint ptr) {
   aabb.z   = uintBitsToFloat(pos.data[ptr+2]);
   aabb.w   = uintBitsToFloat(pos.data[ptr+3]);
   depthMax = uintBitsToFloat(pos.data[ptr+4]);
-  return isMeshletVisibleAabb(aabb, depthMax);
+  return isAabbVisible(aabb, depthMax);
   }
 
-void traceMeshlets() {
-  const uint laneID   = gl_LocalInvocationIndex;
-  const uint visCount = rtsm.header.visCount;
+void traceMeshlets(const uint tilePtr, const uint visCount) {
+  const uint laneID = gl_LocalInvocationIndex;
 
   for(uint i=laneID; i<visCount; i+=NumThreads) {
-    const uint ptr = rtsm.visList[i].x;
+    const uint ptr = pos.data[tilePtr + i];
 
     if(isMeshletVisible(ptr)) {
       uint id = atomicAdd(numMeshlets,1);
@@ -178,27 +179,28 @@ void main() {
   tileBbox();
   barrier();
 
-  traceMeshlets();
+  const uvec2 meshListSrc = pullMeshList();
+  traceMeshlets(meshListSrc.x, meshListSrc.y);
   barrier();
 
   if(numMeshlets>meshletsId.length()) {
-    // too many meshlets. TODO: point to global list
+    // too many meshlets - pass original mesh-list futher
     if(gl_LocalInvocationIndex==0)
-      imageStore(largeTiles, ivec2(gl_WorkGroupID.xy), uvec4(0xFFFFFFFF, 0,0,0));
+      imageStore(largeTiles, ivec2(gl_WorkGroupID.xy), uvec4(meshListSrc,0,0));
     return;
     }
 
   if(gl_LocalInvocationIndex==0) {
-    meshListPtr = numMeshlets==0 ? 0xFFFFFFFF : atomicAdd(pos.alloc, numMeshlets);
+    meshListPtr = numMeshlets==0 ? NULL : atomicAdd(pos.alloc, numMeshlets);
     if(meshListPtr+numMeshlets>pos.data.length()) {
       // out of memory
-      meshListPtr = 0xFFFFFFFF;
+      meshListPtr = NULL;
       numMeshlets = 0;
       }
     }
   barrier();
 
-  // store pointer to meshlets list and the list
+  // store pointer to meshlets list and list-data
   if(gl_LocalInvocationIndex==0)
     imageStore(largeTiles, ivec2(gl_WorkGroupID.xy), uvec4(meshListPtr, numMeshlets, 0, 0));
   for(uint i=laneID; i<numMeshlets; i+=NumThreads)
