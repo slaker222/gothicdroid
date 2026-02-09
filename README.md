@@ -11,7 +11,7 @@ The goal of this project is to make a feature-complete Gothic game client, compa
 ![Screenshoot](scr0.png)
 
 #### Work in progress
-[![Build status](https://img.shields.io/github/actions/workflow/status/Try/OpenGothic/build.yml?branch=master)](https://github.com/Try/OpenGothic/actions?query=build.yml)
+[![Build status](https://img.shields.io/github/actions/workflow/status/Try/OpenGothic/build.yml?branch=master)](https://github.com/Try/OpenGothic/actions?query=build.ymlhttps://github.com/Try/OpenGothic/actions?query=build.yml?query=branch%3Amaster)
 
 
 Development is focused on Gothic 2 and new features are not tested for compatibility with Gothic 1. While Gothic 1 is not officially supported, pull requests that fix Gothic 1 — and general — bugs are welcome.
