@@ -142,6 +142,7 @@ class Camera final {
     Tempest::Vec3         angles    = {};
     Tempest::Vec3         veloTrans = {};
     float                 userRange  = 0;
+    Tempest::Vec3         shake      = {};
 
     float                 targetVelo = 0;
 

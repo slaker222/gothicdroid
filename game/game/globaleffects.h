@@ -22,6 +22,7 @@ class GlobalEffects {
 
     void     scaleTime(uint64_t& dt);
     void     morph(Tempest::Matrix4x4& proj);
+    void     shake(Tempest::Vec3& origin);
     void     scrBlend(Tempest::Painter& p, const Tempest::Rect& rect);
 
   private:
@@ -57,6 +58,12 @@ class GlobalEffects {
       };
 
     struct Quake:Effect {
+      float          arg0  = 0; // unknown
+      float          loop  = 0; // earthquake loop duration
+      Tempest::Vec3  off   = {};
+
+      Tempest::Vec3  last  = {};
+      uint64_t       tLast = 0;
       };
 
     template<class T>
@@ -68,8 +75,8 @@ class GlobalEffects {
     GlobalFx addMorphFov   (const std::string* argv, size_t argc);
     GlobalFx addEarthQuake (const std::string* argv, size_t argc);
 
-
     static Tempest::Color parseColor(std::string_view c);
+    static Tempest::Vec3  parseVec3 (std::string_view c);
 
     World&   owner;
     uint64_t timeWrldRem = 0;

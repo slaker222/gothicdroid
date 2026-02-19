@@ -1,7 +1,6 @@
 #include "globaleffects.h"
 
 #include <Tempest/Log>
-#include <charconv>
 
 #include "world/objects/globalfx.h"
 #include "world/world.h"
@@ -9,7 +8,14 @@
 
 using namespace Tempest;
 
-GlobalEffects::GlobalEffects(World& owner):owner(owner){
+GlobalEffects::GlobalEffects(World& owner):owner(owner) {
+  /*
+  std::string argv[] = {"1000", "5", "5 5 5"};
+  auto g = startEffect("earthquake.eqk", 0, argv, 3);
+  auto h = g.h;
+  g = GlobalFx();
+  h->timeUntil = uint64_t(-1);
+  */
   }
 
 void GlobalEffects::tick(uint64_t dt) {
@@ -41,6 +47,8 @@ void GlobalEffects::scaleTime(uint64_t& dt) {
   }
 
 static float generator(uint64_t dt, uint64_t period) {
+  if(period<=0)
+    return 0;
   float a0 = float((dt+period/2)%period)/float(period); //[0..1]
   a0 = a0*2.f-1.f;
   return a0;
@@ -62,6 +70,30 @@ void GlobalEffects::morph(Tempest::Matrix4x4& proj) {
 
     proj.scale(1.f+a0*x,1.f-a0*y,1.f);
     proj.scale(1.f+a1*x,1.f+a1*y,1.f);
+    }
+  }
+
+void GlobalEffects::shake(Vec3& origin) {
+  for(auto& pi:quakeEff) {
+    auto& i = *pi;
+
+    uint64_t time = owner.tickCount()-i.timeStart;
+    if(i.tLast+uint64_t(10) >= time)
+      continue;
+    i.tLast = time;
+
+    Vec3 off;
+    off.x = float(std::rand()%1000)/1000.f;
+    off.y = float(std::rand()%1000)/1000.f;
+    off.z = float(std::rand()%1000)/1000.f;
+
+    // more interesting curve
+    float a = generator(time, i.timeLoop);
+    a = std::sin(a*float(M_PI))*0.5f + 0.5f;
+    a = a*0.75f+0.25f;
+
+    i.last = i.off*(off*2.f - 1.f)*a;
+    origin = i.last;
     }
   }
 
@@ -198,8 +230,19 @@ GlobalFx GlobalEffects::addMorphFov(const std::string* argv, size_t argc) {
   return GlobalFx(morphEff.back());
   }
 
-GlobalFx GlobalEffects::addEarthQuake(const std::string*, size_t) {
-  quakeEff.emplace_back(std::make_shared<Quake>());
+GlobalFx GlobalEffects::addEarthQuake(const std::string* argv, size_t argc) {
+  // https://worldofplayers.ru/threads/39160/
+  if(argc<3)
+    return GlobalFx();
+
+  Quake q;
+  q.arg0 = std::stof(argv[0]);
+  q.loop = std::stof(argv[1]);
+  q.off  = parseVec3(argv[2]);
+
+  q.timeLoop = uint64_t(q.loop * 1000.f);
+
+  quakeEff.emplace_back(std::make_shared<Quake>(q));
   return GlobalFx(quakeEff.back());
   }
 
@@ -222,6 +265,27 @@ Tempest::Color GlobalEffects::parseColor(std::string_view sv) {
     str = next;
     }
   return Tempest::Color(v[0],v[1],v[2],v[3]);
+  }
+
+Vec3 GlobalEffects::parseVec3(std::string_view sv) {
+  auto  s    = std::string(sv);
+  auto  str  = s.data();
+
+  float v[3] = {};
+  for(int i=0;i<3;++i) {
+    char* next = nullptr;
+    v[i] = std::strtof(str,&next);
+    if(str==next)
+      if(i==1) {
+        return Tempest::Vec3(v[0],v[0],v[0]);
+      if(i==2)
+        return Tempest::Vec3(v[0],v[1],0.f);
+      if(i==3)
+        return Tempest::Vec3(v[0],v[1],v[2]);
+      }
+    str = next;
+    }
+  return Tempest::Vec3(v[0],v[1],v[2]);
   }
 
 void GlobalEffects::Effect::stop() {

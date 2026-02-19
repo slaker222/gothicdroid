@@ -737,6 +737,12 @@ void Camera::tick(uint64_t dt) {
       }
     }
 
+  if(auto w = Gothic::inst().world()) {
+    Vec3 sh;
+    w->globalFx()->shake(sh);
+    shake = shake + (sh-shake)*std::min(1.f, dtF*1000.f);
+    }
+
   {
     //NOTE: in vanilla output of velocity is garbage in general, but zero for static camera
     targetVelo = (origin - prev).length()/dtF;
@@ -829,8 +835,10 @@ void Camera::tickThirdPerson(float dtF) {
       }
     }
 
-  if(def.translate!=0)
+  if(def.translate!=0) {
     origin = followTrans(origin, inter.target + dir*range, (camMod!=Dialog ? dtF : -1.f), def.velo_trans);
+    }
+
   angles = calcLookAtAngles(origin, inter.target, inter.rotOffset, state.spin);
 
   static bool dbg = false;
@@ -1010,7 +1018,7 @@ Matrix4x4 Camera::viewProj() const {
   }
 
 Matrix4x4 Camera::view() const {
-  return mkView(origin, angles);
+  return mkView(origin+shake, angles);
   }
 
 Matrix4x4 Camera::viewLwc() const {
