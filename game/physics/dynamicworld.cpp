@@ -14,6 +14,8 @@
 #include "world/bullet.h"
 #include "world/world.h"
 
+#include "utils/dbgpainter.h"
+
 const float DynamicWorld::ghostPadding=50-22.5f;
 const float DynamicWorld::ghostHeight =140;
 const float DynamicWorld::worldHeight =20000;
@@ -974,6 +976,30 @@ float DynamicWorld::NpcItem::centerY() const {
 
 const Tempest::Vec3& DynamicWorld::NpcItem::position() const {
   return obj->pos;
+  }
+
+void DynamicWorld::NpcItem::debugDraw(DbgPainter& p) const {
+  p.setBrush(Tempest::Color(0,1,0));
+  p.drawPoint(obj->pos);
+
+  const auto cen = Tempest::Vec3(obj->pos.x, centerY(), obj->pos.z);
+  p.setBrush(Tempest::Color(0,0,1));
+  p.drawPoint(cen);
+
+  p.setPen(Tempest::Color(1,1,1));
+  p.drawLine(cen, cen+Tempest::Vec3(0,25,0));
+  p.setPen(Tempest::Color(1,1,0));
+  p.drawLine(cen, cen+Tempest::Vec3(25,0,0));
+  p.setPen(Tempest::Color(1,0.5f,0));
+  p.drawLine(cen, cen+Tempest::Vec3(0,0,25));
+
+  btVector3 aabb0, aabb1;
+  obj->getAabb(aabb0, aabb1);
+
+  const auto min = Tempest::Vec3(aabb0.x()*100.f, aabb0.y()*100.f, aabb0.z()*100.f);
+  const auto max = Tempest::Vec3(aabb1.x()*100.f, aabb1.y()*100.f, aabb1.z()*100.f);
+  p.setPen(Tempest::Color(1,0.5f,0));
+  p.drawAabb(min, max);
   }
 
 bool DynamicWorld::NpcItem::testMove(const Tempest::Vec3& to, CollisionTest& out) {

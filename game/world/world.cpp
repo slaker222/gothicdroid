@@ -571,6 +571,10 @@ void World::marchCsCameras(DbgPainter& p) const {
   wobj.marchCsCameras(p);
   }
 
+void World::drawVobBoxNpcNear(DbgPainter& p) const {
+  wobj.drawVobBoxNpcNear(p);
+  }
+
 AiOuputPipe *World::openDlgOuput(Npc &player, Npc &npc) {
   return game.openDlgOuput(player,npc);
   }

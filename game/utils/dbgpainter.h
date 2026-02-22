@@ -12,8 +12,10 @@ class DbgPainter {
 
     void drawText(int x, int y, std::string_view txt);
     void drawText(const Tempest::Vec3& a, std::string_view txt);
+
     void drawLine(const Tempest::Vec3& a, const Tempest::Vec3& b);
-    void drawPoint();
+    void drawPoint(const Tempest::Vec3& a, int radiusPx = 5);
+    void drawAabb(const Tempest::Vec3& min, const Tempest::Vec3& max);
 
     Tempest::Painter&        painter;
     const Tempest::Matrix4x4 mvp;

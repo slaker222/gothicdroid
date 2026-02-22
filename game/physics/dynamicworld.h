@@ -22,6 +22,7 @@ class Bullet;
 class Npc;
 class Item;
 class Interactive;
+class DbgPainter;
 
 class CollisionWorld;
 
@@ -84,6 +85,8 @@ class DynamicWorld final {
 
         void  setPosition(const Tempest::Vec3& pos);
         const Tempest::Vec3& position() const;
+
+        void  debugDraw(DbgPainter& p) const;
 
         void  setEnable(bool e);
         void  setUserPointer(void* p);

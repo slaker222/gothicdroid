@@ -273,6 +273,14 @@ void MainWindow::paintEvent(PaintEvent& event) {
       }
     }
 
+  if(Gothic::inst().doVobBox() && !Gothic::inst().isDesktop()) {
+    auto c = Gothic::inst().camera();
+    if(world!=nullptr && c!=nullptr) {
+      DbgPainter dbg(p,c->viewProj(),w(),h());
+      world->drawVobBoxNpcNear(dbg);
+      }
+    }
+
   if(auto wx = Gothic::inst().worldView()) {
     wx->dbgClusters(p, Vec2(float(w()), float(h())));
     }

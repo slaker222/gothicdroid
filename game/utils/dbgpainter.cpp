@@ -53,3 +53,36 @@ void DbgPainter::drawLine(const Vec3& a, const Vec3& b) {
 
   painter.drawLine(x0,y0,x1,y1);
   }
+
+void DbgPainter::drawPoint(const Tempest::Vec3& a, int radiusPx) {
+  Vec3  pa = a;
+  float wa = 1;
+  mvp.project(pa.x,pa.y,pa.z,wa);
+
+  if(wa<0.001f)
+    return;
+
+  pa /= wa;
+
+  int x0 = int((pa.x+1.f)*0.5f*float(w));
+  int y0 = int((pa.y+1.f)*0.5f*float(h));
+
+  painter.drawRect(x0-radiusPx,y0-radiusPx, 1+2*radiusPx, 1+2*radiusPx);
+  }
+
+void DbgPainter::drawAabb(const Tempest::Vec3& min, const Tempest::Vec3& max) {
+  drawLine(Tempest::Vec3(min.x, min.y, min.z), Tempest::Vec3(max.x, min.y, min.z));
+  drawLine(Tempest::Vec3(max.x, min.y, min.z), Tempest::Vec3(max.x, min.y, max.z));
+  drawLine(Tempest::Vec3(max.x, min.y, max.z), Tempest::Vec3(min.x, min.y, max.z));
+  drawLine(Tempest::Vec3(min.x, min.y, max.z), Tempest::Vec3(min.x, min.y, min.z));
+
+  drawLine(Tempest::Vec3(min.x, max.y, min.z), Tempest::Vec3(max.x, max.y, min.z));
+  drawLine(Tempest::Vec3(max.x, max.y, min.z), Tempest::Vec3(max.x, max.y, max.z));
+  drawLine(Tempest::Vec3(max.x, max.y, max.z), Tempest::Vec3(min.x, max.y, max.z));
+  drawLine(Tempest::Vec3(min.x, max.y, max.z), Tempest::Vec3(min.x, max.y, min.z));
+
+  drawLine(Tempest::Vec3(min.x, min.y, min.z), Tempest::Vec3(min.x, max.y, min.z));
+  drawLine(Tempest::Vec3(max.x, min.y, min.z), Tempest::Vec3(max.x, max.y, min.z));
+  drawLine(Tempest::Vec3(max.x, min.y, max.z), Tempest::Vec3(max.x, max.y, max.z));
+  drawLine(Tempest::Vec3(min.x, min.y, max.z), Tempest::Vec3(min.x, max.y, max.z));
+  }

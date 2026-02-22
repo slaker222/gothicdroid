@@ -28,6 +28,8 @@ class Marvin {
 
       // rendering
       C_ToggleFrame,
+      C_ToggleVobBox,
+
       // game
       C_ToggleDesktop,
       C_ToggleTime,

@@ -56,6 +56,7 @@ Marvin::Marvin() {
    %d - integer
    %f - floating point number
    */
+  // http://forenarchiv.worldofplayers.de/thread.php?id=85859&post=45890#45890
   cmd = std::vector<Cmd>{
     // gdb-like commands
     {"p %v",                       C_PrintVar},
@@ -99,7 +100,7 @@ Marvin::Marvin() {
     {"ztoggle showportals",        C_Invalid},
     {"ztoggle showtraceray",       C_Invalid},
     {"ztoggle tnl",                C_Invalid},
-    {"ztoggle vobbox",             C_Invalid},
+    {"ztoggle vobbox",             C_ToggleVobBox},
     {"zvideores %d %d %d",         C_Invalid},
 
     // game
@@ -349,6 +350,10 @@ bool Marvin::exec(std::string_view v) {
       }
     case C_ToggleFrame:{
       Gothic::inst().setFRate(!Gothic::inst().doFrate());
+      return true;
+      }
+    case C_ToggleVobBox:{
+      Gothic::inst().setVobBox(!Gothic::inst().doVobBox());
       return true;
       }
     case C_ToggleTime:{

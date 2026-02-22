@@ -327,6 +327,10 @@ void Npc::postValidate() {
     currentInteract = nullptr;
   }
 
+void Npc::drawVobBox(DbgPainter& p) const {
+  physic.debugDraw(p);
+  }
+
 void Npc::saveAiState(Serialize& fout) const {
   fout.write(aniWaitTime,waitTime,faiWaitTime,outWaitTime);
   fout.write(uint8_t(aiPolicy));

@@ -82,6 +82,8 @@ class Npc final {
     void       load(Serialize& fout, size_t id, std::string_view directory);
     void       postValidate();
 
+    void       drawVobBox(DbgPainter& p) const;
+
     bool       setPosition (float x,float y,float z);
     bool       setPosition (const Tempest::Vec3& pos);
     void       setDirection(const Tempest::Vec3& pos);

@@ -136,6 +136,9 @@ class Gothic final {
     bool         doClock() const { return showTime; }
     void         setClock(bool t) { showTime = t; }
 
+    bool         doVobBox() const { return vobBox; }
+    void         setVobBox(bool v) { vobBox = v; }
+
     bool         isBenchmarkMode() const;
     bool         isBenchmarkModeCi() const;
     void         setBenchmarkMode(Benchmark b);
@@ -217,6 +220,7 @@ class Gothic final {
     bool                                    desktop        = false;
     bool                                    showFpsCounter = false;
     bool                                    showTime       = false;
+    bool                                    vobBox         = false;
     Benchmark                               isBenchmark    = Benchmark::None;
 
     std::string                             wrldDef, plDef, gameDatDef, ouDef;

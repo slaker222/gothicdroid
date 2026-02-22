@@ -827,6 +827,11 @@ void WorldObjects::marchCsCameras(DbgPainter& p) const {
       }
   }
 
+void WorldObjects::drawVobBoxNpcNear(DbgPainter& p) const {
+  for(auto& i:npcNear)
+    i->drawVobBox(p);
+  }
+
 Interactive *WorldObjects::availableMob(const Npc &pl, std::string_view dest) {
   const float  dist=100*10.f;
   Interactive* ret =nullptr;
