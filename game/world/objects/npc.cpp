@@ -4593,12 +4593,6 @@ void Npc::updateAnimation(uint64_t dt, bool force) {
       pos = mkPositionMatrix();
       }
 
-    if(mvAlgo.isSwim()) {
-      float chest = mvAlgo.canFlyOverWater() ? 0 : (translateY()-visual.pose().rootNode().at(3,1));
-      float y     = pos.at(3,1);
-      pos.set(3,1,y+chest);
-      }
-
     visual.setObjMatrix(pos,false);
     durtyTranform = 0;
     }

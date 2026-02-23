@@ -225,14 +225,15 @@ Animation::Sequence::Sequence(const zenkit::MdsAnimation& hdr, std::string_view 
   data->lastFrame  = uint32_t(hdr.last_frame);
 
 
-  name = p.name;
+  name  = p.name;
   layer = p.layer;
-  data->fpsRate = p.fps;
+
+  data->fpsRate   = p.fps;
   data->numFrames = p.frame_count;
   data->nodeIndex = p.node_indices;
-  data->samples = p.samples;
+  data->samples   = p.samples;
 
-  setupMoveTr();
+  data->setupMoveTr();
   }
 
 bool Animation::Sequence::isFinished(uint64_t now, uint64_t sTime, uint16_t comboLen) const {
@@ -569,10 +570,6 @@ void Animation::Sequence::schemeName(char scheme[64]) const {
       break;
       }
     }
-  }
-
-void Animation::Sequence::setupMoveTr() {
-  data->setupMoveTr();
   }
 
 void Animation::AnimData::setupMoveTr() {

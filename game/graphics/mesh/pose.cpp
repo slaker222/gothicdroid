@@ -394,8 +394,10 @@ bool Pose::updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBle
     if(i==0) {
       if(bs==BS_CLIMB)
         smp.position.y = trY;
+      else if(bs==BS_SWIM || bs==BS_DIVE)
+        smp.position.y = trY;
       else if(s.isFly())
-        smp.position.y = d.translate.y;
+        smp.position.y = trY; //d.translate.y;
       }
 
     switch(hasSamples[idx]) {
@@ -790,8 +792,13 @@ const Tempest::Matrix4x4 Pose::rootNode() const {
   size_t id = 0;
   if(skeleton->rootNodes.size())
     id = skeleton->rootNodes[0];
-  auto& nodes = skeleton->nodes;
-  return hasSamples[id] ? mkMatrix(base[id]) : nodes[id].tr;
+
+  const auto& nodes = skeleton->nodes;
+  if(id>=nodes.size())
+    return Matrix4x4::mkIdentity();
+
+  auto ret = hasSamples[id] ? mkMatrix(base[id]) : nodes[id].tr;
+  return ret;
   }
 
 const Matrix4x4 Pose::rootBone() const {
@@ -897,12 +904,13 @@ Vec3 Pose::mkBaseTranslation() {
   auto  b0 = rootNode();
 
   float dx = b0.at(3,0);
-  //float dy = b0.at(3,1) - translateY();
   float dy = 0;
   float dz = b0.at(3,2);
 
-  if((flag&NoTranslation)==NoTranslation)
+  if((flag&NoTranslation)==NoTranslation) {
     dy = b0.at(3,1);
+    // dy = b0.at(3,1) - translateY();
+    }
 
   return Vec3(-dx,-dy,-dz);
   }

@@ -117,7 +117,6 @@ class Animation final {
       std::shared_ptr<AnimData>              data;
 
       private:
-        void                                 setupMoveTr();
         static void                          processEvent(const zenkit::MdsEventTag& e, EvCount& ev, uint64_t time);
         bool                                 extractFrames(uint64_t &frameA, uint64_t &frameB, bool &invert, uint64_t barrier, uint64_t sTime, uint64_t now) const;
       };
