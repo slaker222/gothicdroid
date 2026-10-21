@@ -9,6 +9,7 @@
 #include "shaders.h"
 
 #include "gothic.h"
+#include "gapi/vulkan/vpipelinelogger.h"
 
 using namespace Tempest;
 
@@ -142,7 +143,7 @@ void DrawCommands::setBindings(Tempest::Encoder<CommandBuffer>& cmd, const DrawC
   }
 
 uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId) {
-  const bool bindlessSys = Gothic::inst().options().doBindless;
+  const bool bindlessSys = Gothic::inst().options().doBindless && !opengothic_debug_no_bindless();
   const bool bindless    = bindlessSys && !m.hasFrameAnimation();
 
   auto pMain    = Shaders::inst().materialPipeline(m, type, Shaders::T_Main,   bindless);
@@ -404,7 +405,8 @@ void DrawCommands::drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
   }
 
 void DrawCommands::drawHiZ(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
-  // return;
+  if(opengothic_debug_skip_hiz())
+    return;
   struct Push { uint32_t firstMeshlet; uint32_t meshletCount; } push = {};
 
   auto  viewId = SceneGlobals::V_HiZ;

@@ -255,6 +255,34 @@ void MainWindow::paintEvent(PaintEvent& event) {
   renderer.dbgDraw(p);
 
   const float scale = Gothic::interfaceScale(this);
+#if defined(__MOBILE_PLATFORM__) || defined(__ANDROID__)
+  {
+    char fpsT[64]={};
+    double f = fps.get();
+    double ms = f > 0.01 ? (1000.0 / f) : 0.0;
+    std::snprintf(fpsT, sizeof(fpsT), "FPS: %.1f (%.1f ms)", f, ms);
+
+    auto& fnt = Resources::font(scale);
+    int txtW = fnt.textSize(fpsT).w;
+    int txtH = fnt.pixelSize();
+    int padX = int(10 * scale);
+    int padY = int(4 * scale);
+    int bx   = (w() - (txtW + padX * 2)) / 2;
+    int by   = int(12 * scale);
+
+    p.setBrush(Color(0.0f, 0.0f, 0.0f, 0.55f));
+    p.drawRect(bx, by, txtW + padX * 2, txtH + padY * 2);
+
+    p.setPen(Pen(Color(0.85f, 0.90f, 0.95f, 0.40f)));
+    p.drawLine(bx, by, bx + txtW + padX * 2, by);
+    p.drawLine(bx, by + txtH + padY * 2, bx + txtW + padX * 2, by + txtH + padY * 2);
+    p.drawLine(bx, by, bx, by + txtH + padY * 2);
+    p.drawLine(bx + txtW + padX * 2, by, bx + txtW + padX * 2, by + txtH + padY * 2);
+
+    p.setBrush(Color(0.2f, 1.0f, 0.4f, 1.0f));
+    fnt.drawText(p, bx + padX, by + padY + txtH, fpsT);
+  }
+#else
   if(Gothic::inst().doFrate() && !Gothic::inst().isDesktop()) {
     char fpsT[64]={};
     std::snprintf(fpsT,sizeof(fpsT),"fps = %.2f",fps.get());
@@ -262,6 +290,7 @@ void MainWindow::paintEvent(PaintEvent& event) {
     auto& fnt = Resources::font(scale);
     fnt.drawText(p,5,fnt.pixelSize()+5,fpsT);
     }
+#endif
 
   if(Gothic::inst().doClock() && world!=nullptr) {
     if (!Gothic::inst().isDesktop()) {

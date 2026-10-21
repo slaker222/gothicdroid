@@ -28,9 +28,13 @@
 using namespace Tempest;
 using namespace FileUtil;
 
+#include "gapi/vulkan/vpipelinelogger.h"
+
 Gothic* Gothic::instance = nullptr;
 
 static bool hasMeshShader() {
+  if(opengothic_debug_no_multidraw())
+    return false;
   const auto& p = Resources::device().properties();
   if(p.meshlets.meshShader && p.meshlets.taskShader)
     return true;
@@ -38,6 +42,8 @@ static bool hasMeshShader() {
   }
 
 static bool hasBindless() {
+  if(opengothic_debug_no_bindless())
+    return false;
   const auto& p = Resources::device().properties();
   if(p.descriptors.nonUniformIndexing && p.descriptors.maxTexture>=65000 && p.descriptors.maxStorage>=65000)
     return true;

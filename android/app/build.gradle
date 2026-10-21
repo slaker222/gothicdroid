@@ -3,16 +3,23 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def versionFile = new File(project.rootDir, "version.txt")
+def appVersionName = versionFile.exists() ? versionFile.text.trim() : "0.01"
+
 android {
     namespace 'com.opengothic'
     compileSdk 34
+
+    buildFeatures {
+        buildConfig true
+    }
 
     defaultConfig {
         applicationId "com.opengothic"
         minSdk 29
         targetSdk 34
         versionCode 1
-        versionName "1.0"
+        versionName appVersionName
 
         ndk {
             abiFilters "arm64-v8a"

@@ -114,14 +114,18 @@ struct Varyings {
 layout(binding = L_Scene,    std140) uniform UboScene     { SceneDesc scene;       };
 
 #if (MESH_TYPE!=T_PFX)
+#if !defined(GL_FRAGMENT_SHADER)
 layout(binding = L_Instance, std430) readonly buffer Mem  { uint    instanceMem[]; };
 layout(binding = L_Payload,  std430) readonly buffer Pbo  { uvec4   payload[];     };
+#endif
 layout(binding = L_Bucket,   std140) readonly buffer Bbo  { Bucket  bucket[];      };
 #endif
 
 #if (MESH_TYPE!=T_PFX)
+#if !defined(GL_FRAGMENT_SHADER)
 layout(binding = L_Ibo,      std430) readonly buffer Ibo  { uint    indexes [];    } ibo[];
 layout(binding = L_Vbo,      std430) readonly buffer Vbo  { float   vertices[];    } vbo[];
+#endif
 #endif
 
 #if defined(GL_FRAGMENT_SHADER) && defined(MAT_UV)
@@ -150,7 +154,7 @@ layout(binding = L_VsmPages,   std430) readonly buffer Pages       { VsmHeader h
 layout(binding = L_VsmLights,  std430) readonly buffer Lights      { LightSource lights[]; };
 #endif
 
-#if (MESH_TYPE!=T_PFX)
+#if (MESH_TYPE!=T_PFX) && !defined(GL_FRAGMENT_SHADER)
 mat4 pullMatrix(uint i) {
   i *= 16;
   mat4 ret;

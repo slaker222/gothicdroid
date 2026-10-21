@@ -25,6 +25,8 @@ if(NOT GLSLANGVALIDATOR)
   message(FATAL_ERROR "glslangValidator required")
 endif()
 
+find_program(SPIRV_OPT spirv-opt)
+
 function(add_shader OUTPUT SOURCE)
   set(OUTPUT_FILE "${PROJECT_BINARY_DIR}/sprv/${OUTPUT}.sprv")
   set(SOURCE_FILE "${CMAKE_SOURCE_DIR}/shader/${SOURCE}")
@@ -59,16 +61,25 @@ function(add_shader OUTPUT SOURCE)
   # debug info in shaders
   if(${CMAKE_BUILD_TYPE} MATCHES "Debug")
     list(APPEND VARS "-g")
-  else()
-    list(APPEND VARS "-g")
   endif()
 
-  add_custom_command(
-    OUTPUT     ${OUTPUT_FILE}
-    DEPENDS    ${SOURCE_FILE} ${GLSL_SOURCES}
-    COMMAND    ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/sprv/"
-    COMMAND    ${GLSLANGVALIDATOR} -V ${VARS} -I"${CMAKE_SOURCE_DIR}/shader" "${SOURCE_FILE}" -o ${OUTPUT_FILE}
-    )
+  if(SPIRV_OPT AND NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
+    add_custom_command(
+      OUTPUT     ${OUTPUT_FILE}
+      DEPENDS    ${SOURCE_FILE} ${GLSL_SOURCES}
+      COMMAND    ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/sprv/"
+      COMMAND    ${GLSLANGVALIDATOR} -V ${VARS} -I"${CMAKE_SOURCE_DIR}/shader" "${SOURCE_FILE}" -o "${OUTPUT_FILE}.tmp"
+      COMMAND    ${SPIRV_OPT} -O "${OUTPUT_FILE}.tmp" -o "${OUTPUT_FILE}"
+      COMMAND    ${CMAKE_COMMAND} -E remove "${OUTPUT_FILE}.tmp"
+      )
+  else()
+    add_custom_command(
+      OUTPUT     ${OUTPUT_FILE}
+      DEPENDS    ${SOURCE_FILE} ${GLSL_SOURCES}
+      COMMAND    ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/sprv/"
+      COMMAND    ${GLSLANGVALIDATOR} -V ${VARS} -I"${CMAKE_SOURCE_DIR}/shader" "${SOURCE_FILE}" -o ${OUTPUT_FILE}
+      )
+  endif()
 endfunction(add_shader)
 
 # Ubershader flags:

@@ -10,7 +10,7 @@ if [ -d "/home/alex/android-sdk/ndk/27.0.12077973" ]; then
   export ANDROID_NDK_ROOT="/home/alex/android-sdk/ndk/27.0.12077973"
 fi
 export JAVA_HOME="${JAVA_HOME:-/home/alex/.jdks/jdk-17.0.10+7}"
-export PATH="${PROJECT_ROOT}/tools/bin:${ANDROID_SDK_ROOT}/cmake/3.22.1/bin:${JAVA_HOME}/bin:${PATH}"
+export PATH="${PROJECT_ROOT}/tools/bin:${ANDROID_NDK_ROOT}/shader-tools/linux-x86_64:${ANDROID_SDK_ROOT}/cmake/3.22.1/bin:${JAVA_HOME}/bin:${PATH}"
 
 BUILD_DIR="${PROJECT_ROOT}/build-android-arm64"
 GLSLANG="${PROJECT_ROOT}/tools/bin/glslangValidator"
@@ -53,10 +53,29 @@ cp "${BUILD_DIR}/opengothic/libopengothic.so" "${JNILIBS_DIR}/libopengothic.so"
 cp "${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "${JNILIBS_DIR}/libc++_shared.so"
 
 echo "=== Сборка APK (Gradle assembleDebug) ==="
+VERSION_FILE="${PROJECT_ROOT}/android/version.txt"
+if [ ! -f "${VERSION_FILE}" ]; then
+  echo "0.01" > "${VERSION_FILE}"
+fi
+CURRENT_VER=$(cat "${VERSION_FILE}" | tr -d '[:space:]')
+echo "Версия билда: ${CURRENT_VER}"
+
 cd "${PROJECT_ROOT}/android"
 ./gradlew assembleDebug
 
+# Повышаем версию для следующей сборки
+NEXT_VER=$(python3 -c "
+v = '${CURRENT_VER}'
+parts = v.split('.')
+if len(parts) == 2:
+    print(f'{parts[0]}.{int(parts[1])+1:02d}')
+else:
+    print(f'{float(v)+0.01:.2f}')
+")
+echo "${NEXT_VER}" > "${VERSION_FILE}"
+
 APK_PATH="${PROJECT_ROOT}/android/app/build/outputs/apk/debug/app-debug.apk"
-echo "=== Сборка APK успешно завершена ==="
+echo "=== Сборка APK (${CURRENT_VER}) успешно завершена ==="
 ls -lh "${APK_PATH}"
 echo "APK готов: ${APK_PATH}"
+echo "Следующий билд будет версии: ${NEXT_VER}"

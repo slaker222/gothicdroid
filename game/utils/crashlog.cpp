@@ -20,6 +20,12 @@
 #include <cxxabi.h>   // __cxa_demangle
 #endif
 
+#if defined(__ANDROID__)
+#include <unwind.h>
+#include <dlfcn.h>
+#include <cxxabi.h>
+#endif
+
 #if defined(__WINDOWS__)
 #include <dbg/frames.hpp>
 #include <dbg/symbols.hpp>
@@ -136,20 +142,29 @@ void CrashLog::dumpStack(const char *sig, const char *extGpuLog) {
 #elif defined(__WINDOWS__)
   traceback.collect(0);
   traceback.log(db, std::cout);
+#elif defined(__ANDROID__)
+  tracebackAndroid(std::cout);
 #elif defined(__LINUX__) || defined(__APPLE__)
   tracebackLinux(std::cout);
 #endif
   std::cout << std::endl;
 
-  std::ofstream fout("crash.log");
+#if defined(__ANDROID__)
+  const char* crashFilePath = "/sdcard/Gothic2/crash.log";
+#else
+  const char* crashFilePath = "crash.log";
+#endif
+  std::ofstream fout(crashFilePath);
   fout.setf(std::ios::unitbuf);
   fout << "---crashlog(" <<  sig << ")---" << std::endl;
   writeSysInfo(fout);
-  tracebackGpu(std::cout, extGpuLog);
+  tracebackGpu(fout, extGpuLog);
 #if defined(__cpp_lib_stacktrace)
   tracebackStd(fout);
 #elif defined(__WINDOWS__)
   traceback.log(db, fout);
+#elif defined(__ANDROID__)
+  tracebackAndroid(fout);
 #elif defined(__LINUX__) || defined(__APPLE__)
   tracebackLinux(fout);
 #endif
@@ -199,6 +214,51 @@ void CrashLog::tracebackLinux(std::ostream &out) {
       }
     free(symbols);
     }
+#endif
+  }
+
+void CrashLog::tracebackAndroid(std::ostream& out) {
+#if defined(__ANDROID__)
+  struct AndroidBacktraceState {
+    void** current;
+    void** end;
+  };
+
+  auto unwindCallback = [](struct _Unwind_Context* context, void* arg) -> _Unwind_Reason_Code {
+    auto* state = static_cast<AndroidBacktraceState*>(arg);
+    uintptr_t pc = _Unwind_GetIP(context);
+    if(pc) {
+      if(state->current == state->end)
+        return _URC_END_OF_STACK;
+      *state->current++ = reinterpret_cast<void*>(pc);
+    }
+    return _URC_NO_REASON;
+  };
+
+  void* stack[64] = {};
+  AndroidBacktraceState state = {stack, stack + 64};
+  _Unwind_Backtrace(unwindCallback, &state);
+  size_t count = static_cast<size_t>(state.current - stack);
+
+  size_t skip = 3;
+  for(size_t i = skip; i < count; ++i) {
+    Dl_info info = {};
+    if(dladdr(stack[i], &info) && info.dli_sname) {
+      int status = -1;
+      char* demangled = abi::__cxa_demangle(info.dli_sname, nullptr, nullptr, &status);
+      const char* name = (status == 0 && demangled) ? demangled : info.dli_sname;
+      const char* fname = info.dli_fname ? info.dli_fname : "lib";
+      out << "#" << (i - skip + 1) << " " << stack[i] << " in " << fname << " : " << name << std::endl;
+      if(demangled)
+        free(demangled);
+    } else if(info.dli_fname) {
+      out << "#" << (i - skip + 1) << " " << stack[i] << " in " << info.dli_fname << std::endl;
+    } else {
+      out << "#" << (i - skip + 1) << " " << stack[i] << std::endl;
+    }
+  }
+#else
+  (void)out;
 #endif
   }
 

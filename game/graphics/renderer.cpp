@@ -10,6 +10,7 @@
 #include "ui/videowidget.h"
 #include "camera.h"
 #include "gothic.h"
+#include "gapi/vulkan/vpipelinelogger.h"
 #include "utils/string_frm.h"
 
 using namespace Tempest;
@@ -100,6 +101,7 @@ Renderer::Renderer(Tempest::Swapchain& swapchain)
   sky.irradianceLut = device.image2d(TextureFormat::RGBA32F, 3,2);
 
   setupSettings();
+  shaders.prewarmAll();
   }
 
 Renderer::~Renderer() {
@@ -959,12 +961,16 @@ void Renderer::drawRtsmDbg(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   }
 
 void Renderer::drawHiZ(Encoder<CommandBuffer>& cmd, WorldView& view) {
+  if(opengothic_debug_skip_hiz())
+    return;
   cmd.setDebugMarker("HiZ-occluders");
   cmd.setFramebuffer({}, {zbuffer, 1.f, Tempest::Preserve});
   view.drawHiZ(cmd);
   }
 
 void Renderer::buildHiZ(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
+  if(opengothic_debug_skip_hiz())
+    return;
   assert(hiz.hiZ.w()<=128 && hiz.hiZ.h()<=128); // shader limitation
 
   cmd.setDebugMarker("HiZ-mip");
@@ -1601,6 +1607,8 @@ void Renderer::drawUnderwater(Encoder<CommandBuffer>& cmd, const WorldView& wvie
   }
 
 void Renderer::drawShadowMap(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView& view) {
+  if(opengothic_debug_skip_shadows())
+    return;
   for(uint8_t i=0; i<Resources::ShadowLayers; ++i) {
     if(shadowMap[i].isEmpty())
       continue;

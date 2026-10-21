@@ -12,6 +12,14 @@
 
 using namespace Tempest;
 
+extern "C" {
+int  opengothic_debug_no_atest_depth();
+int  opengothic_debug_prewarm();
+int  opengothic_prewarm_check_crashed(const char* key);
+void opengothic_prewarm_begin_attempt(const char* key);
+void opengothic_prewarm_end_attempt(const char* key, int ok);
+}
+
 Shaders* Shaders::instance = nullptr;
 
 Shaders::Shaders() {
@@ -441,7 +449,7 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
       typeVsM = "";
       typeFsM = "_g";
       typeVsD = "_d";
-      typeFsD = "_d";
+      typeFsD = ""; // No fragment shader needed for solid depth/shadow passes!
       typeVsV = "_v";
       typeFsV = "_v";
       if(trivial)
@@ -450,8 +458,10 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
     case Material::AlphaTest:
       typeVsM = "";
       typeFsM = "_g_at";
-      typeVsD = "_d_at";
-      typeFsD = "_d_at";
+      // TODO(Adreno): On Adreno 6xx drivers, depth-only alpha-test crashes LLVM backend (vkCreateGraphicsPipelines).
+      // When bypassing alpha-test for depth prepass, both VS and FS must use solid depth variants ("_d" without varyings, and "" FS).
+      typeVsD = opengothic_debug_no_atest_depth() ? "_d" : "_d_at";
+      typeFsD = opengothic_debug_no_atest_depth() ? "" : "_d_at";
       typeVsV = "_v_at";
       typeFsV = "_v_at";
       break;
@@ -499,6 +509,9 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
   if(typeVs==nullptr || typeFs==nullptr)
     return nullptr;
 
+  if(t==DrawCommands::Pfx && (alpha==Material::Water || alpha==Material::Ghost))
+    return nullptr;
+
   const char* bindless = bl ? "_bindless" : "_slot";
 
   materials.emplace_front();
@@ -510,41 +523,56 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
   b.trivial      = trivial;
 
   auto& device = Resources::device();
+  const bool hasFs = (typeFs!=nullptr && typeFs[0]!='\0');
+
   if(mat.isTesselated() && device.properties().tesselationShader && t==DrawCommands::Landscape && true) {
     auto shVs = GothicShader::get(string_frm("main_", vsTok, typeVs, bindless, ".vert.sprv"));
     auto shTc = GothicShader::get(string_frm("main_", vsTok, typeVs, bindless, ".tesc.sprv"));
     auto shTe = GothicShader::get(string_frm("main_", vsTok, typeVs, bindless, ".tese.sprv"));
-    auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, bindless, ".frag.sprv"));
 
     auto vs = device.shader(shVs.data,shVs.len);
     auto tc = device.shader(shTc.data,shTc.len);
     auto te = device.shader(shTe.data,shTe.len);
-    auto fs = device.shader(shFs.data,shFs.len);
-    b.pipeline = device.pipeline(Triangles, state, vs, tc, te, fs);
+    if(hasFs) {
+      auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, bindless, ".frag.sprv"));
+      auto fs = device.shader(shFs.data,shFs.len);
+      b.pipeline = device.pipeline(Triangles, state, vs, tc, te, fs);
+      } else {
+      b.pipeline = device.pipeline(Triangles, state, vs, tc, te, Shader());
+      }
     }
   else if(Gothic::options().doMeshShading && t!=DrawCommands::Pfx) {
     auto shMs = GothicShader::get(string_frm("main_", vsTok, typeVs, bindless, ".mesh.sprv"));
-    auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, bindless, ".frag.sprv"));
-
     auto ms = device.shader(shMs.data,shMs.len);
-    auto fs = device.shader(shFs.data,shFs.len);
-    b.pipeline = device.pipeline(state, Shader(), ms, fs);
+    if(hasFs) {
+      auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, bindless, ".frag.sprv"));
+      auto fs = device.shader(shFs.data,shFs.len);
+      b.pipeline = device.pipeline(state, Shader(), ms, fs);
+      } else {
+      b.pipeline = device.pipeline(state, Shader(), ms, Shader());
+      }
     }
   else if(t!=DrawCommands::Pfx) {
     auto shVs = GothicShader::get(string_frm("main_", vsTok, typeVs, bindless, ".vert.sprv"));
-    auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, bindless, ".frag.sprv"));
-
     auto vs = device.shader(shVs.data,shVs.len);
-    auto fs = device.shader(shFs.data,shFs.len);
-    b.pipeline = device.pipeline(Triangles, state, vs, fs);
+    if(hasFs) {
+      auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, bindless, ".frag.sprv"));
+      auto fs = device.shader(shFs.data,shFs.len);
+      b.pipeline = device.pipeline(Triangles, state, vs, fs);
+      } else {
+      b.pipeline = device.pipeline(Triangles, state, vs, Shader());
+      }
     }
   else {
     auto shVs = GothicShader::get(string_frm("main_", vsTok, typeVs, ".vert.sprv"));
-    auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, ".frag.sprv"));
-
     auto vs = device.shader(shVs.data,shVs.len);
-    auto fs = device.shader(shFs.data,shFs.len);
-    b.pipeline = device.pipeline(Triangles, state, vs, fs);
+    if(hasFs) {
+      auto shFs = GothicShader::get(string_frm("main_", fsTok, typeFs, ".frag.sprv"));
+      auto fs = device.shader(shFs.data,shFs.len);
+      b.pipeline = device.pipeline(Triangles, state, vs, fs);
+      } else {
+      b.pipeline = device.pipeline(Triangles, state, vs, Shader());
+      }
     }
 
   return &b.pipeline;
@@ -658,3 +686,135 @@ RenderPipeline Shaders::ambientLightShader(std::string_view name) {
 
   return device.pipeline(Triangles, state, vs, fs);
   }
+
+void Shaders::prewarmAll() {
+  if(!opengothic_debug_prewarm())
+    return;
+
+  Log::i("Starting graphics pipeline prewarm...");
+  auto startTime = Application::tickCount();
+
+  waitCompiler();
+
+  auto prewarmPipe = [](RenderPipeline& pipe, const char* name, uint32_t colorAtts, bool hasDepth) {
+    if(pipe.isEmpty())
+      return;
+    if(opengothic_prewarm_check_crashed(name)) {
+      Log::i("[PREWARM SKIP CRASHED] ", name);
+      return;
+    }
+    Log::i("[PREWARM] Testing: ", name);
+    opengothic_prewarm_begin_attempt(name);
+    pipe.prewarm(colorAtts, hasDepth);
+    opengothic_prewarm_end_attempt(name, 1);
+  };
+
+  // 1. Post-process & full-screen passes (1 color attachment, no depth)
+  prewarmPipe(copy, "Post_copy", 1, false);
+  prewarmPipe(stash, "Post_stash", 1, false);
+  prewarmPipe(directLight, "Post_directLight", 1, false);
+  prewarmPipe(directLightSh, "Post_directLightSh", 1, false);
+  if(!directLightRq.isEmpty())
+    prewarmPipe(directLightRq, "Post_directLightRq", 1, false);
+  prewarmPipe(ambientLight, "Post_ambientLight", 1, false);
+  prewarmPipe(ambientLightSsao, "Post_ambientLightSsao", 1, false);
+  prewarmPipe(skyTransmittance, "Post_skyTransmittance", 1, false);
+  prewarmPipe(skyMultiScattering, "Post_skyMultiScattering", 1, false);
+  prewarmPipe(skyViewLut, "Post_skyViewLut", 1, false);
+  prewarmPipe(skyViewCldLut, "Post_skyViewCldLut", 1, false);
+  prewarmPipe(sky, "Post_sky", 1, false);
+  prewarmPipe(skySep, "Post_skySep", 1, false);
+  prewarmPipe(fog, "Post_fog", 1, false);
+  prewarmPipe(fog3dHQ, "Post_fog3dHQ", 1, false);
+  prewarmPipe(skyPathTrace, "Post_skyPathTrace", 1, false);
+  prewarmPipe(underwaterT, "Post_underwaterT", 1, false);
+  prewarmPipe(underwaterS, "Post_underwaterS", 1, false);
+  prewarmPipe(waterReflection, "Post_waterReflection", 1, false);
+  prewarmPipe(waterReflectionSSR, "Post_waterReflectionSSR", 1, false);
+  prewarmPipe(tonemapping, "Post_tonemapping", 1, false);
+  prewarmPipe(tonemappingUpscale, "Post_tonemappingUpscale", 1, false);
+  prewarmPipe(inventory, "Post_inventory", 1, false);
+  prewarmPipe(bink, "Post_bink", 1, false);
+
+  // 2. Material combinations across passes
+  static const DrawCommands::Type meshTypes[] = {
+    DrawCommands::Landscape,
+    DrawCommands::Movable,
+    DrawCommands::Animated,
+    DrawCommands::Morph,
+    DrawCommands::Pfx
+  };
+
+  static const Material::AlphaFunc alphaFuncs[] = {
+    Material::Solid,
+    Material::AlphaTest,
+    Material::Transparent,
+    Material::AdditiveLight,
+    Material::Multiply,
+    Material::Water,
+    Material::Ghost
+  };
+
+  static const PipelineType passTypes[] = {
+    PipelineType::T_Depth,
+    PipelineType::T_Shadow,
+    PipelineType::T_Main
+  };
+
+  const bool bindlessOpts[] = { false };
+
+  for(auto t : meshTypes) {
+    for(auto a : alphaFuncs) {
+      for(auto pt : passTypes) {
+        for(bool bl : bindlessOpts) {
+          Material mat;
+          mat.alpha = a;
+          try {
+            const auto* pipe = materialPipeline(mat, t, pt, bl);
+            if(!pipe || pipe->isEmpty())
+              continue;
+
+            const char* tStr = (t == DrawCommands::Landscape) ? "lnd" :
+                               (t == DrawCommands::Movable) ? "obj" :
+                               (t == DrawCommands::Animated) ? "ani" :
+                               (t == DrawCommands::Morph) ? "mph" : "pfx";
+            const char* aStr = (a == Material::Solid) ? "Solid" :
+                               (a == Material::AlphaTest) ? "AlphaTest" :
+                               (a == Material::Transparent) ? "Transparent" :
+                               (a == Material::AdditiveLight) ? "AdditiveLight" :
+                               (a == Material::Multiply) ? "Multiply" :
+                               (a == Material::Water) ? "Water" : "Ghost";
+            const char* pStr = (pt == PipelineType::T_Depth) ? "Depth" :
+                               (pt == PipelineType::T_Shadow) ? "Shadow" : "Main";
+
+            char key[128];
+            std::snprintf(key, sizeof(key), "Mat_%s_%s_%s_%s", tStr, aStr, pStr, bl ? "bindless" : "slot");
+
+            uint32_t colorAtts = 0;
+            bool hasDepth = true;
+            if(pt == PipelineType::T_Main) {
+              colorAtts = (a == Material::Water) ? 3 : 2;
+            }
+
+            if(opengothic_prewarm_check_crashed(key)) {
+              Log::i("[PREWARM SKIP CRASHED] ", key);
+              continue;
+            }
+
+            Log::i("[PREWARM] Testing: ", key);
+            opengothic_prewarm_begin_attempt(key);
+            const_cast<RenderPipeline*>(pipe)->prewarm(colorAtts, hasDepth);
+            opengothic_prewarm_end_attempt(key, 1);
+          } catch(const std::exception& e) {
+            Log::e("[PREWARM EXCEPTION] ", e.what());
+          } catch(...) {
+            Log::e("[PREWARM UNKNOWN EXCEPTION]");
+          }
+        }
+      }
+    }
+  }
+
+  auto totalTime = Application::tickCount() - startTime;
+  Log::i("Graphics pipeline prewarm finished in ", totalTime, " ms");
+}

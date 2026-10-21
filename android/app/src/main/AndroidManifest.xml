@@ -17,8 +17,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:screenOrientation="sensorLandscape"
-            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
+            android:screenOrientation="unspecified"
             android:theme="@style/Theme.OpenGothic">
 
             <intent-filter>
@@ -26,6 +25,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <activity
+            android:name=".GameActivity"
+            android:exported="true"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
+            android:theme="@style/Theme.OpenGothic.Fullscreen" />
     </application>
 
 </manifest>

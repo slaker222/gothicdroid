@@ -1,0 +1,166 @@
+package com.opengothic
+
+import android.content.pm.ActivityInfo
+import android.os.Build
+import android.os.Bundle
+import android.util.Log
+import android.view.*
+import androidx.appcompat.app.AppCompatActivity
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
+import java.io.File
+
+class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
+
+    companion object {
+        private const val TAG = "OpenGothic"
+        const val EXTRA_GAME_DIR = "extra_game_dir"
+
+        init {
+            try {
+                System.loadLibrary("c++_shared")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.w(TAG, "c++_shared: ${e.message}")
+            }
+            try {
+                System.loadLibrary("opengothic")
+            } catch (e: UnsatisfiedLinkError) {
+                Log.e(TAG, "Failed to load opengothic: ${e.message}")
+            }
+        }
+    }
+
+    private external fun nativeSetSurface(surface: Surface, gameDir: String)
+    private external fun nativeSurfaceChanged(width: Int, height: Int)
+    private external fun nativeDestroySurface()
+    private external fun nativeOnTouch(action: Int, x: Float, y: Float, id: Int)
+    private external fun nativeOnKey(action: Int, keyCode: Int)
+    private external fun nativeIsGameRunning(): Boolean
+    private external fun nativeGetLastLog(): String
+
+    private lateinit var surfaceView: SurfaceView
+    private var surfaceHolder: SurfaceHolder? = null
+    private var gameDir: String = "/sdcard/Gothic2"
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        Log.i(TAG, "GameActivity onCreate")
+
+        requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.attributes.layoutInDisplayCutoutMode =
+                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+        }
+        hideSystemBars()
+
+        gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
+
+        // Global uncaught exception logger
+        val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
+        Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
+            val crashMsg = "=== JAVA CRASH IN GAMEACTIVITY ===\n" +
+                    "Thread: ${thread.name}\n" +
+                    Log.getStackTraceString(throwable)
+            Log.e(TAG, crashMsg)
+            try {
+                val f = File(filesDir, "last_crash.txt")
+                f.writeText(crashMsg)
+                val sdF = File(gameDir, "crash.log")
+                sdF.writeText(crashMsg)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to write crash log: ${e.message}")
+            }
+            defaultHandler?.uncaughtException(thread, throwable)
+        }
+
+        surfaceView = SurfaceView(this)
+        surfaceView.holder.addCallback(this)
+        surfaceView.isFocusable = true
+        surfaceView.isFocusableInTouchMode = true
+        surfaceView.requestFocus()
+
+        surfaceView.setOnTouchListener { _, event ->
+            val action = event.actionMasked
+            when (action) {
+                MotionEvent.ACTION_MOVE -> {
+                    for (i in 0 until event.pointerCount) {
+                        nativeOnTouch(action, event.getX(i), event.getY(i), event.getPointerId(i))
+                    }
+                }
+                MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
+                    val idx = event.actionIndex
+                    nativeOnTouch(MotionEvent.ACTION_DOWN, event.getX(idx), event.getY(idx), event.getPointerId(idx))
+                }
+                MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
+                    val idx = event.actionIndex
+                    nativeOnTouch(MotionEvent.ACTION_UP, event.getX(idx), event.getY(idx), event.getPointerId(idx))
+                }
+                MotionEvent.ACTION_CANCEL -> {
+                    val idx = event.actionIndex
+                    nativeOnTouch(MotionEvent.ACTION_UP, event.getX(idx), event.getY(idx), event.getPointerId(idx))
+                }
+            }
+            true
+        }
+
+        setContentView(surfaceView)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        hideSystemBars()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            hideSystemBars()
+        }
+    }
+
+    private fun hideSystemBars() {
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        val controller = WindowInsetsControllerCompat(window, window.decorView)
+        controller.hide(WindowInsetsCompat.Type.systemBars())
+        controller.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    }
+
+    override fun surfaceCreated(holder: SurfaceHolder) {
+        Log.i(TAG, "GameActivity surfaceCreated: valid=${holder.surface.isValid}")
+        surfaceHolder = holder
+        nativeSetSurface(holder.surface, gameDir)
+    }
+
+    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
+        Log.i(TAG, "GameActivity surfaceChanged: ${width}x${height}, format=$format")
+        nativeSurfaceChanged(width, height)
+    }
+
+    override fun surfaceDestroyed(holder: SurfaceHolder) {
+        Log.i(TAG, "GameActivity surfaceDestroyed")
+        nativeDestroySurface()
+        surfaceHolder = null
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            nativeOnKey(0, keyCode)
+            return true
+        }
+        nativeOnKey(0, keyCode)
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            nativeOnKey(1, keyCode)
+            return true
+        }
+        nativeOnKey(1, keyCode)
+        return super.onKeyUp(keyCode, event)
+    }
+}

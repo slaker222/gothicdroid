@@ -27,7 +27,18 @@ out gl_PerVertex {
   };
 #if defined(MAT_VARYINGS)
 layout(location = 0) out flat uint bucketId;
-layout(location = 1) out Varyings  shOut;
+#if defined(MAT_UV)
+layout(location = 1) out vec2 shOut_uv;
+#endif
+#if defined(MAT_NORMAL)
+layout(location = 2) out vec3 shOut_normal;
+#endif
+#if defined(MAT_POSITION)
+layout(location = 3) out vec3 shOut_pos;
+#endif
+#if defined(MAT_COLOR)
+layout(location = 4) out vec4 shOut_color;
+#endif
 #endif
 
 #if DEBUG_DRAW
@@ -177,6 +188,17 @@ void main() {
   gl_Position = processVertex(var, vert, gl_InstanceIndex, gl_VertexIndex);
 #if defined(MAT_VARYINGS)
   bucketId = 0;
-  shOut    = var;
+#if defined(MAT_UV)
+  shOut_uv     = var.uv;
+#endif
+#if defined(MAT_NORMAL)
+  shOut_normal = var.normal;
+#endif
+#if defined(MAT_POSITION)
+  shOut_pos    = var.pos;
+#endif
+#if defined(MAT_COLOR)
+  shOut_color  = var.color;
+#endif
 #endif
   }

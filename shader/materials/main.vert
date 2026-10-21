@@ -46,16 +46,38 @@ out gl_MeshPerVertexEXT {
 
 #if defined(GL_VERTEX_SHADER) && defined(MAT_VARYINGS)
 layout(location = 0) out flat uint bucketIdOut;
-layout(location = 1) out Varyings  shOut;
+#if defined(MAT_UV)
+layout(location = 1) out vec2 shOut_uv;
+#endif
+#if defined(MAT_NORMAL)
+layout(location = 2) out vec3 shOut_normal;
+#endif
+#if defined(MAT_POSITION)
+layout(location = 3) out vec3 shOut_pos;
+#endif
+#if defined(MAT_COLOR)
+layout(location = 4) out vec4 shOut_color;
+#endif
 #elif defined(MAT_VARYINGS)
-layout(location = 0) out flat uint bucketIdOut[]; //TODO: per-primitive
-layout(location = 1) out Varyings  shOut[];
+layout(location = 0) out flat uint bucketIdOut[];
+#if defined(MAT_UV)
+layout(location = 1) out vec2 shOut_uv[];
+#endif
+#if defined(MAT_NORMAL)
+layout(location = 2) out vec3 shOut_normal[];
+#endif
+#if defined(MAT_POSITION)
+layout(location = 3) out vec3 shOut_pos[];
+#endif
+#if defined(MAT_COLOR)
+layout(location = 4) out vec4 shOut_color[];
+#endif
 #endif
 
 #if defined(GL_VERTEX_SHADER) && defined(VIRTUAL_SHADOW)
-layout(location = 3) out flat uint vsmMipIdOut;
+layout(location = 5) out flat uint vsmMipIdOut;
 #elif defined(VIRTUAL_SHADOW)
-layout(location = 3) out flat uint vsmMipIdOut[];
+layout(location = 5) out flat uint vsmMipIdOut[];
 #endif
 
 #if defined(VIRTUAL_SHADOW)
@@ -221,8 +243,17 @@ void vertexShader(const uvec4 task) {
   uint idx = processPrimitive(meshletId, bucketId, laneID)[gl_VertexIndex%3];
   vec4 pos = processVertex(var, instanceId, meshletId, bucketId, idx);
   gl_Position = pos;
-#if defined(MAT_VARYINGS)
-  shOut       = var;
+#if defined(MAT_UV)
+  shOut_uv     = var.uv;
+#endif
+#if defined(MAT_NORMAL)
+  shOut_normal = var.normal;
+#endif
+#if defined(MAT_POSITION)
+  shOut_pos    = var.pos;
+#endif
+#if defined(MAT_COLOR)
+  shOut_color  = var.color;
 #endif
   }
 #else
@@ -251,28 +282,17 @@ void meshShader(const uvec4 task) {
     vec4 pos = processVertex(var, instanceId, meshletId, bucketId, laneID);
     gl_MeshVerticesEXT[laneID].gl_Position = pos;
 
-    /*
-        Workaround the AMD driver issue where assigning to a vec3 output results in a driver crash.
-        Here we unroll the shOut[laneID] = var assignment into individual fields and apply the workaround.
-        Once AMD fixes the issue the original code can be restored.
-        Original code: 
-            #if defined(MAT_VARYINGS)
-                shOut[laneID] = var;
-            #endif
-        Link to the discussion on AMD forums: https://community.amd.com/t5/newcomers-start-here/driver-crash-when-using-vk-ext-mesh-shader/m-p/667490
-        Link to the github issue: https://github.com/Try/OpenGothic/issues/577
-    */
 #if defined(MAT_COLOR)
-    shOut[laneID].color = var.color;
+    shOut_color[laneID]  = var.color;
 #endif
 #if defined(MAT_UV)
-    shOut[laneID].uv = var.uv;
+    shOut_uv[laneID]     = var.uv;
 #endif
 #if defined(MAT_POSITION)
-    shOut[laneID].pos.xyz = var.pos; // pos is vec3, applying the workaround
+    shOut_pos[laneID]    = var.pos;
 #endif
 #if defined(MAT_NORMAL)
-    shOut[laneID].normal.xyz = var.normal; // normal is vec3, applying the workaround
+    shOut_normal[laneID] = var.normal;
 #endif
     }
   }

@@ -73,6 +73,8 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
   }
 
 #if defined(__ANDROID__)
+extern void androidAppendLog(const char* text);
+
 class AndroidLogBuf : public std::streambuf {
   public:
     AndroidLogBuf(android_LogPriority prio, const char* tag) : prio(prio), tag(tag) {}
@@ -81,6 +83,7 @@ class AndroidLogBuf : public std::streambuf {
       if(c != EOF) {
         if(c == '\n') {
           __android_log_print(prio, tag, "%s", buf.c_str());
+          androidAppendLog(buf.c_str());
           buf.clear();
           } else {
           buf += static_cast<char>(c);
@@ -91,6 +94,7 @@ class AndroidLogBuf : public std::streambuf {
     int sync() override {
       if(!buf.empty()) {
         __android_log_print(prio, tag, "%s", buf.c_str());
+        androidAppendLog(buf.c_str());
         buf.clear();
         }
       return 0;

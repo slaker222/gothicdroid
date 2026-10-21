@@ -8,17 +8,46 @@
 #endif
 
 #include "materials_common.glsl"
+#if !defined(DEPTH_ONLY)
 #include "water/gerstner_wave.glsl"
 #include "lighting/shadow_sampling.glsl"
 #include "lighting/tonemapping.glsl"
+#endif
 
 #if defined(MAT_VARYINGS)
 layout(location = 0) in flat uint bucketId;
-layout(location = 1) in Varyings  shInp;
+#if defined(MAT_UV)
+layout(location = 1) in vec2 shInp_uv;
+#endif
+#if defined(MAT_NORMAL)
+layout(location = 2) in vec3 shInp_normal;
+#endif
+#if defined(MAT_POSITION)
+layout(location = 3) in vec3 shInp_pos;
+#endif
+#if defined(MAT_COLOR)
+layout(location = 4) in vec4 shInp_color;
+#endif
+
+Varyings shInp;
+void initVaryings() {
+#if defined(MAT_UV)
+  shInp.uv = shInp_uv;
+#endif
+#if defined(MAT_NORMAL)
+  shInp.normal = shInp_normal;
+#endif
+#if defined(MAT_POSITION)
+  shInp.pos = shInp_pos;
+#endif
+#if defined(MAT_COLOR)
+  shInp.color = shInp_color;
+#endif
+  }
 #endif
 
 #if defined(VIRTUAL_SHADOW)
-layout(location = 3) in flat uint vsmMipId;
+layout(location = 5) in flat uint vsmMipId;
 #endif
 
 #if DEBUG_DRAW
@@ -312,6 +341,9 @@ void mainWater(vec4 t) {
 #endif
 
 void main() {
+#if defined(MAT_VARYINGS)
+  initVaryings();
+#endif
 #if defined(MAT_UV)
   vec4 t = diffuseTex();
 #  if defined(ATEST)
