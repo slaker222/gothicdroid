@@ -374,11 +374,14 @@ Texture2d Resources::implLoadTextureUncached(std::string_view name, bool forceMi
       auto reader = entry->open_read();
       tex.load(reader.get());
 
-      if(tex.format() == zenkit::TextureFormat::DXT1 ||
-         tex.format() == zenkit::TextureFormat::DXT2 ||
-         tex.format() == zenkit::TextureFormat::DXT3 ||
-         tex.format() == zenkit::TextureFormat::DXT4 ||
-         tex.format() == zenkit::TextureFormat::DXT5) {
+      const bool isDxt = (tex.format() == zenkit::TextureFormat::DXT1 ||
+                          tex.format() == zenkit::TextureFormat::DXT2 ||
+                          tex.format() == zenkit::TextureFormat::DXT3 ||
+                          tex.format() == zenkit::TextureFormat::DXT4 ||
+                          tex.format() == zenkit::TextureFormat::DXT5);
+      const bool canDxt = dev.properties().hasSamplerFormat(TextureFormat::DXT1);
+
+      if(isDxt && canDxt) {
         auto dds = zenkit::to_dds(tex);
         auto ddsRead = zenkit::Read::from(dds);
 
@@ -389,7 +392,8 @@ Texture2d Resources::implLoadTextureUncached(std::string_view name, bool forceMi
         try {
           Tempest::Pixmap    pm(tex.width(), tex.height(), TextureFormat::RGBA8);
           std::memcpy(pm.data(), rgba.data(), rgba.size());
-          return dev.texture(pm);
+          const bool useMipmap = forceMips || (tex.mipmaps() > 1);
+          return dev.texture(pm, useMipmap);
           }
         catch (...) {
           }
