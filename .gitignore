@@ -26,5 +26,14 @@ out/*
 .vs/
 internal/
 
+# Android
+android/.gradle/
+android/app/build/
+android/local.properties
+android/app/src/main/jniLibs/
+tools/bin/
+build-android-arm64/
+
 #os
 .DS_Store
+
