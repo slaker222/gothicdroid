@@ -169,7 +169,7 @@ void CrashLog::tracebackStd(std::ostream &out) {
   }
 
 void CrashLog::tracebackLinux(std::ostream &out) {
-#if defined(__LINUX__) || defined(__APPLE__)
+#if (defined(__LINUX__) || defined(__APPLE__)) && !defined(__ANDROID__)
   // inspired by https://gist.github.com/fmela/591333/36faca4c2f68f7483cd0d3a357e8a8dd5f807edf (BSD)
   void *callstack[64] = {};
   char **symbols = nullptr;
