@@ -132,6 +132,7 @@ else()
 endif()
 add_subdirectory(lib/Tempest/Engine)
 include_directories(lib/Tempest/Engine/include)
+include_directories(lib/Tempest/Engine)
 target_link_libraries(${PROJECT_NAME} Tempest)
 
 # zip
