@@ -2,6 +2,11 @@
 #include <Tempest/Application>
 #include <Tempest/Log>
 
+#include <iostream>
+#if defined(__ANDROID__)
+#include <android/log.h>
+#endif
+
 #include <zenkit/Logger.hh>
 
 #include <Tempest/VulkanApi>
@@ -67,7 +72,44 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
 #endif
   }
 
-int main(int argc,const char** argv) {
+#if defined(__ANDROID__)
+class AndroidLogBuf : public std::streambuf {
+  public:
+    AndroidLogBuf(android_LogPriority prio, const char* tag) : prio(prio), tag(tag) {}
+  protected:
+    int_type overflow(int_type c) override {
+      if(c != EOF) {
+        if(c == '\n') {
+          __android_log_print(prio, tag, "%s", buf.c_str());
+          buf.clear();
+          } else {
+          buf += static_cast<char>(c);
+          }
+        }
+      return c;
+      }
+    int sync() override {
+      if(!buf.empty()) {
+        __android_log_print(prio, tag, "%s", buf.c_str());
+        buf.clear();
+        }
+      return 0;
+      }
+  private:
+    android_LogPriority prio;
+    const char*         tag;
+    std::string         buf;
+  };
+
+int opengothic_main(int argc, const char** argv);
+int opengothic_main(int argc, const char** argv) {
+  static AndroidLogBuf coutBuf(ANDROID_LOG_INFO,  "OpenGothic");
+  static AndroidLogBuf cerrBuf(ANDROID_LOG_ERROR, "OpenGothic");
+  std::cout.rdbuf(&coutBuf);
+  std::cerr.rdbuf(&cerrBuf);
+#else
+int main(int argc, const char** argv) {
+#endif
 #if defined(__IOS__)
   {
     auto appdir = InstallDetect::applicationSupportDirectory();
@@ -75,6 +117,7 @@ int main(int argc,const char** argv) {
   }
 #endif
 
+#if !defined(__ANDROID__)
   try {
     static Tempest::WFile logFile("log.txt");
     Tempest::Log::setOutputCallback([](Tempest::Log::Mode mode, const char* text) {
@@ -87,6 +130,7 @@ int main(int argc,const char** argv) {
   catch(...) {
     Tempest::Log::e("unable to setup logfile - fallback to console log");
     }
+#endif
   CrashLog::setup();
 
   zenkit::Logger::set(zenkit::LogLevel::INFO, [] (zenkit::LogLevel lvl, const char* cat, const char* message) {
