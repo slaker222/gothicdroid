@@ -102,7 +102,11 @@ class Renderer final {
     void toggleRtsm();
 
     struct Settings {
+#if defined(__ANDROID__)
+      const uint32_t shadowResolution   = 512;
+#else
       const uint32_t shadowResolution   = 2048;
+#endif
       bool           vsmEnabled         = false;
       bool           rtsmEnabled        = false;
       bool           swrEnabled         = false;

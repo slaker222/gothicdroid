@@ -174,6 +174,7 @@ class MainWindow : public Tempest::Window {
       uint64_t dt[10]={};
       double   get() const;
       void     push(uint64_t t);
+      void     clear();
       };
     Fps           fps;
     BenchmarkData benchmark;

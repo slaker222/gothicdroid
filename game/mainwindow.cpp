@@ -1222,18 +1222,21 @@ void MainWindow::render(){
     /*
       Note: game update goes first
       once player position is updated, animation bones(cameraBone in particular) can be updated
-      lastly - camera position
       */
+    auto t0 = Application::tickCount();
     const uint64_t dt = tick();
     updateAnimation(dt);
     tickCamera(dt);
+    auto tTick = Application::tickCount() - t0;
 
+    auto t1 = Application::tickCount();
     auto& sync = fence[cmdId];
     if(!sync.wait(0)) {
       // GPU rendering is not done, pass to next frame
       std::this_thread::yield();
       return;
       }
+    auto tWait = Application::tickCount() - t1;
     Resources::resetRecycled(cmdId);
 
     if(video.isActive()) {
@@ -1252,13 +1255,25 @@ void MainWindow::render(){
     uiMesh [cmdId].update(device,uiLayer);
     numMesh[cmdId].update(device,numOverlay);
 
+    auto t2 = Application::tickCount();
     CommandBuffer& cmd = commands[cmdId];
     {
     auto enc = cmd.startEncoding(device);
     renderer.draw(enc,cmdId,swapchain.currentImage(),uiMesh[cmdId],numMesh[cmdId],inventory,video);
     }
+    auto tDraw = Application::tickCount() - t2;
+
+    auto t3 = Application::tickCount();
     sync = device.submit(cmd);
+    auto tSub = Application::tickCount() - t3;
+
+    auto tGpuStart = Application::tickCount();
+    sync.wait();
+    auto tGpu = Application::tickCount() - tGpuStart;
+
+    auto t4 = Application::tickCount();
     device.present(swapchain);
+    auto tPres = Application::tickCount() - t4;
     cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
 
     auto t = Application::tickCount();
@@ -1273,6 +1288,11 @@ void MainWindow::render(){
       t += delay;
       }
     fps.push(t-time);
+
+    static uint32_t s_pCnt = 0;
+    if(++s_pCnt % 10 == 0) {
+      Log::i("[PERF] frame=", (t-time), "ms (tick=", tTick, " wait=", tWait, " draw=", tDraw, " sub=", tSub, " gpu=", tGpu, " pres=", tPres, ") fps=", fps.get());
+    }
     if(Gothic::inst().isBenchmarkMode() && Gothic::inst().world()!=nullptr && Gothic::inst().world()->currentCs()!=nullptr)
       benchmark.push(t-time);
     time = t;
@@ -1298,7 +1318,16 @@ double MainWindow::Fps::get() const {
   return double(fps)/100.0;
   }
 
+void MainWindow::Fps::clear() {
+  for(auto& i:dt)
+    i = 0;
+  }
+
 void MainWindow::Fps::push(uint64_t t) {
+  if(t > 150) {
+    clear();
+    return;
+    }
   for(size_t i=9;i>0;--i)
     dt[i]=dt[i-1];
   dt[0]=t;

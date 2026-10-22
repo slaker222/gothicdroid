@@ -1,5 +1,6 @@
 #include "renderer.h"
 
+#include <Tempest/Application>
 #include <Tempest/Color>
 #include <Tempest/Fence>
 #include <Tempest/Log>
@@ -180,6 +181,12 @@ void Renderer::setupSettings() {
   settings.zCloudShadowScale  = Gothic::settingsGetI("ENGINE","zCloudShadowScale") !=0;
   settings.zFogRadial         = Gothic::settingsGetI("RENDERER_D3D","zFogRadial")!=0;
 
+#if defined(__ANDROID__)
+  settings.zCloudShadowScale  = false;
+  settings.zFogRadial         = false;
+  settings.zEnvMappingEnabled = false; // Disable heavy SSR raymarching
+#endif
+
   settings.zVidBrightness     = Gothic::settingsGetF("VIDEO","zVidBrightness");
   settings.zVidContrast       = Gothic::settingsGetF("VIDEO","zVidContrast");
   settings.zVidGamma          = Gothic::settingsGetF("VIDEO","zVidGamma");
@@ -193,6 +200,11 @@ void Renderer::setupSettings() {
 
   auto prevVidResIndex = settings.vidResIndex;
   settings.vidResIndex = Gothic::inst().settingsGetF("INTERNAL","vidResIndex");
+#if defined(__ANDROID__)
+  if(settings.vidResIndex <= 2) {
+    settings.vidResIndex = 3; // 40% internal resolution (960x432) upscaled to native (2400x1080)
+  }
+#endif
   settings.aaEnabled = (Gothic::options().aaPreset>0) && (settings.vidResIndex==0);
 
   // direct lighting
@@ -221,8 +233,20 @@ void Renderer::setupSettings() {
     }
   resetSkyFog();
   resetShadowmap();
-
   prepareUniforms();
+
+  Log::i("RENDERER_SETTINGS: vidResIndex=", settings.vidResIndex,
+         " shadowResolution=", settings.shadowResolution,
+         " vsmEnabled=", settings.vsmEnabled,
+         " rtsmEnabled=", settings.rtsmEnabled,
+         " giEnabled=", settings.giEnabled,
+         " swrtEnabled=", settings.swrtEnabled,
+         " aaEnabled=", settings.aaEnabled,
+         " fogQuality=", int(sky.quality),
+         " zCloudShadowScale=", settings.zCloudShadowScale,
+         " zFogRadial=", settings.zFogRadial,
+         " w=", swapchain.w(), " h=", swapchain.h(),
+         " internalRes=", internalResolution().w, "x", internalResolution().h);
   }
 
 void Renderer::toggleGi() {
@@ -433,7 +457,11 @@ void Renderer::resetSkyFog() {
   switch(sky.quality) {
     case None:
     case VolumetricLQ:
+#if defined(__ANDROID__)
+      sky.fogLut3D     = device.image3d(sky.lutRGBAFormat, 80, 45, 16);
+#else
       sky.fogLut3D     = device.image3d(sky.lutRGBAFormat, 160, 90, 64);
+#endif
       sky.occlusionLut = StorageImage();
       break;
     case VolumetricHQ:
@@ -603,18 +631,27 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   wview->preFrameUpdate(*camera,Gothic::inst().world()->tickCount(),fId);
   wview->prepareGlobals(cmd,fId);
 
+  auto t0 = Application::tickCount();
   wview->visibilityPass(cmd, 0);
   prepareSky(cmd,*wview);
+  auto tVis0 = Application::tickCount() - t0;
 
+  auto t1 = Application::tickCount();
   drawHiZ (cmd, *wview);
   buildHiZ(cmd);
+  auto tHiZ = Application::tickCount() - t1;
 
+  auto t2 = Application::tickCount();
   wview->visibilityPass(cmd, 1);
   drawGBuffer(cmd,fId,*wview);
+  auto tGBuf = Application::tickCount() - t2;
 
+  auto t3 = Application::tickCount();
   drawShadowMap(cmd,fId,*wview);
   prepareEpipolar(cmd, *wview);
+  auto tShadow = Application::tickCount() - t3;
 
+  auto t4 = Application::tickCount();
   drawVsm(cmd, *wview);
   drawSwr(cmd, *wview);
   drawRtsm(cmd, *wview);
@@ -633,7 +670,9 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   drawAmbient(cmd,*wview);
   drawLights(cmd,*wview);
   drawSky(cmd,*wview);
+  auto tLight = Application::tickCount() - t4;
 
+  auto t5 = Application::tickCount();
   stashSceneAux(cmd);
 
   drawGWater(cmd, *wview);
@@ -659,7 +698,9 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     cmd.setDebugMarker("Fog");
     drawFog(cmd, *wview);
     }
+  auto tTrans = Application::tickCount() - t5;
 
+  auto t6 = Application::tickCount();
   if(settings.aaEnabled) {
     cmd.setDebugMarker("CMAA2 & Tonemapping");
     drawCMAA2(result, cmd, *wview);
@@ -667,6 +708,12 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     cmd.setDebugMarker("Tonemapping");
     drawTonemapping(result, cmd, *wview);
     }
+  auto tPost = Application::tickCount() - t6;
+
+  static uint32_t s_dCnt = 0;
+  if(++s_dCnt % 10 == 0) {
+    Log::i("[DRAW_PERF] vis0=", tVis0, " hiz=", tHiZ, " gbuf=", tGBuf, " sh=", tShadow, " light=", tLight, " trans=", tTrans, " post=", tPost);
+  }
 
   wview->postFrameupdate();
   }
@@ -760,6 +807,8 @@ void Renderer::drawCMAA2(Tempest::Attachment& result, Tempest::Encoder<Tempest::
   }
 
 void Renderer::drawFog(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
+  if(opengothic_debug_skip_fog())
+    return;
   auto& scene  = wview.sceneGlobals();
 
   switch(sky.quality) {
@@ -1555,6 +1604,8 @@ void Renderer::drawSwr(Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldView&
   }
 
 void Renderer::drawGBuffer(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView& view) {
+  if(opengothic_debug_skip_gbuf())
+    return;
   cmd.setDebugMarker("GBuffer");
   cmd.setFramebuffer({{gbufDiffuse, Tempest::Vec4(), Tempest::Preserve},
                       {gbufNormal,  Tempest::Vec4(), Tempest::Preserve}},
@@ -1609,7 +1660,12 @@ void Renderer::drawUnderwater(Encoder<CommandBuffer>& cmd, const WorldView& wvie
 void Renderer::drawShadowMap(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView& view) {
   if(opengothic_debug_skip_shadows())
     return;
-  for(uint8_t i=0; i<Resources::ShadowLayers; ++i) {
+#if defined(__ANDROID__)
+  const uint8_t maxLayers = 1; // 1 cascade on mobile saves 50% shadow cost
+#else
+  const uint8_t maxLayers = Resources::ShadowLayers;
+#endif
+  for(uint8_t i=0; i<maxLayers; ++i) {
     if(shadowMap[i].isEmpty())
       continue;
     cmd.setDebugMarker(string_frm("ShadowMap #",i));
@@ -1673,6 +1729,8 @@ void Renderer::drawShadowResolve(Encoder<CommandBuffer>& cmd, const WorldView& w
   }
 
 void Renderer::drawLights(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
+  if(opengothic_debug_skip_lights())
+    return;
   static bool light = true;
   if(!light)
     return;
@@ -1705,7 +1763,13 @@ void Renderer::drawLights(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
   auto& ibo       = Resources::cubeIbo();
   cmd.setPushData(&originLwc, sizeof(originLwc));
   cmd.setPipeline(*lights.directLightPso);
-  cmd.draw(nullptr,ibo, 0,ibo.size(), 0,wview.lights().size());
+#if defined(__ANDROID__)
+  const uint32_t maxLights = 32;
+  const uint32_t lightCount = std::min<uint32_t>(uint32_t(wview.lights().size()), maxLights);
+#else
+  const uint32_t lightCount = uint32_t(wview.lights().size());
+#endif
+  cmd.draw(nullptr,ibo, 0,ibo.size(), 0, lightCount);
   }
 
 void Renderer::drawSky(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
@@ -1773,6 +1837,8 @@ void Renderer::prepareSSAO(Encoder<CommandBuffer>& cmd, WorldView& wview) {
   }
 
 void Renderer::prepareFog(Encoder<Tempest::CommandBuffer>& cmd, WorldView& wview) {
+  if(opengothic_debug_skip_fog())
+    return;
   auto& scene  = wview.sceneGlobals();
   auto& device = Resources::device();
 
@@ -2161,7 +2227,9 @@ float Renderer::internalResolutionScale() const {
     return 1;
   if(settings.vidResIndex==1)
     return 0.75;
-  return 0.5;
+  if(settings.vidResIndex==2)
+    return 0.5;
+  return 0.4;
   }
 
 Size Renderer::internalResolution() const {
@@ -2169,6 +2237,8 @@ Size Renderer::internalResolution() const {
      return Size(int(swapchain.w()), int(swapchain.h()));
   if(settings.vidResIndex==1)
     return Size(int(3*swapchain.w()/4), int(3*swapchain.h()/4));
-  return Size(int(swapchain.w()/2), int(swapchain.h()/2));
+  if(settings.vidResIndex==2)
+    return Size(int(swapchain.w()/2), int(swapchain.h()/2));
+  return Size(int(swapchain.w()*2/5), int(swapchain.h()*2/5));
   }
 

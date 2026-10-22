@@ -5,6 +5,7 @@
 
 #include "graphics/mesh/submesh/animmesh.h"
 #include "gothic.h"
+#include "gapi/vulkan/vpipelinelogger.h"
 
 using namespace Tempest;
 
@@ -579,14 +580,16 @@ void VisualObjects::drawWater(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
 void VisualObjects::drawGBuffer(Tempest::Encoder<CommandBuffer>& cmd) {
   // return;
   drawCmd.drawCommon(cmd, SceneGlobals::V_Main, Material::Solid);
-  drawCmd.drawCommon(cmd, SceneGlobals::V_Main, Material::AlphaTest);
+  if(!opengothic_debug_skip_atest())
+    drawCmd.drawCommon(cmd, SceneGlobals::V_Main, Material::AlphaTest);
   }
 
 void VisualObjects::drawShadow(Tempest::Encoder<Tempest::CommandBuffer>& cmd, int layer) {
   // return;
   auto view = SceneGlobals::VisCamera(SceneGlobals::V_Shadow0 + layer);
   drawCmd.drawCommon(cmd, view, Material::Solid);
-  drawCmd.drawCommon(cmd, view, Material::AlphaTest);
+  if(!opengothic_debug_skip_atest())
+    drawCmd.drawCommon(cmd, view, Material::AlphaTest);
   }
 
 void VisualObjects::drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {

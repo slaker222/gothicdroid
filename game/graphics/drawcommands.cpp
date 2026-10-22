@@ -68,6 +68,12 @@ DrawCommands::~DrawCommands() {
 bool DrawCommands::isViewEnabled(SceneGlobals::VisCamera viewport) const {
   if(viewport==SceneGlobals::V_Vsm && !(vsmSupported && scene.vsmEnabled))
     return false;
+#if defined(__ANDROID__)
+  if(viewport==SceneGlobals::V_Shadow1)
+    return false;
+  if(opengothic_debug_skip_shadows() && (viewport==SceneGlobals::V_Shadow0 || viewport==SceneGlobals::V_Shadow1))
+    return false;
+#endif
   if(viewport==SceneGlobals::V_Shadow0 && scene.shadowMap[0]->size()==Size(1,1))
     return false;
   if(viewport==SceneGlobals::V_Shadow1 && scene.shadowMap[1]->size()==Size(1,1))
@@ -112,7 +118,11 @@ void DrawCommands::setBindings(Tempest::Encoder<CommandBuffer>& cmd, const DrawC
     else {
       cmd.setBinding(L_Diffuse, *bx.mat.tex);
       }
+#if defined(__ANDROID__)
+    auto smp = Sampler::bilinear();
+#else
     auto smp = SceneGlobals::isShadowView(v) ? Sampler::trillinear() : Sampler::anisotrophy();
+#endif
     cmd.setBinding(L_Sampler, smp);
     }
 
