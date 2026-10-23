@@ -20,14 +20,18 @@ class TouchInput : public Tempest::Widget {
 
   private:
     enum ButtonId {
-      BtnAction = 0,
+      BtnLMB = 0,
+      BtnRMB,
+      BtnUp,
+      BtnDown,
+      BtnEnter,
       BtnJump,
-      BtnParade,
       BtnWeapon,
       BtnInventory,
       BtnLog,
       BtnMenu,
       BtnSneak,
+      BtnSkip,
       BtnCount
     };
 

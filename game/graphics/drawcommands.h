@@ -62,6 +62,7 @@ class DrawCommands {
     void     drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, SceneGlobals::VisCamera viewId, Material::AlphaFunc func);
 
     void     drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
+    void     logGeometryStats();
 
   private:
     enum TaskLinkpackage : uint8_t {

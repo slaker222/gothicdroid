@@ -200,11 +200,15 @@ void Renderer::setupSettings() {
 
   auto prevVidResIndex = settings.vidResIndex;
   settings.vidResIndex = Gothic::inst().settingsGetF("INTERNAL","vidResIndex");
-#if defined(__ANDROID__)
-  if(settings.vidResIndex <= 2) {
-    settings.vidResIndex = 3; // 40% internal resolution (960x432) upscaled to native (2400x1080)
-  }
-#endif
+  int rscale = opengothic_debug_render_scale();
+  if(rscale == 40)
+    settings.vidResIndex = 3;
+  else if(rscale == 50)
+    settings.vidResIndex = 2;
+  else if(rscale == 75)
+    settings.vidResIndex = 1;
+  else if(rscale == 100)
+    settings.vidResIndex = 0;
   settings.aaEnabled = (Gothic::options().aaPreset>0) && (settings.vidResIndex==0);
 
   // direct lighting
@@ -1677,7 +1681,7 @@ void Renderer::drawShadowMap(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView
 
 void Renderer::drawShadowResolve(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
   static bool light = true;
-  if(!light)
+  if(!light || opengothic_debug_skip_lights())
     return;
 
   auto& scene = wview.sceneGlobals();

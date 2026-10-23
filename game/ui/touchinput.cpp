@@ -91,14 +91,19 @@ void TouchInput::updateLayout() {
     joyCenterY = defaultJoyY;
   }
 
-  // Action / Attack (Main big button)
-  buttons[BtnAction]    = { W - 140.0f * scale, H - 130.0f * scale, 52.0f * scale, "ATK",    buttons[BtnAction].pointerId,    buttons[BtnAction].pressed };
+  // Action / Attack (Main big button LMB)
+  buttons[BtnLMB]       = { W - 140.0f * scale, H - 130.0f * scale, 52.0f * scale, "LMB",    buttons[BtnLMB].pointerId,       buttons[BtnLMB].pressed };
+  // Block / Parry / Dialogue skip (RMB)
+  buttons[BtnRMB]       = { W - 225.0f * scale, H - 205.0f * scale, 42.0f * scale, "RMB",    buttons[BtnRMB].pointerId,       buttons[BtnRMB].pressed };
+  // Dialogue / Item confirm (ENTER)
+  buttons[BtnEnter]     = { W - 230.0f * scale, H - 110.0f * scale, 42.0f * scale, "ENTER",  buttons[BtnEnter].pointerId,     buttons[BtnEnter].pressed };
   // Jump / Climb
   buttons[BtnJump]      = { W - 65.0f * scale,  H - 220.0f * scale, 40.0f * scale, "JUMP",   buttons[BtnJump].pointerId,      buttons[BtnJump].pressed };
-  // Block / Parry
-  buttons[BtnParade]    = { W - 220.0f * scale, H - 210.0f * scale, 40.0f * scale, "BLOCK",  buttons[BtnParade].pointerId,    buttons[BtnParade].pressed };
   // Weapon draw/sheathe
   buttons[BtnWeapon]    = { W - 140.0f * scale, H - 260.0f * scale, 40.0f * scale, "WEAPON", buttons[BtnWeapon].pointerId,    buttons[BtnWeapon].pressed };
+  // Directional navigation (UP / DOWN)
+  buttons[BtnUp]        = { 260.0f * scale,     H - 190.0f * scale, 38.0f * scale, "UP",     buttons[BtnUp].pointerId,        buttons[BtnUp].pressed };
+  buttons[BtnDown]      = { 260.0f * scale,     H - 100.0f * scale, 38.0f * scale, "DOWN",   buttons[BtnDown].pointerId,      buttons[BtnDown].pressed };
   // Inventory
   buttons[BtnInventory] = { W - 65.0f * scale,  65.0f * scale,      36.0f * scale, "INV",    buttons[BtnInventory].pointerId, buttons[BtnInventory].pressed };
   // Quest Log
@@ -106,7 +111,9 @@ void TouchInput::updateLayout() {
   // Pause / Menu (ESC)
   buttons[BtnMenu]      = { 65.0f * scale,       65.0f * scale,      36.0f * scale, "ESC",    buttons[BtnMenu].pointerId,      buttons[BtnMenu].pressed };
   // Sneak
-  buttons[BtnSneak]     = { 260.0f * scale,     H - 100.0f * scale, 34.0f * scale, "SNEAK",  buttons[BtnSneak].pointerId,     buttons[BtnSneak].pressed };
+  buttons[BtnSneak]     = { 65.0f * scale,      H - 260.0f * scale, 34.0f * scale, "SNEAK",  buttons[BtnSneak].pointerId,     buttons[BtnSneak].pressed };
+  // Dialogue skip (SKIP) - prominent button on the right side
+  buttons[BtnSkip]      = { W - 65.0f * scale,  H - 300.0f * scale, 36.0f * scale, "SKIP",   buttons[BtnSkip].pointerId,      buttons[BtnSkip].pressed };
 }
 
 void TouchInput::updateMenuLayout() {
@@ -192,14 +199,39 @@ void TouchInput::processJoystick(float dx, float dy) {
 
 void TouchInput::triggerButtonPress(ButtonId id) {
   switch(id) {
-    case BtnAction:
+    case BtnLMB:
       ctrl.onKeyPressed(KeyCodec::ActionGeneric, KeyEvent::K_NoKey);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(0, 66); // KEYCODE_ENTER
+      AndroidApi::pushMouseEvent(0, 1, int(buttons[id].x), int(buttons[id].y));
+#endif
+      break;
+    case BtnRMB:
+      ctrl.onKeyPressed(KeyCodec::Parade, KeyEvent::K_NoKey);
+#if defined(__ANDROID__)
+      AndroidApi::pushMouseEvent(0, 2, int(buttons[id].x), int(buttons[id].y));
+#endif
+      break;
+    case BtnUp:
+      ctrl.onKeyPressed(KeyCodec::Forward, KeyEvent::K_Up);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(0, 19); // KEYCODE_DPAD_UP
+#endif
+      break;
+    case BtnDown:
+      ctrl.onKeyPressed(KeyCodec::Back, KeyEvent::K_Down);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(0, 20); // KEYCODE_DPAD_DOWN
+#endif
+      break;
+    case BtnEnter:
+      ctrl.onKeyPressed(KeyCodec::ActionGeneric, KeyEvent::K_Return);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(0, 66); // KEYCODE_ENTER
+#endif
       break;
     case BtnJump:
       ctrl.onKeyPressed(KeyCodec::Jump, KeyEvent::K_NoKey);
-      break;
-    case BtnParade:
-      ctrl.onKeyPressed(KeyCodec::Parade, KeyEvent::K_NoKey);
       break;
     case BtnWeapon:
       ctrl.onKeyPressed(KeyCodec::Weapon, KeyEvent::K_NoKey);
@@ -211,10 +243,22 @@ void TouchInput::triggerButtonPress(ButtonId id) {
       ctrl.onKeyPressed(KeyCodec::Log, KeyEvent::K_NoKey);
       break;
     case BtnMenu:
-      ctrl.onKeyPressed(KeyCodec::Escape, KeyEvent::K_NoKey);
+      ctrl.onKeyPressed(KeyCodec::Escape, KeyEvent::K_ESCAPE);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(0, 111); // KEYCODE_ESCAPE
+#endif
       break;
     case BtnSneak:
       ctrl.onKeyPressed(KeyCodec::Sneak, KeyEvent::K_NoKey);
+      break;
+    case BtnSkip:
+      // Skip current dialogue phrase or cutscene / dialogue window
+      ctrl.onKeyPressed(KeyCodec::Escape, KeyEvent::K_ESCAPE);
+#if defined(__ANDROID__)
+      // Send Right Mouse Click or Escape event to dialogue menu
+      AndroidApi::pushKeyEvent(0, 111); // KEYCODE_ESCAPE
+      AndroidApi::pushMouseEvent(0, 2, int(buttons[id].x), int(buttons[id].y));
+#endif
       break;
     default:
       break;
@@ -223,14 +267,39 @@ void TouchInput::triggerButtonPress(ButtonId id) {
 
 void TouchInput::triggerButtonRelease(ButtonId id) {
   switch(id) {
-    case BtnAction:
+    case BtnLMB:
       ctrl.onKeyReleased(KeyCodec::ActionGeneric);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(1, 66);
+      AndroidApi::pushMouseEvent(1, 1, int(buttons[id].x), int(buttons[id].y));
+#endif
+      break;
+    case BtnRMB:
+      ctrl.onKeyReleased(KeyCodec::Parade);
+#if defined(__ANDROID__)
+      AndroidApi::pushMouseEvent(1, 2, int(buttons[id].x), int(buttons[id].y));
+#endif
+      break;
+    case BtnUp:
+      ctrl.onKeyReleased(KeyCodec::Forward);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(1, 19);
+#endif
+      break;
+    case BtnDown:
+      ctrl.onKeyReleased(KeyCodec::Back);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(1, 20);
+#endif
+      break;
+    case BtnEnter:
+      ctrl.onKeyReleased(KeyCodec::ActionGeneric);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(1, 66);
+#endif
       break;
     case BtnJump:
       ctrl.onKeyReleased(KeyCodec::Jump);
-      break;
-    case BtnParade:
-      ctrl.onKeyReleased(KeyCodec::Parade);
       break;
     case BtnWeapon:
       ctrl.onKeyReleased(KeyCodec::Weapon);
@@ -243,9 +312,19 @@ void TouchInput::triggerButtonRelease(ButtonId id) {
       break;
     case BtnMenu:
       ctrl.onKeyReleased(KeyCodec::Escape);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(1, 111);
+#endif
       break;
     case BtnSneak:
       ctrl.onKeyReleased(KeyCodec::Sneak);
+      break;
+    case BtnSkip:
+      ctrl.onKeyReleased(KeyCodec::Escape);
+#if defined(__ANDROID__)
+      AndroidApi::pushKeyEvent(1, 111);
+      AndroidApi::pushMouseEvent(1, 2, int(buttons[id].x), int(buttons[id].y));
+#endif
       break;
     default:
       break;
@@ -256,10 +335,10 @@ void TouchInput::triggerMenuButtonPress(MenuButtonId id) {
 #if defined(__ANDROID__)
   int code = 0;
   switch(id) {
-    case MenuBtnUp:    code = 19; break; // KEYCODE_DPAD_UP
-    case MenuBtnDown:  code = 20; break; // KEYCODE_DPAD_DOWN
-    case MenuBtnEnter: code = 66; break; // KEYCODE_ENTER
-    case MenuBtnEsc:   code = 4;  break; // KEYCODE_BACK
+    case MenuBtnUp:    code = 19;  break; // KEYCODE_DPAD_UP
+    case MenuBtnDown:  code = 20;  break; // KEYCODE_DPAD_DOWN
+    case MenuBtnEnter: code = 66;  break; // KEYCODE_ENTER
+    case MenuBtnEsc:   code = 111; break; // KEYCODE_ESCAPE
     default: break;
   }
   if(code != 0)
@@ -273,10 +352,10 @@ void TouchInput::triggerMenuButtonRelease(MenuButtonId id) {
 #if defined(__ANDROID__)
   int code = 0;
   switch(id) {
-    case MenuBtnUp:    code = 19; break; // KEYCODE_DPAD_UP
-    case MenuBtnDown:  code = 20; break; // KEYCODE_DPAD_DOWN
-    case MenuBtnEnter: code = 66; break; // KEYCODE_ENTER
-    case MenuBtnEsc:   code = 4;  break; // KEYCODE_BACK
+    case MenuBtnUp:    code = 19;  break; // KEYCODE_DPAD_UP
+    case MenuBtnDown:  code = 20;  break; // KEYCODE_DPAD_DOWN
+    case MenuBtnEnter: code = 66;  break; // KEYCODE_ENTER
+    case MenuBtnEsc:   code = 111; break; // KEYCODE_ESCAPE
     default: break;
   }
   if(code != 0)

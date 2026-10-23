@@ -1,6 +1,7 @@
 #include "drawcommands.h"
 
 #include <Tempest/Log>
+#include <Tempest/Application>
 
 #include "graphics/mesh/submesh/animmesh.h"
 #include "graphics/mesh/submesh/staticmesh.h"
@@ -448,13 +449,18 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
   struct Push { uint32_t firstMeshlet; uint32_t meshletCount; } push = {};
 
   auto b = std::lower_bound(ord.begin(), ord.end(), func, [](const DrawCmd* l, Material::AlphaFunc f){
-    return l->alpha < f;
+    if(l->alpha != f)
+      return l->alpha < f;
+    return false;
     });
   auto e = std::upper_bound(ord.begin(), ord.end(), func, [](Material::AlphaFunc f, const DrawCmd* r){
-    return f < r->alpha;
+    if(f != r->alpha)
+      return f < r->alpha;
+    return false;
     });
 
   auto& view = views[viewId];
+
   for(auto i=b; i!=e; ++i) {
     auto& cx = **i;
     if(cx.alpha!=func)
@@ -490,5 +496,73 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
     if(cx.isMeshShader())
       cmd.dispatchMeshIndirect(view.indirectCmd, sizeof(IndirectCmd)*id + sizeof(uint32_t)); else
       cmd.drawIndirect(view.indirectCmd, sizeof(IndirectCmd)*id);
+    }
+  }
+
+void DrawCommands::logGeometryStats() {
+  static uint64_t s_lastLogTime = 0;
+  uint64_t now = Application::tickCount();
+  if(now - s_lastLogTime < 1000)
+    return;
+  s_lastLogTime = now;
+
+  auto& v = views[SceneGlobals::V_Main];
+  if(v.indirectCmd.byteSize() == 0 || cmd.empty())
+    return;
+
+  std::vector<IndirectCmd> cmds(cmd.size());
+  try {
+    Resources::device().readBytes(v.indirectCmd, cmds.data(), cmds.size() * sizeof(IndirectCmd));
+    }
+  catch(...) {
+    return;
+    }
+
+  uint32_t activeDrawCalls = 0;
+  uint32_t totalClusters = 0;
+
+  uint32_t lndClusters = 0, statClusters = 0, animClusters = 0, atestClusters = 0;
+  uint32_t lndDraws = 0, statDraws = 0, animDraws = 0, atestDraws = 0;
+
+  for(size_t i = 0; i < cmds.size(); ++i) {
+    uint32_t clusters = cmds[i].instanceCount;
+    if(clusters > 0) {
+      activeDrawCalls++;
+      totalClusters += clusters;
+
+      const auto& cx = cmd[i];
+      if(cx.alpha == Material::AlphaTest) {
+        atestDraws++;
+        atestClusters += clusters;
+        } else if(cx.type == Landscape) {
+        lndDraws++;
+        lndClusters += clusters;
+        } else if(cx.type == Static || cx.type == Movable) {
+        statDraws++;
+        statClusters += clusters;
+        } else if(cx.type == Animated || cx.type == Morph) {
+        animDraws++;
+        animClusters += clusters;
+        }
+      }
+    }
+
+  uint64_t triangles = uint64_t(totalClusters) * PackedMesh::MaxPrim; // 64 triangles per cluster
+  uint64_t vertices  = uint64_t(totalClusters) * PackedMesh::MaxVert; // up to 64 vertices per cluster
+
+  char buf[512] = {0};
+  std::snprintf(buf, sizeof(buf),
+    "[PERF_GEO] DrawCalls=%u (Lnd=%u Stat=%u Anim=%u Atest=%u) Clusters=%u Triangles=%llu Vertices=%llu\n",
+    activeDrawCalls, lndDraws, statDraws, animDraws, atestDraws,
+    totalClusters, (unsigned long long)triangles, (unsigned long long)vertices);
+
+  Log::i(buf);
+
+  FILE* f = std::fopen("/sdcard/Gothic2/perf.log", "a");
+  if(!f) f = std::fopen("/storage/emulated/0/Gothic2/perf.log", "a");
+  if(f) {
+    std::fputs(buf, f);
+    std::fflush(f);
+    std::fclose(f);
     }
   }

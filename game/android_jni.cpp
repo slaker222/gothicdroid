@@ -43,6 +43,9 @@ void androidAppendLog(const char* text) {
   }
 }
 
+#include <unistd.h>
+#include <sys/stat.h>
+
 static void runGameThread(std::string gameDir) {
   s_gameRunning.store(true);
   s_logFilePath = gameDir + "/opengothic_log.txt";
@@ -51,13 +54,27 @@ static void runGameThread(std::string gameDir) {
     if(f) fclose(f);
   }
 
+  // Switch process working directory to game directory so relative paths (save_slot_*.sav, Gothic.ini)
+  // are resolved directly in /sdcard/Gothic2.
+  if(chdir(gameDir.c_str()) == 0) {
+    LOGI("Changed working directory to: %s", gameDir.c_str());
+  } else {
+    LOGE("Failed to chdir to: %s", gameDir.c_str());
+  }
+
+  // Ensure saves directory exists
+  std::string savesDir = gameDir + "/saves";
+  mkdir(savesDir.c_str(), 0777);
+
   LOGI("OpenGothic native game thread started with game dir: %s", gameDir.c_str());
   androidAppendLog("=== OpenGothic Android Session Start ===");
   androidAppendLog(("Game directory: " + gameDir).c_str());
+  androidAppendLog(("Saves directory: " + savesDir).c_str());
 
   Tempest::Log::setOutputCallback([](Tempest::Log::Mode mode, const char* text) {
     (void)mode;
     androidAppendLog(text);
+
   });
 
   std::vector<std::string> args = {

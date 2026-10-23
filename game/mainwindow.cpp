@@ -1073,12 +1073,14 @@ void MainWindow::loadGame(std::string_view slot) {
     setGameImpl(nullptr);
     }
 
+  Tempest::Log::i("MainWindow::loadGame slot: ", slot);
   Gothic::inst().setBenchmarkMode(Benchmark::None);
   Gothic::inst().startLoad("LOADING.TGA",[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
     game = nullptr; // clear world-memory now
     Tempest::RFile file(slot);
     Serialize      s(file);
     std::unique_ptr<GameSession> w(new GameSession(s));
+    Tempest::Log::i("MainWindow::loadGame completed successfully for: ", slot);
     return w;
     });
 
@@ -1095,6 +1097,7 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
   if(auto w = Gothic::inst().world(); w!=nullptr && w->currentCs()!=nullptr)
     return;
 
+  Tempest::Log::i("MainWindow::saveGame slot: ", slot, " name: ", name);
   Gothic::inst().startSave(std::move(textureCast<Texture2d&>(tex)),[slot=std::string(slot),name=std::string(name),pm](std::unique_ptr<GameSession>&& game){
     if(!game)
       return std::move(game);
@@ -1102,6 +1105,7 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
     Tempest::WFile f(slot);
     Serialize      s(f);
     game->save(s,name,pm);
+    Tempest::Log::i("MainWindow::saveGame successfully wrote slot: ", slot);
 
     // no print yet, because threading
     // gothic.print("Game saved");
@@ -1270,6 +1274,7 @@ void MainWindow::render(){
     auto tGpuStart = Application::tickCount();
     sync.wait();
     auto tGpu = Application::tickCount() - tGpuStart;
+    commands[cmdId].collectGpuTimers();
 
     auto t4 = Application::tickCount();
     device.present(swapchain);
