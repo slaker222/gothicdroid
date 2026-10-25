@@ -10,7 +10,11 @@ layout(local_size_x = 128) in;
 
 shared vec4 samples[gl_WorkGroupSize.x][3][2]; // 12 Kb
 
+#if defined(__WEB_PLATFORM__)
+layout(binding = 0, rgba32f) uniform writeonly image2D result;
+#else
 layout(binding = 0) uniform writeonly image2D result;
+#endif
 layout(binding = 1, std140) uniform UboScene {
   SceneDesc scene;
   };

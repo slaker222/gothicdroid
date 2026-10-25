@@ -7,7 +7,11 @@
 
 layout(local_size_x = 2) in;
 
+#if defined(__WEB_PLATFORM__)
+layout(binding = 0, rgba16f) uniform writeonly image2D result;
+#else
 layout(binding = 0) uniform writeonly image2D result;
+#endif
 
 layout(binding = 5) uniform sampler2D textureDayL0;
 layout(binding = 6) uniform sampler2D textureDayL1;

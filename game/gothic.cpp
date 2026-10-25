@@ -522,6 +522,7 @@ bool Gothic::finishLoading() {
 #else
     loaderTh.join();
 #endif
+    Tempest::Log::i("[Gothic] finishLoading: state=", int(state), " pending=", pendingGame!=nullptr);
     if(pendingGame!=nullptr)
       game = std::move(pendingGame);
     saveTex = Texture2d();

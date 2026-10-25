@@ -20,8 +20,7 @@ elseif(EMSCRIPTEN)
   set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -Wno-unused-command-line-argument")
   target_link_options(${PROJECT_NAME} PRIVATE
-    "-sUSE_WEBGL2=1"
-    "-sFULL_ES3=1"
+    "-sUSE_WEBGPU=1"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sMAXIMUM_MEMORY=4GB"
     "-sSTACK_SIZE=5MB"

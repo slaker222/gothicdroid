@@ -42,3 +42,4 @@ build-android-arm64/
 build_arm64/
 dist-web/
 android/touch_log.txt
+scripts/__pycache__/

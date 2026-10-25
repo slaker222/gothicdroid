@@ -1216,11 +1216,44 @@ function serveLoop() {
       }
     }
 
-    function startGame() {
+    // The engine creates its graphics device synchronously inside main(),
+    // while WebGPU only hands out adapters/devices asynchronously: acquire
+    // the device up front and pass it via Module.preinitializedWebGPUDevice.
+    async function initWebGPU() {
+      if (!navigator.gpu)
+        throw new Error("WebGPU не поддерживается этим браузером");
+      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
+      if (!adapter)
+        throw new Error("WebGPU: не найден графический адаптер");
+      const wanted = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable',
+                      'indirect-first-instance', 'depth-clip-control', 'depth32float-stencil8',
+                      'clip-distances'];
+      const requiredFeatures = wanted.filter(f => adapter.features.has(f));
+      const requiredLimits = {};
+      for (const k of ['maxStorageBuffersPerShaderStage', 'maxStorageTexturesPerShaderStage',
+                       'maxSampledTexturesPerShaderStage', 'maxSamplersPerShaderStage',
+                       'maxUniformBuffersPerShaderStage', 'maxUniformBufferBindingSize',
+                       'maxStorageBufferBindingSize', 'maxBufferSize', 'maxTextureDimension2D',
+                       'maxTextureDimension3D', 'maxComputeWorkgroupStorageSize',
+                       'maxComputeInvocationsPerWorkgroup', 'maxComputeWorkgroupSizeX',
+                       'maxComputeWorkgroupSizeY', 'maxComputeWorkgroupSizeZ',
+                       'maxColorAttachmentBytesPerSample', 'maxBindingsPerBindGroup',
+                       'maxDynamicUniformBuffersPerPipelineLayout']) {
+        if (adapter.limits[k] !== undefined) requiredLimits[k] = adapter.limits[k];
+      }
+      const device = await adapter.requestDevice({ requiredFeatures, requiredLimits });
+      device.lost.then(info => console.error('[WebGPU] device lost:', info.reason, info.message));
+      Module.preinitializedWebGPUDevice = device;
+      console.log('[SHELL] WebGPU device: features=' + requiredFeatures.join(','));
+    }
+
+    async function startGame() {
       uiOverlay.classList.add('hidden');
       canvas.focus();
       console.log("Starting OpenGothic engine...");
       try {
+        if (!Module.preinitializedWebGPUDevice)
+          await initWebGPU();
         // ?nomenu skips the main menu and boots straight into the world
         // (used by automated tests; regular users get the normal menu)
         const noMenu = location.search.indexOf('nomenu') >= 0;

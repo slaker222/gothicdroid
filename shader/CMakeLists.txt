@@ -27,6 +27,16 @@ endif()
 
 find_program(SPIRV_OPT spirv-opt)
 
+# WebGPU: every module is also translated to WGSL (see scripts/spv_web.py)
+if(EMSCRIPTEN)
+  find_package(Python3 REQUIRED COMPONENTS Interpreter)
+  find_program(NAGA naga PATHS "$ENV{HOME}/.cargo/bin")
+  if(NOT NAGA)
+    message(FATAL_ERROR "naga (cargo install naga-cli) is required for the web build")
+  endif()
+  set(SPV_WEB "${CMAKE_SOURCE_DIR}/scripts/spv_web.py")
+endif()
+
 function(add_shader OUTPUT SOURCE)
   set(OUTPUT_FILE "${PROJECT_BINARY_DIR}/sprv/${OUTPUT}.sprv")
   set(SOURCE_FILE "${CMAKE_SOURCE_DIR}/shader/${SOURCE}")
@@ -67,7 +77,18 @@ function(add_shader OUTPUT SOURCE)
     list(APPEND VARS "-D__MOBILE_PLATFORM__")
   endif()
 
-  if(SPIRV_OPT AND NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
+  if(EMSCRIPTEN)
+    list(APPEND VARS "-D__WEB_PLATFORM__")
+    add_custom_command(
+      OUTPUT     ${OUTPUT_FILE}
+      DEPENDS    ${SOURCE_FILE} ${GLSL_SOURCES} ${SPV_WEB}
+      COMMAND    ${CMAKE_COMMAND} -E make_directory "${PROJECT_BINARY_DIR}/sprv/"
+      COMMAND    ${GLSLANGVALIDATOR} -V ${VARS} -I"${CMAKE_SOURCE_DIR}/shader" "${SOURCE_FILE}" -o "${OUTPUT_FILE}.tmp"
+      COMMAND    ${SPIRV_OPT} -O "${OUTPUT_FILE}.tmp" -o "${OUTPUT_FILE}.spv"
+      COMMAND    ${Python3_EXECUTABLE} ${SPV_WEB} "${OUTPUT_FILE}.spv" "${OUTPUT_FILE}" ${NAGA}
+      COMMAND    ${CMAKE_COMMAND} -E remove "${OUTPUT_FILE}.tmp" "${OUTPUT_FILE}.spv"
+      )
+  elseif(SPIRV_OPT AND NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
     add_custom_command(
       OUTPUT     ${OUTPUT_FILE}
       DEPENDS    ${SOURCE_FILE} ${GLSL_SOURCES}

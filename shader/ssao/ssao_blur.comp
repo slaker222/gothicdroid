@@ -14,7 +14,11 @@ const uint  LANE_SIZE     = gl_WorkGroupSize.x + KERNEL_RADIUS*2 + 1;
 const float blurSigma     = float(KERNEL_RADIUS) * 0.5;
 const float blurFalloff   = 1.0/(2.0*blurSigma*blurSigma);
 
+#if defined(__WEB_PLATFORM__)
+layout(binding  = 0, r32f) uniform writeonly image2D result;
+#else
 layout(binding  = 0) uniform writeonly image2D result;
+#endif
 layout(binding  = 1, std140) uniform UboScene {
   SceneDesc scene;
   };

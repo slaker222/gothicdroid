@@ -79,6 +79,14 @@ Renderer::Renderer(Tempest::Swapchain& swapchain)
     sky.lutRGBAFormat = Tempest::TextureFormat::RGBA8;
   if(!device.properties().hasStorageFormat(sky.lutRGBFormat))
     sky.lutRGBFormat = Tempest::TextureFormat::RGBA8;
+#if defined(__EMSCRIPTEN__)
+  // WGSL storage images need a fixed format: web shaders declare rgba16f/r32f
+  if(device.properties().hasStorageFormat(TextureFormat::RGBA16F)) {
+    sky.lutRGBAFormat = TextureFormat::RGBA16F;
+    sky.lutRGBFormat  = TextureFormat::RGBA16F;
+    }
+  ssao.aoFormat = TextureFormat::R32F;
+#endif
 
   Log::i("GPU = ",device.properties().name);
   Log::i("Depth format = ", Tempest::formatName(zBufferFormat), " Shadow format = ", Tempest::formatName(shadowFormat));
