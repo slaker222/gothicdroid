@@ -7,8 +7,7 @@ the module to naga:
   * every combined sampler variable at binding N is split into an image
     variable (binding N) and a sampler variable (binding N + SAMPLER_SHIFT)
 
-Output blob layout (consumed by WebGapi::createShader):
-  'WGSL' u32 spirvBytes  spirv...  wgsl-text(utf8)
+Output blob layout (consumed by WebGapi::createShader): see write_blob()
 """
 import struct
 import subprocess
@@ -275,15 +274,20 @@ def transform(words):
 
 
 def fixup_wgsl(text):
-    """Post-process naga output for WGSL's stricter uniformity rules."""
+    """Post-process naga output for WGSL's stricter uniformity rules.
+
+    Returns (primary, alternative); the backend falls back to the alternative
+    when the primary module fails to compile."""
     # GLSL allows implicit derivatives in divergent control flow
     text = 'diagnostic(off, derivative_uniformity);\n' + text
     # A value read from a workgroup atomic is non-uniform for the analysis even
     # right after a barrier; workgroupUniformLoad gives the same value with a
-    # uniformity guarantee (it implies a barrier, as the GLSL code has anyway).
+    # uniformity guarantee, but itself must sit in uniform control flow - which
+    # only the browser compiler can tell, hence two variants.
+    alt = text
     for name in re.findall(r'var<workgroup>\s+(\w+)\s*:\s*atomic<', text):
-        text = text.replace('atomicLoad((&%s))' % name, 'workgroupUniformLoad((&%s))' % name)
-    return text
+        alt = alt.replace('atomicLoad((&%s))' % name, 'workgroupUniformLoad((&%s))' % name)
+    return text, (alt if alt != text else '')
 
 
 def main():
@@ -299,7 +303,7 @@ def main():
         patched = None
     with tempfile.TemporaryDirectory() as td:
         if patched is None:
-            write_blob(dst, data, b'')
+            write_blob(dst, data, '', '')
             return
         spv = os.path.join(td, 'in.spv')
         wgsl = os.path.join(td, 'out.wgsl')
@@ -311,21 +315,25 @@ def main():
             sys.stderr.write('%s: naga failed\n%s%s' % (src, r.stdout, r.stderr))
             if STRICT:
                 sys.exit(1)
-            text = b''
+            text, alt = '', ''
         else:
-            text = fixup_wgsl(open(wgsl, 'rb').read().decode('utf-8')).encode('utf-8')
-    write_blob(dst, data, text)
+            text, alt = fixup_wgsl(open(wgsl, 'rb').read().decode('utf-8'))
+    write_blob(dst, data, text, alt)
 
 
-def write_blob(dst, data, text):
+def write_blob(dst, data, text, alt):
+    # 'WGSL' u32 n spirv[n] u32 n name[n] u32 n wgsl[n] alt-wgsl(rest)
     name = os.path.basename(dst).encode('utf-8')
+    text = text.encode('utf-8')
     with open(dst, 'wb') as f:
         f.write(b'WGSL')
         f.write(struct.pack('<I', len(data)))
         f.write(data)
         f.write(struct.pack('<I', len(name)))
         f.write(name)
+        f.write(struct.pack('<I', len(text)))
         f.write(text)
+        f.write(alt.encode('utf-8'))
 
 
 if __name__ == '__main__':
