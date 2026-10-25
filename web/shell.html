@@ -1,21 +1,19 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>OpenGothic Web</title>
   <style>
     :root {
-      --bg-dark: #0a0b0e;
-      --card-bg: rgba(20, 24, 30, 0.88);
-      --border-color: rgba(224, 192, 104, 0.28);
-      --gold: #e0c068;
-      --gold-hover: #f0d588;
-      --gold-glow: rgba(224, 192, 104, 0.35);
-      --text: #e6e8eb;
-      --text-dim: #8b929a;
-      --danger: #ff6b6b;
-      --success: #51cf66;
+      --bg: #000;
+      --panel: #111;
+      --line: #333;
+      --text: #ddd;
+      --dim: #888;
+      --accent: #fff;
+      --danger: #e5484d;
+      --success: #46a758;
     }
 
     * {
@@ -29,28 +27,18 @@
     body, html {
       width: 100%;
       height: 100%;
-      background: var(--bg-dark);
+      background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font: 14px/1.4 -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       overflow: hidden;
       display: flex;
-      flex-direction: column;
       align-items: center;
       justify-content: center;
     }
 
-    .bg-vignette {
-      position: absolute;
-      inset: 0;
-      background: radial-gradient(circle at center, rgba(30, 36, 48, 0.45) 0%, rgba(8, 10, 14, 0.96) 100%);
-      pointer-events: none;
-      z-index: 1;
-    }
-
     #canvas {
       position: absolute;
-      top: 0;
-      left: 0;
+      inset: 0;
       width: 100%;
       height: 100%;
       outline: none;
@@ -63,85 +51,50 @@
     #ui-overlay {
       position: relative;
       z-index: 10;
-      max-width: 580px;
       width: 92%;
-      background: var(--card-bg);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--border-color);
-      border-radius: 16px;
-      padding: 34px 30px;
-      text-align: center;
-      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 50px rgba(224, 192, 104, 0.1);
-      transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.3s ease;
+      max-width: 440px;
+      background: var(--panel);
+      border: 1px solid var(--line);
+      padding: 28px;
     }
 
-    #ui-overlay.drag-over {
-      border-color: var(--gold);
-      box-shadow: 0 0 40px var(--gold-glow);
-    }
-
-    #ui-overlay.hidden {
-      opacity: 0;
-      pointer-events: none;
-      transform: scale(0.96);
-    }
+    #ui-overlay.drag-over { border-color: var(--accent); }
+    #ui-overlay.hidden { display: none; }
 
     .title {
-      font-family: Georgia, 'Times New Roman', serif;
-      font-size: 34px;
-      font-weight: 900;
-      color: var(--gold);
-      letter-spacing: 3px;
-      text-shadow: 0 2px 14px rgba(224, 192, 104, 0.35);
-      margin-bottom: 6px;
-    }
-
-    .subtitle {
-      font-size: 13px;
-      color: var(--text-dim);
-      margin-bottom: 22px;
-      letter-spacing: 0.5px;
-    }
-
-    .status-box {
-      background: rgba(10, 12, 16, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.08);
-      border-radius: 10px;
-      padding: 12px 16px;
-      margin-bottom: 18px;
-      font-size: 13px;
-      color: var(--text);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      min-height: 44px;
-      word-break: break-word;
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 20px;
     }
 
     .progress-bar-container {
       width: 100%;
-      height: 6px;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 3px;
-      overflow: hidden;
-      margin-bottom: 18px;
+      height: 2px;
+      background: var(--line);
+      margin-bottom: 12px;
       display: none;
     }
 
     .progress-bar {
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, #b8860b, var(--gold));
-      transition: width 0.15s ease;
+      background: var(--accent);
+    }
+
+    .status-box {
+      min-height: 20px;
+      margin-bottom: 20px;
+      color: var(--dim);
+      word-break: break-word;
     }
 
     .btn-group {
       display: flex;
       flex-direction: column;
-      gap: 10px;
-      margin-bottom: 16px;
+      gap: 8px;
     }
 
     .btn {
@@ -149,205 +102,112 @@
       align-items: center;
       justify-content: center;
       width: 100%;
-      padding: 13px 18px;
-      font-size: 14px;
-      font-weight: 600;
-      color: #121417;
-      background: linear-gradient(135deg, var(--gold), #caa34d);
-      border: none;
-      border-radius: 8px;
-      cursor: pointer;
-      box-shadow: 0 4px 15px rgba(224, 192, 104, 0.25);
-      transition: all 0.2s ease;
-      letter-spacing: 0.5px;
-    }
-
-    .btn:hover {
-      background: linear-gradient(135deg, var(--gold-hover), #dab055);
-      transform: translateY(-1px);
-      box-shadow: 0 6px 20px rgba(224, 192, 104, 0.35);
-    }
-
-    .btn:active {
-      transform: translateY(1px);
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.08);
+      padding: 11px 16px;
+      font: inherit;
       color: var(--text);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      box-shadow: none;
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      cursor: pointer;
     }
 
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.14);
-      color: #fff;
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
 
     .btn-primary {
-      background: linear-gradient(135deg, #e0c068, #caa34d);
-      color: #121417;
-      font-size: 15px;
-      font-weight: 700;
-      padding: 15px 22px;
+      color: #000;
+      background: var(--accent);
+      border-color: var(--accent);
+      font-weight: 600;
     }
 
-    .btn-danger {
-      background: rgba(255, 107, 107, 0.15);
-      border: 1px solid rgba(255, 107, 107, 0.3);
-      color: var(--danger);
-      font-size: 12px;
-      padding: 8px 12px;
-      width: auto;
-      margin-top: 6px;
-    }
+    .btn-primary:hover { background: #ccc; border-color: #ccc; color: #000; }
 
-    .btn-danger:hover {
-      background: rgba(255, 107, 107, 0.25);
-    }
+    .btn-danger { color: var(--dim); border-color: transparent; padding: 6px; }
+    .btn-danger:hover { color: var(--danger); border-color: transparent; }
 
-    .file-input {
-      display: none;
-    }
-
-    .drop-zone-hint {
-      font-size: 12px;
-      color: var(--gold);
-      margin-bottom: 12px;
-      opacity: 0.9;
-    }
+    .file-input { display: none; }
 
     .url-row {
       display: none;
       flex-direction: column;
       gap: 6px;
-      text-align: left;
-    }
-
-    .url-row label {
-      font-size: 12px;
-      color: var(--text-dim);
+      margin-bottom: 4px;
     }
 
     .url-input {
       width: 100%;
-      padding: 11px 12px;
-      font-size: 13px;
+      padding: 10px 12px;
+      font: inherit;
       color: var(--text);
-      background: rgba(10, 12, 16, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--line);
+      border-radius: 0;
       outline: none;
       user-select: text;
       -webkit-user-select: text;
-      transition: border-color 0.2s ease;
     }
 
-    .url-input:focus {
-      border-color: var(--gold);
-    }
+    .url-input:focus { border-color: var(--accent); }
 
     .url-hint {
       font-size: 12px;
       min-height: 16px;
-      color: var(--text-dim);
+      color: var(--dim);
       word-break: break-word;
     }
 
     .url-hint.ok { color: var(--success); }
     .url-hint.bad { color: var(--danger); }
 
-    .instructions {
-      font-size: 12px;
-      color: var(--text-dim);
-      line-height: 1.5;
-    }
-
     #fs-btn {
       position: absolute;
-      top: 16px;
-      right: 16px;
+      top: 12px;
+      right: 12px;
       z-index: 20;
-      background: rgba(20, 24, 30, 0.75);
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      color: var(--text);
-      padding: 8px 14px;
-      border-radius: 6px;
-      font-size: 12px;
+      padding: 6px 10px;
+      font: 12px inherit;
+      color: var(--dim);
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid var(--line);
       cursor: pointer;
-      backdrop-filter: blur(8px);
       display: none;
-      transition: background 0.2s ease;
     }
 
-    #fs-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-    }
+    #fs-btn:hover { color: var(--accent); border-color: var(--accent); }
   </style>
 </head>
 <body>
-  <div class="bg-vignette"></div>
-
   <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
 
-  <button id="fs-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
+  <button id="fs-btn" onclick="toggleFullscreen()">Fullscreen</button>
 
   <div id="ui-overlay">
-    <h1 class="title">OPENGOTHIC</h1>
-    <p class="subtitle">WebAssembly / WebGPU Browser Edition</p>
+    <h1 class="title">OpenGothic</h1>
 
     <div class="progress-bar-container" id="progress-container">
       <div class="progress-bar" id="progress-bar"></div>
     </div>
 
-    <div class="status-box" id="status-text">
-      Загрузка ядра движка WebAssembly...
-    </div>
-
-    <p class="drop-zone-hint">💡 Можно перетащить папку с игрой или ZIP прямо сюда</p>
+    <div class="status-box" id="status-text">Loading...</div>
 
     <input type="file" id="folder-picker" class="file-input" webkitdirectory directory multiple onchange="onFolderSelected(event)">
     <input type="file" id="zip-picker" class="file-input" accept=".zip" onchange="onZipSelected(event)">
 
     <div class="btn-group" id="btn-group">
-      <button class="btn btn-primary" id="start-btn" style="display:none;" onclick="startGame()">
-        ▶ ЗАПУСТИТЬ ИГРУ
-      </button>
+      <button class="btn btn-primary" id="start-btn" style="display:none;" onclick="startGame()">Play</button>
 
       <div class="url-row" id="url-row">
-        <label for="archive-url">Ссылка на ZIP-архив с игрой</label>
         <input type="url" id="archive-url" class="url-input" spellcheck="false" autocomplete="off"
-               placeholder="https://example.invalid/removed">
+               placeholder="Game ZIP archive URL" aria-label="Game ZIP archive URL">
         <div class="url-hint" id="url-hint"></div>
       </div>
 
-      <button class="btn" id="download-btn" style="display:none;" onclick="downloadGame()">
-        🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА
-      </button>
-
-      <button class="btn btn-secondary" id="pause-btn" style="display:none;" onclick="pauseInstall()">
-        ⏸ ПАУЗА
-      </button>
-
-      <button class="btn" id="folder-btn" onclick="document.getElementById('folder-picker').click()">
-        📁 ВЫБРАТЬ ПАПКУ С ИГРОЙ (БЫСТРО)
-      </button>
-
-      <button class="btn btn-secondary" id="zip-btn" onclick="document.getElementById('zip-picker').click()">
-        📦 ВЫБРАТЬ АРХИВ С ИГРОЙ (.ZIP)
-      </button>
-
-      <button class="btn btn-danger" id="clear-btn" style="display:none;" onclick="clearStorage()">
-        🗑 Удалить игру из браузера (сохранения останутся)
-      </button>
+      <button class="btn" id="download-btn" style="display:none;" onclick="downloadGame()"></button>
+      <button class="btn" id="pause-btn" style="display:none;" onclick="pauseInstall()">Pause</button>
+      <button class="btn" id="folder-btn" onclick="document.getElementById('folder-picker').click()">Select folder</button>
+      <button class="btn" id="zip-btn" onclick="document.getElementById('zip-picker').click()">Select ZIP</button>
+      <button class="btn btn-danger" id="clear-btn" style="display:none;" onclick="clearStorage()">Delete game</button>
     </div>
-
-    <p class="instructions" id="instructions">
-      Папка с игрой читается прямо с диска. Скачанная или распакованная из ZIP игра<br>
-      хранится в браузере (OPFS): при следующем входе загружать её повторно не нужно.
-    </p>
   </div>
 
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
@@ -427,7 +287,7 @@ async function download(m) {
           throw new Error('HTTP 416');
         }
         if (!resp.ok) {
-          const err = new Error('сервер ответил HTTP ' + resp.status);
+          const err = new Error('server responded with HTTP ' + resp.status);
           if (resp.status >= 400 && resp.status < 500) err.fatal = true;
           throw err;
         }
@@ -454,8 +314,8 @@ async function download(m) {
           const free = (est.quota || 0) - (est.usage || 0);
           if (est.quota && free < need) {
             resp.body.cancel().catch(() => {});
-            const err = new Error('недостаточно места в хранилище браузера: нужно ~' +
-              Math.ceil(need / 1048576) + ' МБ, доступно ' + Math.floor(free / 1048576) + ' МБ');
+            const err = new Error('not enough browser storage: need ~' +
+              Math.ceil(need / 1048576) + ' MB, available ' + Math.floor(free / 1048576) + ' MB');
             err.fatal = true;
             throw err;
           }
@@ -477,7 +337,7 @@ async function download(m) {
           }
         }
         h.flush();
-        if (total && have < total) throw new Error('соединение оборвалось');
+        if (total && have < total) throw new Error('connection lost');
         progress({ phase: 'download', done: have, total: total || have });
         return { total: total || have };
       } catch (err) {
@@ -535,15 +395,15 @@ async function readCentralDirectory(blob) {
   for (let i = tailLen - 22; i >= 0; i--) {
     if (tail.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
   }
-  if (eocd < 0) throw new Error('это не ZIP-архив (или архив повреждён/не докачан)');
+  if (eocd < 0) throw new Error('not a ZIP archive (corrupt or incomplete)');
   let count = tail.getUint16(eocd + 10, true);
   let cdSize = tail.getUint32(eocd + 12, true);
   let cdOff = tail.getUint32(eocd + 16, true);
   if (count === 0xffff || cdSize === 0xffffffff || cdOff === 0xffffffff) {
     const loc = eocd - 20;
-    if (loc < 0 || tail.getUint32(loc, true) !== 0x07064b50) throw new Error('повреждённый ZIP64-архив');
+    if (loc < 0 || tail.getUint32(loc, true) !== 0x07064b50) throw new Error('corrupt ZIP64 archive');
     const z = await readAt(blob, u64(tail, loc + 8), 56);
-    if (z.getUint32(0, true) !== 0x06064b50) throw new Error('повреждённый ZIP64-архив');
+    if (z.getUint32(0, true) !== 0x06064b50) throw new Error('corrupt ZIP64 archive');
     count = u64(z, 32); cdSize = u64(z, 40); cdOff = u64(z, 48);
   }
 
@@ -554,7 +414,7 @@ async function readCentralDirectory(blob) {
   const entries = [];
   let p = 0;
   for (let i = 0; i < count; i++) {
-    if (cd.getUint32(p, true) !== 0x02014b50) throw new Error('повреждённый каталог ZIP-архива');
+    if (cd.getUint32(p, true) !== 0x02014b50) throw new Error('corrupt ZIP directory');
     const flags = cd.getUint16(p + 8, true);
     const method = cd.getUint16(p + 10, true);
     const crc = cd.getInt32(p + 16, true);
@@ -598,7 +458,7 @@ function findGameRoot(entries) {
       }
     }
   }
-  if (best === null) throw new Error('в архиве нет папки Data — это не архив с игрой Gothic');
+  if (best === null) throw new Error('no Data folder in the archive: not a Gothic game archive');
   return best.length ? best.join('/') + '/' : '';
 }
 
@@ -612,11 +472,11 @@ async function extract(blob, m) {
     const rel = e.name.slice(prefix.length);
     if (!rel || rel.split('/').some(s => s === '..' || s === '.')) continue;
     if (m.skip.some(re => re.test(rel))) continue;
-    if (e.method !== 0 && e.method !== 8) throw new Error('неподдерживаемый метод сжатия ' + e.method + ': ' + rel);
-    if (e.flags & 1) throw new Error('зашифрованные ZIP-архивы не поддерживаются');
+    if (e.method !== 0 && e.method !== 8) throw new Error('unsupported compression method ' + e.method + ': ' + rel);
+    if (e.flags & 1) throw new Error('encrypted ZIP archives are not supported');
     list.push(Object.assign(e, { rel }));
   }
-  if (list.length === 0) throw new Error('в архиве не найдено файлов игры');
+  if (list.length === 0) throw new Error('no game files in the archive');
 
   const gameDir = await root.getDirectoryHandle(m.gameDirName, { create: true });
   const dirs = new Map([['', gameDir]]);
@@ -649,7 +509,7 @@ async function extract(blob, m) {
     }
 
     const lh = await readAt(blob, e.localOff, 30);
-    if (lh.getUint32(0, true) !== 0x04034b50) throw new Error('повреждённый ZIP-архив: ' + e.rel);
+    if (lh.getUint32(0, true) !== 0x04034b50) throw new Error('corrupt ZIP archive: ' + e.rel);
     const dataOff = e.localOff + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
 
     const fh = await d.getFileHandle(fname, { create: true });
@@ -675,7 +535,7 @@ async function extract(blob, m) {
         }
       }
       if (pos !== e.size || crc !== e.crc)
-        throw new Error('файл в архиве повреждён (не совпадает контрольная сумма): ' + e.rel);
+        throw new Error('corrupt file in the archive (checksum mismatch): ' + e.rel);
       h.flush();
     } finally {
       h.close();
@@ -739,15 +599,15 @@ async function extract(blob, m) {
       totalDependencies: 0,
       monitorRunDependencies: function(left) {
         this.totalDependencies = Math.max(this.totalDependencies, left);
-        Module.setStatus(left ? 'Подготовка зависимостей... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : 'Все зависимости загружены.');
+        Module.setStatus(left ? 'Loading...' : 'Loading...');
       }
     };
 
-    Module.setStatus('Загрузка WebAssembly модуля...');
+    Module.setStatus('Loading...');
 
     window.onerror = function(event) {
       statusText.style.color = 'var(--danger)';
-      statusText.innerText = 'Ошибка инициализации: ' + event;
+      statusText.innerText = 'Error: ' + event;
     };
 
     function toggleFullscreen() {
@@ -1409,9 +1269,7 @@ function serveLoop() {
       showSourceButtons(true);
       progressContainer.style.display = 'none';
       await updateDownloadButton();
-      setStatus(DIRECT_FOLDER_MODE
-        ? 'Скачайте игру или выберите папку с установленной игрой (Gothic I или II).'
-        : 'Готово к работе. Скачайте игру или выберите папку или ZIP с Gothic I или II.');
+      setStatus('Select a game source');
     }
 
     // Button label (resume info for an unfinished download) and a check of
@@ -1420,9 +1278,9 @@ function serveLoop() {
     async function updateDownloadButton() {
       const seq = ++g_probeSeq;
       const url = archiveUrl();
-      downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА';
+      downloadBtn.textContent = 'Download';
       if (!url) {
-        setUrlHint('✗ это не ссылка (нужен адрес http:// или https://)', 'bad');
+        setUrlHint('Invalid link', 'bad');
         return;
       }
       const state = await readRootJson(DL_STATE);
@@ -1435,19 +1293,19 @@ function serveLoop() {
         } catch (e) {}
         if (seq !== g_probeSeq) return;
         downloadBtn.textContent = have >= state.total
-          ? '📦 ДОРАСПАКОВАТЬ СКАЧАННУЮ ИГРУ'
-          : '🌐 ПРОДОЛЖИТЬ ЗАГРУЗКУ (' + mb(have) + ' / ' + mb(state.total) + ' МБ)';
-        setUrlHint('Загрузка по этой ссылке уже начата', 'ok');
+          ? 'Unpack'
+          : 'Resume (' + mb(have) + ' / ' + mb(state.total) + ' MB)';
+        setUrlHint('Download in progress', 'ok');
         return;
       }
-      setUrlHint('Проверка ссылки...');
+      setUrlHint('Checking...');
       const ctl = new AbortController();
       try {
         const resp = await fetch(url, { headers: { Range: 'bytes=0-3' }, cache: 'no-store', signal: ctl.signal });
         if (seq !== g_probeSeq) { ctl.abort(); return; }
         if (!resp.ok) {
           ctl.abort();
-          setUrlHint('✗ сервер ответил HTTP ' + resp.status + ' — проверьте ссылку', 'bad');
+          setUrlHint('Server responded with HTTP ' + resp.status, 'bad');
           return;
         }
         const m = /\/(\d+)\s*$/.exec(resp.headers.get('Content-Range') || '');
@@ -1455,7 +1313,7 @@ function serveLoop() {
         // without Range support the whole file is coming: only the first
         // chunk is read, then the request is dropped
         const note = resp.status === 206 ? ''
-          : ' · сервер не поддерживает докачку, после паузы загрузка начнётся заново';
+          : ', no resume support';
         const reader = resp.body.getReader();
         const first = await reader.read();
         ctl.abort();
@@ -1463,17 +1321,16 @@ function serveLoop() {
         // a page instead of the file (preview, login, quota) is not a ZIP
         const sig = first.value || new Uint8Array(0);
         if (sig[0] !== 0x50 || sig[1] !== 0x4b) {
-          setUrlHint('✗ по ссылке не ZIP-архив (нужна прямая ссылка на файл)', 'bad');
+          setUrlHint('Not a ZIP archive', 'bad');
           return;
         }
         if (total)
-          downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА (' + mb(total) + ' МБ)';
-        setUrlHint('✓ архив доступен' + (total ? ', ' + mb(total) + ' МБ' : '') + note, 'ok');
+          downloadBtn.textContent = 'Download (' + mb(total) + ' MB)';
+        setUrlHint('Archive available' + (total ? ', ' + mb(total) + ' MB' : '') + note, 'ok');
       } catch (e) {
         if (seq !== g_probeSeq) return;
         console.warn('archive probe failed:', e);
-        setUrlHint('✗ архив недоступен: сервер не разрешает загрузку из браузера (CORS) ' +
-                   'или нет соединения', 'bad');
+        setUrlHint('Archive unavailable (CORS or no connection)', 'bad');
       }
     }
 
@@ -1491,7 +1348,7 @@ function serveLoop() {
       // (and persisted on close), the bridge only holds read-only game files
       const listing = all.filter(f => !isPersistedPath(f.path));
       const totalBytes = listing.reduce((a, f) => a + f.size, 0);
-      setStatus('Индексация установленной игры (' + mb(totalBytes) + ' МБ)...');
+      setStatus('Preparing...');
 
       // Build the registry (directories inferred from paths)
       GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
@@ -1531,7 +1388,7 @@ function serveLoop() {
       pauseBtn.style.display = 'none';
       progressContainer.style.display = 'none';
       statusText.style.color = '';
-      setStatus('✓ Игра установлена в браузере' + (GameFS.lazy ? ' (чтение с диска)' : ''));
+      setStatus('Game ready');
       startBtn.style.display = 'inline-flex';
       clearBtn.style.display = 'inline-flex';
       g_gameReady = true;
@@ -1601,15 +1458,14 @@ function serveLoop() {
             speed = speed ? speed * 0.7 + s * 0.3 : s;
             t0 = now; b0 = m.done;
           }
-          let msg = 'Загрузка игры: ' + mb(m.done) + ' / ' + (m.total ? mb(m.total) : '?') + ' МБ';
+          let msg = 'Downloading: ' + mb(m.done) + ' / ' + (m.total ? mb(m.total) : '?') + ' MB';
           if (speed > 0)
-            msg += ' · ' + (speed / 1048576).toFixed(1) + ' МБ/с · осталось ' + fmtTime((m.total - m.done) / speed);
+            msg += ' · ' + (speed / 1048576).toFixed(1) + ' MB/s · ' + fmtTime((m.total - m.done) / speed);
           setStatus(msg, pct);
         } else if (m.phase === 'retry') {
-          setStatus('Сбой сети (' + m.msg + '), повтор ' + m.attempt + '/' + m.max + '...');
+          setStatus('Network error, retry ' + m.attempt + '/' + m.max);
         } else if (m.phase === 'extract') {
-          setStatus('Распаковка [' + m.index + '/' + m.count + ']' + (m.name ? ': ' + m.name : '') +
-                    ' — ' + pct + '%', pct);
+          setStatus('Unpacking: ' + m.index + ' / ' + m.count + ' (' + pct + '%)', pct);
         }
       };
     }
@@ -1617,15 +1473,15 @@ function serveLoop() {
     function installError(err, what) {
       if (err.paused) {
         statusText.style.color = '';
-        setStatus('⏸ Пауза. Загрузка продолжится с того же места.');
+        setStatus('Paused');
       } else {
         console.error(what, err);
         statusText.style.color = 'var(--danger)';
         let msg = err.message || String(err);
         if (err.name === 'QuotaExceededError')
-          msg = 'недостаточно места в хранилище браузера';
+          msg = 'not enough browser storage';
         else if (err.name === 'TypeError' && /fetch/i.test(msg))
-          msg = 'не удалось подключиться к серверу с архивом (' + msg + ')';
+          msg = 'cannot reach the archive server (' + msg + ')';
         setStatus(what + ': ' + msg);
       }
       pauseBtn.style.display = 'none';
@@ -1637,7 +1493,7 @@ function serveLoop() {
       if (g_gameReady || g_installWorker) return;
       const url = archiveUrl();
       if (!url) {
-        setUrlHint('✗ это не ссылка (нужен адрес http:// или https://)', 'bad');
+        setUrlHint('Invalid link', 'bad');
         urlInput.focus();
         return;
       }
@@ -1647,7 +1503,7 @@ function serveLoop() {
       progressContainer.style.display = 'block';
       progressBar.style.width = '0%';
       pauseBtn.style.display = 'inline-flex';
-      setStatus('Подключение к серверу...');
+      setStatus('Connecting...');
       // keep the browser from evicting a multi-GB install under storage pressure
       try { if (navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
 
@@ -1660,11 +1516,11 @@ function serveLoop() {
       try {
         const dl = await runInstallWorker({ type: 'download', url, zipName: DL_ZIP, stateName: DL_STATE,
                                             expectTotal: state ? state.total : 0 }, report);
-        setStatus('Проверка архива...', 0);
+        setStatus('Checking...', 0);
         const res = await runInstallWorker({ type: 'extract', zipName: DL_ZIP, deleteZip: true }, report);
         await finishInstall({ source: url, archiveBytes: dl.total }, res);
       } catch (err) {
-        installError(err, 'Ошибка загрузки');
+        installError(err, 'Error');
       }
     }
 
@@ -1674,12 +1530,12 @@ function serveLoop() {
       statusText.style.color = '';
       progressContainer.style.display = 'block';
       progressBar.style.width = '0%';
-      setStatus('Чтение архива...');
+      setStatus('Reading...');
       try {
         const res = await runInstallWorker({ type: 'extract', blob: file }, makeProgressReporter());
         await finishInstall({ source: 'file:' + file.name, archiveBytes: file.size }, res);
       } catch (err) {
-        installError(err, 'Ошибка распаковки ZIP');
+        installError(err, 'Error');
       }
     }
 
@@ -1690,7 +1546,7 @@ function serveLoop() {
       await removeRootEntry(DL_STATE);
       console.log('[SHELL] game installed:', res.files, 'files,', mb(res.bytes), 'MB');
       if (!await mountInstalledGame())
-        throw new Error('после распаковки игра не найдена');
+        throw new Error('game not found after unpacking');
     }
 
     function initLazyBackend(paths, files) {
@@ -1754,7 +1610,7 @@ function serveLoop() {
         doneBytes += f.size;
         idx++;
         if ((idx & 7) === 0 || idx === listing.length) {
-          setStatus('Загрузка файлов в память: ' + (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' МБ',
+          setStatus('Downloading: ' + (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' MB',
                     Math.round((doneBytes / Math.max(1, totalBytes)) * 100));
           await new Promise(r => setTimeout(r, 0));
         }
@@ -1763,7 +1619,7 @@ function serveLoop() {
 
     // removes the installed game, keeping savegames and settings
     async function clearStorage() {
-      if (!confirm("Удалить файлы игры из браузера? Сохранения останутся.")) return;
+      if (!confirm("Delete the game files from the browser? Savegames are kept.")) return;
       // the bridge worker holds locks on every game file
       if (GameFS.bridge) { GameFS.bridge.worker.terminate(); GameFS.bridge = null; }
       try {
@@ -1784,7 +1640,7 @@ function serveLoop() {
         indexedDB.deleteDatabase('/gothic'); // legacy IDBFS database
         indexedDB.deleteDatabase('emscripten-fs'); // legacy runtime database
       } catch (e) {}
-      setStatus('Хранилище очищено. Обновите страницу.');
+      setStatus('Deleted');
       setTimeout(() => location.reload(), 800);
     }
 
@@ -1832,9 +1688,9 @@ function serveLoop() {
           if (shouldImport(rel)) list.push({ rel, file });
         }
         if (!list.some(f => /^data\//i.test(f.rel)))
-          throw new Error('в папке нет каталога Data — выберите корень установленной игры');
+          throw new Error('no Data folder: select the root folder of the installed game');
 
-        setStatus('Подключение папки (' + list.length + ' файлов)...');
+        setStatus('Connecting...');
         GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
         GameFS.addEntry('', true);
         const addPath = (path, size) => {
@@ -1856,7 +1712,7 @@ function serveLoop() {
             const e = GameFS.files.get(GameFS.lower(f.rel));
             e.mem = new Uint8Array(await f.file.arrayBuffer());
             done += f.file.size;
-            setStatus('Загрузка в память: ' + (done / 1048576).toFixed(0) + ' / ' + (total / 1048576).toFixed(0) + ' МБ',
+            setStatus('Downloading: ' + (done / 1048576).toFixed(0) + ' / ' + (total / 1048576).toFixed(0) + ' MB',
                       Math.round(done / Math.max(1, total) * 100));
           }
         }
@@ -1870,13 +1726,13 @@ function serveLoop() {
 
         Module.FS.mkdir(GAME_ROOT);
         Module.FS.mount(GameFS, {}, GAME_ROOT);
-        setStatus('✓ Папка с игрой подключена' + (GameFS.lazy ? ' (чтение с диска)' : ''));
+        setStatus('Game ready');
         startBtn.style.display = 'inline-flex';
         g_gameReady = true;
       } catch (err) {
         console.error('mount error:', err);
         statusText.style.color = 'var(--danger)';
-        setStatus('Ошибка: ' + (err.message || err));
+        setStatus('Error: ' + (err.message || err));
         folderBtn.style.display = 'inline-flex';
         zipBtn.style.display = 'inline-flex';
       }
@@ -1908,7 +1764,7 @@ function serveLoop() {
         totalBytes += file.size;
       }
       if (list.length === 0) {
-        setStatus('В выбранной папке не найдено подходящих файлов игры.');
+        setStatus('No game files found in the selected folder.');
         return;
       }
       await importToOpfs(list, totalBytes);
@@ -1940,20 +1796,20 @@ function serveLoop() {
           }
           doneBytes += item.file.size;
           count++;
-          setStatus('Импорт [' + count + '/' + list.length + ']: ' + name + ' — ' +
-                    (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' МБ',
+          setStatus('Importing [' + count + '/' + list.length + ']: ' + name + ' — ' +
+                    (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' MB',
                     Math.round((doneBytes / Math.max(1, totalBytes)) * 100));
           await new Promise(r => setTimeout(r, 0));
         }
         const secs = (performance.now() - t0) / 1000;
         console.log('Import done:', count, 'files in', secs.toFixed(1), 's');
         await writeRootJson(INSTALL_MARK, { source: 'folder', files: count, bytes: doneBytes, date: new Date().toISOString() });
-        setStatus('✓ Установка завершена (' + secs.toFixed(0) + ' с). Обновление страницы...');
+        setStatus('Done');
         setTimeout(() => location.reload(), 600);
       } catch (err) {
         console.error('Import error:', err);
         statusText.style.color = 'var(--danger)';
-        setStatus('Ошибка импорта: ' + (err.message || err));
+        setStatus('Error: ' + (err.message || err));
         folderBtn.style.display = 'inline-flex';
         zipBtn.style.display = 'inline-flex';
       }
@@ -2005,11 +1861,11 @@ function serveLoop() {
     // the device up front and pass it via Module.preinitializedWebGPUDevice.
     async function initWebGPU() {
       if (!navigator.gpu)
-        throw new Error("WebGPU не поддерживается этим браузером. Нужен Chrome/Edge 113+, " +
-                        "Firefox 141+ (Windows) или Safari 26+; страница должна открываться по HTTPS или localhost");
+        throw new Error("WebGPU is not supported by this browser. Use Chrome/Edge 113+, " +
+                        "Firefox 141+ (Windows) or Safari 26+; the page must be opened over HTTPS or localhost");
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
       if (!adapter)
-        throw new Error("WebGPU: не найден графический адаптер (проверьте, что аппаратное ускорение включено)");
+        throw new Error("WebGPU: no graphics adapter found (check that hardware acceleration is enabled)");
       const wanted = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable',
                       'indirect-first-instance', 'depth-clip-control', 'depth32float-stencil8',
                       'clip-distances'];
@@ -2055,7 +1911,7 @@ function serveLoop() {
         console.error("Engine execution error:", err);
         uiOverlay.classList.remove('hidden');
         statusText.style.color = 'var(--danger)';
-        statusText.innerText = "Ошибка запуска: " + err;
+        statusText.innerText = "Error: " + err;
       }
     }
   </script>
