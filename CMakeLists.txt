@@ -29,6 +29,7 @@ elseif(EMSCRIPTEN)
     "-sNO_EXIT_RUNTIME=1"
     "-fwasm-exceptions"
     "-sSUPPORT_LONGJMP=wasm"
+    "--profiling-funcs"
     "-lidbfs.js"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','callMain','mmapAlloc']"
     "-sFORCE_FILESYSTEM=1"
