@@ -118,7 +118,7 @@ vec4 fog(vec2 uv, float z) {
 #if defined(GL_COMPUTE_SHADER)
   uint occlusion = 0;
   [[dont_unroll]]
-  for(uint i=0; i<steps; ++i) {
+  for(uint i=0; i<uint(steps); ++i) {
     float t      = (i+0.3)/float(steps);
     vec4  shPos  = mix(shPos0,shPos1,t+noise);
     bool  shadow = shadowFactor(shPos);

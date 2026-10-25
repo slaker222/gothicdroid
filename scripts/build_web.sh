@@ -49,6 +49,7 @@ emcmake cmake -B "${BUILD_DIR}" -S "${ROOT_DIR}" -GNinja \
     -DTEMPEST_BUILD_METAL=OFF \
     -DTEMPEST_BUILD_DIRECTX12=OFF \
     -DTEMPEST_BUILD_AUDIO=OFF \
+    `# звук на вебе даёт Web Audio бэкенд, OpenAL не нужен` \
     -DEMSCRIPTEN=ON \
     -DGLSLANGVALIDATOR="${ROOT_DIR}/tools/bin/glslangValidator"
 
