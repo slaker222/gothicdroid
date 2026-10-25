@@ -476,7 +476,10 @@ self.onmessage = (e) => {
   if (msg.type === 'init') {
     cmd = new Int32Array(msg.cmd);
     dataView = new Uint8Array(msg.data);
-    openAll(msg.paths).then(() => {
+    const open = msg.files
+      ? Promise.resolve(msg.files.forEach(f => handles.push({ file: f, size: f.size })))
+      : openAll(msg.paths);
+    open.then(() => {
       Atomics.store(cmd, 7, 0);
       Atomics.store(cmd, 6, 1);
       Atomics.notify(cmd, 0);
@@ -505,18 +508,27 @@ function serveLoop() {
           const hIdx = Atomics.load(cmd, 1);
           const pos = Atomics.load(cmd, 2);
           const len = Atomics.load(cmd, 3);
-          const n = handles[hIdx].h.read(dataView.subarray(0, len), { at: pos });
+          const hd = handles[hIdx];
+          let n = 0;
+          if (hd.file) {
+            // folder picked by the user: read straight from the File object
+            const ab = new FileReaderSync().readAsArrayBuffer(hd.file.slice(pos, pos + len));
+            dataView.set(new Uint8Array(ab), 0);
+            n = ab.byteLength;
+          } else {
+            n = hd.h.read(dataView.subarray(0, len), { at: pos });
+          }
           Atomics.store(cmd, 5, n);
           Atomics.store(cmd, 4, 1); // ok
         } else if (op === OP_TRUNCATE) {
           const hIdx = Atomics.load(cmd, 1);
-          handles[hIdx].h.truncate(0);
+          if (handles[hIdx].h) handles[hIdx].h.truncate(0);
           handles[hIdx].size = 0;
           Atomics.store(cmd, 5, 0);
           Atomics.store(cmd, 4, 1);
         } else if (op === OP_SIZE) {
           const hIdx = Atomics.load(cmd, 1);
-          Atomics.store(cmd, 5, handles[hIdx].h.getSize());
+          Atomics.store(cmd, 5, handles[hIdx].h ? handles[hIdx].h.getSize() : handles[hIdx].size);
           Atomics.store(cmd, 4, 1);
         } else {
           Atomics.store(cmd, 4, 2); // unknown op
@@ -879,8 +891,16 @@ function serveLoop() {
 
     let g_bridgeInitBusy = false;
 
+    // TEMPORARY: the game folder is picked on every start and read directly
+    // from disk; nothing but savegames/settings is copied into OPFS.
+    const DIRECT_FOLDER_MODE = true;
+
     async function initStorage() {
       bindErrnoError();
+      if (DIRECT_FOLDER_MODE) {
+        setStatus('Выберите папку с установленной игрой (Gothic I или II).');
+        return;
+      }
       try {
         const dir = await opfsGameDir(false);
         const listing = [];
@@ -935,7 +955,7 @@ function serveLoop() {
       }
     }
 
-    function initLazyBackend(paths) {
+    function initLazyBackend(paths, files) {
       return new Promise((resolve, reject) => {
         const cmdSab = new SharedArrayBuffer(8 * 4);
         const dataSab = new SharedArrayBuffer(BRIDGE_CHUNK);
@@ -954,7 +974,7 @@ function serveLoop() {
 
         // send init; the worker fills handles and notifies cmd[6].
         // SharedArrayBuffers are shared, not transferred — no transfer list.
-        worker.postMessage({ type: 'init', cmd: cmdSab, data: dataSab, paths });
+        worker.postMessage({ type: 'init', cmd: cmdSab, data: dataSab, paths, files });
 
         const waitReady = () => {
           if (Atomics.load(cmd, 6) === 1) {
@@ -1022,7 +1042,93 @@ function serveLoop() {
     async function onFolderSelected(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
-      await importFilesList(files);
+      if (DIRECT_FOLDER_MODE)
+        await mountFolderDirect(files);
+      else
+        await importFilesList(files);
+    }
+
+    // small files the game wrote earlier (savegames, Gothic.ini) live in OPFS
+    async function loadPersistedFiles() {
+      const out = [];
+      let dir;
+      try { dir = await opfsGameDir(false); } catch (e) { return out; }
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind === 'file' && /\.(sav|ini)$/i.test(name)) {
+          out.push({ path: name, mem: new Uint8Array(await (await h.getFile()).arrayBuffer()) });
+        } else if (h.kind === 'directory' && /^saves/i.test(name)) {
+          const sub = [];
+          await opfsWalk(h, name, sub);
+          for (const f of sub) {
+            const parts = f.path.split('/'); parts.shift();
+            let d = h;
+            for (const p of parts.slice(0, -1)) d = await d.getDirectoryHandle(p);
+            const fh = await d.getFileHandle(parts[parts.length - 1]);
+            out.push({ path: f.path, mem: new Uint8Array(await (await fh.getFile()).arrayBuffer()) });
+          }
+        }
+      }
+      return out;
+    }
+
+    async function mountFolderDirect(fileList) {
+      folderBtn.style.display = 'none';
+      zipBtn.style.display = 'none';
+      try {
+        const list = [];
+        for (const file of fileList) {
+          const rel = relPathOf(file);
+          if (shouldImport(rel)) list.push({ rel, file });
+        }
+        if (!list.some(f => /^data\//i.test(f.rel)))
+          throw new Error('в папке нет каталога Data — выберите корень установленной игры');
+
+        setStatus('Подключение папки (' + list.length + ' файлов)...');
+        GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
+        GameFS.addEntry('', true);
+        const addPath = (path, size) => {
+          const parts = path.split('/'); parts.pop();
+          let cur = '';
+          for (const p of parts) { cur = cur ? cur + '/' + p : p; GameFS.addEntry(cur, true); }
+          return GameFS.addEntry(path, false, size);
+        };
+        for (const f of list) addPath(f.rel, f.file.size).mem = null;
+
+        const canLazy = typeof SharedArrayBuffer !== 'undefined' && self.crossOriginIsolated;
+        if (canLazy) {
+          await initLazyBackend(list.map(f => f.rel), list.map(f => f.file));
+        } else {
+          // no cross-origin isolation: everything has to be read into memory
+          let done = 0;
+          const total = list.reduce((a, f) => a + f.file.size, 0);
+          for (const f of list) {
+            const e = GameFS.files.get(GameFS.lower(f.rel));
+            e.mem = new Uint8Array(await f.file.arrayBuffer());
+            done += f.file.size;
+            setStatus('Загрузка в память: ' + (done / 1048576).toFixed(0) + ' / ' + (total / 1048576).toFixed(0) + ' МБ',
+                      Math.round(done / Math.max(1, total) * 100));
+          }
+        }
+
+        // savegames/settings written in the browser override the folder copies
+        for (const p of await loadPersistedFiles()) {
+          const e = addPath(p.path, p.mem.length);
+          e.mem = p.mem;
+          e.hIdx = -1;
+        }
+
+        Module.FS.mkdir(GAME_ROOT);
+        Module.FS.mount(GameFS, {}, GAME_ROOT);
+        setStatus('✓ Папка с игрой подключена' + (GameFS.lazy ? ' (чтение с диска)' : ''));
+        startBtn.style.display = 'inline-flex';
+        g_gameReady = true;
+      } catch (err) {
+        console.error('mount error:', err);
+        statusText.style.color = 'var(--danger)';
+        setStatus('Ошибка: ' + (err.message || err));
+        folderBtn.style.display = 'inline-flex';
+        zipBtn.style.display = 'inline-flex';
+      }
     }
 
     async function onZipSelected(event) {
