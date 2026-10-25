@@ -159,6 +159,10 @@ class MainWindow : public Tempest::Window {
 
     Tempest::Widget*          uiKeyUp=nullptr;
     Tempest::Point            dMouse;
+#if defined(__EMSCRIPTEN__)
+    Tempest::Point        lastMouse;
+    bool                  lastMouseValid = false;
+#endif
     PlayerControl             player;
     uint64_t                  lastTick=0;
 

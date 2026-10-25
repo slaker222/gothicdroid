@@ -356,11 +356,20 @@ void MainWindow::mouseMoveEvent(MouseEvent &event) {
   }
 
 void MainWindow::processMouse(MouseEvent& event, bool enable) {
+#if defined(__EMSCRIPTEN__)
+  // browsers cannot warp the cursor back to the center: accumulate the motion
+  // between consecutive events instead
+  if(enable && hasFocus() && lastMouseValid)
+    dMouse += (event.pos()-lastMouse);
+  lastMouse      = event.pos();
+  lastMouseValid = true;
+#else
   auto center = Point(w()/2,h()/2);
   if(enable && event.pos()!=center && hasFocus()) {
     dMouse += (event.pos()-center);
     setCursorPosition(center);
     }
+#endif
   }
 
 void MainWindow::tickMouse(uint64_t dt) {
@@ -584,6 +593,9 @@ void MainWindow::focusEvent(FocusEvent &event) {
   if(!event.in)
     return;
   dMouse = Point();
+#if defined(__EMSCRIPTEN__)
+  lastMouseValid = false;
+#endif
   auto center = Point(w()/2,h()/2);
   setCursorPosition(center);
   }
