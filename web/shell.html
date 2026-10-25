@@ -276,6 +276,14 @@
         ▶ ЗАПУСТИТЬ ИГРУ
       </button>
 
+      <button class="btn" id="download-btn" style="display:none;" onclick="downloadGame()">
+        🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА
+      </button>
+
+      <button class="btn btn-secondary" id="pause-btn" style="display:none;" onclick="pauseInstall()">
+        ⏸ ПАУЗА
+      </button>
+
       <button class="btn" id="folder-btn" onclick="document.getElementById('folder-picker').click()">
         📁 ВЫБРАТЬ ПАПКУ С ИГРОЙ (БЫСТРО)
       </button>
@@ -285,15 +293,356 @@
       </button>
 
       <button class="btn btn-danger" id="clear-btn" style="display:none;" onclick="clearStorage()">
-        🗑 Очистить сохраненные файлы игры
+        🗑 Удалить игру из браузера (сохранения останутся)
       </button>
     </div>
 
     <p class="instructions" id="instructions">
-      Файлы игры сохраняются локально на диске вашего браузера (OPFS),<br>
-      поэтому загружать их повторно при следующем входе не потребуется.
+      Папка с игрой читается прямо с диска. Скачанная или распакованная из ZIP игра<br>
+      хранится в браузере (OPFS): при следующем входе загружать её повторно не нужно.
     </p>
   </div>
+
+  <!-- Install worker: downloads the game archive into OPFS (resumable) and
+       unpacks ZIP archives into the OPFS game directory. Kept as text and
+       started from a Blob URL so the page stays a single file. -->
+  <script type="text/plain" id="install-worker-src">
+'use strict';
+const FLUSH_EVERY = 32 * 1024 * 1024;
+const MAX_RETRIES = 8;
+let root = null;
+
+self.onmessage = async (e) => {
+  const m = e.data;
+  try {
+    root = await navigator.storage.getDirectory();
+    let result = null;
+    if (m.type === 'download') {
+      result = await download(m);
+    } else if (m.type === 'extract') {
+      const blob = m.blob || await (await root.getFileHandle(m.zipName)).getFile();
+      result = await extract(blob, m);
+    }
+    self.postMessage({ type: 'done', result });
+  } catch (err) {
+    self.postMessage({ type: 'error', name: err && err.name, msg: String(err && err.message || err) });
+  }
+};
+
+function progress(o) { self.postMessage(Object.assign({ type: 'progress' }, o)); }
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+function writeJsonSync(h, obj) {
+  const bytes = new TextEncoder().encode(JSON.stringify(obj));
+  h.truncate(0);
+  h.write(bytes, { at: 0 });
+  h.flush();
+}
+
+async function writeJson(name, obj) {
+  const fh = await root.getFileHandle(name, { create: true });
+  const h = await fh.createSyncAccessHandle();
+  try { writeJsonSync(h, obj); } finally { h.close(); }
+}
+
+// ------------------------------ download ------------------------------
+// Streams the archive into an OPFS file through a sync access handle, so
+// every written byte is on disk: an interrupted download (network error,
+// pause, closed tab) resumes with an HTTP Range request.
+
+function totalFromResponse(resp, have) {
+  if (resp.status === 206) {
+    const cr = resp.headers.get('Content-Range') || '';
+    const t = /\/(\d+)\s*$/.exec(cr);
+    if (t) return +t[1];
+    return have + (+resp.headers.get('Content-Length') || 0);
+  }
+  return +resp.headers.get('Content-Length') || 0;
+}
+
+async function download(m) {
+  const fh = await root.getFileHandle(m.zipName, { create: true });
+  const h = await fh.createSyncAccessHandle();
+  try {
+    let total = m.expectTotal || 0;
+    let have = h.getSize();
+    if (total && have === total) return { total };
+    if (total && have > total) { h.truncate(0); have = 0; }
+
+    let spaceChecked = false;
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const headers = have > 0 ? { Range: 'bytes=' + have + '-' } : {};
+        const resp = await fetch(m.url, { cache: 'no-store', headers });
+        if (resp.status === 416) {
+          // range past the end: the remote file changed, start over
+          h.truncate(0); have = 0; total = 0;
+          throw new Error('HTTP 416');
+        }
+        if (!resp.ok) {
+          const err = new Error('сервер ответил HTTP ' + resp.status);
+          if (resp.status >= 400 && resp.status < 500) err.fatal = true;
+          throw err;
+        }
+        const remoteTotal = totalFromResponse(resp, have);
+        const rangeStart = /bytes\s+(\d+)-/.exec(resp.headers.get('Content-Range') || '');
+        if (resp.status !== 206 || (rangeStart && +rangeStart[1] !== have) ||
+            (total && remoteTotal && remoteTotal !== total)) {
+          // no resume possible (or another file behind the URL): from scratch
+          h.truncate(0); have = 0;
+          if (resp.status === 206) {
+            resp.body.cancel().catch(() => {});
+            total = 0;
+            continue;
+          }
+        }
+        total = remoteTotal;
+        writeJsonSync(await stateHandle(m), { url: m.url, total });
+
+        if (!spaceChecked && total && navigator.storage.estimate) {
+          spaceChecked = true;
+          const est = await navigator.storage.estimate();
+          // archive + unpacked files (~1.5x of compressed) live side by side
+          const need = (total - have) + total * 1.5;
+          const free = (est.quota || 0) - (est.usage || 0);
+          if (est.quota && free < need) {
+            resp.body.cancel().catch(() => {});
+            const err = new Error('недостаточно места в хранилище браузера: нужно ~' +
+              Math.ceil(need / 1048576) + ' МБ, доступно ' + Math.floor(free / 1048576) + ' МБ');
+            err.fatal = true;
+            throw err;
+          }
+        }
+
+        const reader = resp.body.getReader();
+        let sinceFlush = 0, lastPost = 0;
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          h.write(value, { at: have });
+          have += value.byteLength;
+          sinceFlush += value.byteLength;
+          if (sinceFlush >= FLUSH_EVERY) { h.flush(); sinceFlush = 0; }
+          const now = performance.now();
+          if (now - lastPost > 200) {
+            lastPost = now;
+            progress({ phase: 'download', done: have, total });
+          }
+        }
+        h.flush();
+        if (total && have < total) throw new Error('соединение оборвалось');
+        progress({ phase: 'download', done: have, total: total || have });
+        return { total: total || have };
+      } catch (err) {
+        h.flush();
+        if (err.fatal || attempt >= MAX_RETRIES) throw err;
+        progress({ phase: 'retry', attempt: attempt + 1, max: MAX_RETRIES, msg: String(err.message || err) });
+        await sleep(Math.min(15000, 1500 * (attempt + 1)));
+        have = h.getSize();
+      }
+    }
+  } finally {
+    h.close();
+    if (stateH) { stateH.close(); stateH = null; }
+  }
+}
+
+let stateH = null;
+async function stateHandle(m) {
+  if (!stateH) {
+    const fh = await root.getFileHandle(m.stateName, { create: true });
+    stateH = await fh.createSyncAccessHandle();
+  }
+  return stateH;
+}
+
+// ------------------------------ extract ------------------------------
+
+const CRC_TABLE = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c;
+  }
+  return t;
+})();
+
+function crc32(crc, buf) {
+  let c = ~crc;
+  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  return ~c;
+}
+
+async function readAt(blob, pos, len) {
+  return new DataView(await blob.slice(pos, pos + len).arrayBuffer());
+}
+
+function u64(dv, off) { return Number(dv.getBigUint64(off, true)); }
+
+async function readCentralDirectory(blob) {
+  const size = blob.size;
+  const tailLen = Math.min(size, 65535 + 22);
+  const tail = await readAt(blob, size - tailLen, tailLen);
+  let eocd = -1;
+  for (let i = tailLen - 22; i >= 0; i--) {
+    if (tail.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  }
+  if (eocd < 0) throw new Error('это не ZIP-архив (или архив повреждён/не докачан)');
+  let count = tail.getUint16(eocd + 10, true);
+  let cdSize = tail.getUint32(eocd + 12, true);
+  let cdOff = tail.getUint32(eocd + 16, true);
+  if (count === 0xffff || cdSize === 0xffffffff || cdOff === 0xffffffff) {
+    const loc = eocd - 20;
+    if (loc < 0 || tail.getUint32(loc, true) !== 0x07064b50) throw new Error('повреждённый ZIP64-архив');
+    const z = await readAt(blob, u64(tail, loc + 8), 56);
+    if (z.getUint32(0, true) !== 0x06064b50) throw new Error('повреждённый ZIP64-архив');
+    count = u64(z, 32); cdSize = u64(z, 40); cdOff = u64(z, 48);
+  }
+
+  const cd = await readAt(blob, cdOff, cdSize);
+  const bytes = new Uint8Array(cd.buffer);
+  const utf8 = new TextDecoder('utf-8');
+  const dos = new TextDecoder('ibm866');
+  const entries = [];
+  let p = 0;
+  for (let i = 0; i < count; i++) {
+    if (cd.getUint32(p, true) !== 0x02014b50) throw new Error('повреждённый каталог ZIP-архива');
+    const flags = cd.getUint16(p + 8, true);
+    const method = cd.getUint16(p + 10, true);
+    const crc = cd.getInt32(p + 16, true);
+    let compSize = cd.getUint32(p + 20, true);
+    let size = cd.getUint32(p + 24, true);
+    const nameLen = cd.getUint16(p + 28, true);
+    const extraLen = cd.getUint16(p + 30, true);
+    const commentLen = cd.getUint16(p + 32, true);
+    let localOff = cd.getUint32(p + 42, true);
+    const nameBytes = bytes.subarray(p + 46, p + 46 + nameLen);
+    const name = ((flags & 0x800) ? utf8 : dos).decode(nameBytes);
+    // ZIP64 extended information: only the saturated fields are present
+    let x = p + 46 + nameLen;
+    const xEnd = x + extraLen;
+    while (x + 4 <= xEnd) {
+      const id = cd.getUint16(x, true), len = cd.getUint16(x + 2, true);
+      if (id === 0x0001) {
+        let q = x + 4;
+        if (size === 0xffffffff) { size = u64(cd, q); q += 8; }
+        if (compSize === 0xffffffff) { compSize = u64(cd, q); q += 8; }
+        if (localOff === 0xffffffff) { localOff = u64(cd, q); q += 8; }
+      }
+      x += 4 + len;
+    }
+    entries.push({ name: name.replace(/\\/g, '/').replace(/^\/+/, ''), flags, method, crc, compSize, size, localOff });
+    p += 46 + nameLen + extraLen + commentLen;
+  }
+  return entries;
+}
+
+// The archive may wrap the game into one or more folders ("game/Data/...").
+// The game root is the folder holding Data/ closest to the archive root.
+function findGameRoot(entries) {
+  let best = null;
+  for (const e of entries) {
+    const parts = e.name.split('/');
+    for (let i = 0; i < parts.length - 1; i++) {
+      if (/^data$/i.test(parts[i])) {
+        if (best === null || i < best.length) best = parts.slice(0, i);
+        break;
+      }
+    }
+  }
+  if (best === null) throw new Error('в архиве нет папки Data — это не архив с игрой Gothic');
+  return best.length ? best.join('/') + '/' : '';
+}
+
+async function extract(blob, m) {
+  const all = await readCentralDirectory(blob);
+  const prefix = findGameRoot(all);
+  const list = [];
+  for (const e of all) {
+    if (e.name.endsWith('/')) continue;
+    if (prefix && e.name.slice(0, prefix.length).toLowerCase() !== prefix.toLowerCase()) continue;
+    const rel = e.name.slice(prefix.length);
+    if (!rel || rel.split('/').some(s => s === '..' || s === '.')) continue;
+    if (m.skip.some(re => re.test(rel))) continue;
+    if (e.method !== 0 && e.method !== 8) throw new Error('неподдерживаемый метод сжатия ' + e.method + ': ' + rel);
+    if (e.flags & 1) throw new Error('зашифрованные ZIP-архивы не поддерживаются');
+    list.push(Object.assign(e, { rel }));
+  }
+  if (list.length === 0) throw new Error('в архиве не найдено файлов игры');
+
+  const gameDir = await root.getDirectoryHandle(m.gameDirName, { create: true });
+  const dirs = new Map([['', gameDir]]);
+  async function dirFor(parts) {
+    let key = '', d = gameDir;
+    for (const seg of parts) {
+      key = key ? key + '/' + seg : seg;
+      let next = dirs.get(key.toLowerCase());
+      if (!next) {
+        next = await d.getDirectoryHandle(seg, { create: true });
+        dirs.set(key.toLowerCase(), next);
+      }
+      d = next;
+    }
+    return d;
+  }
+
+  const totalComp = list.reduce((a, e) => a + e.compSize, 0);
+  let doneComp = 0, doneBytes = 0, lastPost = 0, n = 0;
+  for (const e of list) {
+    n++;
+    const parts = e.rel.split('/');
+    const fname = parts.pop();
+    const d = await dirFor(parts);
+    // savegames and settings made in the browser win over the archive copies
+    if (m.persisted.some(re => re.test(e.rel))) {
+      let exists = true;
+      try { await d.getFileHandle(fname, { create: false }); } catch (_) { exists = false; }
+      if (exists) { doneComp += e.compSize; continue; }
+    }
+
+    const lh = await readAt(blob, e.localOff, 30);
+    if (lh.getUint32(0, true) !== 0x04034b50) throw new Error('повреждённый ZIP-архив: ' + e.rel);
+    const dataOff = e.localOff + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
+
+    const fh = await d.getFileHandle(fname, { create: true });
+    const h = await fh.createSyncAccessHandle();
+    try {
+      h.truncate(0);
+      let stream = blob.slice(dataOff, dataOff + e.compSize).stream();
+      if (e.method === 8) stream = stream.pipeThrough(new DecompressionStream('deflate-raw'));
+      const reader = stream.getReader();
+      let pos = 0, crc = 0;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        h.write(value, { at: pos });
+        crc = crc32(crc, value);
+        pos += value.byteLength;
+        const now = performance.now();
+        if (now - lastPost > 200) {
+          lastPost = now;
+          const part = e.size ? Math.min(1, pos / e.size) : 1;
+          progress({ phase: 'extract', done: doneComp + e.compSize * part, total: totalComp,
+                     index: n, count: list.length, name: e.rel });
+        }
+      }
+      if (pos !== e.size || crc !== e.crc)
+        throw new Error('файл в архиве повреждён (не совпадает контрольная сумма): ' + e.rel);
+      h.flush();
+    } finally {
+      h.close();
+    }
+    doneComp += e.compSize;
+    doneBytes += e.size;
+  }
+  progress({ phase: 'extract', done: totalComp, total: totalComp, index: list.length, count: list.length, name: '' });
+  if (m.deleteZip) {
+    try { await root.removeEntry(m.zipName); } catch (_) {}
+  }
+  return { files: list.length, bytes: doneBytes };
+}
+  </script>
 
   <script type="text/javascript">
     'use strict';
@@ -893,66 +1242,331 @@ function serveLoop() {
 
     // TEMPORARY: the game folder is picked on every start and read directly
     // from disk; nothing but savegames/settings is copied into OPFS.
+    // A game downloaded from ARCHIVE_URL or unpacked from a ZIP is installed
+    // into OPFS in both modes.
     const DIRECT_FOLDER_MODE = true;
+
+    // Archive with the whole game (game folder with Data/ inside, any nesting).
+    // Overridden by ?archive=<url>. The server must allow CORS; mirrorhost share
+    // links are rewritten to their CORS-enabled download host.
+    const ARCHIVE_URL = 'https://example.invalid/removed';
+
+    // OPFS root entries next to the game directory
+    const DL_ZIP = 'gothic-download.zip';     // archive being downloaded
+    const DL_STATE = 'gothic-download.json';  // {url, total} of that download
+    const INSTALL_MARK = 'gothic-install.json'; // written once the game is unpacked
+
+    const downloadBtn = document.getElementById('download-btn');
+    const pauseBtn = document.getElementById('pause-btn');
+
+    // savegames and settings written by the engine (see loadPersistedFiles)
+    function isPersistedPath(rel) {
+      return /^[^/]+\.(sav|ini)$/i.test(rel) || /^saves[^/]*\//i.test(rel);
+    }
+
+    function archiveUrl() {
+      const q = new URLSearchParams(location.search).get('archive');
+      return normalizeArchiveUrl(q || ARCHIVE_URL);
+    }
+
+    function normalizeArchiveUrl(u) {
+      const url = new URL(u, location.href);
+      // www.mirrorhost.com answers with a redirect that has no CORS headers;
+      // dl.mirrorhostusercontent.com serves the same file with CORS and Range
+      if (/(^|\.)mirrorhost\.com$/i.test(url.hostname)) {
+        url.hostname = 'dl.mirrorhostusercontent.com';
+        url.searchParams.delete('st');
+        url.searchParams.delete('e');
+        url.searchParams.set('dl', '1');
+      }
+      return url.href;
+    }
+
+    async function readRootJson(name) {
+      try {
+        const root = await navigator.storage.getDirectory();
+        const f = await (await root.getFileHandle(name)).getFile();
+        return JSON.parse(await f.text());
+      } catch (e) {
+        return null;
+      }
+    }
+
+    async function writeRootJson(name, obj) {
+      const root = await navigator.storage.getDirectory();
+      const w = await (await root.getFileHandle(name, { create: true })).createWritable();
+      await w.write(JSON.stringify(obj));
+      await w.close();
+    }
+
+    async function removeRootEntry(name) {
+      try { await (await navigator.storage.getDirectory()).removeEntry(name, { recursive: true }); } catch (e) {}
+    }
+
+    function mb(bytes) { return (bytes / 1048576).toFixed(0); }
+
+    function showSourceButtons(show) {
+      const d = show ? 'inline-flex' : 'none';
+      downloadBtn.style.display = d;
+      folderBtn.style.display = d;
+      zipBtn.style.display = d;
+    }
 
     async function initStorage() {
       bindErrnoError();
-      if (DIRECT_FOLDER_MODE) {
-        setStatus('Выберите папку с установленной игрой (Gothic I или II).');
-        return;
-      }
       try {
-        const dir = await opfsGameDir(false);
-        const listing = [];
-        await opfsWalk(dir, '', listing);
-        if (listing.length === 0 || !listing.some(f => f.path.toLowerCase().startsWith('data/'))) {
-          setStatus('Готово к работе. Выберите папку или ZIP с Gothic I или II.');
+        const installed = await readRootJson(INSTALL_MARK);
+        // without the direct mode a game imported into OPFS is used as well
+        if ((installed || !DIRECT_FOLDER_MODE) && await mountInstalledGame())
           return;
-        }
-
-        const totalBytes = listing.reduce((a, f) => a + f.size, 0);
-        setStatus('Индексация установленной игры (' + (totalBytes / 1048576).toFixed(0) + ' МБ)...');
-
-        // Build the registry (directories inferred from paths)
-        GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
-        GameFS.addEntry('', true);
-        for (const f of listing) {
-          const parts = f.path.split('/');
-          parts.pop();
-          let cur = '';
-          for (const p of parts) {
-            cur = cur ? cur + '/' + p : p;
-            GameFS.addEntry(cur, true);
-          }
-          const e = GameFS.addEntry(f.path, false, f.size);
-          e.mem = null;
-        }
-
-        // Choose a backend for file contents
-        const canLazy = typeof SharedArrayBuffer !== 'undefined' && self.crossOriginIsolated;
-        if (canLazy) {
-          try {
-            await initLazyBackend(listing.map(f => f.path));
-          } catch (err) {
-            console.warn('Lazy backend failed, falling back to preload:', err);
-            GameFS.lazy = false;
-          }
-        }
-        if (!GameFS.lazy) {
-          await preloadAllFiles(listing);
-        }
-
-        Module.FS.mkdir(GAME_ROOT);
-        Module.FS.mount(GameFS, {}, GAME_ROOT);
-
-        setStatus('✓ Игра найдена на диске браузера' + (GameFS.lazy ? ' (ленивый режим)' : ''));
-        startBtn.style.display = 'inline-flex';
-        clearBtn.style.display = 'inline-flex';
-        g_gameReady = true;
       } catch (e) {
         console.warn('initStorage error:', e);
-        setStatus('Готово к работе. Выберите папку или ZIP с игрой.');
       }
+      showSourceButtons(true);
+      await updateDownloadButton();
+      setStatus(DIRECT_FOLDER_MODE
+        ? 'Скачайте игру или выберите папку с установленной игрой (Gothic I или II).'
+        : 'Готово к работе. Скачайте игру или выберите папку или ZIP с Gothic I или II.');
+    }
+
+    // label: resume info for an unfinished download, archive size otherwise
+    async function updateDownloadButton() {
+      const url = archiveUrl();
+      const state = await readRootJson(DL_STATE);
+      if (state && state.url === url && state.total) {
+        let have = 0;
+        try {
+          const root = await navigator.storage.getDirectory();
+          have = (await (await root.getFileHandle(DL_ZIP)).getFile()).size;
+        } catch (e) {}
+        downloadBtn.textContent = have >= state.total
+          ? '📦 ДОРАСПАКОВАТЬ СКАЧАННУЮ ИГРУ'
+          : '🌐 ПРОДОЛЖИТЬ ЗАГРУЗКУ (' + mb(have) + ' / ' + mb(state.total) + ' МБ)';
+        return;
+      }
+      downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА';
+      // ask for the size without downloading the archive
+      try {
+        const ctl = new AbortController();
+        const resp = await fetch(url, { headers: { Range: 'bytes=0-0' }, cache: 'no-store', signal: ctl.signal });
+        const m = /\/(\d+)\s*$/.exec(resp.headers.get('Content-Range') || '');
+        const total = m ? +m[1] : (resp.status === 200 ? +resp.headers.get('Content-Length') : 0);
+        ctl.abort();
+        if (total && downloadBtn.textContent.indexOf('СКАЧАТЬ') >= 0)
+          downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА (' + mb(total) + ' МБ)';
+      } catch (e) {
+        console.warn('archive size probe failed:', e);
+      }
+    }
+
+    // Mounts the game installed into OPFS (downloaded, unpacked or imported).
+    // Returns false when there is no game there.
+    async function mountInstalledGame() {
+      let dir;
+      try { dir = await opfsGameDir(false); } catch (e) { return false; }
+      const all = [];
+      await opfsWalk(dir, '', all);
+      if (!all.some(f => f.path.toLowerCase().startsWith('data/')))
+        return false;
+
+      // savegames/settings are rewritten by the game: they are kept in memory
+      // (and persisted on close), the bridge only holds read-only game files
+      const listing = all.filter(f => !isPersistedPath(f.path));
+      const totalBytes = listing.reduce((a, f) => a + f.size, 0);
+      setStatus('Индексация установленной игры (' + mb(totalBytes) + ' МБ)...');
+
+      // Build the registry (directories inferred from paths)
+      GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
+      GameFS.addEntry('', true);
+      const addPath = (path, size) => {
+        const parts = path.split('/'); parts.pop();
+        let cur = '';
+        for (const p of parts) { cur = cur ? cur + '/' + p : p; GameFS.addEntry(cur, true); }
+        return GameFS.addEntry(path, false, size);
+      };
+      for (const f of listing) addPath(f.path, f.size).mem = null;
+
+      // Choose a backend for file contents
+      const canLazy = typeof SharedArrayBuffer !== 'undefined' && self.crossOriginIsolated;
+      if (canLazy) {
+        try {
+          await initLazyBackend(listing.map(f => f.path));
+        } catch (err) {
+          console.warn('Lazy backend failed, falling back to preload:', err);
+          GameFS.lazy = false;
+        }
+      }
+      if (!GameFS.lazy) {
+        await preloadAllFiles(listing);
+      }
+
+      for (const p of await loadPersistedFiles()) {
+        const e = addPath(p.path, p.mem.length);
+        e.mem = p.mem;
+        e.hIdx = -1;
+      }
+
+      Module.FS.mkdir(GAME_ROOT);
+      Module.FS.mount(GameFS, {}, GAME_ROOT);
+
+      showSourceButtons(false);
+      pauseBtn.style.display = 'none';
+      progressContainer.style.display = 'none';
+      statusText.style.color = '';
+      setStatus('✓ Игра установлена в браузере' + (GameFS.lazy ? ' (чтение с диска)' : ''));
+      startBtn.style.display = 'inline-flex';
+      clearBtn.style.display = 'inline-flex';
+      g_gameReady = true;
+      return true;
+    }
+
+    // ---------------------------- Download / install ----------------------------
+
+    let g_installWorker = null;
+
+    function runInstallWorker(msg, onProgress) {
+      return new Promise((resolve, reject) => {
+        const src = document.getElementById('install-worker-src').textContent;
+        const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        const worker = new Worker(url);
+        URL.revokeObjectURL(url);
+        g_installWorker = { worker, reject };
+        const finish = () => { worker.terminate(); g_installWorker = null; };
+        worker.onerror = (e) => { finish(); reject(new Error('install worker: ' + e.message)); };
+        worker.onmessage = (e) => {
+          const m = e.data;
+          if (m.type === 'progress') {
+            onProgress(m);
+          } else if (m.type === 'done') {
+            finish(); resolve(m.result);
+          } else if (m.type === 'error') {
+            finish();
+            const err = new Error(m.msg);
+            err.name = m.name || 'Error';
+            reject(err);
+          }
+        };
+        worker.postMessage(Object.assign({
+          gameDirName: OPFS_ROOT_DIR,
+          skip: IMPORT_SKIP,
+          persisted: [/^[^/]+\.(sav|ini)$/i, /^saves[^/]*\//i]
+        }, msg));
+      });
+    }
+
+    function pauseInstall() {
+      if (!g_installWorker) return;
+      const { worker, reject } = g_installWorker;
+      worker.terminate();
+      g_installWorker = null;
+      const err = new Error('paused');
+      err.paused = true;
+      reject(err);
+    }
+
+    function fmtTime(sec) {
+      if (!isFinite(sec) || sec < 0) return '…';
+      sec = Math.round(sec);
+      const h = Math.floor(sec / 3600), m = Math.floor(sec / 60) % 60, s = sec % 60;
+      return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
+    }
+
+    function makeProgressReporter() {
+      let t0 = 0, b0 = 0, speed = 0;
+      return (m) => {
+        const pct = m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0;
+        if (m.phase === 'download') {
+          const now = performance.now();
+          if (!t0) { t0 = now; b0 = m.done; }
+          else if (now - t0 > 1000) {
+            const s = (m.done - b0) / ((now - t0) / 1000);
+            speed = speed ? speed * 0.7 + s * 0.3 : s;
+            t0 = now; b0 = m.done;
+          }
+          let msg = 'Загрузка игры: ' + mb(m.done) + ' / ' + (m.total ? mb(m.total) : '?') + ' МБ';
+          if (speed > 0)
+            msg += ' · ' + (speed / 1048576).toFixed(1) + ' МБ/с · осталось ' + fmtTime((m.total - m.done) / speed);
+          setStatus(msg, pct);
+        } else if (m.phase === 'retry') {
+          setStatus('Сбой сети (' + m.msg + '), повтор ' + m.attempt + '/' + m.max + '...');
+        } else if (m.phase === 'extract') {
+          setStatus('Распаковка [' + m.index + '/' + m.count + ']' + (m.name ? ': ' + m.name : '') +
+                    ' — ' + pct + '%', pct);
+        }
+      };
+    }
+
+    function installError(err, what) {
+      if (err.paused) {
+        statusText.style.color = '';
+        setStatus('⏸ Пауза. Загрузка продолжится с того же места.');
+      } else {
+        console.error(what, err);
+        statusText.style.color = 'var(--danger)';
+        let msg = err.message || String(err);
+        if (err.name === 'QuotaExceededError')
+          msg = 'недостаточно места в хранилище браузера';
+        else if (err.name === 'TypeError' && /fetch/i.test(msg))
+          msg = 'не удалось подключиться к серверу с архивом (' + msg + ')';
+        setStatus(what + ': ' + msg);
+      }
+      pauseBtn.style.display = 'none';
+      showSourceButtons(true);
+      updateDownloadButton();
+    }
+
+    async function downloadGame() {
+      if (g_gameReady || g_installWorker) return;
+      const url = archiveUrl();
+      showSourceButtons(false);
+      statusText.style.color = '';
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      pauseBtn.style.display = 'inline-flex';
+      setStatus('Подключение к серверу...');
+      // keep the browser from evicting a multi-GB install under storage pressure
+      try { if (navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+
+      let state = await readRootJson(DL_STATE);
+      if (state && state.url !== url) {
+        await removeRootEntry(DL_ZIP);
+        state = null;
+      }
+      const report = makeProgressReporter();
+      try {
+        const dl = await runInstallWorker({ type: 'download', url, zipName: DL_ZIP, stateName: DL_STATE,
+                                            expectTotal: state ? state.total : 0 }, report);
+        setStatus('Проверка архива...', 0);
+        const res = await runInstallWorker({ type: 'extract', zipName: DL_ZIP, deleteZip: true }, report);
+        await finishInstall({ source: url, archiveBytes: dl.total }, res);
+      } catch (err) {
+        installError(err, 'Ошибка загрузки');
+      }
+    }
+
+    async function installFromZip(file) {
+      if (g_gameReady || g_installWorker) return;
+      showSourceButtons(false);
+      statusText.style.color = '';
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      setStatus('Чтение архива...');
+      try {
+        const res = await runInstallWorker({ type: 'extract', blob: file }, makeProgressReporter());
+        await finishInstall({ source: 'file:' + file.name, archiveBytes: file.size }, res);
+      } catch (err) {
+        installError(err, 'Ошибка распаковки ZIP');
+      }
+    }
+
+    async function finishInstall(info, res) {
+      pauseBtn.style.display = 'none';
+      await writeRootJson(INSTALL_MARK, Object.assign(info, res, { date: new Date().toISOString() }));
+      await removeRootEntry(DL_ZIP);
+      await removeRootEntry(DL_STATE);
+      console.log('[SHELL] game installed:', res.files, 'files,', mb(res.bytes), 'MB');
+      if (!await mountInstalledGame())
+        throw new Error('после распаковки игра не найдена');
     }
 
     function initLazyBackend(paths, files) {
@@ -1023,12 +1637,25 @@ function serveLoop() {
       }
     }
 
+    // removes the installed game, keeping savegames and settings
     async function clearStorage() {
-      if (!confirm("Очистить сохраненные файлы игры из браузера?")) return;
+      if (!confirm("Удалить файлы игры из браузера? Сохранения останутся.")) return;
+      // the bridge worker holds locks on every game file
+      if (GameFS.bridge) { GameFS.bridge.worker.terminate(); GameFS.bridge = null; }
       try {
-        const root = await navigator.storage.getDirectory();
-        await root.removeEntry(OPFS_ROOT_DIR, { recursive: true });
-      } catch (e) {}
+        const dir = await opfsGameDir(false);
+        const names = [];
+        for await (const [name, h] of dir.entries()) {
+          if (!(h.kind === 'file' && /\.(sav|ini)$/i.test(name)) && !(h.kind === 'directory' && /^saves/i.test(name)))
+            names.push(name);
+        }
+        for (const name of names) await dir.removeEntry(name, { recursive: true });
+      } catch (e) {
+        console.warn('clearStorage:', e);
+      }
+      await removeRootEntry(INSTALL_MARK);
+      await removeRootEntry(DL_ZIP);
+      await removeRootEntry(DL_STATE);
       try {
         indexedDB.deleteDatabase('/gothic'); // legacy IDBFS database
         indexedDB.deleteDatabase('emscripten-fs'); // legacy runtime database
@@ -1134,7 +1761,7 @@ function serveLoop() {
     async function onZipSelected(event) {
       const file = event.target.files[0];
       if (!file) return;
-      await extractZipFile(file);
+      await installFromZip(file);
     }
 
     function relPathOf(file) {
@@ -1196,91 +1823,13 @@ function serveLoop() {
         }
         const secs = (performance.now() - t0) / 1000;
         console.log('Import done:', count, 'files in', secs.toFixed(1), 's');
+        await writeRootJson(INSTALL_MARK, { source: 'folder', files: count, bytes: doneBytes, date: new Date().toISOString() });
         setStatus('✓ Установка завершена (' + secs.toFixed(0) + ' с). Обновление страницы...');
         setTimeout(() => location.reload(), 600);
       } catch (err) {
         console.error('Import error:', err);
         statusText.style.color = 'var(--danger)';
         setStatus('Ошибка импорта: ' + (err.message || err));
-        folderBtn.style.display = 'inline-flex';
-        zipBtn.style.display = 'inline-flex';
-      }
-    }
-
-    // ZIP extraction: entries are streamed into OPFS through a pipe
-    // (native DecompressionStream), never materialized fully in memory.
-    async function extractZipFile(file) {
-      progressContainer.style.display = 'block';
-      progressBar.style.width = '0%';
-      folderBtn.style.display = 'none';
-      zipBtn.style.display = 'none';
-      setStatus('Чтение архива...');
-
-      try {
-        const arrayBuffer = await file.arrayBuffer();
-        const view = new DataView(arrayBuffer);
-        const uint8 = new Uint8Array(arrayBuffer);
-
-        let offset = 0;
-        const totalLen = arrayBuffer.byteLength;
-        let count = 0;
-
-        const dir = await opfsGameDir(true);
-
-        while (offset < totalLen - 4) {
-          const sig = view.getUint32(offset, true);
-          if (sig !== 0x04034b50) break;
-
-          const compMethod = view.getUint16(offset + 8, true);
-          const compSize = view.getUint32(offset + 18, true);
-          const nameLen = view.getUint16(offset + 26, true);
-          const extraLen = view.getUint16(offset + 28, true);
-
-          const nameBytes = uint8.subarray(offset + 30, offset + 30 + nameLen);
-          const filename = new TextDecoder('cp866').decode(nameBytes);
-
-          const dataOffset = offset + 30 + nameLen + extraLen;
-          const compressedData = uint8.subarray(dataOffset, dataOffset + compSize);
-
-          offset = dataOffset + compSize;
-
-          if (filename.endsWith('/') || compSize === 0) continue;
-          let rel = filename.replace(/\\/g, '/');
-          if (rel.startsWith('/')) rel = rel.substr(1);
-          if (!shouldImport(rel)) continue;
-
-          setStatus('Распаковка: ' + rel, Math.min(100, Math.round((offset / totalLen) * 100)));
-
-          const parts = rel.split('/');
-          const name = parts.pop();
-          const d = await opfsEnsureDir(dir, parts);
-          const fh = await d.getFileHandle(name, { create: true });
-          const writable = await fh.createWritable();
-
-          if (compMethod === 0) {
-            await writable.write(compressedData);
-            await writable.close();
-          } else if (compMethod === 8) {
-            const ds = new DecompressionStream('deflate-raw');
-            const writer = ds.writable.getWriter();
-            writer.write(compressedData);
-            writer.close();
-            await ds.readable.pipeTo(writable);
-          } else {
-            await writable.close();
-            continue;
-          }
-          count++;
-          await new Promise(r => setTimeout(r, 0));
-        }
-
-        console.log('Extracted', count, 'files.');
-        setStatus('✓ Распаковано файлов: ' + count + '. Обновление страницы...');
-        setTimeout(() => location.reload(), 600);
-      } catch (err) {
-        console.error('ZIP extraction error:', err);
-        statusText.style.color = 'var(--danger)';
-        setStatus('Ошибка распаковки ZIP: ' + err.message);
         folderBtn.style.display = 'inline-flex';
         zipBtn.style.display = 'inline-flex';
       }
@@ -1303,7 +1852,7 @@ function serveLoop() {
       if (!files || files.length === 0) return;
 
       if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
-        await extractZipFile(files[0]);
+        await installFromZip(files[0]);
       } else {
         await importFilesList(files);
       }
