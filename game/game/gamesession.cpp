@@ -1,5 +1,6 @@
 #include "gamesession.h"
 #include "savegameheader.h"
+#include "og_hb.h"
 
 #include <Tempest/Log>
 #include <Tempest/MemReader>
@@ -67,6 +68,7 @@ void GameSession::HeroStorage::putToWorld(World& owner, std::string_view wayPoin
 
 
 GameSession::GameSession(std::string file) {
+  OG_HB('sg-enter');
   cam.reset(new Camera());
 
   Gothic::inst().setLoadingProgress(0);
@@ -79,8 +81,10 @@ GameSession::GameSession(std::string file) {
   setWorld(std::unique_ptr<World>(new World(*this,std::move(file),true,[&](int v){
     Gothic::inst().setLoadingProgress(int(v*0.55));
     })));
+  OG_HB('sg-world-done');
 
   vm->initDialogs();
+  OG_HB('sg-dialogs-done');
   Gothic::inst().setLoadingProgress(70);
 
   const bool testMode=false;
@@ -103,14 +107,18 @@ GameSession::GameSession(std::string file) {
   //std::string_view hero = "Gobbo_Skeleton";
   if(!Gothic::inst().isBenchmarkMode())
     wrld->createPlayer(hero);
+  OG_HB('sg-player-done');
   wrld->postInit();
 
   if(!testMode)
     initScripts(true);
+  OG_HB('sg-scripts-done');
   wrld->triggerOnStart(true);
+  OG_HB('sg-trigger-done');
   cam->reset(wrld->player());
   Gothic::inst().setLoadingProgress(96);
   ticks = 1;
+  OG_HB('sg-done');
   // wrld->setDayTime(8,0);
   }
 

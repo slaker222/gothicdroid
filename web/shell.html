@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OpenGothic Web</title>
+  <style>
+    :root {
+      --bg-dark: #0a0b0e;
+      --card-bg: rgba(20, 24, 30, 0.88);
+      --border-color: rgba(224, 192, 104, 0.28);
+      --gold: #e0c068;
+      --gold-hover: #f0d588;
+      --gold-glow: rgba(224, 192, 104, 0.35);
+      --text: #e6e8eb;
+      --text-dim: #8b929a;
+      --danger: #ff6b6b;
+      --success: #51cf66;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      background: var(--bg-dark);
+      color: var(--text);
+      font-family: -apple-system, 'Segoe UI', Roboto, sans-serif;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .bg-vignette {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at center, rgba(30, 36, 48, 0.45) 0%, rgba(8, 10, 14, 0.96) 100%);
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    #canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      outline: none;
+      border: none;
+      background: #000;
+      display: block;
+      z-index: 2;
+    }
+
+    #ui-overlay {
+      position: relative;
+      z-index: 10;
+      max-width: 580px;
+      width: 92%;
+      background: var(--card-bg);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--border-color);
+      border-radius: 16px;
+      padding: 34px 30px;
+      text-align: center;
+      box-shadow: 0 25px 60px rgba(0, 0, 0, 0.85), 0 0 50px rgba(224, 192, 104, 0.1);
+      transition: opacity 0.5s ease, transform 0.5s ease, border-color 0.3s ease;
+    }
+
+    #ui-overlay.drag-over {
+      border-color: var(--gold);
+      box-shadow: 0 0 40px var(--gold-glow);
+    }
+
+    #ui-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+      transform: scale(0.96);
+    }
+
+    .title {
+      font-family: Georgia, 'Times New Roman', serif;
+      font-size: 34px;
+      font-weight: 900;
+      color: var(--gold);
+      letter-spacing: 3px;
+      text-shadow: 0 2px 14px rgba(224, 192, 104, 0.35);
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 13px;
+      color: var(--text-dim);
+      margin-bottom: 22px;
+      letter-spacing: 0.5px;
+    }
+
+    .status-box {
+      background: rgba(10, 12, 16, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      min-height: 44px;
+      word-break: break-word;
+    }
+
+    .progress-bar-container {
+      width: 100%;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-bottom: 18px;
+      display: none;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #b8860b, var(--gold));
+      transition: width 0.15s ease;
+    }
+
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 16px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      padding: 13px 18px;
+      font-size: 14px;
+      font-weight: 600;
+      color: #121417;
+      background: linear-gradient(135deg, var(--gold), #caa34d);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(224, 192, 104, 0.25);
+      transition: all 0.2s ease;
+      letter-spacing: 0.5px;
+    }
+
+    .btn:hover {
+      background: linear-gradient(135deg, var(--gold-hover), #dab055);
+      transform: translateY(-1px);
+      box-shadow: 0 6px 20px rgba(224, 192, 104, 0.35);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn-secondary {
+      background: rgba(255, 255, 255, 0.08);
+      color: var(--text);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      box-shadow: none;
+    }
+
+    .btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.14);
+      color: #fff;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #e0c068, #caa34d);
+      color: #121417;
+      font-size: 15px;
+      font-weight: 700;
+      padding: 15px 22px;
+    }
+
+    .btn-danger {
+      background: rgba(255, 107, 107, 0.15);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: var(--danger);
+      font-size: 12px;
+      padding: 8px 12px;
+      width: auto;
+      margin-top: 6px;
+    }
+
+    .btn-danger:hover {
+      background: rgba(255, 107, 107, 0.25);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .drop-zone-hint {
+      font-size: 12px;
+      color: var(--gold);
+      margin-bottom: 12px;
+      opacity: 0.9;
+    }
+
+    .instructions {
+      font-size: 12px;
+      color: var(--text-dim);
+      line-height: 1.5;
+    }
+
+    #fs-btn {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      z-index: 20;
+      background: rgba(20, 24, 30, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text);
+      padding: 8px 14px;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      backdrop-filter: blur(8px);
+      display: none;
+      transition: background 0.2s ease;
+    }
+
+    #fs-btn:hover {
+      background: rgba(255, 255, 255, 0.2);
+    }
+  </style>
+</head>
+<body>
+  <div class="bg-vignette"></div>
+
+  <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+
+  <button id="fs-btn" onclick="toggleFullscreen()">⛶ На весь экран</button>
+
+  <div id="ui-overlay">
+    <h1 class="title">OPENGOTHIC</h1>
+    <p class="subtitle">WebAssembly / WebGL2 Browser Edition</p>
+
+    <div class="progress-bar-container" id="progress-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+
+    <div class="status-box" id="status-text">
+      Загрузка ядра движка WebAssembly...
+    </div>
+
+    <p class="drop-zone-hint">💡 Можно перетащить папку с игрой или ZIP прямо сюда</p>
+
+    <input type="file" id="folder-picker" class="file-input" webkitdirectory directory multiple onchange="onFolderSelected(event)">
+    <input type="file" id="zip-picker" class="file-input" accept=".zip" onchange="onZipSelected(event)">
+
+    <div class="btn-group" id="btn-group">
+      <button class="btn btn-primary" id="start-btn" style="display:none;" onclick="startGame()">
+        ▶ ЗАПУСТИТЬ ИГРУ
+      </button>
+
+      <button class="btn" id="folder-btn" onclick="document.getElementById('folder-picker').click()">
+        📁 ВЫБРАТЬ ПАПКУ С ИГРОЙ (БЫСТРО)
+      </button>
+
+      <button class="btn btn-secondary" id="zip-btn" onclick="document.getElementById('zip-picker').click()">
+        📦 ВЫБРАТЬ АРХИВ С ИГРОЙ (.ZIP)
+      </button>
+
+      <button class="btn btn-danger" id="clear-btn" style="display:none;" onclick="clearStorage()">
+        🗑 Очистить сохраненные файлы игры
+      </button>
+    </div>
+
+    <p class="instructions" id="instructions">
+      Файлы игры сохраняются локально на диске вашего браузера (OPFS),<br>
+      поэтому загружать их повторно при следующем входе не потребуется.
+    </p>
+  </div>
+
+  <script type="text/javascript">
+    'use strict';
+
+    const statusText = document.getElementById('status-text');
+    const progressBar = document.getElementById('progress-bar');
+    const progressContainer = document.getElementById('progress-container');
+    const uiOverlay = document.getElementById('ui-overlay');
+    const fsBtn = document.getElementById('fs-btn');
+    const canvas = document.getElementById('canvas');
+    const startBtn = document.getElementById('start-btn');
+    const clearBtn = document.getElementById('clear-btn');
+    const folderBtn = document.getElementById('folder-btn');
+    const zipBtn = document.getElementById('zip-btn');
+
+    let g_gameReady = false;
+
+    var Module = {
+      noInitialRun: true,
+      preRun: [],
+      postRun: [function() {
+        console.log("OpenGothic WebAssembly core ready.");
+        fsBtn.style.display = 'block';
+        initStorage();
+      }],
+      print: function(text) {
+        console.log("[OpenGothic] " + text);
+      },
+      printErr: function(text) {
+        console.error("[OpenGothic] " + text);
+      },
+      canvas: (function() {
+        return canvas;
+      })(),
+      setStatus: function(text) {
+        if (!text) return;
+        statusText.innerText = text;
+        const m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+        if (m) {
+          progressContainer.style.display = 'block';
+          const loaded = parseFloat(m[2]);
+          const total = parseInt(m[4]);
+          const percent = Math.min(100, Math.round((loaded / total) * 100));
+          progressBar.style.width = percent + '%';
+        }
+      },
+      totalDependencies: 0,
+      monitorRunDependencies: function(left) {
+        this.totalDependencies = Math.max(this.totalDependencies, left);
+        Module.setStatus(left ? 'Подготовка зависимостей... (' + (this.totalDependencies - left) + '/' + this.totalDependencies + ')' : 'Все зависимости загружены.');
+      }
+    };
+
+    Module.setStatus('Загрузка WebAssembly модуля...');
+
+    window.onerror = function(event) {
+      statusText.style.color = 'var(--danger)';
+      statusText.innerText = 'Ошибка инициализации: ' + event;
+    };
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen().catch(() => {});
+      } else {
+        document.exitFullscreen().catch(() => {});
+      }
+    }
+
+    canvas.addEventListener('click', function() {
+      if (document.pointerLockElement !== canvas) {
+        canvas.requestPointerLock().catch(() => {});
+      }
+    });
+
+    function setStatus(msg, pct) {
+      statusText.innerText = msg;
+      if (pct !== undefined) {
+        progressContainer.style.display = 'block';
+        progressBar.style.width = pct + '%';
+      }
+    }
+
+    // ============================================================================
+    // Game file storage on top of OPFS (Origin Private File System).
+    //
+    // Files are streamed to OPFS during import (no full copies in the JS heap)
+    // and are exposed to the engine through a custom Emscripten filesystem
+    // which resolves paths CASE-INSENSITIVELY (matching Windows behaviour,
+    // which the game data relies on).
+    //
+    // Two backends for file contents:
+    //  * lazy:    SharedArrayBuffer bridge to a worker holding
+    //             FileSystemSyncAccessHandles; chunks are pulled from disk
+    //             on demand (requires COOP/COEP headers, i.e. crossOriginIsolated).
+    //  * preload: all files are read into memory once at startup (fallback).
+    // ============================================================================
+
+    const GAME_ROOT = '/gothic';
+    const OPFS_ROOT_DIR = 'gothic';
+    const BRIDGE_CHUNK = 16 * 1024 * 1024; // 16MB transfer buffer for the lazy backend
+
+    // Junk that must never be imported into the game storage.
+    const IMPORT_SKIP = [
+      /^launcher\//i,
+      /^directx/i,
+      /^miles\//i,
+      /^\.sentry/i,
+      /^sentry_native/i,
+      /\.(dmp|exe|dll|pdb|log|tmp|bak)$/i,
+      /^readme/i,
+      /^autorun\.inf$/i,
+      /^setup\w*\.exe$/i
+    ];
+
+    function shouldImport(relPath) {
+      for (const re of IMPORT_SKIP) {
+        if (re.test(relPath)) return false;
+      }
+      return true;
+    }
+
+    // ---------------------------- OPFS primitives ----------------------------
+
+    async function opfsGameDir(create) {
+      const root = await navigator.storage.getDirectory();
+      return root.getDirectoryHandle(OPFS_ROOT_DIR, { create: !!create });
+    }
+
+    async function opfsEnsureDir(dirHandle, parts) {
+      let cur = dirHandle;
+      for (const p of parts) {
+        cur = await cur.getDirectoryHandle(p, { create: true });
+      }
+      return cur;
+    }
+
+    async function opfsWalk(dirHandle, prefix, out) {
+      // @fs-entry iteration is async; gather files with their sizes
+      for await (const [name, handle] of dirHandle.entries()) {
+        const path = prefix ? prefix + '/' + name : name;
+        if (handle.kind === 'directory') {
+          await opfsWalk(handle, path, out);
+        } else {
+          const f = await handle.getFile();
+          out.push({ path, name, size: f.size });
+        }
+      }
+    }
+
+    // ---------------------------- Bridge worker ------------------------------
+    // Holds FileSystemSyncAccessHandles for every installed file and serves
+    // read/truncate requests from the main thread through a SharedArrayBuffer
+    // command channel. The main thread cannot Atomics.wait (it is forbidden
+    // on the document thread), so it busy-polls while the worker blocks
+    // in Atomics.wait for the next command.
+
+    function makeBridgeWorkerSource() {
+      return `
+'use strict';
+const OP_READ = 1, OP_TRUNCATE = 2, OP_SIZE = 3;
+let cmd = null, dataView = null;
+const handles = [];
+
+async function openAll(paths) {
+  const root = await navigator.storage.getDirectory();
+  const dir = await root.getDirectoryHandle(${JSON.stringify(OPFS_ROOT_DIR)}, {create:false});
+  for (const p of paths) {
+    const parts = p.split('/');
+    const name = parts.pop();
+    let d = dir;
+    for (const seg of parts) d = await d.getDirectoryHandle(seg, {create:false});
+    const fh = await d.getFileHandle(name, {create:false});
+    const h = await fh.createSyncAccessHandle();
+    handles.push({ h, size: h.getSize() });
+  }
+}
+
+self.onmessage = (e) => {
+  const msg = e.data;
+  if (msg.type === 'init') {
+    cmd = new Int32Array(msg.cmd);
+    dataView = new Uint8Array(msg.data);
+    openAll(msg.paths).then(() => {
+      Atomics.store(cmd, 7, 0);
+      Atomics.store(cmd, 6, 1);
+      Atomics.notify(cmd, 0);
+      // start serving only now: the blocking loop below starves the event
+      // loop, so any pending await in openAll would never resume
+      setTimeout(serveLoop, 0);
+    }, (err) => {
+      console.error('bridge openAll failed:', err);
+      Atomics.store(cmd, 7, 1);
+      Atomics.store(cmd, 6, 1);
+      Atomics.notify(cmd, 0);
+    });
+    return;
+  }
+};
+
+// Synchronous command loop: blocks in Atomics.wait until a request arrives.
+function serveLoop() {
+    while (true) {
+      // sleep while there is no pending command (cmd[0] === 0)
+      Atomics.wait(cmd, 0, 0);
+      const op = Atomics.load(cmd, 0);
+      if (op === 0) continue;
+      try {
+        if (op === OP_READ) {
+          const hIdx = Atomics.load(cmd, 1);
+          const pos = Atomics.load(cmd, 2);
+          const len = Atomics.load(cmd, 3);
+          const n = handles[hIdx].h.read(dataView.subarray(0, len), { at: pos });
+          Atomics.store(cmd, 5, n);
+          Atomics.store(cmd, 4, 1); // ok
+        } else if (op === OP_TRUNCATE) {
+          const hIdx = Atomics.load(cmd, 1);
+          handles[hIdx].h.truncate(0);
+          handles[hIdx].size = 0;
+          Atomics.store(cmd, 5, 0);
+          Atomics.store(cmd, 4, 1);
+        } else if (op === OP_SIZE) {
+          const hIdx = Atomics.load(cmd, 1);
+          Atomics.store(cmd, 5, handles[hIdx].h.getSize());
+          Atomics.store(cmd, 4, 1);
+        } else {
+          Atomics.store(cmd, 4, 2); // unknown op
+        }
+      } catch (err) {
+        Atomics.store(cmd, 4, 3); // io error
+      }
+      Atomics.store(cmd, 0, 0); // request served
+      Atomics.notify(cmd, 0);
+    }
+}
+`;
+    }
+
+    // ---------------------------- Custom FS backend ---------------------------
+
+    const GameFS = {
+      // registry: lower(fullPath) -> {path (real case), isDir, size, hIdx, mem, dirty, node}
+      files: new Map(),
+      lazy: false,           // true -> SAB bridge is active
+      bridge: null,          // {worker, cmd, data}
+      workerSrc: null,
+
+      lower(p) { return p.toLowerCase(); },
+
+      // registry key of `name` inside the entry `parent` (root has empty path)
+      childKey(parentEntry, name) {
+        const p = (parentEntry === this.rootEntry) ? '' : parentEntry.path;
+        return this.lower(p ? p + '/' + name : name);
+      },
+
+      addEntry(path, isDir, size) {
+        const key = this.lower(path);
+        let e = this.files.get(key);
+        if (!e) {
+          e = { path, isDir, size: size || 0, hIdx: -1, mem: null, dirty: false, node: null };
+          this.files.set(key, e);
+        } else {
+          e.path = path;
+          e.isDir = isDir;
+          if (size !== undefined) e.size = size;
+        }
+        return e;
+      },
+
+      childrenOf(entry) {
+        // direct children of a directory entry
+        const prefix = entry === this.rootEntry ? '' : this.lower(entry.path) + '/';
+        const out = [];
+        for (const [k, v] of this.files) {
+          if (!k.startsWith(prefix)) continue;
+          const rest = k.slice(prefix.length);
+          if (rest.length === 0 || rest.includes('/')) continue;
+          out.push(v);
+        }
+        return out;
+      },
+
+      rootEntry: null,
+
+      // ---- Emscripten filesystem interface ----
+      DIR_MODE: 0x4000 | 0x1ff,
+      FILE_MODE: 0x8000 | 0x1ff,
+
+      mount(mount) {
+        return this.mkNode(null, '', this.rootEntry);
+      },
+
+      mkNode(parent, name, entry) {
+        const FS = Module.FS;
+        const node = FS.createNode(parent, name || '/', entry.isDir ? this.DIR_MODE : this.FILE_MODE);
+        node.mode = entry.isDir ? this.DIR_MODE : this.FILE_MODE;
+        node.node_ops = this.node_ops;
+        node.stream_ops = this.stream_ops;
+        node.timestamp = Date.now();
+        node.gameEntry = entry;
+        entry.node = node;
+        if (entry.isDir) {
+          node.size = 4096;
+        } else {
+          node.size = entry.size;
+        }
+        return node;
+      },
+
+      node_ops: {
+        getattr(node) {
+          const e = node.gameEntry;
+          return {
+            dev: 1,
+            ino: 0,
+            mode: node.mode,
+            nlink: 1,
+            uid: 0,
+            gid: 0,
+            rdev: 0,
+            size: e.isDir ? 4096 : e.size,
+            atime: new Date(node.timestamp),
+            mtime: new Date(node.timestamp),
+            ctime: new Date(node.timestamp),
+            blksize: 4096,
+            blocks: Math.ceil(e.size / 4096)
+          };
+        },
+        setattr(node, attr) {
+          if (attr.mode !== undefined) node.mode = attr.mode;
+          if (attr.size !== undefined && !node.gameEntry.isDir) {
+            node.gameEntry.size = attr.size;
+            node.size = attr.size;
+            if (node.gameEntry.mem && node.gameEntry.mem.length !== attr.size) {
+              const nm = new Uint8Array(attr.size);
+              nm.set(node.gameEntry.mem.subarray(0, Math.min(attr.size, node.gameEntry.mem.length)));
+              node.gameEntry.mem = nm;
+            }
+          }
+          if (attr.timestamp !== undefined) node.timestamp = attr.timestamp;
+        },
+        lookup(parent, name) {
+          const key = GameFS.childKey(parent.gameEntry, name);
+          const e = GameFS.files.get(key);
+          if (!e) throw new GameFS.ErrnoError(44 /*ENOENT*/);
+          if (e.node) return e.node;
+          return GameFS.mkNode(parent, name, e);
+        },
+        mknod(parent, name, mode, dev) {
+          const parentPath = parent.gameEntry === GameFS.rootEntry ? '' : parent.gameEntry.path;
+          const path = parentPath ? parentPath + '/' + name : name;
+          const e = GameFS.addEntry(path, GameFS.isDirMode(mode), 0);
+          e.mem = new Uint8Array(0);
+          e.dirty = true;
+          e.hIdx = -1;
+          const node = GameFS.mkNode(parent, name, e);
+          GameFS.persistEntryAsync(e, new Uint8Array(0));
+          return node;
+        },
+        rename(oldNode, newDirNode, newName) {
+          const oldE = oldNode.gameEntry;
+          const oldKey = GameFS.lower(oldE.path);
+          const newParentPath = newDirNode.gameEntry === GameFS.rootEntry ? '' : newDirNode.gameEntry.path;
+          const newPath = newParentPath ? newParentPath + '/' + newName : newName;
+          // move entry and all descendants
+          const moves = [];
+          for (const [k, v] of GameFS.files) {
+            if (k === oldKey || k.startsWith(oldKey + '/')) {
+              moves.push([k, v]);
+            }
+          }
+          for (const [k, v] of moves) {
+            GameFS.files.delete(k);
+            const rel = v.path.slice(oldE.path.length);
+            v.path = newPath + rel;
+            v.node = null;
+            GameFS.files.set(GameFS.lower(v.path), v);
+          }
+          oldE.dirty = true;
+          GameFS.moveOpfsAsync(oldE.path, newPath);
+        },
+        unlink(parent, name) {
+          const key = GameFS.childKey(parent.gameEntry, name);
+          const e = GameFS.files.get(key);
+          if (!e) throw new GameFS.ErrnoError(44);
+          e.deleted = true;
+          GameFS.files.delete(key);
+          // remove descendants too
+          const pref = key + '/';
+          for (const k of [...GameFS.files.keys()]) {
+            if (k.startsWith(pref)) GameFS.files.delete(k);
+          }
+          GameFS.deleteOpfsAsync(e.path);
+        },
+        rmdir(parent, name) {
+          GameFS.node_ops.unlink(parent, name);
+        },
+        readdir(node) {
+          const entries = ['.', '..'];
+          for (const c of GameFS.childrenOf(node.gameEntry)) {
+            entries.push(c.path.split('/').pop());
+          }
+          return entries;
+        },
+        symlink() {
+          throw new GameFS.ErrnoError(1 /*EPERM*/);
+        }
+      },
+
+      stream_ops: {
+        // NOTE: no `open` hook on purpose — opendir() opens directories
+        // through the regular open path and must not fail.
+        close(stream) {
+          const e = stream.node.gameEntry;
+          if (stream.gameBuffer) {
+            e.mem = stream.gameBuffer;
+            e.size = stream.gameBuffer.length;
+            e.dirty = true;
+            stream.node.size = e.size;
+            GameFS.persistEntryAsync(e, stream.gameBuffer);
+          }
+          stream.gameBuffer = null;
+        },
+        read(stream, buffer, offset, length, position) {
+          const e = stream.node.gameEntry;
+          if (length <= 0) return 0;
+          if (position >= e.size) return 0;
+          let toRead = Math.min(length, e.size - position);
+          if (e.mem !== null && e.mem !== undefined) {
+            const n = Math.min(toRead, e.mem.length - position);
+            if (n <= 0) return 0;
+            buffer.set(e.mem.subarray(position, position + n), offset);
+            return n;
+          }
+          if (GameFS.lazy) {
+            return GameFS.bridgeReadInto(e, buffer, offset, position, toRead);
+          }
+          // preload backend must have materialized the file
+          return 0;
+        },
+        write(stream, buffer, offset, length, position) {
+          const e = stream.node.gameEntry;
+          const end = position + length;
+          if (!stream.gameBuffer || stream.gameBuffer.length < end) {
+            const newSize = Math.max(end, 1024);
+            const nb = new Uint8Array(newSize);
+            if (stream.gameBuffer) nb.set(stream.gameBuffer.subarray(0, Math.min(position, stream.gameBuffer.length)));
+            else if (e.mem) nb.set(e.mem.subarray(0, Math.min(position, e.mem.length)));
+            stream.gameBuffer = nb;
+          }
+          stream.gameBuffer.set(buffer.subarray(offset, offset + length), position);
+          if (end > e.size) {
+            e.size = end;
+            stream.node.size = end;
+          }
+          e.dirty = true;
+          return length;
+        },
+        llseek(stream, offset, whence) {
+          let position = offset;
+          if (whence === 1) position += stream.position;
+          else if (whence === 2) {
+            if (GameFS.isDirMode(stream.node.mode) === false) position += stream.node.gameEntry.size;
+          }
+          if (position < 0) throw new GameFS.ErrnoError(28 /*EINVAL*/);
+          return position;
+        },
+        // mmap is required: ZenKit memory-maps every game file it reads.
+        // Without this op FS.mmap throws ENODEV, musl returns MAP_FAILED(-1)
+        // and the engine dereferences 0xFFFFFFFF.
+        mmap(stream, length, position, prot, flags) {
+          const e = stream.node.gameEntry;
+          if (e.isDir) throw new GameFS.ErrnoError(19 /*ENODEV*/);
+          const ptr = Module['mmapAlloc'](length);
+          // mmapAlloc may grow the heap: HEAPU8 must be re-read AFTER it
+          const HEAPU8 = Module.HEAPU8;
+          if (!ptr) throw new GameFS.ErrnoError(12 /*ENOMEM*/);
+          const avail = Math.max(0, Math.min(length, e.size - position));
+          if (avail > 0) {
+            if (e.mem) {
+              HEAPU8.set(e.mem.subarray(position, position + avail), ptr);
+            } else if (GameFS.lazy) {
+              GameFS.bridgeReadInto(e, HEAPU8, ptr, position, avail);
+            }
+            // neither mem nor lazy: preload backend guarantees e.mem
+          }
+          return { ptr, allocated: true };
+        },
+        msync(stream, buffer, offset, length, mmapFlags) {
+          // MAP_SHARED write-back: the engine never writes game data files
+          // through mappings (saves go through the write() path)
+          return 0;
+        }
+      },
+
+      isDirMode(mode) {
+        return (mode & 0x1700) === 0x4000; // S_IFDIR
+      },
+
+      // ---- lazy bridge helpers ----
+      bridgeReadInto(e, heapBuffer, offset, position, length) {
+        const br = GameFS.bridge;
+        // loop over 16MB chunks until the whole request is satisfied
+        let done = 0;
+        while (done < length) {
+          const chunk = Math.min(length - done, BRIDGE_CHUNK);
+          Atomics.store(br.cmd, 1, e.hIdx);
+          Atomics.store(br.cmd, 2, position + done);
+          Atomics.store(br.cmd, 3, chunk);
+          Atomics.store(br.cmd, 4, 0); // clear status
+          Atomics.store(br.cmd, 0, 1); // OP_READ
+          Atomics.notify(br.cmd, 0);
+          // wait for the worker to serve the command
+          const deadline = performance.now() + 10000;
+          while (Atomics.load(br.cmd, 0) !== 0) {
+            if (performance.now() > deadline) throw new GameFS.ErrnoError(29 /*EIO*/);
+          }
+          const status = Atomics.load(br.cmd, 4);
+          if (status !== 1) throw new GameFS.ErrnoError(29 /*EIO*/);
+          const n = Atomics.load(br.cmd, 5);
+          if (n <= 0) break;
+          heapBuffer.set(br.data.subarray(0, n), offset + done);
+          done += n;
+          if (n < chunk) break;
+        }
+        return done;
+      },
+
+      // ---- async persistence (fire and forget) ----
+      persistEntryAsync(e, bytes) {
+        opfsGameDir(true).then(async (dir) => {
+          const parts = e.path.split('/');
+          const name = parts.pop();
+          const d = await opfsEnsureDir(dir, parts);
+          const fh = await d.getFileHandle(name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(bytes);
+          await w.close();
+        }).catch(err => console.warn('OPFS persist failed:', e.path, err));
+      },
+
+      deleteOpfsAsync(path) {
+        opfsGameDir(false).then(async (dir) => {
+          const parts = path.split('/');
+          const name = parts.pop();
+          const d = await opfsEnsureDir(dir, parts);
+          try { await d.removeEntry(name, { recursive: true }); } catch (e) {}
+        }).catch(() => {});
+      },
+
+      moveOpfsAsync(oldPath, newPath) {
+        // OPFS has no native move: copy bytes then delete the source
+        opfsGameDir(false).then(async (dir) => {
+          try {
+            const oldParts = oldPath.split('/');
+            const oldName = oldParts.pop();
+            const oldDir = await opfsEnsureDir(dir, oldParts);
+            const fh = await oldDir.getFileHandle(oldName, { create: false });
+            const blob = await fh.getFile();
+            const newParts = newPath.split('/');
+            const newName = newParts.pop();
+            const newDir = await opfsEnsureDir(dir, newParts);
+            const nfh = await newDir.getFileHandle(newName, { create: true });
+            const w = await nfh.createWritable();
+            await w.write(blob);
+            await w.close();
+            try { await oldDir.removeEntry(oldName); } catch (e) {}
+          } catch (err) {
+            console.warn('OPFS move failed', err);
+          }
+        }).catch(() => {});
+      }
+    };
+
+    // Patch in ErrnoError once the runtime is up
+    function bindErrnoError() {
+      if (Module.FS && Module.FS.ErrnoError) {
+        GameFS.ErrnoError = Module.FS.ErrnoError;
+      }
+    }
+
+    // ---------------------------- Startup / storage ----------------------------
+
+    let g_bridgeInitBusy = false;
+
+    async function initStorage() {
+      bindErrnoError();
+      try {
+        const dir = await opfsGameDir(false);
+        const listing = [];
+        await opfsWalk(dir, '', listing);
+        if (listing.length === 0 || !listing.some(f => f.path.toLowerCase().startsWith('data/'))) {
+          setStatus('Готово к работе. Выберите папку или ZIP с Gothic II.');
+          return;
+        }
+
+        const totalBytes = listing.reduce((a, f) => a + f.size, 0);
+        setStatus('Индексация установленной игры (' + (totalBytes / 1048576).toFixed(0) + ' МБ)...');
+
+        // Build the registry (directories inferred from paths)
+        GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
+        GameFS.addEntry('', true);
+        for (const f of listing) {
+          const parts = f.path.split('/');
+          parts.pop();
+          let cur = '';
+          for (const p of parts) {
+            cur = cur ? cur + '/' + p : p;
+            GameFS.addEntry(cur, true);
+          }
+          const e = GameFS.addEntry(f.path, false, f.size);
+          e.mem = null;
+        }
+
+        // Choose a backend for file contents
+        const canLazy = typeof SharedArrayBuffer !== 'undefined' && self.crossOriginIsolated;
+        if (canLazy) {
+          try {
+            await initLazyBackend(listing.map(f => f.path));
+          } catch (err) {
+            console.warn('Lazy backend failed, falling back to preload:', err);
+            GameFS.lazy = false;
+          }
+        }
+        if (!GameFS.lazy) {
+          await preloadAllFiles(listing);
+        }
+
+        Module.FS.mkdir(GAME_ROOT);
+        Module.FS.mount(GameFS, {}, GAME_ROOT);
+
+        setStatus('✓ Gothic II найдена на диске браузера' + (GameFS.lazy ? ' (ленивый режим)' : ''));
+        startBtn.style.display = 'inline-flex';
+        clearBtn.style.display = 'inline-flex';
+        g_gameReady = true;
+      } catch (e) {
+        console.warn('initStorage error:', e);
+        setStatus('Готово к работе. Выберите папку или ZIP с игрой.');
+      }
+    }
+
+    function initLazyBackend(paths) {
+      return new Promise((resolve, reject) => {
+        const cmdSab = new SharedArrayBuffer(8 * 4);
+        const dataSab = new SharedArrayBuffer(BRIDGE_CHUNK);
+        const cmd = new Int32Array(cmdSab);
+        const data = new Uint8Array(dataSab);
+        cmd[0] = 0; cmd[6] = 0;
+
+        const src = makeBridgeWorkerSource();
+        const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
+        const worker = new Worker(url);
+        worker.onerror = (e) => reject(new Error('bridge worker: ' + e.message));
+
+        // send init; the worker fills handles and notifies cmd[6].
+        // SharedArrayBuffers are shared, not transferred — no transfer list.
+        worker.postMessage({ type: 'init', cmd: cmdSab, data: dataSab, paths });
+
+        const waitReady = () => {
+          if (Atomics.load(cmd, 6) === 1) {
+            if (Atomics.load(cmd, 7) !== 0) {
+              reject(new Error('bridge init failed'));
+              return;
+            }
+            GameFS.lazy = true;
+            GameFS.bridge = { worker, cmd, data };
+            // map file entries to handle indexes (order of the paths array)
+            let i = 0;
+            for (const p of paths) {
+              const e = GameFS.files.get(GameFS.lower(p));
+              if (e) e.hIdx = i;
+              i++;
+            }
+            resolve();
+            return;
+          }
+          setTimeout(waitReady, 50);
+        };
+        waitReady();
+      });
+    }
+
+    async function preloadAllFiles(listing) {
+      const dir = await opfsGameDir(false);
+      const totalBytes = listing.reduce((a, f) => a + f.size, 0);
+      let doneBytes = 0;
+      let idx = 0;
+      for (const f of listing) {
+        const parts = f.path.split('/');
+        const name = parts.pop();
+        const d = await opfsEnsureDir(dir, parts);
+        const fh = await d.getFileHandle(name, { create: false });
+        const buf = new Uint8Array(await (await fh.getFile()).arrayBuffer());
+        const e = GameFS.files.get(GameFS.lower(f.path));
+        if (e) { e.mem = buf; e.size = buf.length; }
+        doneBytes += f.size;
+        idx++;
+        if ((idx & 7) === 0 || idx === listing.length) {
+          setStatus('Загрузка файлов в память: ' + (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' МБ',
+                    Math.round((doneBytes / Math.max(1, totalBytes)) * 100));
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+    }
+
+    async function clearStorage() {
+      if (!confirm("Очистить сохраненные файлы игры из браузера?")) return;
+      try {
+        const root = await navigator.storage.getDirectory();
+        await root.removeEntry(OPFS_ROOT_DIR, { recursive: true });
+      } catch (e) {}
+      try {
+        indexedDB.deleteDatabase('/gothic'); // legacy IDBFS database
+        indexedDB.deleteDatabase('emscripten-fs'); // legacy runtime database
+      } catch (e) {}
+      setStatus('Хранилище очищено. Обновите страницу.');
+      setTimeout(() => location.reload(), 800);
+    }
+
+    // ---------------------------- Import ----------------------------
+
+    async function onFolderSelected(event) {
+      const files = event.target.files;
+      if (!files || files.length === 0) return;
+      await importFilesList(files);
+    }
+
+    async function onZipSelected(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      await extractZipFile(file);
+    }
+
+    function relPathOf(file) {
+      let relPath = file.webkitRelativePath || file.name;
+      const parts = relPath.split('/');
+      if (parts.length > 1) {
+        parts.shift(); // strip the top-level folder name
+        relPath = parts.join('/');
+      }
+      return relPath.replace(/\\/g, '/');
+    }
+
+    async function importFilesList(files) {
+      const list = [];
+      let totalBytes = 0;
+      for (const file of files) {
+        const rel = relPathOf(file);
+        if (!shouldImport(rel)) continue;
+        list.push({ rel, file });
+        totalBytes += file.size;
+      }
+      if (list.length === 0) {
+        setStatus('В выбранной папке не найдено подходящих файлов игры.');
+        return;
+      }
+      await importToOpfs(list, totalBytes);
+    }
+
+    async function importToOpfs(list, totalBytes) {
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      folderBtn.style.display = 'none';
+      zipBtn.style.display = 'none';
+
+      const dir = await opfsGameDir(true);
+      let doneBytes = 0;
+      let count = 0;
+      const t0 = performance.now();
+      try {
+        for (const item of list) {
+          const parts = item.rel.split('/');
+          const name = parts.pop();
+          if (!name) continue;
+          const d = await opfsEnsureDir(dir, parts);
+          const fh = await d.getFileHandle(name, { create: true });
+          const writable = await fh.createWritable();
+          if (item.file.stream) {
+            await item.file.stream().pipeTo(writable);
+          } else {
+            await writable.write(item.file);
+            await writable.close();
+          }
+          doneBytes += item.file.size;
+          count++;
+          setStatus('Импорт [' + count + '/' + list.length + ']: ' + name + ' — ' +
+                    (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' МБ',
+                    Math.round((doneBytes / Math.max(1, totalBytes)) * 100));
+          await new Promise(r => setTimeout(r, 0));
+        }
+        const secs = (performance.now() - t0) / 1000;
+        console.log('Import done:', count, 'files in', secs.toFixed(1), 's');
+        setStatus('✓ Установка завершена (' + secs.toFixed(0) + ' с). Обновление страницы...');
+        setTimeout(() => location.reload(), 600);
+      } catch (err) {
+        console.error('Import error:', err);
+        statusText.style.color = 'var(--danger)';
+        setStatus('Ошибка импорта: ' + (err.message || err));
+        folderBtn.style.display = 'inline-flex';
+        zipBtn.style.display = 'inline-flex';
+      }
+    }
+
+    // ZIP extraction: entries are streamed into OPFS through a pipe
+    // (native DecompressionStream), never materialized fully in memory.
+    async function extractZipFile(file) {
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      folderBtn.style.display = 'none';
+      zipBtn.style.display = 'none';
+      setStatus('Чтение архива...');
+
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const view = new DataView(arrayBuffer);
+        const uint8 = new Uint8Array(arrayBuffer);
+
+        let offset = 0;
+        const totalLen = arrayBuffer.byteLength;
+        let count = 0;
+
+        const dir = await opfsGameDir(true);
+
+        while (offset < totalLen - 4) {
+          const sig = view.getUint32(offset, true);
+          if (sig !== 0x04034b50) break;
+
+          const compMethod = view.getUint16(offset + 8, true);
+          const compSize = view.getUint32(offset + 18, true);
+          const nameLen = view.getUint16(offset + 26, true);
+          const extraLen = view.getUint16(offset + 28, true);
+
+          const nameBytes = uint8.subarray(offset + 30, offset + 30 + nameLen);
+          const filename = new TextDecoder('cp866').decode(nameBytes);
+
+          const dataOffset = offset + 30 + nameLen + extraLen;
+          const compressedData = uint8.subarray(dataOffset, dataOffset + compSize);
+
+          offset = dataOffset + compSize;
+
+          if (filename.endsWith('/') || compSize === 0) continue;
+          let rel = filename.replace(/\\/g, '/');
+          if (rel.startsWith('/')) rel = rel.substr(1);
+          if (!shouldImport(rel)) continue;
+
+          setStatus('Распаковка: ' + rel, Math.min(100, Math.round((offset / totalLen) * 100)));
+
+          const parts = rel.split('/');
+          const name = parts.pop();
+          const d = await opfsEnsureDir(dir, parts);
+          const fh = await d.getFileHandle(name, { create: true });
+          const writable = await fh.createWritable();
+
+          if (compMethod === 0) {
+            await writable.write(compressedData);
+            await writable.close();
+          } else if (compMethod === 8) {
+            const ds = new DecompressionStream('deflate-raw');
+            const writer = ds.writable.getWriter();
+            writer.write(compressedData);
+            writer.close();
+            await ds.readable.pipeTo(writable);
+          } else {
+            await writable.close();
+            continue;
+          }
+          count++;
+          await new Promise(r => setTimeout(r, 0));
+        }
+
+        console.log('Extracted', count, 'files.');
+        setStatus('✓ Распаковано файлов: ' + count + '. Обновление страницы...');
+        setTimeout(() => location.reload(), 600);
+      } catch (err) {
+        console.error('ZIP extraction error:', err);
+        statusText.style.color = 'var(--danger)';
+        setStatus('Ошибка распаковки ZIP: ' + err.message);
+        folderBtn.style.display = 'inline-flex';
+        zipBtn.style.display = 'inline-flex';
+      }
+    }
+
+    // Drag and drop support
+    window.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      uiOverlay.classList.add('drag-over');
+    });
+
+    window.addEventListener('dragleave', (e) => {
+      uiOverlay.classList.remove('drag-over');
+    });
+
+    window.addEventListener('drop', async (e) => {
+      e.preventDefault();
+      uiOverlay.classList.remove('drag-over');
+      const files = e.dataTransfer.files;
+      if (!files || files.length === 0) return;
+
+      if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
+        await extractZipFile(files[0]);
+      } else {
+        await importFilesList(files);
+      }
+    });
+
+    function ensureDummyDirs(base) {
+      const dirs = [
+        base,
+        base + '/Data',
+        base + '/_work',
+        base + '/_work/Data',
+        base + '/_work/Data/Scripts',
+        base + '/_work/Data/Scripts/_compiled',
+        base + '/system',
+        base + '/saves'
+      ];
+      for (const d of dirs) {
+        try {
+          Module.FS.mkdir(d);
+        } catch (e) {}
+      }
+    }
+
+    function startGame() {
+      uiOverlay.classList.add('hidden');
+      canvas.focus();
+      console.log("Starting OpenGothic engine...");
+      try {
+        // ?nomenu skips the main menu and boots straight into the world
+        // (used by automated tests; regular users get the normal menu)
+        const noMenu = location.search.indexOf('nomenu') >= 0;
+        const args = ["-g", GAME_ROOT];
+        if (noMenu) args.push("-nomenu");
+        const ret = Module.callMain(args);
+        window.__callMainReturned = { ret: ret, t: Date.now() };
+        console.log("[SHELL] callMain returned ret=" + ret);
+      } catch (err) {
+        window.__startErr = (err && err.stack) ? err.stack : String(err);
+        console.error("Engine execution error:", err);
+        uiOverlay.classList.remove('hidden');
+        statusText.style.color = 'var(--danger)';
+        statusText.innerText = "Ошибка запуска: " + err;
+      }
+    }
+  </script>
+  {{{ SCRIPT }}}
+</body>
+</html>

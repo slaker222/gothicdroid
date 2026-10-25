@@ -5,6 +5,7 @@
 #include "graphics/mesh/submesh/packedmesh.h"
 #include "world/world.h"
 #include "gothic.h"
+#include "gapi/vulkan/vpipelinelogger.h"
 
 using namespace Tempest;
 
@@ -229,7 +230,11 @@ const Tempest::StorageBuffer& WorldView::instanceSsbo() const {
   }
 
 bool WorldView::updateLights() {
-  const int64_t now = owner.time().timeInDay().toInt();
+  int64_t now = owner.time().timeInDay().toInt();
+  if(const int freezeH = opengothic_debug_freeze_time(); freezeH>0) {
+    // benchmarking aid: pin time-of-day so sun/shadow cost is stable across measurements
+    now = gtime(uint8_t(freezeH%24), 0).toInt();
+    }
   gSky.updateLight(now);
   if(!gLights.updateLights())
     return false;

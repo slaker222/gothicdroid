@@ -63,6 +63,20 @@ void main() {
 
   // const vec3  linear = vec3(1);
   const vec3  linear = textureAlbedo(diff);
+
+#if defined(SIMPLE_LIGHTING)
+  // Simple lighting (GothicEngine style): fast ambient + sky irradiance + directional sun
+  vec3 ambient = scene.ambient + (norm.y*0.25+0.75) * NightAmbient * Fd_Lambert;
+  vec3 sky     = skyIrradiance();
+
+  float nDotL  = clamp(dot(norm, scene.sunDir), 0.0, 1.0);
+  vec3  sun    = (scene.sunDir.y > 0.0) ? (scene.sunColor * (nDotL * Fd_Lambert)) : vec3(0.0);
+
+  vec3 luminance = sky + ambient + sun;
+  vec3 color     = luminance * linear * scene.exposure;
+
+  outColor = vec4(color, 1.0);
+#else
   const float ao     = textureSsao();
 
   vec3 ambient = scene.ambient + (norm.y*0.25+0.75) * NightAmbient * Fd_Lambert;
@@ -76,6 +90,7 @@ void main() {
   color *= scene.exposure;
 
   outColor = vec4(color, 1);
+#endif
   // outColor = vec4(vec3(ao), 0);
   // outColor = vec4(linear, 0);
   // outColor = vec4(srgbEncode(linear), 0);

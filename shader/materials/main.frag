@@ -14,6 +14,10 @@
 #include "lighting/tonemapping.glsl"
 #endif
 
+#if !defined(ATEST) && !defined(WATER) && !defined(GHOST)
+layout(early_fragment_tests) in;
+#endif
+
 #if defined(MAT_VARYINGS)
 layout(location = 0) in flat uint bucketId;
 #if defined(MAT_UV)

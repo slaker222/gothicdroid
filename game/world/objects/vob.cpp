@@ -21,6 +21,7 @@
 #include "world/triggers/cscamera.h"
 #include "world/worldlight.h"
 #include "world/world.h"
+#include "og_hb.h"
 #include "game/serialize.h"
 
 using namespace Tempest;
@@ -125,6 +126,7 @@ void Vob::recalculateTransform() {
 
 
 std::unique_ptr<Vob> Vob::load(Vob* parent, World& world, const zenkit::VirtualObject& vob, Flags flags) {
+  OG_HB_VALS('vob', vob.id, vob.type);
   switch(vob.type) {
     case zenkit::VirtualObjectType::UNKNOWN:
       return nullptr;

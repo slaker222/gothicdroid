@@ -248,11 +248,13 @@ void CrashLog::tracebackAndroid(std::ostream& out) {
       char* demangled = abi::__cxa_demangle(info.dli_sname, nullptr, nullptr, &status);
       const char* name = (status == 0 && demangled) ? demangled : info.dli_sname;
       const char* fname = info.dli_fname ? info.dli_fname : "lib";
-      out << "#" << (i - skip + 1) << " " << stack[i] << " in " << fname << " : " << name << std::endl;
+      out << "#" << (i - skip + 1) << " " << stack[i] << " in " << fname << " : " << name
+          << " [fbase=" << info.dli_fbase << " off=" << (info.dli_fbase ? (reinterpret_cast<uintptr_t>(stack[i]) - reinterpret_cast<uintptr_t>(info.dli_fbase)) : 0) << "]" << std::endl;
       if(demangled)
         free(demangled);
     } else if(info.dli_fname) {
-      out << "#" << (i - skip + 1) << " " << stack[i] << " in " << info.dli_fname << std::endl;
+      out << "#" << (i - skip + 1) << " " << stack[i] << " in " << info.dli_fname
+          << " [fbase=" << info.dli_fbase << " off=" << (info.dli_fbase ? (reinterpret_cast<uintptr_t>(stack[i]) - reinterpret_cast<uintptr_t>(info.dli_fbase)) : 0) << "]" << std::endl;
     } else {
       out << "#" << (i - skip + 1) << " " << stack[i] << std::endl;
     }

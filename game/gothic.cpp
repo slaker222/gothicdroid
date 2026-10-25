@@ -1,7 +1,12 @@
 #include "gothic.h"
+#include "og_hb.h"
 
 #include <Tempest/Log>
 #include <Tempest/TextCodec>
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 
 #include <cstring>
 #include <cctype>
@@ -512,7 +517,11 @@ bool Gothic::finishLoading() {
   if(state!=LoadState::Finalize && state!=LoadState::FailedLoad && state!=LoadState::FailedSave)
     return false;
   if(loadingFlag.compare_exchange_strong(state,LoadState::Idle)){
+#if defined(__EMSCRIPTEN__)
+    // loaderTh is never started on the single-threaded wasm build
+#else
     loaderTh.join();
+#endif
     if(pendingGame!=nullptr)
       game = std::move(pendingGame);
     saveTex = Texture2d();
@@ -548,6 +557,67 @@ void Gothic::implStartLoadSave(std::string_view banner,
 
   onStartLoading();
   auto g = clearGame().release();
+  EM_ASM({
+    if (!window.__hb) window.__hb = {};
+    window.__hb.phase = 'load-enter';
+    window.__hb.t = Date.now();
+    });
+#if defined(__EMSCRIPTEN__)
+  // single-threaded wasm build: std::thread cannot be spawned without -pthread,
+  // so run the load/save synchronously on the main thread
+  try {
+    std::unique_ptr<GameSession> game(g);
+    std::unique_ptr<GameSession> next;
+    auto curState = one;
+    auto err = (curState==LoadState::Loading) ? LoadState::FailedLoad : LoadState::FailedSave;
+    try {
+      OG_HB('f-enter');
+      next        = f(std::move(game));
+      OG_HB('f-done');
+      pendingGame = std::move(next);
+      loadingFlag.compare_exchange_strong(curState,LoadState::Finalize);
+      }
+    catch(std::bad_alloc&){
+      Tempest::Log::e("loading error: out of memory");
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(std::system_error& e){
+      Tempest::Log::e("loading error: ", e.what());
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(std::runtime_error& e){
+      Tempest::Log::e("loading error: ",e.what());
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(std::bad_function_call&){
+      Tempest::Log::e("loading error: bad_function_call");
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(const std::exception&e) {
+      Tempest::Log::e("loading error: ", e.what());
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    if(curState==LoadState::Saving) {
+      if(game!=nullptr)
+        pendingGame = std::move(game);
+      }
+    EM_ASM({
+      if (!window.__hb) window.__hb = {};
+      window.__hb.phase = 'load-exit';
+      window.__hb.t = Date.now();
+      });
+    Tempest::Log::i("[Gothic] sync load/save done");
+    }
+  catch(...){
+    EM_ASM({
+      if (!window.__hb) window.__hb = {};
+      window.__hb.phase = 'load-swallowed';
+      window.__hb.t = Date.now();
+      });
+    Tempest::Log::e("[Gothic] sync load/save: unknown exception swallowed");
+    delete g;
+    }
+#else
   try{
     auto l = std::thread([this,f,g,one]() noexcept {
       Workers::setThreadName("Loading thread");
@@ -592,12 +662,18 @@ void Gothic::implStartLoadSave(std::string_view banner,
   catch(...){
     delete g; // delete manually, if we can't start thread
     }
+#endif
   }
 
 void Gothic::cancelLoading() {
   if(loadingFlag.load()!=LoadState::Idle){
+#if defined(__EMSCRIPTEN__)
+    // loaderTh is never started on the single-threaded wasm build
+    loadingFlag.store(LoadState::Idle);
+#else
     loaderTh.join();
     loadingFlag.store(LoadState::Idle);
+#endif
     }
   }
 

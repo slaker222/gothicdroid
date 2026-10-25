@@ -193,7 +193,41 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Лог скопирован в буфер обмена! (${logText.length} симв.)", Toast.LENGTH_SHORT).show()
     }
 
+    private fun updateDebugCfg(scalePercent: Int, simpleRender: Boolean) {
+        try {
+            val dir = File(detectedGameDir)
+            if (!dir.exists()) dir.mkdirs()
+            val cfgFile = File(dir, "debug.cfg")
+            val lines = if (cfgFile.exists()) cfgFile.readLines().toMutableList() else mutableListOf()
+            var repScale = false
+            var repSimple = false
+            for (i in lines.indices) {
+                if (lines[i].startsWith("render_scale=")) {
+                    lines[i] = "render_scale=$scalePercent"
+                    repScale = true
+                } else if (lines[i].startsWith("simple_render=")) {
+                    lines[i] = "simple_render=" + (if (simpleRender) "1" else "0")
+                    repSimple = true
+                }
+            }
+            if (!repScale) {
+                lines.add("render_scale=$scalePercent")
+            }
+            if (!repSimple) {
+                lines.add("simple_render=" + (if (simpleRender) "1" else "0"))
+            }
+            cfgFile.writeText(lines.joinToString("\n") + "\n")
+        } catch (e: Exception) {
+            Log.e(TAG, "updateDebugCfg error: ${e.message}")
+        }
+    }
+
     private fun launchGame() {
+        val prefs = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
+        val p = prefs.getInt("render_scale", 100)
+        val s = prefs.getBoolean("simple_render", false)
+        updateDebugCfg(p, s)
+
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
         }
@@ -265,6 +299,110 @@ class MainActivity : AppCompatActivity() {
         }
         statusCard.addView(statusTextView)
         mainLayout.addView(statusCard)
+
+        // Space
+        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) })
+
+        // --- RESOLUTION SCALE SLIDER CARD ---
+        val scaleCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1C2025"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#2E353D"))
+            }
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+
+        val prefs = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
+        var currentScalePercent = prefs.getInt("render_scale", 100)
+
+        val scaleLabel = TextView(this).apply {
+            textSize = 14f
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setTextColor(Color.parseColor("#E0C068"))
+            text = "Разрешение рендеринга: $currentScalePercent%"
+        }
+        scaleCard.addView(scaleLabel)
+
+        val scaleDesc = TextView(this).apply {
+            textSize = 11f
+            setTextColor(Color.parseColor("#9AA0A6"))
+            text = "100% (Native 2400x1080) • 75% • 50% • 40% (Высокий FPS)"
+            setPadding(0, dp(2), 0, dp(6))
+        }
+        scaleCard.addView(scaleDesc)
+
+        // 4 discrete steps: 0 -> 40%, 1 -> 50%, 2 -> 75%, 3 -> 100%
+        val scaleValues = intArrayOf(40, 50, 75, 100)
+        var initialStep = scaleValues.indexOf(currentScalePercent)
+        if (initialStep < 0) initialStep = 3
+
+        val scaleSeekBar = SeekBar(this).apply {
+            max = 3
+            progress = initialStep
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    val p = scaleValues[progress.coerceIn(0, 3)]
+                    currentScalePercent = p
+                    scaleLabel.text = "Разрешение рендеринга: $p%"
+                    prefs.edit().putInt("render_scale", p).apply()
+                    val s = prefs.getBoolean("simple_render", false)
+                    updateDebugCfg(p, s)
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        }
+        scaleCard.addView(scaleSeekBar)
+        mainLayout.addView(scaleCard)
+
+        // Space
+        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
+
+        // --- RENDER MODE SELECTOR ---
+        val modeCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1C2025"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#2E353D"))
+            }
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+
+        var currentSimpleRender = prefs.getBoolean("simple_render", false)
+        val modeLabel = TextView(this).apply {
+            textSize = 14f
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setTextColor(Color.parseColor("#E0C068"))
+            text = "Режим графики: " + (if (currentSimpleRender) "Простой (GothicEngine)" else "Стандартный (OpenGothic)")
+        }
+        modeCard.addView(modeLabel)
+
+        val modeDesc = TextView(this).apply {
+            textSize = 11f
+            setTextColor(Color.parseColor("#9AA0A6"))
+            text = "Простой рендер: прямое освещение, отключение тяжелых SSAO/GWater/PointLights (макс. FPS)"
+            setPadding(0, dp(2), 0, dp(8))
+        }
+        modeCard.addView(modeDesc)
+
+        val modeSwitch = android.widget.Switch(this).apply {
+            text = "Включить простой рендер (GothicEngine)"
+            setTextColor(Color.parseColor("#D0D5DD"))
+            textSize = 13f
+            isChecked = currentSimpleRender
+            setOnCheckedChangeListener { _, isChecked ->
+                currentSimpleRender = isChecked
+                modeLabel.text = "Режим графики: " + (if (isChecked) "Простой (GothicEngine)" else "Стандартный (OpenGothic)")
+                prefs.edit().putBoolean("simple_render", isChecked).apply()
+                val p = prefs.getInt("render_scale", 100)
+                updateDebugCfg(p, isChecked)
+            }
+        }
+        modeCard.addView(modeSwitch)
+        mainLayout.addView(modeCard)
 
         // Space
         mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(16)) })

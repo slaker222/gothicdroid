@@ -25,6 +25,14 @@ Shaders* Shaders::instance = nullptr;
 Shaders::Shaders() {
   instance = this;
   compileKeyShaders();
+#if defined(__EMSCRIPTEN__)
+  // single-threaded wasm build: std::async cannot spawn a thread without -pthread,
+  // so compile synchronously and satisfy waitCompiler() through a promise
+  std::promise<void> done;
+  deferredCompilation = done.get_future();
+  compileShaders();
+  done.set_value();
+#else
   deferredCompilation = std::async(std::launch::async, [this]() {
     Workers::setThreadName("Shader compilation");
     auto time = Application::tickCount();
@@ -33,6 +41,7 @@ Shaders::Shaders() {
     if(time>1000)
       Log::i("Shader compilation took: ",time/1000," seconds");
     });
+#endif
   }
 
 Shaders::~Shaders() {
@@ -71,6 +80,7 @@ void Shaders::compileShaders() {
   visibilityPassSh    = computeShader("visibility_pass.comp.sprv");
   visibilityPassHiZ   = computeShader("visibility_pass_hiz.comp.sprv");
   visibilityPassHiZCr = computeShader("visibility_pass_hiz_cr.comp.sprv");
+  visibilityPassNoHiZ = computeShader("visibility_pass_nohiz.comp.sprv");
 
   ssao                = computeShader("ssao.comp.sprv");
   ssaoBlur            = computeShader("ssao_blur.comp.sprv");
@@ -80,8 +90,9 @@ void Shaders::compileShaders() {
   if(Gothic::options().doRayQuery && device.properties().descriptors.nonUniformIndexing)
     directLightRq  = postEffect("direct_light_rq", RenderState::ZTestMode::NoEqual);
 
-  ambientLight       = ambientLightShader("ambient_light");
-  ambientLightSsao   = ambientLightShader("ambient_light_ssao");
+  ambientLight       = ambientLightShader("ambient_light", true);
+  ambientLightSsao   = ambientLightShader("ambient_light_ssao", true);
+  ambientLightSimple = ambientLightShader("ambient_light_simple", false);
 
   irradiance         = computeShader("irradiance.comp.sprv");
   cloudsLut          = computeShader("clouds_lut.comp.sprv");
@@ -670,12 +681,12 @@ RenderPipeline Shaders::reflectionShader(std::string_view name, bool hasMeshlets
   return device.pipeline(Triangles, state, vs, fs);
   }
 
-RenderPipeline Shaders::ambientLightShader(std::string_view name) {
+RenderPipeline Shaders::ambientLightShader(std::string_view name, bool isAdditive) {
   auto& device = Resources::device();
 
   RenderState state;
   state.setBlendSource  (RenderState::BlendMode::One);
-  state.setBlendDest    (RenderState::BlendMode::SrcAlpha); // debug
+  state.setBlendDest    (isAdditive ? RenderState::BlendMode::SrcAlpha : RenderState::BlendMode::Zero);
   state.setZTestMode    (RenderState::ZTestMode::NoEqual);
   state.setZWriteEnabled(false);
 

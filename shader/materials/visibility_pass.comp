@@ -189,12 +189,10 @@ void runCluster(const uint clusterId) {
     return;
 #endif
 
-#if defined(LARGE)
+#if defined(MAIN_VIEW)
   {
-    vec2 sz = (aabb.zw - aabb.xy)*textureSize(hiZ, 0);
-    // if(sz.x*sz.y<4)
-    //   return;
-    if(sz.x*sz.y<16 && cluster.instanceId!=0xFFFFFFFF)
+    vec2 sz = (aabb.zw - aabb.xy) * scene.screenRes;
+    if(sz.x * sz.y < 9.0 && cluster.instanceId != 0xFFFFFFFF)
       return;
   }
 #endif

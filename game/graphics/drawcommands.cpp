@@ -72,6 +72,8 @@ bool DrawCommands::isViewEnabled(SceneGlobals::VisCamera viewport) const {
 #if defined(__ANDROID__)
   if(viewport==SceneGlobals::V_Shadow1)
     return false;
+  if(viewport==SceneGlobals::V_HiZ && !opengothic_debug_use_hiz_prepass())
+    return false;
   if(opengothic_debug_skip_shadows() && (viewport==SceneGlobals::V_Shadow0 || viewport==SceneGlobals::V_Shadow1))
     return false;
 #endif
@@ -280,6 +282,11 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
   if(freeze)
     return;
 
+#if defined(__ANDROID__)
+  if(pass==1)
+    logGeometryStats();
+#endif
+
   cmd.setFramebuffer({});
   if(pass==0) {
     for(auto& v:views) {
@@ -312,8 +319,10 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
     push.znear        = scene.znear;
 
     auto* pso = &Shaders::inst().visibilityPassSh;
-    if(viewport==SceneGlobals::V_Main)
-      pso = &Shaders::inst().visibilityPassHiZ;
+    if(viewport==SceneGlobals::V_Main) {
+      pso = opengothic_debug_use_hiz_prepass() ? &Shaders::inst().visibilityPassHiZ
+                                               : &Shaders::inst().visibilityPassNoHiZ;
+      }
     else if(viewport==SceneGlobals::V_HiZ)
       pso = &Shaders::inst().visibilityPassHiZCr;
 

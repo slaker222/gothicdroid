@@ -72,6 +72,10 @@ const size_t Workers::taskPerThread = 128;
 const size_t Workers::taskPerStep   = 16;
 
 Workers::Workers() {
+#if defined(__EMSCRIPTEN__)
+  // single-threaded wasm build: pthread_create always fails without -pthread,
+  // so no worker pool is created and all work runs inline on the main thread
+#else
   size_t id=0;
   for(auto& i:th) {
     i = std::thread([this,id]() noexcept {
@@ -79,15 +83,20 @@ Workers::Workers() {
       });
     ++id;
     }
+#endif
   }
 
 Workers::~Workers() {
+#if defined(__EMSCRIPTEN__)
+  running = false;
+#else
   running  = false;
   workSet  = nullptr;
   workSize = MAX_THREADS;
   execWork(minWorkSize<void,void>());
   for(auto& i:th)
     i.join();
+#endif
   }
 
 Workers &Workers::inst() {
@@ -153,6 +162,18 @@ uint32_t Workers::taskLoop() {
 void Workers::execWork(uint32_t& minElts) {
   if(workSize==0)
     return;
+
+#if defined(__EMSCRIPTEN__)
+  // single-threaded fallback: process the whole batch on the calling thread
+  if(workSet!=nullptr) {
+    workFunc(workSet, workSize);
+    } else {
+    // task mode: the task index is passed through the data pointer
+    for(size_t i=0; i<workSize; ++i)
+      workFunc(reinterpret_cast<uint8_t*>(i), 1);
+    }
+  return;
+#endif
 
   if(workSet!=nullptr) {
     const auto maxTheads = maxThreads();

@@ -109,16 +109,22 @@ InstanceStorage::InstanceStorage() {
   patchCpu.reserve(4*1024*1024);
   patchBlock.reserve(16*1024);
 
+#if !defined(__EMSCRIPTEN__)
   uploadTh = std::thread([this](){ uploadMain(); });
+#endif
   }
 
 InstanceStorage::~InstanceStorage() {
+#if defined(__EMSCRIPTEN__)
+  // no upload thread on single-threaded wasm build
+#else
   {
     std::unique_lock<std::mutex> lck(sync);
     uploadFId = Resources::MaxFramesInFlight;
   }
   uploadCnd.notify_one();
   uploadTh.join();
+#endif
   }
 
 bool InstanceStorage::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
@@ -191,12 +197,17 @@ bool InstanceStorage::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
     path = device.ssbo(BufferHeap::Upload, Uninitialized, headerSize + payloadSize);
     }
 
+#if defined(__EMSCRIPTEN__)
+  // single-threaded wasm build: upload the patch buffer right away
+  path.update(patchCpu);
+#else
   {
     std::unique_lock<std::mutex> lck(sync);
     uploadFId = fId;
   }
   uploadCnd.notify_one();
   //path.update(patchCpu);
+#endif
 
   cmd.setFramebuffer({});
   cmd.setBinding(0, dataGpu);
@@ -207,11 +218,15 @@ bool InstanceStorage::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
   }
 
 void InstanceStorage::join() {
+#if defined(__EMSCRIPTEN__)
+  return;
+#else
   while(true) {
     std::unique_lock<std::mutex> lck(sync);
     if(uploadFId<0)
       break;
     }
+#endif
   }
 
 InstanceStorage::Id InstanceStorage::alloc(const size_t size) {

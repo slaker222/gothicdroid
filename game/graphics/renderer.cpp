@@ -140,7 +140,12 @@ void Renderer::resetSwapchain() {
 
   uint32_t hw = pw;
   uint32_t hh = ph;
-  while(hw>64 || hh>64) {
+#if defined(__ANDROID__)
+  const uint32_t maxHiZDim = 32;
+#else
+  const uint32_t maxHiZDim = 64;
+#endif
+  while(hw>maxHiZDim || hh>maxHiZDim) {
     hw = std::max(1u, (hw+1)/2u);
     hh = std::max(1u, (hh+1)/2u);
     }
@@ -611,6 +616,15 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     return;
     }
 
+  static int s_lastRenderScale = -1;
+  int curScale = opengothic_debug_render_scale();
+  if(s_lastRenderScale != -1 && s_lastRenderScale != curScale) {
+    s_lastRenderScale = curScale;
+    setupSettings();
+    } else {
+    s_lastRenderScale = curScale;
+    }
+
   if(requiresTlas())
     wview->updateRtScene();
   wview->updateLights();
@@ -641,8 +655,11 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   auto tVis0 = Application::tickCount() - t0;
 
   auto t1 = Application::tickCount();
-  drawHiZ (cmd, *wview);
-  buildHiZ(cmd);
+  const bool useHizPrepass = opengothic_debug_use_hiz_prepass() && !opengothic_debug_skip_hiz();
+  if(useHizPrepass) {
+    drawHiZ (cmd, *wview);
+    buildHiZ(cmd);
+    }
   auto tHiZ = Application::tickCount() - t1;
 
   auto t2 = Application::tickCount();
@@ -650,29 +667,42 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   drawGBuffer(cmd,fId,*wview);
   auto tGBuf = Application::tickCount() - t2;
 
+  const bool simpleRender = (opengothic_debug_simple_render() != 0);
+
   auto t3 = Application::tickCount();
-  drawShadowMap(cmd,fId,*wview);
-  prepareEpipolar(cmd, *wview);
+  if(!simpleRender) {
+    drawShadowMap(cmd,fId,*wview);
+    prepareEpipolar(cmd, *wview);
+  }
   auto tShadow = Application::tickCount() - t3;
 
   auto t4 = Application::tickCount();
-  drawVsm(cmd, *wview);
-  drawSwr(cmd, *wview);
-  drawRtsm(cmd, *wview);
-  drawRtsmOmni(cmd, *wview);
-
-  drawSwRT(cmd, *wview);
-
-  prepareIrradiance(cmd,*wview);
   prepareExposure(cmd,*wview);
-  prepareSSAO(cmd,*wview);
-  prepareFog (cmd,*wview);
-  prepareGi  (cmd,*wview);
+  prepareIrradiance(cmd,*wview);
 
-  cmd.setFramebuffer({{sceneLinear, Tempest::Discard, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
-  drawShadowResolve(cmd,*wview);
+  if(!simpleRender) {
+    drawVsm(cmd, *wview);
+    drawSwr(cmd, *wview);
+    drawRtsm(cmd, *wview);
+    drawRtsmOmni(cmd, *wview);
+
+    drawSwRT(cmd, *wview);
+
+    prepareSSAO(cmd,*wview);
+    prepareFog (cmd,*wview);
+    prepareGi  (cmd,*wview);
+  }
+
+  if(simpleRender) {
+    cmd.setFramebuffer({{sceneLinear, Tempest::Vec4(), Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
+  } else {
+    cmd.setFramebuffer({{sceneLinear, Tempest::Discard, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
+    drawShadowResolve(cmd,*wview);
+  }
   drawAmbient(cmd,*wview);
-  drawLights(cmd,*wview);
+  if(!simpleRender) {
+    drawLights(cmd,*wview);
+  }
   drawSky(cmd,*wview);
   auto tLight = Application::tickCount() - t4;
 
@@ -694,13 +724,14 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   drawRtsmDbg(cmd, *wview);
 
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}});
-  drawReflections(cmd, *wview);
-  if(camera->isInWater()) {
-    cmd.setDebugMarker("Underwater");
-    drawUnderwater(cmd, *wview);
-    } else {
-    cmd.setDebugMarker("Fog");
-    drawFog(cmd, *wview);
+  if(!simpleRender) {
+    if(camera->isInWater()) {
+      cmd.setDebugMarker("Underwater");
+      drawUnderwater(cmd, *wview);
+      } else {
+      cmd.setDebugMarker("Fog");
+      drawFog(cmd, *wview);
+      }
     }
   auto tTrans = Application::tickCount() - t5;
 
@@ -742,7 +773,11 @@ void Renderer::drawTonemapping(Attachment& result, Encoder<CommandBuffer>& cmd, 
   auto& pso = (settings.vidResIndex==0) ? shaders.tonemapping : shaders.tonemappingUpscale;
   cmd.setFramebuffer({ {result, Tempest::Discard, Tempest::Preserve} });
   cmd.setBinding(0, wview.sceneGlobals().uboGlobal[SceneGlobals::V_Main]);
+#if defined(__MOBILE_PLATFORM__)
+  cmd.setBinding(1, sceneLinear, Sampler::bilinear(ClampMode::ClampToEdge));
+#else
   cmd.setBinding(1, sceneLinear, Sampler::nearest(ClampMode::ClampToEdge)); // Lanczos upscale requires nearest sampling
+#endif
   cmd.setPushData(p);
   cmd.setPipeline(pso);
   cmd.draw(nullptr, 0, 3);
@@ -1611,9 +1646,18 @@ void Renderer::drawGBuffer(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView& 
   if(opengothic_debug_skip_gbuf())
     return;
   cmd.setDebugMarker("GBuffer");
-  cmd.setFramebuffer({{gbufDiffuse, Tempest::Vec4(), Tempest::Preserve},
-                      {gbufNormal,  Tempest::Vec4(), Tempest::Preserve}},
-                     {zbuffer, Tempest::Preserve, Tempest::Preserve});
+  if(opengothic_debug_use_hiz_prepass() && !opengothic_debug_skip_hiz()) {
+    // depth prepass already wrote zbuffer this frame, keep its contents
+    cmd.setFramebuffer({{gbufDiffuse, Tempest::Vec4(), Tempest::Preserve},
+                        {gbufNormal,  Tempest::Vec4(), Tempest::Preserve}},
+                       {zbuffer, Tempest::Preserve, Tempest::Preserve});
+    }
+  else {
+    // no depth prepass: zbuffer still holds previous frame depth, clear it here
+    cmd.setFramebuffer({{gbufDiffuse, Tempest::Vec4(), Tempest::Preserve},
+                        {gbufNormal,  Tempest::Vec4(), Tempest::Preserve}},
+                       {zbuffer, 1.f, Tempest::Preserve});
+    }
   view.drawGBuffer(cmd,fId);
   }
 
@@ -1768,7 +1812,7 @@ void Renderer::drawLights(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
   cmd.setPushData(&originLwc, sizeof(originLwc));
   cmd.setPipeline(*lights.directLightPso);
 #if defined(__ANDROID__)
-  const uint32_t maxLights = 32;
+  const uint32_t maxLights = 16;
   const uint32_t lightCount = std::min<uint32_t>(uint32_t(wview.lights().size()), maxLights);
 #else
   const uint32_t lightCount = uint32_t(wview.lights().size());
@@ -2171,7 +2215,10 @@ void Renderer::drawAmbient(Encoder<CommandBuffer>& cmd, const WorldView& view) {
   cmd.setBinding(1, gbufDiffuse, Sampler::nearest());
   cmd.setBinding(2, gbufNormal,  Sampler::nearest());
   cmd.setBinding(3, sky.irradianceLut);
-  if(settings.zCloudShadowScale) {
+  if(opengothic_debug_simple_render()) {
+    cmd.setPipeline(shaders.ambientLightSimple);
+    }
+  else if(settings.zCloudShadowScale) {
     cmd.setBinding(4, ssao.ssaoBlur, Sampler::nearest(ClampMode::ClampToEdge));
     cmd.setPipeline(shaders.ambientLightSsao);
     } else {

@@ -78,7 +78,11 @@ void main() {
   float exposure   = scene.exposure;
 
 #if defined(UPSCALE)
+#if defined(__MOBILE_PLATFORM__)
+  vec3  color      = textureLod(textureD, uv, 0).rgb;
+#else
   vec3  color      = lanczosUpscale(textureD, uv).rgb;
+#endif
 #else
   vec3  color      = textureLod(textureD, uv, 0).rgb;
 #endif

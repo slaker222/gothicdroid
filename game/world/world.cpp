@@ -1,4 +1,5 @@
 #include "world.h"
+#include "og_hb.h"
 
 #include <functional>
 #include <future>
@@ -65,6 +66,7 @@ const char* materialTag(zenkit::MaterialGroup src) {
 
 World::World(GameSession& game, std::string_view file, bool startup, std::function<void(int)> loadProgress)
   :wname(std::move(file)), game(game), wsound(game,*this), wobj(*this) {
+  OG_HB('wd-enter');
   const auto* entry = Resources::vdfsIndex().find(wname);
 
   if(entry == nullptr) {
@@ -77,10 +79,17 @@ World::World(GameSession& game, std::string_view file, bool startup, std::functi
     zenkit::World world;
     world.load(buf.get(), version().game == 1 ? zenkit::GameVersion::GOTHIC_1
                                               : zenkit::GameVersion::GOTHIC_2);
+    OG_HB('wd-zen-done');
 
     loadProgress(20);
     auto& worldMesh = world.world_mesh;
 
+#if defined(__EMSCRIPTEN__)
+    // single-threaded wasm build: std::async cannot spawn threads, build sequentially
+    auto wdynamicPtr = std::unique_ptr<DynamicWorld>(new DynamicWorld(*this,worldMesh));
+    PackedMesh vmesh(worldMesh,PackedMesh::PK_VisualLnd);
+    auto wviewPtr = std::unique_ptr<WorldView>(new WorldView(*this,vmesh));
+#else
     auto wdynamicFut = std::async(std::launch::async, [&]() {
       Workers::setThreadName("Loading: BVH thread");
       return std::unique_ptr<DynamicWorld>(new DynamicWorld(*this,worldMesh));
@@ -90,6 +99,7 @@ World::World(GameSession& game, std::string_view file, bool startup, std::functi
       PackedMesh vmesh(worldMesh,PackedMesh::PK_VisualLnd);
       return std::unique_ptr<WorldView>(new WorldView(*this,vmesh));
       });
+#endif
 
     loadProgress(30);
 
@@ -102,18 +112,28 @@ World::World(GameSession& game, std::string_view file, bool startup, std::functi
     }
     loadProgress(50);
 
+#if defined(__EMSCRIPTEN__)
+    wview    = std::move(wviewPtr);
+    loadProgress(60);
+    wdynamic = std::move(wdynamicPtr);
+#else
     wview = wviewFut.get();
     loadProgress(60);
 
     wdynamic = wdynamicFut.get();
+#endif
+    OG_HB('wd-mesh-done');
     loadProgress(70);
 
     globFx.reset(new GlobalEffects(*this));
     wmatrix.reset(new WayMatrix(*this, *world.way_net));
+    OG_HB('wd-vobs-begin');
     for(auto& vob:world.world_vobs)
       wobj.addRoot(vob,startup);
+    OG_HB('wd-vobs-done');
 
     wmatrix->buildIndex();
+    OG_HB('wd-done');
     loadProgress(100);
     }
   catch(...) {

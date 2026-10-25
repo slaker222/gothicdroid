@@ -1,7 +1,12 @@
 #include "animation.h"
+#include "og_hb.h"
 
 #include <Tempest/Log>
 #include <cctype>
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 
 #include "world/objects/npc.h"
 #include "world/objects/interactive.h"
@@ -30,9 +35,15 @@ static uint64_t frameClamp(int32_t frame,uint32_t first,uint32_t numFrames,uint3
   }
 
 Animation::Animation(zenkit::ModelScript& p, std::string_view name, const bool ignoreErrChunks) {
+  OG_HB_STR('ani-name', std::string(name).c_str());
+  static int aniCtorCnt = 0;
+  ++aniCtorCnt;
+  OG_HB_VALS('ani-ctor', aniCtorCnt, p.animations.size());
   ref = std::move(p.aliases);
 
+  int aniIdx = 0;
   for(auto& ani : p.animations) {
+    OG_HB_VALS('ani-man', aniIdx++, p.animations.size());
     auto& data = loadMAN(ani, std::string(name) + '-' + ani.name + ".MAN");
     data.data->sfx = std::move(ani.sfx);
     data.data->gfx = std::move(ani.sfx_ground);
@@ -55,6 +66,7 @@ Animation::Animation(zenkit::ModelScript& p, std::string_view name, const bool i
       });
     }
 
+  OG_HB_VALS('ani-comb-begin', p.combinations.size(), sequences.size());
   for(auto& co : p.combinations) {
     string_frm name(co.model, 1+(co.last_frame-1)/2);
 
@@ -84,6 +96,7 @@ Animation::Animation(zenkit::ModelScript& p, std::string_view name, const bool i
       }
     }
 
+  OG_HB('ani-comb-done');
   mesh = std::move(p.meshes);
   meshDef = std::move(p.skeleton);
 
@@ -133,8 +146,12 @@ Animation::Sequence& Animation::loadMAN(const zenkit::MdsAnimation& hdr, std::st
   }
 
 void Animation::setupIndex() {
+  static int setupIndexCnt = 0;
+  ++setupIndexCnt;
+  OG_HB_VALS('si-enter', setupIndexCnt, sequences.size());
   for(auto& sq:sequences)
     sq.data->setupEvents(sq.data->fpsRate);
+  OG_HB('si-events');
 
   for(auto& r:ref) {
     Sequence ani;
@@ -157,6 +174,7 @@ void Animation::setupIndex() {
     sequences.emplace_back(std::move(ani));
     }
   ref.clear();
+  OG_HB('si-aliases');
 
   for(auto& sq:sequences) {
     for(auto& i:sq.name)
@@ -168,6 +186,7 @@ void Animation::setupIndex() {
   std::sort(sequences.begin(),sequences.end(),[](const Sequence& a,const Sequence& b){
     return a.name<b.name;
     });
+  OG_HB('si-sort');
 
   for(auto& s:sequences) {
     if(s.comb.size()==0)
@@ -177,6 +196,7 @@ void Animation::setupIndex() {
       s.comb[i] = sequenceAsc(name);
       }
     }
+  OG_HB('si-comb');
 
   for(auto& i:sequences) {
     if((i.next==i.askName && !i.next.empty()) || i.next==i.name)
@@ -198,6 +218,7 @@ void Animation::setupIndex() {
     i.nextPtr = sequence(i.next);
     i.owner   = this;
     }
+  OG_HB('si-done');
   // for(auto& i:sequences)
   //   Log::i(i.name);
   }
@@ -205,12 +226,17 @@ void Animation::setupIndex() {
 
 Animation::Sequence::Sequence(const zenkit::MdsAnimation& hdr, std::string_view fname) {
   const auto* entry = Resources::vdfsIndex().find(fname);
-  if(entry==nullptr)
+  if(entry==nullptr) {
+    OG_HB_STR('man-missing', std::string(fname).c_str());
     return;
+    }
 
+  OG_HB_STR('man-open', std::string(fname).c_str());
   auto reader = entry->open_read();
   zenkit::ModelAnimation p;
+  OG_HB('man-load');
   p.load(reader.get());
+  OG_HB_VALS('man-loaded', p.frame_count, p.samples.size());
 
   data = std::make_shared<AnimData>();
   askName    = hdr.name;
@@ -234,6 +260,7 @@ Animation::Sequence::Sequence(const zenkit::MdsAnimation& hdr, std::string_view 
   data->samples   = p.samples;
 
   data->setupMoveTr();
+  OG_HB('man-done');
   }
 
 bool Animation::Sequence::isFinished(uint64_t now, uint64_t sTime, uint16_t comboLen) const {

@@ -30,7 +30,7 @@ class Shaders {
 
     Tempest::RenderPipeline  lights, lightsRq, lightsVsm;
     Tempest::RenderPipeline  directLight,  directLightSh, directLightRq;
-    Tempest::RenderPipeline  ambientLight, ambientLightSsao;
+    Tempest::RenderPipeline  ambientLight, ambientLightSsao, ambientLightSimple;
 
     Tempest::ComputePipeline copyBuf;
     Tempest::ComputePipeline copyImg;
@@ -70,7 +70,7 @@ class Shaders {
 
     // Cluster
     Tempest::ComputePipeline clusterInit, clusterPatch;
-    Tempest::ComputePipeline visibilityPassSh, visibilityPassHiZ, visibilityPassHiZCr;
+    Tempest::ComputePipeline visibilityPassSh, visibilityPassHiZ, visibilityPassHiZCr, visibilityPassNoHiZ;
 
     // GI
     Tempest::RenderPipeline  probeDbg, probeHitDbg;
@@ -146,7 +146,7 @@ class Shaders {
     Tempest::RenderPipeline  fogShader (std::string_view name);
     Tempest::RenderPipeline  inWaterShader   (std::string_view name, bool isScattering);
     Tempest::RenderPipeline  reflectionShader(std::string_view name, bool hasMeshlets);
-    Tempest::RenderPipeline  ambientLightShader(std::string_view name);
+    Tempest::RenderPipeline  ambientLightShader(std::string_view name, bool isAdditive = true);
 
     static Shaders* instance;
 

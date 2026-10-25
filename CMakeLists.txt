@@ -13,6 +13,25 @@ if(ANDROID)
   add_definitions(-D__MOBILE_PLATFORM__=1)
   add_library(${PROJECT_NAME} SHARED)
   set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "opengothic")
+elseif(EMSCRIPTEN)
+  add_definitions(-D__WEB_PLATFORM__=1)
+  add_executable(${PROJECT_NAME})
+  set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "opengothic")
+  set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -Wno-unused-command-line-argument")
+  target_link_options(${PROJECT_NAME} PRIVATE
+    "-sUSE_WEBGL2=1"
+    "-sFULL_ES3=1"
+    "-sALLOW_MEMORY_GROWTH=1"
+    "-sMAXIMUM_MEMORY=4GB"
+    "-sSTACK_SIZE=5MB"
+    "-sNO_EXIT_RUNTIME=1"
+    "-fexceptions"
+    "-lidbfs.js"
+    "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','callMain','mmapAlloc']"
+    "-sFORCE_FILESYSTEM=1"
+    "--shell-file=${CMAKE_SOURCE_DIR}/web/shell.html"
+  )
 else()
   add_executable(${PROJECT_NAME})
 endif()
@@ -102,6 +121,8 @@ if(WIN32)
   target_link_libraries(${PROJECT_NAME} shlwapi DbgHelp)
 elseif(ANDROID)
   target_link_libraries(${PROJECT_NAME} android log)
+elseif(EMSCRIPTEN)
+  # Emscripten provides built-in browser runtime and audio
 elseif(UNIX)
   target_link_libraries(${PROJECT_NAME} -lpthread -ldl)
 endif()

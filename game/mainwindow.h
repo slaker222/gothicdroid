@@ -6,7 +6,9 @@
 #include <Tempest/Window>
 #include <Tempest/CommandBuffer>
 #include <Tempest/Fence>
+#if defined(TEMPEST_BUILD_VULKAN)
 #include <Tempest/VulkanApi>
+#endif
 #include <Tempest/Device>
 #include <Tempest/VertexBuffer>
 #include <Tempest/UniformBuffer>

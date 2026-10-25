@@ -9,14 +9,20 @@
 
 #include <zenkit/Logger.hh>
 
+#if defined(TEMPEST_BUILD_VULKAN)
 #include <Tempest/VulkanApi>
+#endif
 
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(TEMPEST_BUILD_DIRECTX12)
 #include <Tempest/DirectX12Api>
 #endif
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) && defined(TEMPEST_BUILD_METAL)
 #include <Tempest/MetalApi>
+#endif
+
+#if defined(__EMSCRIPTEN__)
+#include <Tempest/WebGapi>
 #endif
 
 #if defined(__IOS__)
@@ -28,6 +34,7 @@
 #include "gothic.h"
 #include "build.h"
 #include "commandline.h"
+#include "og_hb.h"
 
 #include <dmusic.h>
 
@@ -52,23 +59,27 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
   Tempest::ApiFlags flg = g.isValidationMode() ? Tempest::ApiFlags::Validation : Tempest::ApiFlags::NoFlags;
   switch(g.graphicsApi()) {
     case CommandLine::DirectX12:
-#if defined(_MSC_VER)
+#if defined(_MSC_VER) && defined(TEMPEST_BUILD_DIRECTX12)
       return std::make_unique<Tempest::DirectX12Api>(flg);
 #else
       break;
 #endif
     case CommandLine::Vulkan:
-#if !defined(__APPLE__)
+#if defined(TEMPEST_BUILD_VULKAN)
       return std::make_unique<Tempest::VulkanApi>(flg);
 #else
       break;
 #endif
     }
 
-#if defined(__APPLE__)
+#if defined(__APPLE__) && defined(TEMPEST_BUILD_METAL)
   return std::make_unique<Tempest::MetalApi>(flg);
-#else
+#elif defined(TEMPEST_BUILD_VULKAN)
   return std::make_unique<Tempest::VulkanApi>(flg);
+#elif defined(__EMSCRIPTEN__)
+  return std::make_unique<Tempest::WebGapi>(flg);
+#else
+  return nullptr;
 #endif
   }
 
@@ -121,7 +132,7 @@ int main(int argc, const char** argv) {
   }
 #endif
 
-#if !defined(__ANDROID__)
+#if !defined(__ANDROID__) && !defined(__EMSCRIPTEN__)
   try {
     static Tempest::WFile logFile("log.txt");
     Tempest::Log::setOutputCallback([](Tempest::Log::Mode mode, const char* text) {
@@ -174,21 +185,42 @@ int main(int argc, const char** argv) {
 
   Tempest::Log::i(appBuild);
   Workers::setThreadName("Main thread");
+  OG_HB('main-enter');
 
-  CommandLine          cmd{argc,argv};
-  auto                 api     = mkApi(cmd);
-  const auto           gpuName = selectDevice(*api);
-  CrashLog::setGpu(gpuName);
+  try {
+    CommandLine          cmd{argc,argv};
+    auto                 api     = mkApi(cmd);
+    const auto           gpuName = selectDevice(*api);
+    CrashLog::setGpu(gpuName);
 
-  Tempest::Device      device{*api,gpuName};
-  CrashLog::setGpu(device.properties().name);
+    Tempest::Device      device{*api,gpuName};
+    CrashLog::setGpu(device.properties().name);
 
-  Resources            resources{device};
-  Gothic               gothic;
-  GameMusic            music;
-  gothic.setupGlobalScripts();
+    Resources            resources{device};
+    Gothic               gothic;
+    GameMusic            music;
+    gothic.setupGlobalScripts();
 
-  MainWindow           wx(device);
-  Tempest::Application app;
-  return app.exec();
+    MainWindow           wx(device);
+    OG_HB('main-ctor-done');
+    Tempest::Application app;
+    OG_HB('main-exec-enter');
+    int rc = app.exec();
+    OG_HB('main-exec-done');
+    return rc;
+    }
+  catch(const GothicNotFoundException&) {
+    Tempest::Log::e("Gothic installation not found! Please specify game directory with -g <path>.");
+    return 1;
+    }
+  catch(const std::exception& e) {
+    Tempest::Log::e("Fatal exception: ", e.what());
+    return 1;
+    }
+  catch(...) {
+    OG_HB('main-unknown-throw');
+    Tempest::Log::e("Fatal exception: unknown type");
+    return 1;
+    }
   }
+

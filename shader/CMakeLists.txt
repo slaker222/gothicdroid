@@ -63,6 +63,10 @@ function(add_shader OUTPUT SOURCE)
     list(APPEND VARS "-g")
   endif()
 
+  if(ANDROID)
+    list(APPEND VARS "-D__MOBILE_PLATFORM__")
+  endif()
+
   if(SPIRV_OPT AND NOT ${CMAKE_BUILD_TYPE} MATCHES "Debug")
     add_custom_command(
       OUTPUT     ${OUTPUT_FILE}
@@ -117,6 +121,7 @@ endfunction(add_frag_shader)
 add_shader(cluster_init.comp            materials/cluster_init.comp)
 add_shader(cluster_patch.comp           materials/cluster_patch.comp)
 add_shader(visibility_pass.comp         materials/visibility_pass.comp)
+add_shader(visibility_pass_nohiz.comp   materials/visibility_pass.comp -DMAIN_VIEW)
 add_shader(visibility_pass_hiz.comp     materials/visibility_pass.comp -DMAIN_VIEW -DHIZ)
 add_shader(visibility_pass_hiz_cr.comp  materials/visibility_pass.comp -DMAIN_VIEW -DHIZ -DLARGE)
 
@@ -216,6 +221,7 @@ add_shader(direct_light_vsm.frag     virtual_shadow/vsm_direct_light.frag)
 
 add_shader(ambient_light.frag        lighting/ambient_light.frag)
 add_shader(ambient_light_ssao.frag   lighting/ambient_light.frag -DSSAO)
+add_shader(ambient_light_simple.frag lighting/ambient_light.frag -DSIMPLE_LIGHTING)
 
 add_shader(light.vert                lighting/light.vert)
 add_shader(light.frag                lighting/light.frag)

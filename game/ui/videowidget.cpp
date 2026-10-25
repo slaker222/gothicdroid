@@ -131,8 +131,14 @@ struct VideoWidget::Context {
 
     const uint64_t destTick = (1000*vid.fps().den*vid.currentFrame())/vid.fps().num;
     const uint64_t tickVis  = Application::tickCount() - frameTime;
+#if defined(__EMSCRIPTEN__)
+    // with the stub sound backend no samples are ever consumed, so the
+    // sound clock stays at 0 and would sleep forever; pace by real time
+    const uint64_t tick = tickVis;
+#else
     const uint64_t tickSnd  = tickSound();
     const uint64_t tick     = std::min(tickVis, tickSnd);
+#endif
 
     if(destTick > tick) {
       Application::sleep(uint32_t(destTick-tick));
@@ -150,6 +156,20 @@ struct VideoWidget::Context {
     }
 
   void yuvToRgba(const Bink::Frame& f, Tempest::Device& device, uint8_t fId) {
+#if defined(__EMSCRIPTEN__)
+    // GLES3 has no SSBO, so the bink.frag pipeline cannot be compiled for
+    // WebGL2. Convert YUV -> RGB on the CPU (helper below) and upload the
+    // finished frame as a regular RGBA8 texture instead.
+    if(uint32_t(framePm.w())!=f.width() || uint32_t(framePm.h())!=f.height()) {
+      framePm = Pixmap(f.width(), f.height(), TextureFormat::RGBA8);
+      }
+    sync[fId].wait();
+    yuvToRgba(f, framePm);
+    // Texture2d has no in-place update: reallocate per frame (TexPtr in the
+    // UI mesh keeps the previous frame alive while it is still on screen)
+    frameTex = device.texture(framePm, false);
+    return;
+#else
     if(uint32_t(frameImg.w())!=f.width() || uint32_t(frameImg.h())!=f.height()) {
       Resources::recycle(std::move(frameImg));
       frameImg = device.attachment(Tempest::RGBA8, f.width(), f.height());
@@ -196,9 +216,11 @@ struct VideoWidget::Context {
       cmd.draw(nullptr, 0, 3);
     }
     sync[fId] = device.submit(this->cmd[fId]);
+#endif
     }
 
-  [[deprecated]]
+  // YUV (Bink, planar) -> RGBA on the CPU; used by the WebGL2 path, where the
+  // SSBO-based bink.frag pipeline is not available
   void yuvToRgba(const Bink::Frame& f, Pixmap& pm) {
     if(pm.w()!=f.width() || pm.h()!=f.height())
       pm = Pixmap(f.width(),f.height(),TextureFormat::RGBA8);
@@ -243,6 +265,11 @@ struct VideoWidget::Context {
   Tempest::CommandBuffer        cmd    [Resources::MaxFramesInFlight];
   Tempest::StorageBuffer        staging[Resources::MaxFramesInFlight];
   Tempest::Fence                sync   [Resources::MaxFramesInFlight];
+
+#if defined(__EMSCRIPTEN__)
+  Pixmap                        framePm;
+  Tempest::Texture2d            frameTex;
+#endif
 
   Tempest::SoundDevice          sndDev;
   std::vector<std::unique_ptr<SoundContext>> sndCtx;
@@ -352,7 +379,11 @@ void VideoWidget::paint(Tempest::Device& device, uint8_t fId) {
     return;
   try {
     ctx->advance(device, fId);
+#if defined(__EMSCRIPTEN__)
+    frame = (ctx->frameTex.w()>0) ? &ctx->frameTex : nullptr;
+#else
     frame = &textureCast<Texture2d&>(ctx->frameImg);
+#endif
     update();
     }
   catch(const Bink::VideoDecodingException& e) { // video exception is recoverable

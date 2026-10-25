@@ -37,3 +37,8 @@ build-android-arm64/
 #os
 .DS_Store
 
+
+# Web/local build outputs
+build_arm64/
+dist-web/
+android/touch_log.txt

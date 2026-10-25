@@ -17,7 +17,7 @@
 
 extern int opengothic_main(int argc, const char** argv);
 
-static std::thread*      s_gameThread = nullptr;
+static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
 static std::mutex        s_logMutex;
@@ -45,6 +45,8 @@ void androidAppendLog(const char* text) {
 
 #include <unistd.h>
 #include <sys/stat.h>
+#include <pthread.h>
+#include <memory>
 
 static void runGameThread(std::string gameDir) {
   s_gameRunning.store(true);
@@ -102,7 +104,7 @@ static void runGameThread(std::string gameDir) {
 
   s_gameRunning.store(false);
   std::lock_guard<std::mutex> lk(s_gameMutex);
-  s_gameThread = nullptr;
+  s_gameThread = 0;
 }
 
 extern "C" {
@@ -126,7 +128,7 @@ static void implSetSurface(JNIEnv* env, jobject surface, jstring jGameDir) {
   Tempest::AndroidApi::setNativeWindow(window);
 
   std::lock_guard<std::mutex> lk(s_gameMutex);
-  if(s_gameThread == nullptr && window != nullptr) {
+  if(s_gameThread == 0 && window != nullptr) {
     if(jGameDir != nullptr) {
       const char* utf = env->GetStringUTFChars(jGameDir, nullptr);
       s_gameDir = utf;
@@ -136,7 +138,23 @@ static void implSetSurface(JNIEnv* env, jobject surface, jstring jGameDir) {
     }
 
     LOGI("Launching OpenGothic thread with dir: %s", s_gameDir.c_str());
-    s_gameThread = new std::thread(runGameThread, s_gameDir);
+    // explicit large stack: opengothic_main early call-chain (VulkanApi init + deviceProps)
+    // overflows the Android default thread stack
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+    pthread_attr_setstacksize(&attr, 32*1024*1024);
+    pthread_t t = 0;
+    if(pthread_create(&t, &attr, [](void* arg) -> void* {
+         std::unique_ptr<std::string> dir(static_cast<std::string*>(arg));
+         runGameThread(*dir);
+         return nullptr;
+       }, new std::string(s_gameDir)) == 0) {
+      s_gameThread = t;
+      pthread_detach(t);
+      } else {
+      LOGE("pthread_create failed");
+      }
+    pthread_attr_destroy(&attr);
   }
 }
 
