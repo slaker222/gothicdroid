@@ -708,11 +708,12 @@ function serveLoop() {
         close(stream) {
           const e = stream.node.gameEntry;
           if (stream.gameBuffer) {
-            e.mem = stream.gameBuffer;
-            e.size = stream.gameBuffer.length;
+            // the write buffer grows geometrically: keep only the file bytes
+            const bytes = stream.gameBuffer.slice(0, e.size);
+            e.mem = bytes;
             e.dirty = true;
             stream.node.size = e.size;
-            GameFS.persistEntryAsync(e, stream.gameBuffer);
+            GameFS.persistEntryAsync(e, bytes);
           }
           stream.gameBuffer = null;
         },
@@ -737,10 +738,10 @@ function serveLoop() {
           const e = stream.node.gameEntry;
           const end = position + length;
           if (!stream.gameBuffer || stream.gameBuffer.length < end) {
-            const newSize = Math.max(end, 1024);
-            const nb = new Uint8Array(newSize);
-            if (stream.gameBuffer) nb.set(stream.gameBuffer.subarray(0, Math.min(position, stream.gameBuffer.length)));
-            else if (e.mem) nb.set(e.mem.subarray(0, Math.min(position, e.mem.length)));
+            const cur = stream.gameBuffer ? stream.gameBuffer.length : 0;
+            const nb = new Uint8Array(Math.max(end, cur * 2, 1024));
+            if (stream.gameBuffer) nb.set(stream.gameBuffer.subarray(0, Math.min(e.size, cur)));
+            else if (e.mem) nb.set(e.mem.subarray(0, Math.min(e.size, e.mem.length)));
             stream.gameBuffer = nb;
           }
           stream.gameBuffer.set(buffer.subarray(offset, offset + length), position);
@@ -1261,6 +1262,9 @@ function serveLoop() {
         // ?nomenu skips the main menu and boots straight into the world
         // (used by automated tests; regular users get the normal menu)
         const noMenu = location.search.indexOf('nomenu') >= 0;
+        // relative paths (savegames, Gothic.ini) must land on the persistent
+        // game mount, not on the in-memory root filesystem
+        try { Module.FS.chdir(GAME_ROOT); } catch (e) {}
         const args = ["-g", GAME_ROOT];
         if (noMenu) args.push("-nomenu");
         const ret = Module.callMain(args);

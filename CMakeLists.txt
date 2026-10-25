@@ -34,6 +34,8 @@ elseif(EMSCRIPTEN)
     "-sFORCE_FILESYSTEM=1"
     "--shell-file=${CMAKE_SOURCE_DIR}/web/shell.html"
   )
+  # relink when the html shell changes
+  set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/shell.html")
 else()
   add_executable(${PROJECT_NAME})
 endif()
