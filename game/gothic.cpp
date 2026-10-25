@@ -564,60 +564,20 @@ void Gothic::implStartLoadSave(std::string_view banner,
     window.__hb.t = Date.now();
     });
 #if defined(__EMSCRIPTEN__)
-  // single-threaded wasm build: std::thread cannot be spawned without -pthread,
-  // so run the load/save synchronously on the main thread
-  try {
-    std::unique_ptr<GameSession> game(g);
-    std::unique_ptr<GameSession> next;
-    auto curState = one;
-    auto err = (curState==LoadState::Loading) ? LoadState::FailedLoad : LoadState::FailedSave;
-    try {
-      OG_HB('f-enter');
-      next        = f(std::move(game));
-      OG_HB('f-done');
-      pendingGame = std::move(next);
-      loadingFlag.compare_exchange_strong(curState,LoadState::Finalize);
-      }
-    catch(std::bad_alloc&){
-      Tempest::Log::e("loading error: out of memory");
-      loadingFlag.compare_exchange_strong(curState,err);
-      }
-    catch(std::system_error& e){
-      Tempest::Log::e("loading error: ", e.what());
-      loadingFlag.compare_exchange_strong(curState,err);
-      }
-    catch(std::runtime_error& e){
-      Tempest::Log::e("loading error: ",e.what());
-      loadingFlag.compare_exchange_strong(curState,err);
-      }
-    catch(std::bad_function_call&){
-      Tempest::Log::e("loading error: bad_function_call");
-      loadingFlag.compare_exchange_strong(curState,err);
-      }
-    catch(const std::exception&e) {
-      Tempest::Log::e("loading error: ", e.what());
-      loadingFlag.compare_exchange_strong(curState,err);
-      }
-    if(curState==LoadState::Saving) {
-      if(game!=nullptr)
-        pendingGame = std::move(game);
-      }
-    EM_ASM({
-      if (!window.__hb) window.__hb = {};
-      window.__hb.phase = 'load-exit';
-      window.__hb.t = Date.now();
-      });
-    Tempest::Log::i("[Gothic] sync load/save done");
-    }
-  catch(...){
-    EM_ASM({
-      if (!window.__hb) window.__hb = {};
-      window.__hb.phase = 'load-swallowed';
-      window.__hb.t = Date.now();
-      });
-    Tempest::Log::e("[Gothic] sync load/save: unknown exception swallowed");
-    delete g;
-    }
+  // Single-threaded wasm: no loader thread. The job runs from a timer, so the
+  // loading screen is painted before the (blocking) load starts.
+  struct Job {
+    Gothic* self;
+    std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f;
+    GameSession* g;
+    LoadState    one;
+    };
+  Tempest::Log::i("[Gothic] load/save requested at frame ", EM_ASM_INT({ return window.__ogFrame|0; }));
+  emscripten_async_call([](void* arg) {
+    std::unique_ptr<Job> job(static_cast<Job*>(arg));
+    Tempest::Log::i("[Gothic] load/save starts at frame ", EM_ASM_INT({ return window.__ogFrame|0; }));
+    job->self->webRunLoadSave(job->f, job->g, job->one);
+    }, new Job{this, f, g, one}, 100);
 #else
   try{
     auto l = std::thread([this,f,g,one]() noexcept {
@@ -1302,3 +1262,61 @@ void Gothic::printdebuginstch(int ch, std::string_view msg) {
   if(version().game==2)
     Log::d("[zspy,",ch,"]: ",msg);
   }
+
+#if defined(__EMSCRIPTEN__)
+void Gothic::webRunLoadSave(const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)>& f,
+                            GameSession* g, LoadState one) {
+  try {
+    std::unique_ptr<GameSession> game(g);
+    std::unique_ptr<GameSession> next;
+    auto curState = one;
+    auto err = (curState==LoadState::Loading) ? LoadState::FailedLoad : LoadState::FailedSave;
+    try {
+      OG_HB('f-enter');
+      next        = f(std::move(game));
+      OG_HB('f-done');
+      pendingGame = std::move(next);
+      loadingFlag.compare_exchange_strong(curState,LoadState::Finalize);
+      }
+    catch(std::bad_alloc&){
+      Tempest::Log::e("loading error: out of memory");
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(std::system_error& e){
+      Tempest::Log::e("loading error: ", e.what());
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(std::runtime_error& e){
+      Tempest::Log::e("loading error: ",e.what());
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(std::bad_function_call&){
+      Tempest::Log::e("loading error: bad_function_call");
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    catch(const std::exception&e) {
+      Tempest::Log::e("loading error: ", e.what());
+      loadingFlag.compare_exchange_strong(curState,err);
+      }
+    if(curState==LoadState::Saving) {
+      if(game!=nullptr)
+        pendingGame = std::move(game);
+      }
+    EM_ASM({
+      if (!window.__hb) window.__hb = {};
+      window.__hb.phase = 'load-exit';
+      window.__hb.t = Date.now();
+      });
+    Tempest::Log::i("[Gothic] sync load/save done");
+    }
+  catch(...){
+    EM_ASM({
+      if (!window.__hb) window.__hb = {};
+      window.__hb.phase = 'load-swallowed';
+      window.__hb.t = Date.now();
+      });
+    Tempest::Log::e("[Gothic] sync load/save: unknown exception swallowed");
+    delete g;
+    }
+  }
+#endif

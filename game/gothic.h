@@ -259,6 +259,10 @@ class Gothic final {
 
     static Gothic*                          instance;
 
+#if defined(__EMSCRIPTEN__)
+    void                                    webRunLoadSave(const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)>& f,
+                                                           GameSession* g, LoadState one);
+#endif
     void                                    implStartLoadSave(std::string_view banner,
                                                               bool load,
                                                               const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f);

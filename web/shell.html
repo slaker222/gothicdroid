@@ -484,7 +484,7 @@ self.onmessage = (e) => {
       // loop, so any pending await in openAll would never resume
       setTimeout(serveLoop, 0);
     }, (err) => {
-      console.error('bridge openAll failed:', err);
+      self.postMessage({ type: 'error', msg: String(err && err.stack || err) });
       Atomics.store(cmd, 7, 1);
       Atomics.store(cmd, 6, 1);
       Atomics.notify(cmd, 0);
@@ -946,6 +946,10 @@ function serveLoop() {
         const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
         const worker = new Worker(url);
         worker.onerror = (e) => reject(new Error('bridge worker: ' + e.message));
+        worker.onmessage = (e) => {
+          if (e.data && e.data.type === 'error')
+            console.error('bridge openAll failed:', e.data.msg);
+        };
 
         // send init; the worker fills handles and notifies cmd[6].
         // SharedArrayBuffers are shared, not transferred — no transfer list.
