@@ -43,3 +43,4 @@ build_arm64/
 dist-web/
 android/touch_log.txt
 scripts/__pycache__/
+web/.cert/
