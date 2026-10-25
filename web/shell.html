@@ -256,7 +256,7 @@
 
   <div id="ui-overlay">
     <h1 class="title">OPENGOTHIC</h1>
-    <p class="subtitle">WebAssembly / WebGL2 Browser Edition</p>
+    <p class="subtitle">WebAssembly / WebGPU Browser Edition</p>
 
     <div class="progress-bar-container" id="progress-container">
       <div class="progress-bar" id="progress-bar"></div>
@@ -886,7 +886,7 @@ function serveLoop() {
         const listing = [];
         await opfsWalk(dir, '', listing);
         if (listing.length === 0 || !listing.some(f => f.path.toLowerCase().startsWith('data/'))) {
-          setStatus('Готово к работе. Выберите папку или ZIP с Gothic II.');
+          setStatus('Готово к работе. Выберите папку или ZIP с Gothic I или II.');
           return;
         }
 
@@ -925,7 +925,7 @@ function serveLoop() {
         Module.FS.mkdir(GAME_ROOT);
         Module.FS.mount(GameFS, {}, GAME_ROOT);
 
-        setStatus('✓ Gothic II найдена на диске браузера' + (GameFS.lazy ? ' (ленивый режим)' : ''));
+        setStatus('✓ Игра найдена на диске браузера' + (GameFS.lazy ? ' (ленивый режим)' : ''));
         startBtn.style.display = 'inline-flex';
         clearBtn.style.display = 'inline-flex';
         g_gameReady = true;
@@ -1226,10 +1226,11 @@ function serveLoop() {
     // the device up front and pass it via Module.preinitializedWebGPUDevice.
     async function initWebGPU() {
       if (!navigator.gpu)
-        throw new Error("WebGPU не поддерживается этим браузером");
+        throw new Error("WebGPU не поддерживается этим браузером. Нужен Chrome/Edge 113+, " +
+                        "Firefox 141+ (Windows) или Safari 26+; страница должна открываться по HTTPS или localhost");
       const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
       if (!adapter)
-        throw new Error("WebGPU: не найден графический адаптер");
+        throw new Error("WebGPU: не найден графический адаптер (проверьте, что аппаратное ускорение включено)");
       const wanted = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable',
                       'indirect-first-instance', 'depth-clip-control', 'depth32float-stencil8',
                       'clip-distances'];
