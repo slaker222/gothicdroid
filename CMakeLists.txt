@@ -18,14 +18,17 @@ elseif(EMSCRIPTEN)
   add_executable(${PROJECT_NAME})
   set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "opengothic")
   set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fexceptions -Wno-unused-command-line-argument")
+  # native wasm exceptions: JS-emulated ones route every try-block call through JS
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -msimd128 -Wno-unused-command-line-argument")
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -sSUPPORT_LONGJMP=wasm -msimd128")
   target_link_options(${PROJECT_NAME} PRIVATE
     "-sUSE_WEBGPU=1"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sMAXIMUM_MEMORY=4GB"
     "-sSTACK_SIZE=5MB"
     "-sNO_EXIT_RUNTIME=1"
-    "-fexceptions"
+    "-fwasm-exceptions"
+    "-sSUPPORT_LONGJMP=wasm"
     "-lidbfs.js"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','callMain','mmapAlloc']"
     "-sFORCE_FILESYSTEM=1"

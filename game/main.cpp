@@ -188,6 +188,25 @@ int main(int argc, const char** argv) {
   OG_HB('main-enter');
 
   try {
+#if defined(__EMSCRIPTEN__)
+    // The browser main loop keeps running after main() returns (the runtime is
+    // never exited), so the engine state must not live on main()'s stack.
+    auto* cmd    = new CommandLine{argc,argv};
+    auto* api    = mkApi(*cmd).release();
+    const auto gpuName = selectDevice(*api);
+    CrashLog::setGpu(gpuName);
+    auto* device = new Tempest::Device{*api,gpuName};
+    CrashLog::setGpu(device->properties().name);
+    new Resources{*device};
+    new Gothic();
+    new GameMusic();
+    Gothic::inst().setupGlobalScripts();
+    new MainWindow(*device);
+    OG_HB('main-ctor-done');
+    auto* app = new Tempest::Application();
+    OG_HB('main-exec-enter');
+    return app->exec();
+#else
     CommandLine          cmd{argc,argv};
     auto                 api     = mkApi(cmd);
     const auto           gpuName = selectDevice(*api);
@@ -208,6 +227,7 @@ int main(int argc, const char** argv) {
     int rc = app.exec();
     OG_HB('main-exec-done');
     return rc;
+#endif
     }
   catch(const GothicNotFoundException&) {
     Tempest::Log::e("Gothic installation not found! Please specify game directory with -g <path>.");
