@@ -219,6 +219,46 @@
       opacity: 0.9;
     }
 
+    .url-row {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      text-align: left;
+    }
+
+    .url-row label {
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .url-input {
+      width: 100%;
+      padding: 11px 12px;
+      font-size: 13px;
+      color: var(--text);
+      background: rgba(10, 12, 16, 0.75);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      border-radius: 8px;
+      outline: none;
+      user-select: text;
+      -webkit-user-select: text;
+      transition: border-color 0.2s ease;
+    }
+
+    .url-input:focus {
+      border-color: var(--gold);
+    }
+
+    .url-hint {
+      font-size: 12px;
+      min-height: 16px;
+      color: var(--text-dim);
+      word-break: break-word;
+    }
+
+    .url-hint.ok { color: var(--success); }
+    .url-hint.bad { color: var(--danger); }
+
     .instructions {
       font-size: 12px;
       color: var(--text-dim);
@@ -275,6 +315,13 @@
       <button class="btn btn-primary" id="start-btn" style="display:none;" onclick="startGame()">
         ▶ ЗАПУСТИТЬ ИГРУ
       </button>
+
+      <div class="url-row" id="url-row">
+        <label for="archive-url">Ссылка на ZIP-архив с игрой</label>
+        <input type="url" id="archive-url" class="url-input" spellcheck="false" autocomplete="off"
+               placeholder="https://example.invalid/removed">
+        <div class="url-hint" id="url-hint"></div>
+      </div>
 
       <button class="btn" id="download-btn" style="display:none;" onclick="downloadGame()">
         🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА
@@ -1264,13 +1311,48 @@ function serveLoop() {
       return /^[^/]+\.(sav|ini)$/i.test(rel) || /^saves[^/]*\//i.test(rel);
     }
 
+    const urlRow = document.getElementById('url-row');
+    const urlInput = document.getElementById('archive-url');
+    const urlHint = document.getElementById('url-hint');
+    const URL_KEY = 'gothic-archive-url'; // last link typed by the user
+
+    // link from the input field, normalized; null when it is not a URL
     function archiveUrl() {
-      const q = new URLSearchParams(location.search).get('archive');
-      return normalizeArchiveUrl(q || ARCHIVE_URL);
+      try {
+        return normalizeArchiveUrl(urlInput.value.trim() || ARCHIVE_URL);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // ?archive= wins, then the last link a download was started with (it
+    // matches an unfinished download), then the built-in default
+    async function initArchiveInput() {
+      const state = await readRootJson(DL_STATE);
+      let saved = null;
+      try { saved = localStorage.getItem(URL_KEY); } catch (e) {}
+      urlInput.value = new URLSearchParams(location.search).get('archive') ||
+                       saved || (state && state.url) || ARCHIVE_URL;
+      let timer = 0;
+      urlInput.addEventListener('input', () => {
+        clearTimeout(timer);
+        timer = setTimeout(updateDownloadButton, 600);
+      });
+      urlInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') downloadGame();
+      });
+    }
+
+    function setUrlHint(text, cls) {
+      urlHint.textContent = text;
+      urlHint.className = 'url-hint' + (cls ? ' ' + cls : '');
     }
 
     function normalizeArchiveUrl(u) {
-      const url = new URL(u, location.href);
+      // absolute links only; "/path" addresses a file on this server
+      const url = u.startsWith('/') && !u.startsWith('//') ? new URL(u, location.href) : new URL(u);
+      if (url.protocol !== 'https:' && url.protocol !== 'http:')
+        throw new Error('not an http(s) link');
       // www.mirrorhost.com answers with a redirect that has no CORS headers;
       // dl.mirrorhostusercontent.com serves the same file with CORS and Range
       if (/(^|\.)mirrorhost\.com$/i.test(url.hostname)) {
@@ -1308,6 +1390,7 @@ function serveLoop() {
     function showSourceButtons(show) {
       const d = show ? 'inline-flex' : 'none';
       downloadBtn.style.display = d;
+      urlRow.style.display = show ? 'flex' : 'none';
       folderBtn.style.display = d;
       zipBtn.style.display = d;
     }
@@ -1322,40 +1405,75 @@ function serveLoop() {
       } catch (e) {
         console.warn('initStorage error:', e);
       }
+      await initArchiveInput();
       showSourceButtons(true);
+      progressContainer.style.display = 'none';
       await updateDownloadButton();
       setStatus(DIRECT_FOLDER_MODE
         ? 'Скачайте игру или выберите папку с установленной игрой (Gothic I или II).'
         : 'Готово к работе. Скачайте игру или выберите папку или ZIP с Gothic I или II.');
     }
 
-    // label: resume info for an unfinished download, archive size otherwise
+    // Button label (resume info for an unfinished download) and a check of
+    // the link: reachable from the page (CORS), ZIP signature, size, resume.
+    let g_probeSeq = 0;
     async function updateDownloadButton() {
+      const seq = ++g_probeSeq;
       const url = archiveUrl();
+      downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА';
+      if (!url) {
+        setUrlHint('✗ это не ссылка (нужен адрес http:// или https://)', 'bad');
+        return;
+      }
       const state = await readRootJson(DL_STATE);
+      if (seq !== g_probeSeq) return;
       if (state && state.url === url && state.total) {
         let have = 0;
         try {
           const root = await navigator.storage.getDirectory();
           have = (await (await root.getFileHandle(DL_ZIP)).getFile()).size;
         } catch (e) {}
+        if (seq !== g_probeSeq) return;
         downloadBtn.textContent = have >= state.total
           ? '📦 ДОРАСПАКОВАТЬ СКАЧАННУЮ ИГРУ'
           : '🌐 ПРОДОЛЖИТЬ ЗАГРУЗКУ (' + mb(have) + ' / ' + mb(state.total) + ' МБ)';
+        setUrlHint('Загрузка по этой ссылке уже начата', 'ok');
         return;
       }
-      downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА';
-      // ask for the size without downloading the archive
+      setUrlHint('Проверка ссылки...');
+      const ctl = new AbortController();
       try {
-        const ctl = new AbortController();
-        const resp = await fetch(url, { headers: { Range: 'bytes=0-0' }, cache: 'no-store', signal: ctl.signal });
+        const resp = await fetch(url, { headers: { Range: 'bytes=0-3' }, cache: 'no-store', signal: ctl.signal });
+        if (seq !== g_probeSeq) { ctl.abort(); return; }
+        if (!resp.ok) {
+          ctl.abort();
+          setUrlHint('✗ сервер ответил HTTP ' + resp.status + ' — проверьте ссылку', 'bad');
+          return;
+        }
         const m = /\/(\d+)\s*$/.exec(resp.headers.get('Content-Range') || '');
-        const total = m ? +m[1] : (resp.status === 200 ? +resp.headers.get('Content-Length') : 0);
+        const total = m ? +m[1] : (+resp.headers.get('Content-Length') || 0);
+        // without Range support the whole file is coming: only the first
+        // chunk is read, then the request is dropped
+        const note = resp.status === 206 ? ''
+          : ' · сервер не поддерживает докачку, после паузы загрузка начнётся заново';
+        const reader = resp.body.getReader();
+        const first = await reader.read();
         ctl.abort();
-        if (total && downloadBtn.textContent.indexOf('СКАЧАТЬ') >= 0)
+        if (seq !== g_probeSeq) return;
+        // a page instead of the file (preview, login, quota) is not a ZIP
+        const sig = first.value || new Uint8Array(0);
+        if (sig[0] !== 0x50 || sig[1] !== 0x4b) {
+          setUrlHint('✗ по ссылке не ZIP-архив (нужна прямая ссылка на файл)', 'bad');
+          return;
+        }
+        if (total)
           downloadBtn.textContent = '🌐 СКАЧАТЬ ИГРУ ИЗ ИНТЕРНЕТА (' + mb(total) + ' МБ)';
+        setUrlHint('✓ архив доступен' + (total ? ', ' + mb(total) + ' МБ' : '') + note, 'ok');
       } catch (e) {
-        console.warn('archive size probe failed:', e);
+        if (seq !== g_probeSeq) return;
+        console.warn('archive probe failed:', e);
+        setUrlHint('✗ архив недоступен: сервер не разрешает загрузку из браузера (CORS) ' +
+                   'или нет соединения', 'bad');
       }
     }
 
@@ -1518,6 +1636,12 @@ function serveLoop() {
     async function downloadGame() {
       if (g_gameReady || g_installWorker) return;
       const url = archiveUrl();
+      if (!url) {
+        setUrlHint('✗ это не ссылка (нужен адрес http:// или https://)', 'bad');
+        urlInput.focus();
+        return;
+      }
+      try { localStorage.setItem(URL_KEY, urlInput.value.trim()); } catch (e) {}
       showSourceButtons(false);
       statusText.style.color = '';
       progressContainer.style.display = 'block';
