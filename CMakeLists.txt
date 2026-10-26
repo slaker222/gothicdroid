@@ -31,7 +31,7 @@ elseif(EMSCRIPTEN)
     set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -pthread")
     target_link_options(${PROJECT_NAME} PRIVATE
       "-pthread"
-      "-sPTHREAD_POOL_SIZE=Math.max(1,Math.min(16,(navigator.hardwareConcurrency||4)-1))"
+      "-sPTHREAD_POOL_SIZE=Math.max(1,Math.min(16,(navigator.hardwareConcurrency||4)-1))+1"
       "--pre-js=${CMAKE_SOURCE_DIR}/web/threads_check.js"
     )
     # JS reads of the heap check for growth: the hot WebGPU calls are bundled.
