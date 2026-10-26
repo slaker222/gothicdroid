@@ -2,6 +2,7 @@
 
 #include <Tempest/Application>
 #include <Tempest/Log>
+#include <algorithm>
 
 #include "world/objects/npc.h"
 #include "world/objects/interactive.h"
@@ -84,10 +85,19 @@ void Camera::reset() {
   reset(Gothic::inst().player());
   }
 
+// best_range within [min_range, max_range] as 0..1; cameras with a fixed
+// range (the dive camera: min = max = 3) would give 0/0 = NaN otherwise
+static float defaultUserRange(const zenkit::ICamera& def) {
+  const float span = def.max_range - def.min_range;
+  if(!(span>0.f))
+    return 0.f;
+  return (def.best_range - def.min_range)/span;
+  }
+
 void Camera::reset(const Npc* pl) {
   const auto& def = cameraDef();
 
-  userRange    = (def.best_range - def.min_range)/(def.max_range - def.min_range);
+  userRange    = defaultUserRange(def);
   state.range  = userRange*(def.max_range-def.min_range)+def.min_range;
   state.target = pl ? pl->cameraBone() : Vec3();
 
@@ -207,7 +217,7 @@ void Camera::setMode(const Camera::Mode m) {
 
   if(reset) {
     state.range = def.best_range;
-    userRange   = (def.best_range - def.min_range)/(def.max_range - def.min_range);
+    userRange   = defaultUserRange(def);
     state.spin  = Vec3(0);
     }
 
