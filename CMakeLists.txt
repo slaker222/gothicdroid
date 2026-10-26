@@ -11,6 +11,8 @@ set(CMAKE_RELWITHDEBINFO_POSTFIX "")
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 if(ANDROID)
   add_definitions(-D__MOBILE_PLATFORM__=1)
+  # Tempest sets this for its own directory only: without it mkApi() (game/main.cpp) has no graphics api
+  add_definitions(-DTEMPEST_BUILD_VULKAN)
   add_library(${PROJECT_NAME} SHARED)
   set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "opengothic")
 elseif(EMSCRIPTEN)

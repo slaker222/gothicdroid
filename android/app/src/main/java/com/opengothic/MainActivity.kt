@@ -103,20 +103,52 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun findGameDirectory(): String {
-        val candidates = listOf(
-            "/storage/emulated/0/Gothic2",
-            "/sdcard/Gothic2",
-            "/storage/emulated/0/Gothic",
-            "/sdcard/Gothic",
-            getExternalFilesDir(null)?.absolutePath + "/Gothic2"
+    // an installed game: a folder with Data/*.vdf
+    private data class GameEntry(val path: String, val title: String)
+
+    private fun hasVdf(dir: File): Boolean {
+        val data = File(dir, "Data")
+        return data.isDirectory && (data.listFiles { _, name -> name.endsWith(".vdf", ignoreCase = true) }?.isNotEmpty() == true)
+    }
+
+    // the games found next to each other on the storage, the first of each kind
+    private fun findGames(): List<GameEntry> {
+        val roots = listOf("/storage/emulated/0", "/sdcard")
+        val known = listOf(
+            "Gothic2"     to "Gothic II: Ночь Ворона",
+            "GothicSmall" to "Gothic (малая версия)",
+            "Gothic1"     to "Gothic",
+            "Gothic"      to "Gothic"
         )
-        for (path in candidates) {
-            val dir = File(path)
-            if (dir.exists() && dir.isDirectory) {
-                Log.i(TAG, "Found game directory: $path")
-                return path
+        val out = ArrayList<GameEntry>()
+        val seen = HashSet<String>()
+        for ((name, title) in known) {
+            for (root in roots) {
+                val dir = File(root, name)
+                if (!hasVdf(dir)) continue
+                val real = try { dir.canonicalPath } catch (e: Exception) { dir.path }
+                if (seen.add(real)) {
+                    out.add(GameEntry(dir.path, title))
+                    break
+                }
             }
+        }
+        val own = getExternalFilesDir(null)?.absolutePath?.let { File(it, "Gothic2") }
+        if (own != null && hasVdf(own) && seen.add(own.path))
+            out.add(GameEntry(own.path, "Gothic II (папка приложения)"))
+        return out
+    }
+
+    private fun findGameDirectory(): String {
+        val games = findGames()
+        val saved = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE).getString("game_dir", null)
+        if (saved != null && games.any { it.path == saved }) {
+            Log.i(TAG, "Selected game directory: $saved")
+            return saved
+        }
+        if (games.isNotEmpty()) {
+            Log.i(TAG, "Found game directory: ${games[0].path}")
+            return games[0].path
         }
         return "/sdcard/Gothic2"
     }
@@ -279,6 +311,52 @@ class MainActivity : AppCompatActivity() {
             setPadding(0, 0, 0, dp(16))
         }
         mainLayout.addView(subtitleText)
+
+        // --- GAME CHOICE ---
+        val games = findGames()
+        if (games.size > 1) {
+            val gameCard = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+                background = GradientDrawable().apply {
+                    setColor(Color.parseColor("#1C2025"))
+                    cornerRadius = dp(10).toFloat()
+                    setStroke(dp(1), Color.parseColor("#2E353D"))
+                }
+                setPadding(dp(16), dp(12), dp(16), dp(12))
+            }
+            gameCard.addView(TextView(this).apply {
+                textSize = 14f
+                setTypeface(Typeface.DEFAULT_BOLD)
+                setTextColor(Color.parseColor("#E0C068"))
+                text = "Игра"
+                setPadding(0, 0, 0, dp(4))
+            })
+            val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
+            val ids = HashMap<Int, String>()
+            for (g in games) {
+                val rb = RadioButton(this).apply {
+                    id = View.generateViewId()
+                    text = g.title + "\n" + g.path
+                    textSize = 13f
+                    setTextColor(Color.WHITE)
+                    isChecked = (g.path == detectedGameDir)
+                }
+                ids[rb.id] = g.path
+                group.addView(rb)
+            }
+            group.setOnCheckedChangeListener { _, checkedId ->
+                val path = ids[checkedId] ?: return@setOnCheckedChangeListener
+                getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE).edit().putString("game_dir", path).apply()
+                detectedGameDir = path
+                val pr = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
+                updateDebugCfg(pr.getInt("render_scale", 100), pr.getBoolean("simple_render", false))
+                updateStatus()
+                updateLogView()
+            }
+            gameCard.addView(group)
+            mainLayout.addView(gameCard)
+            mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) })
+        }
 
         // --- STATUS CARD ---
         val statusCard = LinearLayout(this).apply {
