@@ -35,30 +35,9 @@
       justify-content: center;
     }
 
-    #keypad {
-      height: 44px;
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    #keypad .key {
-      min-width: 56px;
-      height: 32px;
-      padding: 0 12px;
-      font: inherit;
-      color: var(--text);
-      background: transparent;
-      border: 1px solid var(--line);
-      cursor: pointer;
-      touch-action: none;
-      user-select: none;
-    }
-    #keypad .key:hover { border-color: var(--accent); color: var(--accent); }
-    #keypad .key:active { background: var(--accent); color: #000; }
-
     #player {
       position: relative;
-      width: min(100vw, calc((100vh - 44px) * 16 / 9));
+      width: min(100vw, calc(100vh * 16 / 9));
       aspect-ratio: 16 / 9;
       background: #000;
       overflow: hidden;
@@ -224,11 +203,9 @@
       -webkit-touch-callout: none;
     }
     body.touch-on #touch-ui { display: block; }
-    body.touch-on #keypad { display: none; }
-    /* touch mode: no keypad row under the player, the player bar sits on top,
+    /* touch mode: the player bar sits on top,
        compact, clear of the stick and the buttons; saves and delete only show
        in the game menu */
-    body.touch-on #player { width: min(100vw, calc(100vh * 16 / 9)); }
     body.touch-on #controls {
       top: 0;
       bottom: auto;
@@ -436,13 +413,6 @@
       </button>
       </div>
     </div>
-  </div>
-
-  <div id="keypad">
-    <button class="key" data-key="w" data-code="KeyW" data-kc="87">W</button>
-    <button class="key" data-key="a" data-code="KeyA" data-kc="65">A</button>
-    <button class="key" data-key="Enter" data-code="Enter" data-kc="13">Enter</button>
-    <button class="key" data-key="Escape" data-code="Escape" data-kc="27">Esc</button>
   </div>
 
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
@@ -1131,30 +1101,6 @@ async function installChunks(m) {
       // keep clicks on the option from reaching the game canvas
       chk.addEventListener('click', e => e.stopPropagation());
       apply();
-    })();
-
-    // on-screen keys: fire the same window key events the engine listens to
-    (function() {
-      function fire(type, b) {
-        const kc = +b.dataset.kc;
-        const e = new KeyboardEvent(type, { key: b.dataset.key, code: b.dataset.code,
-          keyCode: kc, which: kc, bubbles: true, cancelable: true });
-        window.dispatchEvent(e);
-      }
-      document.querySelectorAll('#keypad .key').forEach(b => {
-        let down = false;
-        const up = () => { if (down) { down = false; fire('keyup', b); } };
-        b.addEventListener('pointerdown', e => {
-          e.preventDefault();
-          if (down) return;
-          down = true;
-          fire('keydown', b);
-        });
-        b.addEventListener('pointerup', up);
-        b.addEventListener('pointercancel', up);
-        b.addEventListener('pointerleave', up);
-        b.addEventListener('contextmenu', e => e.preventDefault());
-      });
     })();
 
     // graphics settings menu: values live in the game's Gothic.ini, changes
