@@ -38,9 +38,10 @@ elseif(EMSCRIPTEN)
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','callMain','mmapAlloc']"
     "-sFORCE_FILESYSTEM=1"
     "--shell-file=${CMAKE_SOURCE_DIR}/web/shell.html"
+    "--js-library=${CMAKE_SOURCE_DIR}/web/webgpu_fast.js"
   )
   # relink when the html shell changes
-  set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/shell.html")
+  set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/shell.html;${CMAKE_SOURCE_DIR}/web/webgpu_fast.js")
 else()
   add_executable(${PROJECT_NAME})
 endif()
