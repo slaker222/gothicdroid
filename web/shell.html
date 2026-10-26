@@ -1761,7 +1761,18 @@ function serveLoop() {
     }
 
     let g_downloading = false;
+    // set by web/threads_check.js when a threaded build runs on a page that is
+    // not cross-origin isolated: the engine cannot start, keep its message
+    function isolationBlocked() {
+      if (!window.__ogIsolationError) return false;
+      progressContainer.style.display = 'none';
+      statusText.style.color = 'var(--danger)';
+      statusText.innerText = window.__ogIsolationError;
+      return true;
+    }
+
     async function downloadGame() {
+      if (isolationBlocked()) return;
       if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
       let urls, url;
       try {
@@ -2188,6 +2199,7 @@ function serveLoop() {
 
     let g_started = false;
     async function startGame() {
+      if (isolationBlocked()) return;
       if (g_started) return;
       g_started = true;
       uiOverlay.classList.add('hidden');

@@ -208,7 +208,16 @@ void Interactive::setVisual(const zenkit::VirtualObject& vob) {
   }
 
 void Interactive::updateAnimation(uint64_t dt) {
-  if(visual.updateAnimation(nullptr,this,world,dt,false))
+  updateAnimationEvents(dt);
+  updateAnimationPose();
+  }
+
+void Interactive::updateAnimationEvents(uint64_t dt) {
+  visual.processAnimEvents(nullptr,this,world,dt);
+  }
+
+void Interactive::updateAnimationPose() {
+  if(visual.updatePose(world,false))
     animChanged = true;
   }
 

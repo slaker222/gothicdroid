@@ -23,6 +23,21 @@ elseif(EMSCRIPTEN)
   # nontrapping-fptoint: float->int casts are single instructions
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -msimd128 -mbulk-memory -mnontrapping-fptoint -Wno-unused-command-line-argument")
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -sSUPPORT_LONGJMP=wasm -msimd128 -mbulk-memory -mnontrapping-fptoint")
+  # threads: npc animation runs on Web Workers. Needs a cross-origin isolated
+  # page (COOP/COEP headers), as SharedArrayBuffer does.
+  option(OPENGOTHIC_WEB_THREADS "Web build with threads (Web Workers)" ON)
+  if(OPENGOTHIC_WEB_THREADS)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread")
+    set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -pthread")
+    target_link_options(${PROJECT_NAME} PRIVATE
+      "-pthread"
+      "-sPTHREAD_POOL_SIZE=Math.max(1,Math.min(16,(navigator.hardwareConcurrency||4)-1))"
+      "--pre-js=${CMAKE_SOURCE_DIR}/web/threads_check.js"
+    )
+    # JS reads of the heap check for growth: the hot WebGPU calls are bundled.
+    # Must come after -Wall on the link line
+    target_link_libraries(${PROJECT_NAME} "-Wno-pthreads-mem-growth")
+  endif()
   target_link_options(${PROJECT_NAME} PRIVATE
     "-sUSE_WEBGPU=1"
     "-sALLOW_MEMORY_GROWTH=1"

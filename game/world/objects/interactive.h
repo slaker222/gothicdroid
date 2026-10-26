@@ -34,6 +34,8 @@ class Interactive : public Vob {
 
     void                resetPositionToTA(int32_t state);
     void                updateAnimation(uint64_t dt);
+    void                updateAnimationEvents(uint64_t dt);
+    void                updateAnimationPose();
     void                tick(uint64_t dt);
     void                onKeyInput(KeyCodec::Action act);
 

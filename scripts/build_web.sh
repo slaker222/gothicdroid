@@ -63,6 +63,7 @@ mkdir -p "${DIST_DIR}"
 cp "${BUILD_DIR}/opengothic/opengothic.html" "${DIST_DIR}/index.html" 2>/dev/null || true
 cp "${BUILD_DIR}/opengothic/opengothic.js"   "${DIST_DIR}/"           2>/dev/null || true
 cp "${BUILD_DIR}/opengothic/opengothic.wasm" "${DIST_DIR}/"           2>/dev/null || true
+cp "${BUILD_DIR}/opengothic/opengothic.worker.js" "${DIST_DIR}/"      2>/dev/null || true
 cp "${BUILD_DIR}/opengothic/opengothic.data" "${DIST_DIR}/"           2>/dev/null || true
 
 echo ""

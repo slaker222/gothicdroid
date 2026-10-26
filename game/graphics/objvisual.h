@@ -30,6 +30,8 @@ class ObjVisual {
     bool isAnimExist(std::string_view name) const;
 
     bool updateAnimation(Npc* npc, Interactive* mobsi, World& world, uint64_t dt, bool force);
+    void processAnimEvents(Npc* npc, Interactive* mobsi, World& world, uint64_t dt);
+    bool updatePose(World& world, bool force);
     void processLayers(World& world);
     void syncPhysics();
 

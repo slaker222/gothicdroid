@@ -51,6 +51,10 @@ struct VisualObjects::MorphData {
 void VisualObjects::Item::setObjMatrix(const Tempest::Matrix4x4& pos) {
   if(owner!=nullptr) {
     auto& obj = owner->objects[id];
+    // instance data depends on pos, animPtr and fatness only; the other two
+    // refresh it on change. Wind objects get a swayed matrix written per frame.
+    if(obj.pos==pos && obj.wind==zenkit::AnimationType::NONE)
+      return;
     if(obj.pos!=pos)
       owner->updateRtAs(id);
     obj.pos = pos;

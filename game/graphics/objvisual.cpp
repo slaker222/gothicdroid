@@ -276,6 +276,21 @@ bool ObjVisual::updateAnimation(Npc* npc, Interactive* mobsi, World& world, uint
   return false;
   }
 
+void ObjVisual::processAnimEvents(Npc* npc, Interactive* mobsi, World& world, uint64_t dt) {
+  if(type==M_Mdl)
+    mdl.view.processAnimEvents(npc,mobsi,world,dt);
+  }
+
+bool ObjVisual::updatePose(World& world, bool force) {
+  if(type==M_Mdl) {
+    bool ret = mdl.view.updatePose(world,force);
+    if(ret)
+      mdl.view.syncAttaches();
+    return ret;
+    }
+  return false;
+  }
+
 void ObjVisual::processLayers(World& world) {
   if(type==M_Mdl) {
     mdl.view.processLayers(world);

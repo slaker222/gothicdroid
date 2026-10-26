@@ -4571,6 +4571,17 @@ void Npc::updateTransform() {
   }
 
 void Npc::updateAnimation(uint64_t dt, bool force) {
+  updateAnimationEvents(dt);
+  updateAnimationPose(force);
+  }
+
+void Npc::updateAnimationPose(bool force) {
+  bool syncAtt = visual.updatePose(owner,force);
+  if(syncAtt)
+    visual.syncAttaches();
+  }
+
+void Npc::updateAnimationEvents(uint64_t dt) {
   const auto camera = Gothic::inst().camera();
   if(isPlayer() && camera!=nullptr && camera->isFree())
     dt = 0;
@@ -4597,7 +4608,5 @@ void Npc::updateAnimation(uint64_t dt, bool force) {
     durtyTranform = 0;
     }
 
-  bool syncAtt = visual.updateAnimation(this,nullptr,owner,dt,force);
-  if(syncAtt)
-    visual.syncAttaches();
+  visual.processAnimEvents(this,nullptr,owner,dt);
   }

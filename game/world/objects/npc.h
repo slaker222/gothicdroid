@@ -132,6 +132,9 @@ class Npc final {
     float      qDistTo(const Item& p) const;
 
     void       updateAnimation(uint64_t dt, bool force = false);
+    // updateAnimation in two steps: transform and animation events, then the pose
+    void       updateAnimationEvents(uint64_t dt);
+    void       updateAnimationPose(bool force = false);
     void       updateTransform();
 
     std::string_view displayName() const;

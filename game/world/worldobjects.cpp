@@ -424,12 +424,27 @@ void WorldObjects::updateAnimation(uint64_t dt) {
     return;
   if(dt==0)
     return;
+#if defined(__EMSCRIPTEN_PTHREADS__)
+  // web: audio, effects and GPU resources belong to the main thread. Transforms
+  // and animation events run there in order, only poses run on the workers
+  for(auto& i:npcArr)
+    i->updateAnimationEvents(dt);
+  Workers::parallelTasks(npcArr,[](std::unique_ptr<Npc>& i){
+    i->updateAnimationPose();
+    });
+  for(auto i:interactiveObj)
+    i->updateAnimationEvents(dt);
+  interactiveObj.parallelFor([](Interactive& i){
+    i.updateAnimationPose();
+    });
+#else
   Workers::parallelTasks(npcArr,[dt](std::unique_ptr<Npc>& i){
     i->updateAnimation(dt);
     });
   interactiveObj.parallelFor([dt](Interactive& i){
     i.updateAnimation(dt);
     });
+#endif
   }
 
 bool WorldObjects::isTargeted(Npc& dst) {

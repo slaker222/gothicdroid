@@ -13,6 +13,11 @@
 #include <pthread.h>
 #endif
 
+#if defined(__EMSCRIPTEN_PTHREADS__)
+#include <emscripten/proxying.h>
+#include <emscripten/threading.h>
+#endif
+
 #if defined(_MSC_VER)
 void Workers::setThreadName(const char* threadName) {
   const DWORD MS_VC_EXCEPTION = 0x406D1388;
@@ -72,22 +77,28 @@ const size_t Workers::taskPerThread = 128;
 const size_t Workers::taskPerStep   = 16;
 
 Workers::Workers() {
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
   // single-threaded wasm build: pthread_create always fails without -pthread,
   // so no worker pool is created and all work runs inline on the main thread
 #else
-  size_t id=0;
-  for(auto& i:th) {
-    i = std::thread([this,id]() noexcept {
+  // web: a thread is a Web Worker from a pool of fixed size, start only as
+  // many as tasks are handed out (maxThreads)
+#if defined(__EMSCRIPTEN__)
+  const size_t count = maxThreads();
+#else
+  const size_t count = MAX_THREADS;
+#endif
+  for(size_t id=0; id<count; ++id) {
+    th[id] = std::thread([this,id]() noexcept {
       threadFunc(id);
       });
-    ++id;
     }
 #endif
   }
 
 Workers::~Workers() {
 #if defined(__EMSCRIPTEN__)
+  // the runtime never exits: workers stay parked
   running = false;
 #else
   running  = false;
@@ -106,6 +117,10 @@ Workers &Workers::inst() {
 
 uint8_t Workers::maxThreads() {
   int32_t th = int32_t(std::thread::hardware_concurrency());
+#if defined(__EMSCRIPTEN__)
+  // the main thread spins while workers run: leave it a core
+  th -= 1;
+#endif
   if(th<=0)
     th = 1;
   if(th>MAX_THREADS)
@@ -163,7 +178,7 @@ void Workers::execWork(uint32_t& minElts) {
   if(workSize==0)
     return;
 
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
   // single-threaded fallback: process the whole batch on the calling thread
   if(workSet!=nullptr) {
     workFunc(workSet, workSize);
@@ -223,6 +238,11 @@ void Workers::execWork(uint32_t& minElts) {
       taskDone.store(0);
       break;
       }
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    // tasks may wait for calls proxied to the main thread (audio, files)
+    if(emscripten_is_main_runtime_thread())
+      emscripten_proxy_execute_queue(emscripten_proxy_get_system_queue());
+#endif
     std::this_thread::yield();
     }
   }
