@@ -142,6 +142,40 @@ bool InstanceStorage::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
     return true;
     }
 
+#if defined(__EMSCRIPTEN__)
+  // WebGPU: queue.writeBuffer copies straight from wasm memory and is ordered
+  // before this frame's commands, the same point the patch pass would apply
+  // at. Uploading the dirty runs directly skips the patch buffer copy and the
+  // patch compute pass. Runs separated by small clean gaps are merged into one
+  // write (the clean bytes are already identical on the GPU).
+  {
+    constexpr size_t maxGap = 4096/blockSz;
+    size_t runB = 0, runE = 0;
+    bool   run  = false;
+    for(size_t i = 0; i<blockCnt; ++i) {
+      if(i%32==0 && durty[i/32]==0) {
+        i+=31;
+        continue;
+        }
+      if(!bitAt(durty,i))
+        continue;
+      if(run && i-runE<=maxGap) {
+        runE = i+1;
+        continue;
+        }
+      if(run)
+        dataGpu.update(dataCpu.data()+runB*blockSz, runB*blockSz, std::min(runE*blockSz, dataCpu.size())-runB*blockSz);
+      runB = i;
+      runE = i+1;
+      run  = true;
+      }
+    if(run)
+      dataGpu.update(dataCpu.data()+runB*blockSz, runB*blockSz, std::min(runE*blockSz, dataCpu.size())-runB*blockSz);
+    std::memset(durty.data(), 0, durty.size()*sizeof(durty[0]));
+    return false;
+  }
+#endif
+
   patchBlock.clear();
   size_t payloadSize = 0;
   for(size_t i = 0; i<blockCnt; ++i) {
