@@ -26,6 +26,54 @@
 #include "commandline.h"
 #include "gothic.h"
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#include <cstring>
+
+// Settings menu of the web player (web/shell.html). The page calls these
+// between frames; values live in Gothic.ini like the in-game options.
+namespace {
+bool g_webSettingsReady = false;
+bool g_webTimingDirty   = true;
+
+struct WebSetting { const char* name; const char* sec; const char* key; bool real; };
+const WebSetting g_webSettings[] = {
+  {"fpsUnlock",   "INTERNAL", "webFpsUnlock",       false},
+  {"resScale",    "INTERNAL", "vidResIndex",        true },
+  {"shadows",     "INTERNAL", "webShadows",         false},
+  {"reflections", "ENGINE",   "zEnvMappingEnabled", false},
+  {"ssao",        "ENGINE",   "zCloudShadowScale",  false},
+  };
+
+const WebSetting* findWebSetting(const char* name) {
+  for(auto& s:g_webSettings)
+    if(std::strcmp(s.name, name)==0)
+      return &s;
+  return nullptr;
+  }
+}
+
+extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
+  auto s = findWebSetting(name);
+  if(s==nullptr || !g_webSettingsReady)
+    return -1;
+  if(s->real)
+    return int(Gothic::settingsGetF(s->sec, s->key));
+  return Gothic::settingsGetI(s->sec, s->key);
+  }
+
+extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
+  auto s = findWebSetting(name);
+  if(s==nullptr || !g_webSettingsReady)
+    return 0;
+  if(s->real)
+    Gothic::settingsSetF(s->sec, s->key, float(val)); else
+    Gothic::settingsSetI(s->sec, s->key, val);
+  Gothic::flushSettings();
+  return 1;
+  }
+#endif
+
 using namespace Tempest;
 
 MainWindow::MainWindow(Device& device)
@@ -40,6 +88,9 @@ MainWindow::MainWindow(Device& device)
     player(dialogs,inventory) {
   Gothic::inst().onSettingsChanged.bind(this,&MainWindow::onSettings);
   onSettings();
+#if defined(__EMSCRIPTEN__)
+  g_webSettingsReady = true;
+#endif
 
   if(Gothic::inst().version().game==2)
     setWindowTitle("Gothic II"); else
@@ -114,6 +165,9 @@ MainWindow::MainWindow(Device& device)
   }
 
 MainWindow::~MainWindow() {
+#if defined(__EMSCRIPTEN__)
+  g_webSettingsReady = false;
+#endif
   GameMusic::inst().stopMusic();
   Gothic::inst().cancelLoading();
   device.waitIdle();
@@ -422,6 +476,12 @@ void MainWindow::onSettings() {
   if(zMaxFps>0)
     maxFpsInv = 1000u/uint64_t(zMaxFps); else
     maxFpsInv = 0;
+#if defined(__EMSCRIPTEN__)
+  // web: "unlock FPS" drops the game limit and frames stop waiting for the display
+  if(Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")!=0)
+    maxFpsInv = 0;
+  g_webTimingDirty = true;
+#endif
   }
 
 void MainWindow::mouseWheelEvent(MouseEvent &event) {
@@ -1224,6 +1284,18 @@ void MainWindow::setFullscreen(bool fs) {
 void MainWindow::render(){
   try {
     static uint64_t time=Application::tickCount();
+
+#if defined(__EMSCRIPTEN__)
+    // main loop timing can only be switched from inside the running loop
+    if(g_webTimingDirty) {
+      g_webTimingDirty = false;
+      const bool unlocked = Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")!=0 ||
+                            EM_ASM_INT({ return location.search.indexOf('uncapped')>=0 ? 1 : 0; });
+      if(unlocked)
+        emscripten_set_main_loop_timing(EM_TIMING_SETIMMEDIATE, 1); else
+        emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);
+      }
+#endif
 
     static bool once=true;
     if(once) {

@@ -104,6 +104,10 @@ class Renderer final {
     struct Settings {
 #if defined(__ANDROID__)
       const uint32_t shadowResolution   = 512;
+#elif defined(__EMSCRIPTEN__)
+      // web: chosen in the player's settings menu ([INTERNAL] webShadows)
+      uint32_t       shadowResolution   = 2048;
+      bool           shadowsEnabled     = true;
 #else
       const uint32_t shadowResolution   = 2048;
 #endif

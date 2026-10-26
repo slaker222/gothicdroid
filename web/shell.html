@@ -189,6 +189,39 @@
     }
     .ctl svg { width: 22px; height: 22px; fill: currentColor; }
     #fs-btn .icon-exit { display: none; }
+    #player.menu-open #controls { opacity: 1; }
+    #settings-btn[aria-expanded="true"] { color: var(--accent); }
+    #settings-panel {
+      position: absolute;
+      right: 8px;
+      bottom: 48px;
+      z-index: 25;
+      width: 260px;
+      max-width: calc(100% - 16px);
+      padding: 10px 12px;
+      background: rgba(10, 10, 10, 0.92);
+      border: 1px solid var(--line);
+      display: none;
+    }
+    #player.menu-open #settings-panel { display: block; }
+    #settings-panel .set-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 30px;
+      font-size: 13px;
+    }
+    #settings-panel select {
+      font: inherit;
+      color: var(--text);
+      background: #222;
+      border: 1px solid var(--line);
+      padding: 2px 4px;
+    }
+    #settings-panel input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+    #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
+    #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
     #player:fullscreen #fs-btn .icon-enter { display: none; }
     #player:fullscreen #fs-btn .icon-exit { display: block; }
   </style>
@@ -215,11 +248,32 @@
 
     <div id="fps-counter">0 FPS</div>
 
+    <div id="settings-panel" class="disabled">
+      <label class="set-row">Unlock FPS <input type="checkbox" data-set="fpsUnlock"></label>
+      <label class="set-row">Render resolution
+        <select data-set="resScale">
+          <option value="0">100%</option><option value="1">75%</option>
+          <option value="2">50%</option><option value="3">40%</option>
+        </select>
+      </label>
+      <label class="set-row">Shadows
+        <select data-set="shadows">
+          <option value="2">High</option><option value="1">Low</option><option value="0">Off</option>
+        </select>
+      </label>
+      <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
+      <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
+      <div class="set-note" id="settings-note">Start the game to change settings.</div>
+    </div>
+
     <div id="controls">
       <button class="ctl" id="clear-btn" style="display:none;" onclick="clearStorage()">Delete game</button>
       <span></span>
       <div class="ctl-right">
       <label class="ctl fps-opt" title="Show FPS"><input type="checkbox" id="fps-chk"> Show FPS</label>
+      <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
+        <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
       <button class="ctl" id="fs-btn" onclick="toggleFullscreen()" aria-label="Fullscreen" title="Fullscreen">
         <svg class="icon-enter" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>
         <svg class="icon-exit" viewBox="0 0 24 24"><path d="M8 4h2v6H4V8h4V4zm6 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>
@@ -869,28 +923,31 @@ async function installChunks(m) {
       else if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock();
     });
 
-    // FPS counter (page-side, counts presented frames)
+    // FPS counter: counts the frames the engine renders (one canvas texture
+    // per frame), so it stays right when frames are not tied to the display
     (function() {
       const chk = document.getElementById('fps-chk');
       const box = document.getElementById('fps-counter');
-      let frames = 0, last = performance.now(), running = false;
-      function loop(now) {
-        if (!running) return;
-        frames++;
-        if (now - last >= 500) {
-          box.textContent = Math.round(frames * 1000 / (now - last)) + ' FPS';
-          frames = 0; last = now;
-        }
-        requestAnimationFrame(loop);
+      let frames = 0, last = performance.now(), timer = 0;
+      if (window.GPUCanvasContext) {
+        const orig = GPUCanvasContext.prototype.getCurrentTexture;
+        GPUCanvasContext.prototype.getCurrentTexture = function() {
+          frames++;
+          return orig.apply(this, arguments);
+        };
+      }
+      function tick() {
+        const now = performance.now();
+        box.textContent = Math.round(frames * 1000 / (now - last)) + ' FPS';
+        frames = 0; last = now;
       }
       function apply() {
         box.style.display = chk.checked ? 'block' : 'none';
         try { localStorage.setItem('showFps', chk.checked ? '1' : '0'); } catch (e) {}
-        if (chk.checked && !running) {
-          running = true; frames = 0; last = performance.now();
-          requestAnimationFrame(loop);
-        } else if (!chk.checked) {
-          running = false;
+        clearInterval(timer);
+        if (chk.checked) {
+          frames = 0; last = performance.now();
+          timer = setInterval(tick, 500);
         }
       }
       try { chk.checked = localStorage.getItem('showFps') === '1'; } catch (e) {}
@@ -922,6 +979,46 @@ async function installChunks(m) {
         b.addEventListener('pointerleave', up);
         b.addEventListener('contextmenu', e => e.preventDefault());
       });
+    })();
+
+    // graphics settings menu: values live in the game's Gothic.ini, changes
+    // apply at once (between frames) and are saved
+    (function() {
+      const btn   = document.getElementById('settings-btn');
+      const panel = document.getElementById('settings-panel');
+      const note  = document.getElementById('settings-note');
+      const inputs = panel.querySelectorAll('[data-set]');
+      // the engine answers once the game window exists
+      const ready = () => typeof Module.ccall === 'function' &&
+                          Module.ccall('og_setting_get', 'number', ['string'], ['shadows']) >= 0;
+      function load() {
+        let ok = false;
+        try { ok = ready(); } catch (e) { ok = false; }
+        panel.classList.toggle('disabled', !ok);
+        note.textContent = ok ? 'Changes apply immediately and are saved.' : 'Start the game to change settings.';
+        if (!ok) return;
+        inputs.forEach(el => {
+          const v = Module.ccall('og_setting_get', 'number', ['string'], [el.dataset.set]);
+          if (el.type === 'checkbox') el.checked = v !== 0; else el.value = String(v);
+        });
+      }
+      function setOpen(open) {
+        player.classList.toggle('menu-open', open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open) load();
+      }
+      btn.addEventListener('click', e => {
+        e.stopPropagation();
+        setOpen(!player.classList.contains('menu-open'));
+      });
+      inputs.forEach(el => el.addEventListener('change', () => {
+        const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10);
+        try { Module.ccall('og_setting_set', 'number', ['string', 'number'], [el.dataset.set, v]); } catch (e) {}
+        el.blur(); // arrow keys go back to the game
+      }));
+      panel.addEventListener('click', e => e.stopPropagation());
+      // a click on the game closes the menu
+      canvas.addEventListener('mousedown', () => setOpen(false));
     })();
 
     function toggleFullscreen() {

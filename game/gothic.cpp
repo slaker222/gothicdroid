@@ -167,6 +167,10 @@ Gothic::Gothic() {
   //defaults->set("ENGINE", "zEnvMappingEnabled", 0);
   //defaults->set("ENGINE", "zCloudShadowScale",  0);
   defaults->set("ENGINE", "zWindEnabled",       1);
+#if defined(__EMSCRIPTEN__)
+  defaults->set("INTERNAL", "webShadows",   2); // player settings menu: 0 off, 1 low, 2 high
+  defaults->set("INTERNAL", "webFpsUnlock", 0);
+#endif
   defaults->set("ENGINE", "zWindCycleTime",     4);
   defaults->set("ENGINE", "zWindCycleTimeVar",  6);
 

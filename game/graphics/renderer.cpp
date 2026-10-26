@@ -200,6 +200,15 @@ void Renderer::setupSettings() {
   settings.zEnvMappingEnabled = false; // Disable heavy SSR raymarching
 #endif
 
+#if defined(__EMSCRIPTEN__)
+  // web settings menu: 0 = off (the shadow maps are only cleared: all lit), 1 = 1024, 2 = 2048
+  {
+  const int sh = Gothic::settingsGetI("INTERNAL","webShadows");
+  settings.shadowsEnabled   = sh>0;
+  settings.shadowResolution = sh>=2 ? 2048 : (sh==1 ? 1024 : 512);
+  }
+#endif
+
   settings.zVidBrightness     = Gothic::settingsGetF("VIDEO","zVidBrightness");
   settings.zVidContrast       = Gothic::settingsGetF("VIDEO","zVidContrast");
   settings.zVidGamma          = Gothic::settingsGetF("VIDEO","zVidGamma");
@@ -1726,6 +1735,10 @@ void Renderer::drawShadowMap(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView
       continue;
     cmd.setDebugMarker(string_frm("ShadowMap #",i));
     cmd.setFramebuffer({}, {shadowMap[i], 0.f, Tempest::Preserve});
+#if defined(__EMSCRIPTEN__)
+    if(!settings.shadowsEnabled)
+      continue; // cleared to the far plane: nothing casts a shadow
+#endif
     if(view.mainLight().dir().y > Camera::minShadowY)
       view.drawShadow(cmd,fId,i);
     }
