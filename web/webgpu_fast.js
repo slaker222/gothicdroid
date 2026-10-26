@@ -25,3 +25,15 @@ addToLibrary({
       pass.setBindGroup(groupIndex, group, HEAPU32, dynamicOffsetsPtr >> 2, dynamicOffsetCount);
   },
 });
+
+addToLibrary({
+  wgpuRenderBundleEncoderSetBindGroup__deps: ['$WebGPU'],
+  wgpuRenderBundleEncoderSetBindGroup: (bundleId, groupIndex, groupId, dynamicOffsetCount, dynamicOffsetsPtr) => {
+    var enc   = WebGPU.mgrRenderBundleEncoder.get(bundleId);
+    var group = WebGPU.mgrBindGroup.get(groupId);
+    if (dynamicOffsetCount == 0)
+      enc.setBindGroup(groupIndex, group);
+    else
+      enc.setBindGroup(groupIndex, group, HEAPU32, dynamicOffsetsPtr >> 2, dynamicOffsetCount);
+  },
+});
