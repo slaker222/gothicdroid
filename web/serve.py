@@ -22,6 +22,11 @@ For production hosting, configure the same two headers on your web server:
 """
 
 import argparse
+import email.utils
+import gzip
+import io
+import os
+import threading
 import socket
 import ssl
 import subprocess
@@ -42,11 +47,58 @@ class IsolatedHandler(SimpleHTTPRequestHandler):
     # idle keep-alive connections end instead of holding a thread forever
     timeout = 60
 
+    # the engine files are sent gzip-compressed (the 10 MB wasm becomes ~3 MB);
+    # compressed once per file version and kept in memory
+    GZIP_TYPES = (".wasm", ".js", ".html", ".css", ".json")
+    _gz_cache = {}
+    _gz_lock = threading.Lock()
+
     def end_headers(self):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
-        self.send_header("Cache-Control", "no-store")
+        # cached, but checked on every load: updates show up at once, an
+        # unchanged 10 MB engine is not downloaded again
+        self.send_header("Cache-Control", "no-cache")
         super().end_headers()
+
+    def send_head(self):
+        path = self.translate_path(self.path)
+        if os.path.isdir(path):
+            index = os.path.join(path, "index.html")
+            if self.path.endswith("/") and os.path.isfile(index):
+                path = index
+        if (not path.endswith(self.GZIP_TYPES) or not os.path.isfile(path)
+                or "gzip" not in self.headers.get("Accept-Encoding", "")):
+            return super().send_head()
+
+        st = os.stat(path)
+        ims = self.headers.get("If-Modified-Since")
+        if ims:
+            try:
+                if int(st.st_mtime) <= email.utils.parsedate_to_datetime(ims).timestamp():
+                    self.send_response(304)
+                    self.end_headers()
+                    return None
+            except (TypeError, ValueError, OverflowError):
+                pass
+
+        key = (path, st.st_mtime_ns, st.st_size)
+        with self._gz_lock:
+            data = self._gz_cache.get(path)
+            if data is None or data[0] != key:
+                with open(path, "rb") as f:
+                    data = (key, gzip.compress(f.read(), 6))
+                self._gz_cache[path] = data
+        body = data[1]
+
+        self.send_response(200)
+        self.send_header("Content-Type", self.guess_type(path))
+        self.send_header("Content-Encoding", "gzip")
+        self.send_header("Content-Length", str(len(body)))
+        self.send_header("Last-Modified", self.date_time_string(int(st.st_mtime)))
+        self.send_header("Vary", "Accept-Encoding")
+        self.end_headers()
+        return io.BytesIO(body)
 
 
 class Server(ThreadingHTTPServer):
