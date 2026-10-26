@@ -115,6 +115,7 @@ class DrawCommands {
 
     bool                     isViewEnabled(SceneGlobals::VisCamera v) const;
 
+    static float             drawDistance();
     void                     setBindings(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera viewId,
                                          bool viewBound = false);
 

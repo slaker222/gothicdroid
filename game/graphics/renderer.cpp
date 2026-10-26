@@ -222,7 +222,13 @@ void Renderer::setupSettings() {
 
   auto prevVidResIndex = settings.vidResIndex;
   settings.vidResIndex = Gothic::inst().settingsGetF("INTERNAL","vidResIndex");
+#if defined(__EMSCRIPTEN__)
+  // web: the resolution comes from the settings menu only (debug.cfg's
+  // render_scale=100 default would force full resolution back)
+  int rscale = 0;
+#else
   int rscale = opengothic_debug_render_scale();
+#endif
   if(rscale == 40)
     settings.vidResIndex = 3;
   else if(rscale == 50)

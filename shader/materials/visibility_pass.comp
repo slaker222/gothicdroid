@@ -23,6 +23,7 @@ layout(push_constant, std430) uniform UboPush {
   uint      firstMeshlet;
   int       meshletCount;
   float     znear;
+  float     drawDistance; // objects (not the world mesh) farther than this are skipped; 0 = no limit
   } push;
 
 Instance pullInstance(uint i) {
@@ -181,6 +182,15 @@ void runCluster(const uint clusterId) {
 
   if(!frustrumTest(cluster.sphere))
     return;
+
+  if(push.drawDistance>0 && cluster.instanceId!=0xFFFFFFFF) {
+    // objects up to 2.5 m share the distance (all parts of a character vanish
+    // together), bigger ones are visible proportionally farther
+    const float maxDist = push.drawDistance * max(1.0, cluster.sphere.w/250.0);
+    const vec3  d       = cluster.sphere.xyz - scene.camPos;
+    if(dot(d,d) > maxDist*maxDist)
+      return;
+    }
 
 #if defined(MAIN_VIEW)
   vec4  aabb     = vec4(0);

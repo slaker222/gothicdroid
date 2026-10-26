@@ -170,6 +170,7 @@ Gothic::Gothic() {
 #if defined(__EMSCRIPTEN__)
   defaults->set("INTERNAL", "webShadows",   2); // player settings menu: 0 off, 1 low, 2 high
   defaults->set("INTERNAL", "webFpsUnlock", 0);
+  defaults->set("INTERNAL", "webDrawDist",  0); // 0 no limit, 1 far, 2 medium, 3 near
 #endif
   defaults->set("ENGINE", "zWindCycleTime",     4);
   defaults->set("ENGINE", "zWindCycleTimeVar",  6);

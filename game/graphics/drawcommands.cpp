@@ -84,6 +84,18 @@ bool DrawCommands::isViewEnabled(SceneGlobals::VisCamera viewport) const {
   return true;
   }
 
+float DrawCommands::drawDistance() {
+#if defined(__EMSCRIPTEN__)
+  // web settings menu: [INTERNAL] webDrawDist 0 = no limit, 1..3 = 150/80/40 m
+  switch(Gothic::settingsGetI("INTERNAL","webDrawDist")) {
+    case 1: return 15000.f;
+    case 2: return 8000.f;
+    case 3: return 4000.f;
+    }
+#endif
+  return 0.f;
+  }
+
 void DrawCommands::setBindings(Tempest::Encoder<CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera v, bool viewBound) {
   static const DrawBuckets::Bucket nullBk;
 
@@ -322,10 +334,11 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
     if(!isViewEnabled(viewport))
       continue;
 
-    struct Push { uint32_t firstMeshlet; uint32_t meshletCount; float znear; } push = {};
+    struct Push { uint32_t firstMeshlet; uint32_t meshletCount; float znear; float drawDistance; } push = {};
     push.firstMeshlet = 0;
     push.meshletCount = uint32_t(clusters.size());
     push.znear        = scene.znear;
+    push.drawDistance = drawDistance();
 
     auto* pso = &Shaders::inst().visibilityPassSh;
     if(viewport==SceneGlobals::V_Main) {

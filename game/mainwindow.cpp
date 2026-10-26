@@ -41,6 +41,7 @@ const WebSetting g_webSettings[] = {
   {"fpsUnlock",   "INTERNAL", "webFpsUnlock",       false},
   {"resScale",    "INTERNAL", "vidResIndex",        true },
   {"shadows",     "INTERNAL", "webShadows",         false},
+  {"drawDist",    "INTERNAL", "webDrawDist",        false},
   {"reflections", "ENGINE",   "zEnvMappingEnabled", false},
   {"ssao",        "ENGINE",   "zCloudShadowScale",  false},
   };
