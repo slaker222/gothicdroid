@@ -55,6 +55,10 @@ elseif(EMSCRIPTEN)
     "--shell-file=${CMAKE_SOURCE_DIR}/web/shell.html"
     "--js-library=${CMAKE_SOURCE_DIR}/web/webgpu_fast.js"
   )
+  # word-wide memcmp in place of musl's byte loop (-fno-builtin: the loop must
+  # not be turned back into a memcmp call)
+  target_sources(${PROJECT_NAME} PRIVATE "${CMAKE_SOURCE_DIR}/web/memcmp.c")
+  set_source_files_properties("${CMAKE_SOURCE_DIR}/web/memcmp.c" PROPERTIES COMPILE_OPTIONS "-fno-builtin")
   # relink when the html shell changes
   set_target_properties(${PROJECT_NAME} PROPERTIES LINK_DEPENDS "${CMAKE_SOURCE_DIR}/web/shell.html;${CMAKE_SOURCE_DIR}/web/webgpu_fast.js")
 else()
