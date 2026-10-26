@@ -65,6 +65,18 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_ui_state() {
   return g_webMain!=nullptr ? g_webMain->webUiState() : 0;
   }
 
+// tool bar of the page: quick save (1) and quick load (2); the F5 / F9 keys do other things
+// in marvin mode, the buttons always save and load
+extern "C" EMSCRIPTEN_KEEPALIVE void og_quick(int kind) {
+  if(!g_webSettingsReady)
+    return;
+  auto& g = Gothic::inst();
+  if(kind==1 && g.isInGameAndAlive() && !g.isPause())
+    g.quickSave();
+  else if(kind==2 && !g.isPause())
+    g.quickLoad();
+  }
+
 // touch controls: camera look, in pixels like a mouse move
 extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
   if(g_webMain!=nullptr)
@@ -72,6 +84,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
+  if(g_webSettingsReady && std::strcmp(name, "marvin")==0)
+    return Gothic::inst().isMarvinEnabled() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
     return int(Gothic::inst().version().game); // save slots: 15 in Gothic 1, 20 in Gothic 2
   auto s = findWebSetting(name);
@@ -83,6 +97,13 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
+  if(g_webSettingsReady && std::strcmp(name, "marvin")==0) {
+    // the cheat code "marvin" of the main menu, for the page's tool bar
+    Gothic::inst().setMarvinEnabled(val!=0);
+    if(val!=0 && g_webMain!=nullptr)
+      Gothic::inst().onPrintScreen("MARVIN-MODE",2,4, 1,Resources::font(Gothic::interfaceScale(g_webMain)));
+    return 1;
+    }
   auto s = findWebSetting(name);
   if(s==nullptr || !g_webSettingsReady)
     return 0;
@@ -502,7 +523,7 @@ void MainWindow::tickMouse(uint64_t dt) {
 // 6 video, 7 cutscene, 8 swimming, 9 diving, 10 loading, 11 using a mob;
 // 12..14 weapon (WeaponState); 16..18 focus: 1 npc, 2 npc down, 3 item, 4 mob;
 // 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State);
-// 23 sneaking learned; 24 the player carries a map; 25 new chapter screen
+// 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats)
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
@@ -520,6 +541,8 @@ int MainWindow::webUiState() const {
     s |= 1<<3;
   if(chapter.isActive())
     s |= 1<<25;
+  if(gothic.isMarvinEnabled())
+    s |= 1<<26;
   if(inventory.isOpen()!=InventoryMenu::State::Closed) {
     s |= 1<<4;
     s |= int(inventory.isOpen())<<20;

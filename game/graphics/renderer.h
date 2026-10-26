@@ -41,6 +41,7 @@ class Renderer final {
       };
     Tempest::Size internalResolution() const;
     float         internalResolutionScale() const;
+    float         lowResScale() const;
     void updateCamera(const Camera &camera);
 
     bool requiresTlas() const;

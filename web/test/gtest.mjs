@@ -19,6 +19,7 @@
 //   --set=k:v,k:v      game settings via ogSet (shadows:0,drawDist:2,...)
 //   --warm=S           seconds to wait in the world before measuring (default 15)
 //   --measure=S        measure FPS for S seconds (engine [PERF] lines and frames)
+//   --run=FILE.mjs    script run in the world: default export async ({ page, cdp, sleep, OUT }) => {...}
 //   --shot=NAME        screenshot out/NAME.png at the end
 //   --keep             leave the browser open (for a person to play), exit with Ctrl+C
 //   --profile=DIR      profile dir (default profile); a fresh dir installs the game again
@@ -166,6 +167,7 @@ if (args.measure) {
   const avg = k => p.length ? +(p.reduce((a, x) => a + x[k], 0) / p.length).toFixed(2) : 0;
   Object.assign(res, { fps: +((f1 - f0) * 1000 / ms).toFixed(1), frameMs: avg('frame'), tickMs: avg('tick'), drawMs: avg('draw') });
 }
+if (args.run) await (await import(path.resolve(args.run))).default({ page, cdp, sleep, OUT });
 if (args.shot) { await page.screenshot({ path: path.join(OUT, args.shot + '.png') }); res.shot = 'web/test/out/' + args.shot + '.png'; }
 res.errors = errors.slice(0, 10);
 console.log(JSON.stringify(res));

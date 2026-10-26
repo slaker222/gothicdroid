@@ -2300,6 +2300,13 @@ Tempest::Attachment Renderer::screenshoot(uint8_t frameId) {
   return img;
   }
 
+// web: render resolution steps below 40% (vidResIndex 4..7)
+float Renderer::lowResScale() const {
+  static const float steps[] = {0.3f, 0.25f, 0.2f, 0.15f};
+  const int i = std::clamp(int(settings.vidResIndex)-4, 0, 3);
+  return steps[i];
+  }
+
 float Renderer::internalResolutionScale() const {
   if(settings.vidResIndex==0)
     return 1;
@@ -2307,7 +2314,9 @@ float Renderer::internalResolutionScale() const {
     return 0.75;
   if(settings.vidResIndex==2)
     return 0.5;
-  return 0.4;
+  if(settings.vidResIndex==3)
+    return 0.4;
+  return lowResScale();
   }
 
 Size Renderer::internalResolution() const {
@@ -2317,6 +2326,9 @@ Size Renderer::internalResolution() const {
     return Size(int(3*swapchain.w()/4), int(3*swapchain.h()/4));
   if(settings.vidResIndex==2)
     return Size(int(swapchain.w()/2), int(swapchain.h()/2));
-  return Size(int(swapchain.w()*2/5), int(swapchain.h()*2/5));
+  if(settings.vidResIndex==3)
+    return Size(int(swapchain.w()*2/5), int(swapchain.h()*2/5));
+  const float k = lowResScale();
+  return Size(std::max(1, int(float(swapchain.w())*k)), std::max(1, int(float(swapchain.h())*k)));
   }
 
