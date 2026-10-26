@@ -483,7 +483,8 @@ void MainWindow::onSettings() {
     maxFpsInv = 1000u/uint64_t(zMaxFps); else
     maxFpsInv = 0;
 #if defined(__EMSCRIPTEN__)
-  // web: "unlock FPS" drops the game limit and frames stop waiting for the display
+  // web FPS limit: 0 = the game's limit, 1 = display refresh rate (no game
+  // limit, frames follow vsync), 2 = unlimited (frames do not wait for vsync)
   if(Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")!=0)
     maxFpsInv = 0;
   g_webTimingDirty = true;
@@ -1302,7 +1303,9 @@ void MainWindow::render(){
     // main loop timing can only be switched from inside the running loop
     if(g_webTimingDirty) {
       g_webTimingDirty = false;
-      const bool unlocked = Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")!=0 ||
+      // frames faster than the display are never shown and their uneven
+      // presentation looks jerky: only "unlimited" leaves vsync
+      const bool unlocked = Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")>=2 ||
                             EM_ASM_INT({ return location.search.indexOf('uncapped')>=0 ? 1 : 0; });
       if(unlocked)
         emscripten_set_main_loop_timing(EM_TIMING_SETIMMEDIATE, 1); else

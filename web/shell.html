@@ -268,7 +268,12 @@
     <div id="gfx-toast" role="status" aria-live="polite"></div>
 
     <div id="settings-panel" class="disabled">
-      <label class="set-row">Unlock FPS <input type="checkbox" data-set="fpsUnlock"></label>
+      <label class="set-row" title="Display refresh rate: no game limit, smooth (frames follow the monitor). Unlimited: for benchmarks, frames the monitor cannot show make motion uneven">FPS limit
+        <select data-set="fpsUnlock">
+          <option value="0">Game setting</option><option value="1">Display refresh rate</option>
+          <option value="2">Unlimited (jerky)</option>
+        </select>
+      </label>
       <label class="set-row">Render resolution
         <select data-set="resScale">
           <option value="0">100%</option><option value="1">75%</option>
@@ -1045,10 +1050,18 @@ async function installChunks(m) {
           if (el.type === 'checkbox') el.checked = v !== 0; else el.value = String(v);
         });
       }
+      // the game may still be starting when the menu opens: check again while it is open
+      let retry = 0;
       function setOpen(open) {
         player.classList.toggle('menu-open', open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-        if (open) load();
+        clearInterval(retry);
+        if (!open) return;
+        load();
+        retry = setInterval(() => {
+          if (!player.classList.contains('menu-open')) { clearInterval(retry); return; }
+          if (panel.classList.contains('disabled')) load(); else clearInterval(retry);
+        }, 1000);
       }
       btn.addEventListener('click', e => {
         e.stopPropagation();
@@ -1075,21 +1088,39 @@ async function installChunks(m) {
       const LOW = 25, TARGET = 35, WINDOW = 3000, SETTLE = 2000;
       const get = k => Module.ccall('og_setting_get', 'number', ['string'], [k]);
       const set = (k, v) => Module.ccall('og_setting_set', 'number', ['string', 'number'], [k, v]);
-      // [what the player is told, setting, value, applies when]
-      const steps = [
-        ['shadows',               s => get('shadows') > 1   && (set('shadows', 1), true)],
-        ['draw distance',         s => get('drawDist') === 0 && (set('drawDist', 1), set('skipFarAnim', 1), true)],
-        ['water reflections',     s => get('reflections') !== 0 && (set('reflections', 0), true)],
-        ['ambient occlusion',     s => get('ssao') !== 0 && (set('ssao', 0), true)],
-        ['shadows',               s => get('shadows') > 0   && (set('shadows', 0), true)],
-        ['draw distance',         s => get('drawDist') < 2  && (set('drawDist', 2), set('skipFarAnim', 1), true)],
-        ['world draw distance',   s => get('worldDist') < 1 && (set('worldDist', 1), true)],
-        ['draw distance',         s => get('drawDist') < 3  && (set('drawDist', 3), true)],
-        ['world draw distance',   s => get('worldDist') < 2 && (set('worldDist', 2), true)],
-        ['resolution',            s => get('resScale') < 1  && (set('resScale', 1), true)],
-        ['resolution',            s => get('resScale') < 2  && (set('resScale', 2), true)],
-        ['resolution',            s => get('resScale') < 3  && (set('resScale', 3), true)],
+      // Quality levels, each one lowers several settings a little (medium
+      // shadows and medium distance beat one setting at its lowest) down to the
+      // minimum; the resolution goes last. Values are "at least this low":
+      // a setting the player already has lower is kept.
+      // shadows: 2 high .. 0 off; reflections/ssao: 1 on; distances: higher = nearer
+      const levels = [
+        { shadows: 1, drawDist: 1, worldDist: 0, reflections: 1, ssao: 1, resScale: 0 },
+        { shadows: 1, drawDist: 2, worldDist: 1, reflections: 0, ssao: 1, resScale: 0 },
+        { shadows: 0, drawDist: 2, worldDist: 2, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 3, worldDist: 3, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 1 },
+        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 2 },
+        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 3 },
       ];
+      // lower = smaller value for these, bigger value for the rest
+      const lowerIsLess = { shadows: 1, reflections: 1, ssao: 1 };
+      const names = { shadows: 'shadows', drawDist: 'draw distance', worldDist: 'world draw distance',
+                      reflections: 'water reflections', ssao: 'ambient occlusion', resScale: 'resolution' };
+      // applies a level; the names of the settings it lowered
+      function applyLevel(lv) {
+        const changed = [];
+        for (const k in lv) {
+          const cur = get(k), want = lv[k];
+          const lower = lowerIsLess[k] ? want < cur : want > cur;
+          if (!lower) continue;
+          set(k, want);
+          changed.push(k);
+        }
+        // far npcs are not animated once objects have a draw distance
+        if (get('drawDist') > 0 && get('skipFarAnim') === 0) set('skipFarAnim', 1);
+        return changed;
+      }
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const manual = () => { try { return localStorage.getItem('gfxManual') === '1'; } catch (e) { return false; } };
       const inGame = () => {
@@ -1130,12 +1161,12 @@ async function installChunks(m) {
           // lower step by step until the target is reached
           const before = fps, lowered = [];
           let now = fps;
-          for (const [name, apply] of steps) {
+          for (const lv of levels) {
             if (manual()) break;
-            let changed = false;
-            try { changed = apply(); } catch (e) { changed = false; }
-            if (!changed) continue;
-            if (!lowered.includes(name)) lowered.push(name);
+            let changed = [];
+            try { changed = applyLevel(lv); } catch (e) { changed = []; }
+            if (changed.length === 0) continue;
+            for (const k of changed) if (!lowered.includes(names[k])) lowered.push(names[k]);
             if (window.ogSettingsReload) window.ogSettingsReload();
             await sleep(SETTLE);
             let m = null;
