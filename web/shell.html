@@ -1040,10 +1040,12 @@ async function installChunks(m) {
       const ready = () => typeof Module.ccall === 'function' &&
                           Module.ccall('og_setting_get', 'number', ['string'], ['shadows']) >= 0;
       function load() {
-        let ok = false;
-        try { ok = ready(); } catch (e) { ok = false; }
+        let ok = false, err = '';
+        try { ok = ready(); }
+        catch (e) { ok = false; err = String((e && (e.message || e.name)) || e); console.warn('[settings] unavailable:', e); }
         panel.classList.toggle('disabled', !ok);
-        note.textContent = ok ? 'Changes apply immediately and are saved.' : 'Start the game to change settings.';
+        note.textContent = ok ? 'Changes apply immediately and are saved.' :
+                           err ? 'Settings are unavailable: ' + err : 'Start the game to change settings.';
         if (!ok) return;
         inputs.forEach(el => {
           const v = Module.ccall('og_setting_get', 'number', ['string'], [el.dataset.set]);
@@ -1065,6 +1067,8 @@ async function installChunks(m) {
       }
       btn.addEventListener('click', e => {
         e.stopPropagation();
+        // the game holds the mouse while playing: clicks would go to it, not to the menu
+        if (document.pointerLockElement) document.exitPointerLock();
         setOpen(!player.classList.contains('menu-open'));
       });
       window.ogSettingsReload = () => { if (player.classList.contains('menu-open')) load(); };
