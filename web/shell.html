@@ -907,6 +907,19 @@ async function installChunks(m) {
     // resolved once the wasm runtime (and its FS) is up
     let g_resolveRuntime;
     const g_runtimeReady = new Promise(r => { g_resolveRuntime = r; });
+    let g_runtimeUp = false;
+
+    // Calls into the engine. Emscripten binds wasm exports lazily: a call made
+    // before the module is instantiated binds them to undefined for good, so
+    // nothing is called until the runtime is up.
+    function ogGet(name) {
+      if (!g_runtimeUp) return -1;
+      return Module.ccall('og_setting_get', 'number', ['string'], [name]);
+    }
+    function ogSet(name, value) {
+      if (!g_runtimeUp) return 0;
+      return Module.ccall('og_setting_set', 'number', ['string', 'number'], [name, value]);
+    }
 
     var Module = {
       noInitialRun: true,
@@ -914,6 +927,7 @@ async function installChunks(m) {
       postRun: [function() {
         console.log("OpenGothic WebAssembly core ready.");
         bindErrnoError();
+        g_runtimeUp = true;
         g_resolveRuntime();
       }],
       print: function(text) {
@@ -1037,8 +1051,7 @@ async function installChunks(m) {
       const note  = document.getElementById('settings-note');
       const inputs = panel.querySelectorAll('[data-set]');
       // the engine answers once the game window exists
-      const ready = () => typeof Module.ccall === 'function' &&
-                          Module.ccall('og_setting_get', 'number', ['string'], ['shadows']) >= 0;
+      const ready = () => ogGet('shadows') >= 0;
       function load() {
         let ok = false, err = '';
         try { ok = ready(); }
@@ -1048,7 +1061,7 @@ async function installChunks(m) {
                            err ? 'Settings are unavailable: ' + err : 'Start the game to change settings.';
         if (!ok) return;
         inputs.forEach(el => {
-          const v = Module.ccall('og_setting_get', 'number', ['string'], [el.dataset.set]);
+          const v = ogGet(el.dataset.set);
           if (el.type === 'checkbox') el.checked = v !== 0; else el.value = String(v);
         });
       }
@@ -1076,7 +1089,7 @@ async function installChunks(m) {
         // the player chose: automatic settings leave the graphics alone from now on
         try { localStorage.setItem('gfxManual', '1'); } catch (e) {}
         const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10);
-        try { Module.ccall('og_setting_set', 'number', ['string', 'number'], [el.dataset.set, v]); } catch (e) {}
+        try { ogSet(el.dataset.set, v); } catch (e) {}
         el.blur(); // arrow keys go back to the game
       }));
       panel.addEventListener('click', e => e.stopPropagation());
@@ -1090,8 +1103,8 @@ async function installChunks(m) {
     // by the player in the menu turns this off.
     (function() {
       const LOW = 25, TARGET = 35, WINDOW = 3000, SETTLE = 2000;
-      const get = k => Module.ccall('og_setting_get', 'number', ['string'], [k]);
-      const set = (k, v) => Module.ccall('og_setting_set', 'number', ['string', 'number'], [k, v]);
+      const get = ogGet;
+      const set = ogSet;
       // Quality levels, each one lowers several settings a little (medium
       // shadows and medium distance beat one setting at its lowest) down to the
       // minimum; the resolution goes last. Values are "at least this low":
@@ -1128,7 +1141,7 @@ async function installChunks(m) {
       const sleep = ms => new Promise(r => setTimeout(r, ms));
       const manual = () => { try { return localStorage.getItem('gfxManual') === '1'; } catch (e) { return false; } };
       const inGame = () => {
-        try { return typeof Module.ccall === 'function' && get('shadows') >= 0 && !document.getElementById('og-video'); }
+        try { return get('shadows') >= 0 && !document.getElementById('og-video'); }
         catch (e) { return false; }
       };
       // average fps over a window; null when it is not a fair sample
@@ -1327,7 +1340,7 @@ async function installChunks(m) {
         }
         if (incoming.length === 0) { window.ogToast && window.ogToast('No savegames (.sav) found in the chosen files.'); return; }
         let slots = 15;
-        try { if (Module.ccall && Module.ccall('og_setting_get', 'number', ['string'], ['gameVersion']) === 2) slots = 20; } catch (e) {}
+        try { if (ogGet('gameVersion') === 2) slots = 20; } catch (e) {}
         const existing = await collectSaves();
         const taken = new Map(existing.map(s => [s.name.toLowerCase(), s.time]));
         // savegames named by slot go to that slot (replacing it), others take a
