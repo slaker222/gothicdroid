@@ -99,13 +99,10 @@ float DrawCommands::drawDistance() {
 
 float DrawCommands::worldDistance() {
 #if defined(__EMSCRIPTEN__)
-  // web settings menu: [INTERNAL] webWorldDist 0 = no limit, 1..4 = 500/300/150/80 m
-  switch(Gothic::settingsGetI("INTERNAL","webWorldDist")) {
-    case 1: return 50000.f;
-    case 2: return 30000.f;
-    case 3: return 15000.f;
-    case 4: return 8000.f;
-    }
+  // web settings menu: [INTERNAL] webWorldDistM in meters, 0 = no limit
+  const int m = Gothic::settingsGetI("INTERNAL","webWorldDistM");
+  if(m>0)
+    return float(std::max(m, 10))*100.f;
 #endif
   return 0.f;
   }

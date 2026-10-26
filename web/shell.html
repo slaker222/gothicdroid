@@ -309,8 +309,11 @@
       </label>
       <label class="set-row">World draw distance
         <select data-set="worldDist">
-          <option value="0">Unlimited</option><option value="1">500 m</option>
-          <option value="2">300 m</option><option value="3">150 m</option><option value="4">80 m</option>
+          <option value="0">Unlimited</option><option value="500">500 m</option>
+          <option value="300">300 m</option><option value="200">200 m</option>
+          <option value="150">150 m</option><option value="100">100 m</option>
+          <option value="80">80 m</option><option value="60">60 m</option>
+          <option value="40">40 m</option><option value="30">30 m</option>
         </select>
       </label>
       <label class="set-row" title="NPCs beyond the object draw distance are not animated (their bones freeze until they come closer)">Skip hidden NPC animation <input type="checkbox" data-set="skipFarAnim"></label>
@@ -1129,18 +1132,20 @@ async function installChunks(m) {
       // minimum; the resolution goes last. Values are "at least this low":
       // a setting the player already has lower is kept.
       // shadows: 2 high .. 0 off; reflections/ssao: 1 on; distances: higher = nearer
+      // worldDist is in meters (0 = no limit)
       const levels = [
-        { shadows: 1, drawDist: 1, worldDist: 0, reflections: 1, ssao: 1, resScale: 0 },
-        { shadows: 1, drawDist: 2, worldDist: 1, reflections: 0, ssao: 1, resScale: 0 },
-        { shadows: 0, drawDist: 2, worldDist: 2, reflections: 0, ssao: 0, resScale: 0 },
-        { shadows: 0, drawDist: 3, worldDist: 3, reflections: 0, ssao: 0, resScale: 0 },
-        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 0 },
-        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 1 },
-        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 2 },
-        { shadows: 0, drawDist: 4, worldDist: 4, reflections: 0, ssao: 0, resScale: 3 },
+        { shadows: 1, drawDist: 1, worldDist: 0,   reflections: 1, ssao: 1, resScale: 0 },
+        { shadows: 1, drawDist: 2, worldDist: 500, reflections: 0, ssao: 1, resScale: 0 },
+        { shadows: 0, drawDist: 2, worldDist: 300, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 3, worldDist: 150, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 4, worldDist: 80,  reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 1 },
+        { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 2 },
+        { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 3 },
       ];
       // lower = smaller value for these, bigger value for the rest
-      const lowerIsLess = { shadows: 1, reflections: 1, ssao: 1 };
+      const lowerIsLess = { shadows: 1, reflections: 1, ssao: 1, worldDist: 1 };
       const names = { shadows: 'shadows', drawDist: 'draw distance', worldDist: 'world draw distance',
                       reflections: 'water reflections', ssao: 'ambient occlusion', resScale: 'resolution' };
       // applies a level; the names of the settings it lowered
@@ -1148,7 +1153,9 @@ async function installChunks(m) {
         const changed = [];
         for (const k in lv) {
           const cur = get(k), want = lv[k];
-          const lower = lowerIsLess[k] ? want < cur : want > cur;
+          // a world distance of 0 is "no limit", the farthest
+          const lower = k === 'worldDist' ? want > 0 && (cur === 0 || want < cur)
+                                          : lowerIsLess[k] ? want < cur : want > cur;
           if (!lower) continue;
           set(k, want);
           changed.push(k);
