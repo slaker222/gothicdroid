@@ -85,11 +85,16 @@
     body.window-mode #win-btn .icon-enter { display: none; }
     body.window-mode #win-btn .icon-exit { display: block; }
 
+    /* the picture only grows sideways: never taller than 16:9 (portrait
+       phones, window mode and fullscreen get bars above and below) */
+    #player { container-type: size; }
     #canvas {
       position: absolute;
-      inset: 0;
+      left: 0;
+      top: 50%;
       width: 100%;
-      height: 100%;
+      height: min(100%, calc(100cqw * 9 / 16));
+      transform: translateY(-50%);
       outline: none;
       border: none;
       background: #000;
@@ -220,6 +225,23 @@
     }
     body.touch-on #touch-ui { display: block; }
     body.touch-on #keypad { display: none; }
+    /* touch mode: no keypad row under the player, the player bar sits on top,
+       compact, clear of the stick and the buttons; saves and delete only show
+       in the game menu */
+    body.touch-on #player { width: min(100vw, calc(100vh * 16 / 9)); }
+    body.touch-on #controls {
+      top: 0;
+      bottom: auto;
+      height: 34px;
+      padding: 0 4px;
+      opacity: 1;
+      background: linear-gradient(rgba(0, 0, 0, 0.55), transparent);
+    }
+    body.touch-on .ctl { height: 28px; padding: 0 5px; font-size: 11px; }
+    body.touch-on .ctl svg { width: 18px; height: 18px; }
+    body.touch-on #controls .ctl-left { visibility: hidden; }
+    body.touch-on.touch-menu #controls .ctl-left { visibility: visible; }
+    body.touch-on #settings-panel { top: 38px; bottom: auto; }
     #touch-look { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
     #touch-ui.no-look #touch-look { pointer-events: none; }
     .tbtn {
@@ -242,6 +264,9 @@
     .tbtn.big { --s: 19cqmin; font-size: clamp(12px, 3.2cqmin, 19px); background: rgba(120, 20, 10, 0.45); }
     .tbtn.small { --s: 10cqmin; font-size: clamp(9px, 2.2cqmin, 13px); }
     .tbtn.down { background: rgba(255, 255, 255, 0.35); }
+    .tbtn.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); }
+    .tbtn svg { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 2;
+                stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
     .tbtn.hidden { display: none; }
     #touch-stick {
       position: absolute;
@@ -1534,11 +1559,11 @@ async function installChunks(m) {
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:32cqmin',            'world'],
         ['block',  'End',   '',      'right:25cqmin;bottom:24cqmin',           'world'],
         ['sneak',  'X',     'small', 'right:40cqmin;bottom:8cqmin',            'world'],
-        ['inv',    'Tab',   'small', 'right:4cqmin;top:3cqmin',                'world'],
-        ['log',    'N',     'small', 'right:16cqmin;top:3cqmin',               'world'],
-        ['stats',  'B',     'small', 'right:28cqmin;top:3cqmin',               'world'],
-        ['map',    'M',     'small', 'right:40cqmin;top:3cqmin',               'world'],
-        ['menu',   'Esc',   'small', 'left:4cqmin;top:3cqmin',                 'world'],
+        ['inv',    'Tab',   'small', 'right:4cqmin;top:calc(36px + 1cqmin)',                'world'],
+        ['log',    'N',     'small', 'right:16cqmin;top:calc(36px + 1cqmin)',               'world'],
+        ['stats',  'B',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
+        ['map',    'M',     'small', 'right:40cqmin;top:calc(36px + 1cqmin)',               'world'],
+        ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
         // dialog
         ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
         ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
@@ -1553,6 +1578,8 @@ async function installChunks(m) {
         ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
         ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
         ['back',   'Esc',   '',      'right:25cqmin;bottom:8cqmin',            'menu'],
+        // new chapter screen: only a way out
+        ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
       ];
       const buttons = defs.map(([id, k, cls, pos, layouts]) => {
         const el = document.createElement('div');
@@ -1572,11 +1599,51 @@ async function installChunks(m) {
         return b;
       });
       const byId = Object.fromEntries(buttons.map(b => [b.id, b]));
-      const LABELS = { weapon: 'Draw', jump: 'Jump', block: 'Block', sneak: 'Sneak', inv: 'Inv', log: 'Log',
-        stats: 'Stats', map: 'Map', menu: '\u2630', skip: 'Skip', dUp: '\u25B2', dDown: '\u25BC', select: 'Select',
-        pUp: '\u25B2', pDown: '\u25BC', pLeft: '\u25C0', pRight: '\u25B6', use: 'Use', close: 'Close',
-        ok: 'OK', back: 'Back', action: 'Action' };
-      function setLabel(b, text) { if (b.label !== text) { b.label = text; b.el.textContent = text; } }
+      // minimal line icons (24x24); the name is also the button's tooltip
+      const ICONS = {
+        action: '<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9"/>',
+        talk:   '<path d="M4 5h16v10H10l-5 4v-4H4z"/>',
+        take:   '<path d="M12 3v11M7 9l5 5 5-5M4 20h16"/>',
+        use:    '<path d="M9 11V5a1.5 1.5 0 0 1 3 0v5M12 9V4a1.5 1.5 0 0 1 3 0v6M15 9a1.5 1.5 0 0 1 3 0v4c0 4-3 7-6 7s-4-1-6-4l-2-3a1.5 1.5 0 0 1 2.5-1.5L9 13"/>',
+        loot:   '<path d="M6 9h12l-1 11H7zM9 9V7a3 3 0 0 1 6 0v2"/>',
+        attack: '<path d="M20 4l-9 9M15 4h5v5M6 14l4 4M4 20l3-3"/>',
+        shoot:  '<path d="M6 3c7 3 7 15 0 18M6 3v18M6 12h13M15 8l4 4-4 4"/>',
+        cast:   '<path d="M12 2l2.2 6.3L21 10l-6.8 1.7L12 18l-2.2-6.3L3 10l6.8-1.7z"/>',
+        weapon: '<path d="M20 4l-9 9M15 4h5v5M6 14l4 4M4 20l3-3"/>',
+        jump:   '<path d="M12 20V5M6 11l6-6 6 6"/>',
+        dive:   '<path d="M12 4v15M6 13l6 6 6-6M3 4h18"/>',
+        up:     '<path d="M12 20V5M6 11l6-6 6 6M3 20h18"/>',
+        block:  '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>',
+        sneak:  '<ellipse cx="8.5" cy="9" rx="2.5" ry="4.5"/><ellipse cx="15.5" cy="15" rx="2.5" ry="4.5"/>',
+        inv:    '<path d="M6 9h12l-1 11H7zM9 9V7a3 3 0 0 1 6 0v2"/>',
+        log:    '<path d="M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11"/>',
+        stats:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+        map:    '<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/>',
+        menu:   '<path d="M4 6h16M4 12h16M4 18h16"/>',
+        skip:   '<path d="M4 5l8 7-8 7zM12 5l8 7-8 7z"/>',
+        close:  '<path d="M6 6l12 12M18 6L6 18"/>',
+        ok:     '<path d="M5 12l5 5 9-10"/>',
+        back:   '<path d="M9 14l-5-5 5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
+        trade:  '<circle cx="9" cy="9" r="5"/><path d="M14.5 6.5a5 5 0 1 1-6 8"/>',
+        up1:    '<path d="M6 15l6-6 6 6"/>', down1: '<path d="M6 9l6 6 6-6"/>',
+        left1:  '<path d="M15 6l-6 6 6 6"/>', right1: '<path d="M9 6l6 6-6 6"/>',
+      };
+      const NAMES = { action: 'Action', talk: 'Talk', take: 'Take', use: 'Use', loot: 'Loot', attack: 'Attack',
+        shoot: 'Shoot', cast: 'Cast', weapon: 'Weapon', jump: 'Jump', dive: 'Dive', up: 'Surface', block: 'Block',
+        sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
+        close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
+      // the icon each button shows unless the situation picks another one
+      const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', sneak: 'sneak', inv: 'inv', log: 'log',
+        stats: 'stats', map: 'map', menu: 'menu', skip: 'skip', dUp: 'up1', dDown: 'down1', select: 'ok',
+        pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1', use: 'use', close: 'close',
+        ok: 'ok', back: 'back', action: 'action', chClose: 'close' };
+      function setLabel(b, icon) {
+        if (b.label === icon) return;
+        b.label = icon;
+        b.el.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[icon] + '</svg>';
+        b.el.title = NAMES[icon];
+        b.el.setAttribute('aria-label', NAMES[icon]);
+      }
 
       // ---- movement stick (left part of the screen) and look (the rest)
       let stick = null; // {id, x, y}
@@ -1610,11 +1677,13 @@ async function installChunks(m) {
         e.preventDefault();
         const r = ui.getBoundingClientRect();
         const x = e.clientX - r.left, y = e.clientY - r.top;
-        if (!stick && x < r.width * 0.4 && y > r.height * 0.35) {
-          stick = { id: e.pointerId, x, y };
-          stickEl.style.left = x + 'px'; stickEl.style.top = y + 'px';
+        // the stick stays in its place: a touch on it (or close to it) grabs it
+        const sx = parseFloat(stickEl.style.left), sy = parseFloat(stickEl.style.top);
+        const grab = (stickEl.offsetWidth || 120) * 0.9;
+        if (!stick && Math.hypot(x - sx, y - sy) < grab) {
+          stick = { id: e.pointerId, x: sx, y: sy };
           stickEl.classList.add('on');
-          stickMove(0, 0);
+          stickMove(x - sx, y - sy);
         } else if (lookId === null) {
           lookId = e.pointerId; lookX = e.clientX; lookY = e.clientY;
         }
@@ -1645,6 +1714,7 @@ async function installChunks(m) {
       const WEAPON_DRAWN = [false, true, true, true, true, true, true];
       function layoutOf(st) {
         if (st & (1 << 10)) return 'none';                 // loading
+        if (st & (1 << 25)) return 'chapter';               // new chapter screen
         if (st & ((1 << 6) | (1 << 7))) return 'cutscene'; // video, cutscene
         if (st & ((1 << 1) | (1 << 5))) return 'menu';     // menu, document
         if (st & (1 << 4)) return 'inv';
@@ -1660,6 +1730,7 @@ async function installChunks(m) {
         try { st = g_runtimeUp ? Module.ccall('og_ui_state', 'number', [], []) : 0; } catch (e) { st = 0; }
         const layout = g_runtimeUp ? layoutOf(st) : 'none';
         if (layout !== lastLayout) { releaseAll(); lastLayout = layout; }
+        document.body.classList.toggle('touch-menu', layout === 'menu' || layout === 'none');
         ui.classList.toggle('no-look', layout !== 'world');
         if (stickEl.classList.contains('home') !== (layout === 'world')) {
           stickEl.classList.toggle('home', layout === 'world');
@@ -1671,23 +1742,27 @@ async function installChunks(m) {
         for (const b of buttons) {
           let show = b.layouts.includes(layout);
           if (b.id === 'block' && !(drawn && weapon <= 3)) show = false; // fists and melee weapons
+          if (b.id === 'sneak' && !(st & (1 << 23))) show = false;       // not learned yet
+          if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
           b.el.classList.toggle('hidden', !show);
-          if (show) setLabel(b, LABELS[b.id]);
+          // action, jump and use pick their icon below from the situation
+          if (show && b.id !== 'action' && b.id !== 'jump' && b.id !== 'use') setLabel(b, ICON_OF[b.id]);
         }
         if (layout === 'world') {
           // one key does all of it: the label says what it will do now
-          let a = 'Action';
-          if (drawn && (focus === 1 || focus === 0)) a = weapon >= 4 && weapon <= 5 ? 'Shoot' : weapon === 6 ? 'Cast' : 'Attack';
-          else if (focus === 1) a = hostile ? 'Attack' : 'Talk';
-          else if (focus === 2) a = 'Loot';
-          else if (focus === 3) a = 'Take';
-          else if (focus === 4) a = 'Use';
+          let a = 'action';
+          if (drawn && (focus === 1 || focus === 0)) a = weapon >= 4 && weapon <= 5 ? 'shoot' : weapon === 6 ? 'cast' : 'attack';
+          else if (focus === 1) a = hostile ? 'attack' : 'talk';
+          else if (focus === 2) a = 'loot';
+          else if (focus === 3) a = 'take';
+          else if (focus === 4) a = 'use';
           setLabel(byId.action, a);
-          setLabel(byId.weapon, drawn ? 'Sheathe' : 'Draw');
-          setLabel(byId.jump, dive ? 'Up' : swim ? 'Dive' : 'Jump');
+          // the weapon button lights up while a weapon is out
+          byId.weapon.el.classList.toggle('active', drawn);
+          setLabel(byId.jump, dive ? 'up' : swim ? 'dive' : 'jump');
         }
         if (layout === 'inv')
-          setLabel(byId.use, invMode === 2 || invMode === 4 ? 'Take' : invMode === 3 ? 'Trade' : 'Use');
+          setLabel(byId.use, invMode === 2 || invMode === 4 ? 'take' : invMode === 3 ? 'trade' : 'use');
       }
 
       function apply() {
@@ -1705,7 +1780,8 @@ async function installChunks(m) {
       chk.checked = saved === null ? isMobile : saved === '1';
       chk.addEventListener('change', apply);
       chk.addEventListener('click', e => e.stopPropagation());
-      window.addEventListener('resize', () => { if (!stick) stickHome(); });
+      // the player changes size with the window, window mode and fullscreen
+      new ResizeObserver(() => { if (!stick) stickHome(); }).observe(ui);
       setInterval(update, 150);
       apply();
     })();

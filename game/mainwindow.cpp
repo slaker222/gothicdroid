@@ -18,6 +18,8 @@
 #include "utils/string_frm.h"
 #include "world/triggers/abstracttrigger.h"
 #include "world/objects/npc.h"
+#include "world/objects/item.h"
+#include "world/world.h"
 #include "game/serialize.h"
 #include "game/globaleffects.h"
 #include "utils/gthfont.h"
@@ -499,7 +501,8 @@ void MainWindow::tickMouse(uint64_t dt) {
 // bits: 0 world, 1 menu, 2 dialog, 3 dialog choices, 4 inventory, 5 document,
 // 6 video, 7 cutscene, 8 swimming, 9 diving, 10 loading, 11 using a mob;
 // 12..14 weapon (WeaponState); 16..18 focus: 1 npc, 2 npc down, 3 item, 4 mob;
-// 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State)
+// 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State);
+// 23 sneaking learned; 24 the player carries a map; 25 new chapter screen
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
@@ -515,6 +518,8 @@ int MainWindow::webUiState() const {
     s |= 1<<2;
   if(dialogs.isChoiceMenuActive())
     s |= 1<<3;
+  if(chapter.isActive())
+    s |= 1<<25;
   if(inventory.isOpen()!=InventoryMenu::State::Closed) {
     s |= 1<<4;
     s |= int(inventory.isOpen())<<20;
@@ -543,6 +548,24 @@ int MainWindow::webUiState() const {
     s |= fk<<16;
     if(f.npc!=nullptr && !f.npc->isDown() && f.npc->attitude()==ATT_HOSTILE)
       s |= 1<<19;
+    if(pl->talentSkill(TALENT_SNEAK)>0)
+      s |= 1<<23;
+    // the map key opens a map the player carries (ItWrWorldmap, ItWr_Map_...)
+    if(auto w = gothic.world()) {
+      for(auto it = pl->inventory().iterator(Inventory::T_Inventory); it.isValid(); ++it) {
+        auto sym = w->script().findSymbol(it->clsId());
+        if(sym==nullptr)
+          continue;
+        std::string_view n = sym->name();
+        bool map = false;
+        for(size_t i=0; i+3<=n.size() && !map; ++i)
+          map = (n[i]=='M' || n[i]=='m') && (n[i+1]=='A' || n[i+1]=='a') && (n[i+2]=='P' || n[i+2]=='p');
+        if(map) {
+          s |= 1<<24;
+          break;
+          }
+        }
+      }
     }
   return s;
   }
