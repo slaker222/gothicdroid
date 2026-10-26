@@ -1,5 +1,8 @@
 #pragma once
 
+#include <functional>
+#include <memory>
+
 #include <Tempest/Widget>
 #include <Tempest/Texture2d>
 #include <Tempest/Timer>
@@ -14,6 +17,7 @@
 #include "game/questlog.h"
 #include "utils/keycodec.h"
 
+namespace Tempest { class Dialog; }
 class Gothic;
 class MenuRoot;
 class Npc;
@@ -78,6 +82,9 @@ class GameMenu : public Tempest::Widget {
     uint32_t                              curItem=0;
     bool                                  exitFlag=false;
     bool                                  closeFlag=false;
+    std::unique_ptr<Tempest::Dialog>      asyncDlg;
+    std::function<void()>                 asyncDone;
+    bool                                  asyncClosed=false;
 
     KeyCodec::Action                      kClose = KeyCodec::Escape;
 
@@ -101,6 +108,8 @@ class GameMenu : public Tempest::Widget {
 
     void                                  exec         (Item &item, int slideDx, KeyCodec::Action hint);
     void                                  execSingle   (Item &it,   int slideDx, KeyCodec::Action hint);
+    void                                  execSelect   (Item &it,   int slideDx, KeyCodec::Action hint);
+    void                                  finishExec   ();
     void                                  execChgOption(Item &item, int slideDx);
     void                                  execSaveGame (const Item& item);
     bool                                  execLoadGame (const Item& item);

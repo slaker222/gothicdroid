@@ -210,6 +210,13 @@ struct GameMenu::KeyEditDialog : Dialog {
   void paintEvent (PaintEvent&) override {}
   void paintShadow(PaintEvent&) override {}
 
+  void closeEvent(CloseEvent& e) override {
+    Dialog::closeEvent(e);
+    if(onClosed)
+      onClosed();
+    }
+
+  std::function<void()> onClosed;
   Event::KeyType     key  = Event::K_ESCAPE;
   Event::MouseButton mkey = Event::ButtonNone;
   };
@@ -258,6 +265,13 @@ struct GameMenu::SavNameDialog : Dialog {
   void paintEvent (PaintEvent&) override {}
   void paintShadow(PaintEvent&) override {}
 
+  void closeEvent(CloseEvent& e) override {
+    Dialog::closeEvent(e);
+    if(onClosed)
+      onClosed();
+    }
+
+  std::function<void()> onClosed;
   std::string& text;
   std::string  text0;
 
@@ -624,6 +638,15 @@ void GameMenu::onKeyboard(KeyCodec::Action key) {
 void GameMenu::onTick() {
   update();
 
+  if(asyncClosed) {
+    asyncClosed = false;
+    auto done = std::move(asyncDone);
+    asyncDone = nullptr;
+    if(done)
+      done(); // may destroy this menu
+    return;
+    }
+
   const float scale = Gothic::interfaceScale(this);
   const float fx    = 640.0f * scale;
   const float fy    = 480.0f * scale;
@@ -783,6 +806,10 @@ void GameMenu::exec(Item &p, int slideDx, KeyCodec::Action hint) {
       }
     }
 
+  finishExec();
+  }
+
+void GameMenu::finishExec() {
   if(closeFlag)
     owner.closeAll();
   else if(exitFlag)
@@ -791,12 +818,59 @@ void GameMenu::exec(Item &p, int slideDx, KeyCodec::Action hint) {
 
 void GameMenu::execSingle(Item &it, int slideDx, KeyCodec::Action hint) {
   auto& item          = it.handle;
-  auto& onSelAction   = item->on_sel_action;
-  auto& onSelAction_S = item->on_sel_action_s;
-  auto& onEventAction = item->on_event_action;
 
   if(item->type==zenkit::MenuItemType::INPUT && slideDx==0) {
     ctrlInput = &it;
+#if defined(__EMSCRIPTEN__)
+    // Dialog::exec() is a nested event loop: on the single-threaded web build it never
+    // returns control to the browser and the page freezes. Show the dialog and continue
+    // from onTick() once it has been closed.
+    {
+    std::unique_ptr<Dialog> base;
+    std::function<void()>   after;
+    if(item->on_chg_set_option.empty()) {
+      auto dlg = std::make_unique<SavNameDialog>(item->text[0]);
+      if(it.savHdr.version==0)
+        dlg->text = "";
+      auto* d = dlg.get();
+      d->onClosed = [this]() { asyncClosed = true; };
+      after = [this,d,&it,slideDx,hint]() {
+        ctrlInput = nullptr;
+        if(d->accepted)
+          execSelect(it,slideDx,hint);
+        finishExec();
+        };
+      base = std::move(dlg);
+      }
+    else if(hint==KeyCodec::K_Del) {
+      keyCodec.clear(item->on_chg_set_option_section, item->on_chg_set_option);
+      updateItem(it);
+      ctrlInput = nullptr;
+      return;
+      }
+    else {
+      auto dlg = std::make_unique<KeyEditDialog>();
+      auto* d = dlg.get();
+      d->onClosed = [this]() { asyncClosed = true; };
+      after = [this,d,&it]() {
+        ctrlInput = nullptr;
+        if(!(d->key==Event::K_ESCAPE && d->mkey==Event::ButtonNone)) {
+          int32_t next = d->key==Event::K_ESCAPE ? KeyCodec::keyToCode(d->mkey) : KeyCodec::keyToCode(d->key);
+          keyCodec.set(it.handle->on_chg_set_option_section, it.handle->on_chg_set_option, next);
+          updateItem(it);
+          }
+        finishExec();
+        };
+      base = std::move(dlg);
+      }
+    base->resize(owner.size());
+    asyncDlg    = std::move(base);
+    asyncDone   = std::move(after);
+    asyncClosed = false;
+    asyncDlg->show();
+    return;
+    }
+#endif
     if(item->on_chg_set_option.empty()) {
       SavNameDialog dlg{item->text[0]};
       if(it.savHdr.version==0)
@@ -830,6 +904,15 @@ void GameMenu::execSingle(Item &it, int slideDx, KeyCodec::Action hint) {
       return; //HACK: there is a SEL_ACTION_BACK token in same item
       }
     }
+
+  execSelect(it,slideDx,hint);
+  }
+
+void GameMenu::execSelect(Item &it, int slideDx, KeyCodec::Action hint) {
+  auto& item          = it.handle;
+  auto& onSelAction   = item->on_sel_action;
+  auto& onSelAction_S = item->on_sel_action_s;
+  auto& onEventAction = item->on_event_action;
 
   for(size_t i=0; i<zenkit::IMenuItem::select_action_count; ++i) {
     auto action = zenkit::MenuItemSelectAction(onSelAction[i]);

@@ -6,14 +6,12 @@
   <title>OpenGothic Web</title>
   <style>
     :root {
-      --bg: #000;
-      --panel: #111;
-      --line: #333;
+      --bg: #151515;
+      --line: #3a3a3a;
       --text: #ddd;
-      --dim: #888;
+      --dim: #999;
       --accent: #fff;
       --danger: #e5484d;
-      --success: #46a758;
     }
 
     * {
@@ -32,8 +30,44 @@
       font: 14px/1.4 -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       overflow: hidden;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
+    }
+
+    #keypad {
+      height: 44px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    #keypad .key {
+      min-width: 56px;
+      height: 32px;
+      padding: 0 12px;
+      font: inherit;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--line);
+      cursor: pointer;
+      touch-action: none;
+      user-select: none;
+    }
+    #keypad .key:hover { border-color: var(--accent); color: var(--accent); }
+    #keypad .key:active { background: var(--accent); color: #000; }
+
+    #player {
+      position: relative;
+      width: min(100vw, calc((100vh - 44px) * 16 / 9));
+      aspect-ratio: 16 / 9;
+      background: #000;
+      overflow: hidden;
+    }
+
+    #player:fullscreen {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: auto;
     }
 
     #canvas {
@@ -45,36 +79,34 @@
       border: none;
       background: #000;
       display: block;
-      z-index: 2;
     }
 
     #ui-overlay {
-      position: relative;
+      position: absolute;
+      inset: 0;
       z-index: 10;
-      width: 92%;
-      max-width: 440px;
-      background: var(--panel);
-      border: 1px solid var(--line);
-      padding: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 16px 16px 72px;
+      text-align: center;
     }
 
-    #ui-overlay.drag-over { border-color: var(--accent); }
     #ui-overlay.hidden { display: none; }
+    #ui-overlay.drag-over { outline: 1px dashed var(--accent); outline-offset: -8px; }
 
-    .title {
-      font-size: 18px;
-      font-weight: 600;
-      letter-spacing: 2px;
-      text-transform: uppercase;
-      color: var(--accent);
-      margin-bottom: 20px;
+    .status-box {
+      min-height: 20px;
+      color: var(--dim);
+      word-break: break-word;
     }
 
     .progress-bar-container {
-      width: 100%;
+      width: min(320px, 70%);
       height: 2px;
       background: var(--line);
-      margin-bottom: 12px;
       display: none;
     }
 
@@ -84,25 +116,18 @@
       background: var(--accent);
     }
 
-    .status-box {
-      min-height: 20px;
-      margin-bottom: 20px;
-      color: var(--dim);
-      word-break: break-word;
-    }
-
-    .btn-group {
-      display: flex;
-      flex-direction: column;
+    .source-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 52px;
+      display: none;
+      justify-content: center;
       gap: 8px;
     }
 
     .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 100%;
-      padding: 11px 16px;
+      padding: 8px 16px;
       font: inherit;
       color: var(--text);
       background: transparent;
@@ -113,101 +138,101 @@
 
     .btn:hover { border-color: var(--accent); color: var(--accent); }
 
-    .btn-primary {
-      color: #000;
-      background: var(--accent);
-      border-color: var(--accent);
-      font-weight: 600;
-    }
-
-    .btn-primary:hover { background: #ccc; border-color: #ccc; color: #000; }
-
-    .btn-danger { color: var(--dim); border-color: transparent; padding: 6px; }
-    .btn-danger:hover { color: var(--danger); border-color: transparent; }
-
     .file-input { display: none; }
 
-    .url-row {
-      display: none;
-      flex-direction: column;
-      gap: 6px;
-      margin-bottom: 4px;
-    }
-
-    .url-input {
-      width: 100%;
-      padding: 10px 12px;
-      font: inherit;
-      color: var(--text);
-      background: var(--bg);
-      border: 1px solid var(--line);
-      border-radius: 0;
-      outline: none;
-      user-select: text;
-      -webkit-user-select: text;
-    }
-
-    .url-input:focus { border-color: var(--accent); }
-
-    .url-hint {
-      font-size: 12px;
-      min-height: 16px;
-      color: var(--dim);
-      word-break: break-word;
-    }
-
-    .url-hint.ok { color: var(--success); }
-    .url-hint.bad { color: var(--danger); }
-
-    #fs-btn {
+    #controls {
       position: absolute;
-      top: 12px;
-      right: 12px;
+      left: 0;
+      right: 0;
+      bottom: 0;
       z-index: 20;
-      padding: 6px 10px;
-      font: 12px inherit;
-      color: var(--dim);
-      background: rgba(0, 0, 0, 0.6);
-      border: 1px solid var(--line);
-      cursor: pointer;
-      display: none;
+      height: 44px;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+      opacity: 0;
+      transition: opacity 0.2s;
     }
 
-    #fs-btn:hover { color: var(--accent); border-color: var(--accent); }
+    #player.active #controls,
+    #player:not(.playing) #controls { opacity: 1; }
+
+    .ctl {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 8px;
+      font: 13px inherit;
+      color: var(--text);
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .ctl:hover { color: var(--accent); }
+    .ctl-right { display: flex; align-items: center; }
+    .fps-opt { gap: 6px; user-select: none; }
+    .fps-opt input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+    #fps-counter {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 15;
+      padding: 2px 8px;
+      font: 13px monospace;
+      color: #5dff8a;
+      background: rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+      display: none;
+    }
+    .ctl svg { width: 22px; height: 22px; fill: currentColor; }
+    #fs-btn .icon-exit { display: none; }
+    #player:fullscreen #fs-btn .icon-enter { display: none; }
+    #player:fullscreen #fs-btn .icon-exit { display: block; }
   </style>
 </head>
 <body>
-  <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+  <div id="player">
+    <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
 
-  <button id="fs-btn" onclick="toggleFullscreen()">Fullscreen</button>
-
-  <div id="ui-overlay">
-    <h1 class="title">OpenGothic</h1>
-
-    <div class="progress-bar-container" id="progress-container">
-      <div class="progress-bar" id="progress-bar"></div>
-    </div>
-
-    <div class="status-box" id="status-text">Loading...</div>
-
-    <input type="file" id="folder-picker" class="file-input" webkitdirectory directory multiple onchange="onFolderSelected(event)">
-    <input type="file" id="zip-picker" class="file-input" accept=".zip" onchange="onZipSelected(event)">
-
-    <div class="btn-group" id="btn-group">
-      <button class="btn btn-primary" id="start-btn" style="display:none;" onclick="startGame()">Play</button>
-
-      <div class="url-row" id="url-row">
-        <input type="url" id="archive-url" class="url-input" spellcheck="false" autocomplete="off"
-               placeholder="Game ZIP archive URL" aria-label="Game ZIP archive URL">
-        <div class="url-hint" id="url-hint"></div>
+    <div id="ui-overlay">
+      <div class="status-box" id="status-text">Loading...</div>
+      <div class="progress-bar-container" id="progress-container">
+        <div class="progress-bar" id="progress-bar"></div>
       </div>
+      <button class="btn" id="retry-btn" style="display:none;" onclick="downloadGame()">Download</button>
 
-      <button class="btn" id="download-btn" style="display:none;" onclick="downloadGame()"></button>
-      <button class="btn" id="pause-btn" style="display:none;" onclick="pauseInstall()">Pause</button>
-      <button class="btn" id="folder-btn" onclick="document.getElementById('folder-picker').click()">Select folder</button>
-      <button class="btn" id="zip-btn" onclick="document.getElementById('zip-picker').click()">Select ZIP</button>
-      <button class="btn btn-danger" id="clear-btn" style="display:none;" onclick="clearStorage()">Delete game</button>
+      <input type="file" id="folder-picker" class="file-input" webkitdirectory directory multiple onchange="onFolderSelected(event)">
+      <input type="file" id="zip-picker" class="file-input" accept=".zip" onchange="onZipSelected(event)">
+
+      <div class="source-row" id="source-row">
+        <button class="btn" id="folder-btn" onclick="pickOffline('folder-picker')">Select folder</button>
+        <button class="btn" id="zip-btn" onclick="pickOffline('zip-picker')">Select ZIP</button>
+      </div>
     </div>
+
+    <div id="fps-counter">0 FPS</div>
+
+    <div id="controls">
+      <button class="ctl" id="clear-btn" style="display:none;" onclick="clearStorage()">Delete game</button>
+      <span></span>
+      <div class="ctl-right">
+      <label class="ctl fps-opt" title="Show FPS"><input type="checkbox" id="fps-chk"> Show FPS</label>
+      <button class="ctl" id="fs-btn" onclick="toggleFullscreen()" aria-label="Fullscreen" title="Fullscreen">
+        <svg class="icon-enter" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>
+        <svg class="icon-exit" viewBox="0 0 24 24"><path d="M8 4h2v6H4V8h4V4zm6 0h2v4h4v2h-6V4zM4 14h6v6H8v-4H4v-2zm10 0h6v2h-4v4h-2v-6z"/></svg>
+      </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="keypad">
+    <button class="key" data-key="w" data-code="KeyW" data-kc="87">W</button>
+    <button class="key" data-key="a" data-code="KeyA" data-kc="65">A</button>
+    <button class="key" data-key="Enter" data-code="Enter" data-kc="13">Enter</button>
+    <button class="key" data-key="Escape" data-code="Escape" data-kc="27">Esc</button>
   </div>
 
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
@@ -226,6 +251,8 @@ self.onmessage = async (e) => {
     let result = null;
     if (m.type === 'download') {
       result = await download(m);
+    } else if (m.type === 'chunks') {
+      result = await installChunks(m);
     } else if (m.type === 'extract') {
       const blob = m.blob || await (await root.getFileHandle(m.zipName)).getFile();
       result = await extract(blob, m);
@@ -549,6 +576,222 @@ async function extract(blob, m) {
   }
   return { files: list.length, bytes: doneBytes };
 }
+
+// --------------------------- chunked install ---------------------------
+// manifest.json + self-contained chunks made by tools/pack_web.py. Up to
+// CHUNK_JOBS chunks download at once and each one is unpacked the moment it
+// arrives, so unpacking hides behind the download. Finished chunks are
+// recorded in the state file: an interrupted install resumes chunk-wise.
+
+const CHUNK_JOBS = 4;
+
+// mirrors that failed are tried last by every later request
+const hostFailures = new Map();
+function failuresOf(url) { return hostFailures.get(new URL(url).host) || 0; }
+
+// Fetches from the first mirror that works. A failed request switches to the
+// next mirror right away; only after all of them failed it waits and retries.
+// A mirror answering 4xx does not have the file and is dropped.
+async function fetchMirrors(urls, what, consume) {
+  const live = [...new Set(urls)].sort((a, b) => failuresOf(a) - failuresOf(b));
+  for (let attempt = 0, round = 0; ; attempt++) {
+    const url = live[attempt % live.length];
+    try {
+      const resp = await fetch(url, { cache: 'no-store' });
+      if (!resp.ok) {
+        const err = new Error('server responded with HTTP ' + resp.status + ' (' + what + ')');
+        if (resp.status >= 400 && resp.status < 500) err.fatal = true;
+        throw err;
+      }
+      return await consume(resp, url);
+    } catch (err) {
+      const host = new URL(url).host;
+      hostFailures.set(host, (hostFailures.get(host) || 0) + 1);
+      if (err.fatal && live.length > 1) {
+        live.splice(live.indexOf(url), 1);
+        attempt--;
+        continue;
+      }
+      if ((attempt + 1) % live.length !== 0) continue;
+      if (err.fatal || ++round > MAX_RETRIES) throw err;
+      progress({ phase: 'retry', attempt: round, max: MAX_RETRIES, msg: String(err.message || err) });
+      await sleep(Math.min(15000, 1500 * round));
+    }
+  }
+}
+
+function toHex(buf) {
+  return Array.from(new Uint8Array(buf), b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function inflateRaw(bytes) {
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function installChunks(m) {
+  let manifestUrl = m.urls[0];
+  const man = await fetchMirrors(m.urls, 'manifest', (r, url) => { manifestUrl = url; return r.json(); });
+  if (man.version !== 1) {
+    const err = new Error('unsupported manifest version ' + man.version);
+    err.fatal = true;
+    throw err;
+  }
+  const names = man.chunks.map(c => c.name);
+
+  const stateFh = await root.getFileHandle(m.stateName, { create: true });
+  const stateH = await stateFh.createSyncAccessHandle();
+  let state = null;
+  try {
+    const buf = new Uint8Array(stateH.getSize());
+    stateH.read(buf, { at: 0 });
+    state = JSON.parse(new TextDecoder().decode(buf));
+  } catch (_) {}
+  // a different pack behind the link: start over
+  if (!state || state.url !== m.urls[0] || JSON.stringify(state.names) !== JSON.stringify(names))
+    state = { url: m.urls[0], names, done: [], created: [] };
+  const done = new Set(state.done);
+
+  const gameDir = await root.getDirectoryHandle(m.gameDirName, { create: true });
+  const dirs = new Map([['', gameDir]]);
+  async function dirFor(parts) {
+    let key = '', d = gameDir;
+    for (const seg of parts) {
+      key = key ? key + '/' + seg : seg;
+      let next = dirs.get(key.toLowerCase());
+      if (!next) {
+        next = await d.getDirectoryHandle(seg, { create: true });
+        dirs.set(key.toLowerCase(), next);
+      }
+      d = next;
+    }
+    return d;
+  }
+
+  const wanted = man.files.map(f => !f.path.split('/').some(s => s === '' || s === '.' || s === '..') &&
+                                      !m.skip.some(re => re.test(f.path)));
+  const totalBytes = man.files.reduce((a, f, i) => a + (wanted[i] ? f.size : 0), 0);
+  if (navigator.storage.estimate) {
+    const est = await navigator.storage.estimate();
+    const free = (est.quota || 0) - (est.usage || 0);
+    if (est.quota && free < totalBytes) {
+      const err = new Error('not enough browser storage: need ~' + Math.ceil(totalBytes / 1048576) +
+                            ' MB, available ' + Math.floor(free / 1048576) + ' MB');
+      err.fatal = true;
+      throw err;
+    }
+  }
+
+  // one sync access handle per file, shared by all chunks writing into it
+  // (handles are exclusive); null = file is skipped
+  const handles = new Map();
+  // the file handles stay referenced: Chrome never settles createSyncAccessHandle()
+  // when its file handle gets garbage-collected meanwhile (chunk buffers churn the GC)
+  const fileHandles = [];
+  function handleFor(fi) {
+    if (!handles.has(fi)) handles.set(fi, (async () => {
+      const f = man.files[fi];
+      if (!wanted[fi]) return null;
+      const parts = f.path.split('/');
+      const fname = parts.pop();
+      const d = await dirFor(parts);
+      // savegames and settings made in the browser win over the pack copies
+      if (m.persisted.some(re => re.test(f.path)) && !state.created.includes(f.path)) {
+        let exists = true;
+        try { await d.getFileHandle(fname, { create: false }); } catch (_) { exists = false; }
+        if (exists) return null;
+        state.created.push(f.path);
+      }
+      const fh = await d.getFileHandle(fname, { create: true });
+      fileHandles.push(fh);
+      const h = await fh.createSyncAccessHandle();
+      if (h.getSize() !== f.size) h.truncate(f.size);
+      return h;
+    })());
+    return handles.get(fi);
+  }
+
+  const pieces = man.chunks.map(() => []);
+  for (const p of man.pieces) pieces[p.chunk].push(p);
+
+  const total = man.chunks.reduce((a, c) => a + c.size, 0);
+  let have = man.chunks.reduce((a, c) => a + (done.has(c.name) ? c.size : 0), 0);
+  let lastPost = 0;
+  function count(n) {
+    have += n;
+    const now = performance.now();
+    if (now - lastPost > 200) {
+      lastPost = now;
+      progress({ phase: 'download', done: have, total });
+    }
+  }
+
+  async function installChunk(ci) {
+    const c = man.chunks[ci];
+    // next to the manifest, in the mirror folders of the pack, then the
+    // chunk's own links (tools/mirrorhost_mirror.py)
+    const urls = [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
+    const data = await fetchMirrors(urls, c.name, async (resp) => {
+      const buf = new Uint8Array(c.size);
+      let at = 0;
+      try {
+        const reader = resp.body.getReader();
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          if (at + value.byteLength > c.size) throw new Error('unexpected size of ' + c.name);
+          buf.set(value, at);
+          at += value.byteLength;
+          count(value.byteLength);
+        }
+        if (at !== c.size) throw new Error('connection lost');
+        if (toHex(await crypto.subtle.digest('SHA-256', buf)) !== c.sha256)
+          throw new Error('corrupt download: ' + c.name);
+      } catch (err) {
+        count(-at);
+        throw err;
+      }
+      return buf;
+    });
+
+    const touched = new Set();
+    for (const p of pieces[ci]) {
+      const h = await handleFor(p.file);
+      if (!h) continue;
+      let raw = data.subarray(p.off, p.off + p.len);
+      if (p.method === 'deflate-raw') raw = await inflateRaw(raw);
+      if (raw.byteLength !== p.raw || (crc32(0, raw) >>> 0) !== p.crc)
+        throw new Error('corrupt pack: ' + man.files[p.file].path);
+      h.write(raw, { at: p.at });
+      touched.add(h);
+    }
+    for (const h of touched) h.flush();
+    done.add(c.name);
+    state.done = [...done];
+    writeJsonSync(stateH, state);
+  }
+
+  try {
+    // chunks start in pack order (core game data first), CHUNK_JOBS at a time
+    const todo = man.chunks.map((c, i) => i).filter(i => !done.has(man.chunks[i].name));
+    let next = 0;
+    async function lane() {
+      while (next < todo.length) await installChunk(todo[next++]);
+    }
+    await Promise.all(Array.from({ length: Math.min(CHUNK_JOBS, todo.length) }, lane));
+    progress({ phase: 'download', done: total, total });
+
+    // files no chunk wrote into (empty ones) still have to exist
+    for (let fi = 0; fi < man.files.length; fi++) await handleFor(fi);
+  } finally {
+    for (const p of handles.values()) {
+      const h = await p.catch(() => null);
+      if (h) h.close();
+    }
+    stateH.close();
+  }
+  return { files: wanted.filter(Boolean).length, bytes: totalBytes, download: total };
+}
   </script>
 
   <script type="text/javascript">
@@ -558,22 +801,24 @@ async function extract(blob, m) {
     const progressBar = document.getElementById('progress-bar');
     const progressContainer = document.getElementById('progress-container');
     const uiOverlay = document.getElementById('ui-overlay');
-    const fsBtn = document.getElementById('fs-btn');
+    const player = document.getElementById('player');
     const canvas = document.getElementById('canvas');
-    const startBtn = document.getElementById('start-btn');
+    const sourceRow = document.getElementById('source-row');
+    const retryBtn = document.getElementById('retry-btn');
     const clearBtn = document.getElementById('clear-btn');
-    const folderBtn = document.getElementById('folder-btn');
-    const zipBtn = document.getElementById('zip-btn');
 
     let g_gameReady = false;
+    // resolved once the wasm runtime (and its FS) is up
+    let g_resolveRuntime;
+    const g_runtimeReady = new Promise(r => { g_resolveRuntime = r; });
 
     var Module = {
       noInitialRun: true,
       preRun: [],
       postRun: [function() {
         console.log("OpenGothic WebAssembly core ready.");
-        fsBtn.style.display = 'block';
-        initStorage();
+        bindErrnoError();
+        g_resolveRuntime();
       }],
       print: function(text) {
         console.log("[OpenGothic] " + text);
@@ -610,13 +855,94 @@ async function extract(blob, m) {
       statusText.innerText = 'Error: ' + event;
     };
 
+    // Esc must reach the game instead of leaving fullscreen: Keyboard Lock
+    // (Chromium) delivers it to the page; holding Esc still exits.
+    function lockEscape() {
+      try {
+        if (navigator.keyboard && navigator.keyboard.lock) {
+          navigator.keyboard.lock(['Escape']).catch(() => {});
+        }
+      } catch (e) {}
+    }
+    document.addEventListener('fullscreenchange', () => {
+      if (document.fullscreenElement) lockEscape();
+      else if (navigator.keyboard && navigator.keyboard.unlock) navigator.keyboard.unlock();
+    });
+
+    // FPS counter (page-side, counts presented frames)
+    (function() {
+      const chk = document.getElementById('fps-chk');
+      const box = document.getElementById('fps-counter');
+      let frames = 0, last = performance.now(), running = false;
+      function loop(now) {
+        if (!running) return;
+        frames++;
+        if (now - last >= 500) {
+          box.textContent = Math.round(frames * 1000 / (now - last)) + ' FPS';
+          frames = 0; last = now;
+        }
+        requestAnimationFrame(loop);
+      }
+      function apply() {
+        box.style.display = chk.checked ? 'block' : 'none';
+        try { localStorage.setItem('showFps', chk.checked ? '1' : '0'); } catch (e) {}
+        if (chk.checked && !running) {
+          running = true; frames = 0; last = performance.now();
+          requestAnimationFrame(loop);
+        } else if (!chk.checked) {
+          running = false;
+        }
+      }
+      try { chk.checked = localStorage.getItem('showFps') === '1'; } catch (e) {}
+      chk.addEventListener('change', apply);
+      // keep clicks on the option from reaching the game canvas
+      chk.addEventListener('click', e => e.stopPropagation());
+      apply();
+    })();
+
+    // on-screen keys: fire the same window key events the engine listens to
+    (function() {
+      function fire(type, b) {
+        const kc = +b.dataset.kc;
+        const e = new KeyboardEvent(type, { key: b.dataset.key, code: b.dataset.code,
+          keyCode: kc, which: kc, bubbles: true, cancelable: true });
+        window.dispatchEvent(e);
+      }
+      document.querySelectorAll('#keypad .key').forEach(b => {
+        let down = false;
+        const up = () => { if (down) { down = false; fire('keyup', b); } };
+        b.addEventListener('pointerdown', e => {
+          e.preventDefault();
+          if (down) return;
+          down = true;
+          fire('keydown', b);
+        });
+        b.addEventListener('pointerup', up);
+        b.addEventListener('pointercancel', up);
+        b.addEventListener('pointerleave', up);
+        b.addEventListener('contextmenu', e => e.preventDefault());
+      });
+    })();
+
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
-        document.documentElement.requestFullscreen().catch(() => {});
+        player.requestFullscreen().catch(() => {});
       } else {
         document.exitFullscreen().catch(() => {});
       }
     }
+
+    // player controls show on mouse activity and fade out after a pause
+    let g_activityTimer = 0;
+    function onPlayerActivity() {
+      if (document.pointerLockElement) return;
+      player.classList.add('active');
+      clearTimeout(g_activityTimer);
+      g_activityTimer = setTimeout(() => player.classList.remove('active'), 2500);
+    }
+    player.addEventListener('mousemove', onPlayerActivity);
+    player.addEventListener('touchstart', onPlayerActivity, { passive: true });
+    player.addEventListener('mouseleave', () => player.classList.remove('active'));
 
     canvas.addEventListener('click', function() {
       if (document.pointerLockElement !== canvas) {
@@ -1091,15 +1417,35 @@ function serveLoop() {
       },
 
       // ---- async persistence (fire and forget) ----
+      persistQueue: new Map(),
+      liveHandles: new Set(),
       persistEntryAsync(e, bytes) {
-        opfsGameDir(true).then(async (dir) => {
+        // writes to one file run strictly one after another: overlapping
+        // createWritable() calls on the same handle fail or lose data
+        const key = e.path;
+        const prev = GameFS.persistQueue.get(key) || Promise.resolve();
+        const next = prev.then(() => GameFS.persistNow(e, bytes));
+        GameFS.persistQueue.set(key, next);
+        next.finally(() => { if (GameFS.persistQueue.get(key) === next) GameFS.persistQueue.delete(key); });
+      },
+
+      persistNow(e, bytes) {
+        return opfsGameDir(true).then(async (dir) => {
           const parts = e.path.split('/');
           const name = parts.pop();
           const d = await opfsEnsureDir(dir, parts);
           const fh = await d.getFileHandle(name, { create: true });
-          const w = await fh.createWritable();
-          await w.write(bytes);
-          await w.close();
+          // Chrome may garbage-collect an unreferenced handle mid-call and the
+          // promise then never settles: keep every OPFS object reachable
+          GameFS.liveHandles.add(fh); GameFS.liveHandles.add(d);
+          try {
+            const w = await fh.createWritable();
+            GameFS.liveHandles.add(w);
+            try { await w.write(bytes); await w.close(); }
+            finally { GameFS.liveHandles.delete(w); }
+          } finally {
+            GameFS.liveHandles.delete(fh); GameFS.liveHandles.delete(d);
+          }
         }).catch(err => console.warn('OPFS persist failed:', e.path, err));
       },
 
@@ -1149,63 +1495,36 @@ function serveLoop() {
 
     // TEMPORARY: the game folder is picked on every start and read directly
     // from disk; nothing but savegames/settings is copied into OPFS.
-    // A game downloaded from ARCHIVE_URL or unpacked from a ZIP is installed
+    // A game downloaded from ARCHIVE_URLS or unpacked from a ZIP is installed
     // into OPFS in both modes.
     const DIRECT_FOLDER_MODE = true;
 
-    // Archive with the whole game (game folder with Data/ inside, any nesting).
+    // The whole game: a ZIP archive (game folder with Data/ inside, any nesting)
+    // or a chunked pack (manifest.json, tools/pack_web.py; chunks next to it).
+    // Further links are mirrors of the same pack, used when the first one fails.
     // Overridden by ?archive=<url>. The server must allow CORS; mirrorhost share
     // links are rewritten to their CORS-enabled download host.
-    const ARCHIVE_URL = 'https://example.invalid/removed';
+    const ARCHIVE_URLS = [
+      'https://example.invalid/removed',
+      'https://example.invalid/removed',
+      'https://example.invalid/removed'
+    ];
 
     // OPFS root entries next to the game directory
     const DL_ZIP = 'gothic-download.zip';     // archive being downloaded
     const DL_STATE = 'gothic-download.json';  // {url, total} of that download
     const INSTALL_MARK = 'gothic-install.json'; // written once the game is unpacked
-
-    const downloadBtn = document.getElementById('download-btn');
-    const pauseBtn = document.getElementById('pause-btn');
+    const CHUNK_STATE = 'gothic-chunks.json'; // chunks installed from a manifest.json pack
 
     // savegames and settings written by the engine (see loadPersistedFiles)
     function isPersistedPath(rel) {
       return /^[^/]+\.(sav|ini)$/i.test(rel) || /^saves[^/]*\//i.test(rel);
     }
 
-    const urlRow = document.getElementById('url-row');
-    const urlInput = document.getElementById('archive-url');
-    const urlHint = document.getElementById('url-hint');
-    const URL_KEY = 'gothic-archive-url'; // last link typed by the user
-
-    // link from the input field, normalized; null when it is not a URL
-    function archiveUrl() {
-      try {
-        return normalizeArchiveUrl(urlInput.value.trim() || ARCHIVE_URL);
-      } catch (e) {
-        return null;
-      }
-    }
-
-    // ?archive= wins, then the last link a download was started with (it
-    // matches an unfinished download), then the built-in default
-    async function initArchiveInput() {
-      const state = await readRootJson(DL_STATE);
-      let saved = null;
-      try { saved = localStorage.getItem(URL_KEY); } catch (e) {}
-      urlInput.value = new URLSearchParams(location.search).get('archive') ||
-                       saved || (state && state.url) || ARCHIVE_URL;
-      let timer = 0;
-      urlInput.addEventListener('input', () => {
-        clearTimeout(timer);
-        timer = setTimeout(updateDownloadButton, 600);
-      });
-      urlInput.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') downloadGame();
-      });
-    }
-
-    function setUrlHint(text, cls) {
-      urlHint.textContent = text;
-      urlHint.className = 'url-hint' + (cls ? ' ' + cls : '');
+    // ?archive=<url> overrides the built-in links
+    function archiveUrls() {
+      const q = new URLSearchParams(location.search).get('archive');
+      return (q ? [q] : ARCHIVE_URLS).map(normalizeArchiveUrl);
     }
 
     function normalizeArchiveUrl(u) {
@@ -1248,91 +1567,44 @@ function serveLoop() {
     function mb(bytes) { return (bytes / 1048576).toFixed(0); }
 
     function showSourceButtons(show) {
-      const d = show ? 'inline-flex' : 'none';
-      downloadBtn.style.display = d;
-      urlRow.style.display = show ? 'flex' : 'none';
-      folderBtn.style.display = d;
-      zipBtn.style.display = d;
+      sourceRow.style.display = show ? 'flex' : 'none';
     }
 
-    async function initStorage() {
-      bindErrnoError();
+    // The game starts by itself: an installed game is mounted and launched,
+    // otherwise the archive download begins right away. The offline buttons
+    // stay available and stop the download when used.
+    async function bootstrap() {
       try {
         const installed = await readRootJson(INSTALL_MARK);
         // without the direct mode a game imported into OPFS is used as well
-        if ((installed || !DIRECT_FOLDER_MODE) && await mountInstalledGame())
-          return;
+        if (installed || !DIRECT_FOLDER_MODE) {
+          await g_runtimeReady;
+          if (await mountInstalledGame()) {
+            startGame();
+            return;
+          }
+        }
       } catch (e) {
-        console.warn('initStorage error:', e);
+        console.warn('bootstrap error:', e);
       }
-      await initArchiveInput();
       showSourceButtons(true);
       progressContainer.style.display = 'none';
-      await updateDownloadButton();
-      setStatus('Select a game source');
+      downloadGame();
     }
 
-    // Button label (resume info for an unfinished download) and a check of
-    // the link: reachable from the page (CORS), ZIP signature, size, resume.
-    let g_probeSeq = 0;
-    async function updateDownloadButton() {
-      const seq = ++g_probeSeq;
-      const url = archiveUrl();
-      downloadBtn.textContent = 'Download';
-      if (!url) {
-        setUrlHint('Invalid link', 'bad');
-        return;
-      }
-      const state = await readRootJson(DL_STATE);
-      if (seq !== g_probeSeq) return;
-      if (state && state.url === url && state.total) {
-        let have = 0;
-        try {
-          const root = await navigator.storage.getDirectory();
-          have = (await (await root.getFileHandle(DL_ZIP)).getFile()).size;
-        } catch (e) {}
-        if (seq !== g_probeSeq) return;
-        downloadBtn.textContent = have >= state.total
-          ? 'Unpack'
-          : 'Resume (' + mb(have) + ' / ' + mb(state.total) + ' MB)';
-        setUrlHint('Download in progress', 'ok');
-        return;
-      }
-      setUrlHint('Checking...');
-      const ctl = new AbortController();
-      try {
-        const resp = await fetch(url, { headers: { Range: 'bytes=0-3' }, cache: 'no-store', signal: ctl.signal });
-        if (seq !== g_probeSeq) { ctl.abort(); return; }
-        if (!resp.ok) {
-          ctl.abort();
-          setUrlHint('Server responded with HTTP ' + resp.status, 'bad');
-          return;
-        }
-        const m = /\/(\d+)\s*$/.exec(resp.headers.get('Content-Range') || '');
-        const total = m ? +m[1] : (+resp.headers.get('Content-Length') || 0);
-        // without Range support the whole file is coming: only the first
-        // chunk is read, then the request is dropped
-        const note = resp.status === 206 ? ''
-          : ', no resume support';
-        const reader = resp.body.getReader();
-        const first = await reader.read();
-        ctl.abort();
-        if (seq !== g_probeSeq) return;
-        // a page instead of the file (preview, login, quota) is not a ZIP
-        const sig = first.value || new Uint8Array(0);
-        if (sig[0] !== 0x50 || sig[1] !== 0x4b) {
-          setUrlHint('Not a ZIP archive', 'bad');
-          return;
-        }
-        if (total)
-          downloadBtn.textContent = 'Download (' + mb(total) + ' MB)';
-        setUrlHint('Archive available' + (total ? ', ' + mb(total) + ' MB' : '') + note, 'ok');
-      } catch (e) {
-        if (seq !== g_probeSeq) return;
-        console.warn('archive probe failed:', e);
-        setUrlHint('Archive unavailable (CORS or no connection)', 'bad');
-      }
+    // an offline source replaces the download: stop it, and continue it
+    // again when the file dialog is dismissed without a choice
+    function pickOffline(inputId) {
+      if (g_gameReady) return;
+      const input = document.getElementById(inputId);
+      pauseInstall();
+      input.value = '';
+      input.addEventListener('cancel', () => {
+        if (!g_gameReady && !g_installWorker && !g_offlineBusy) downloadGame();
+      }, { once: true });
+      input.click();
     }
+    let g_offlineBusy = false;
 
     // Mounts the game installed into OPFS (downloaded, unpacked or imported).
     // Returns false when there is no game there.
@@ -1385,11 +1657,10 @@ function serveLoop() {
       Module.FS.mount(GameFS, {}, GAME_ROOT);
 
       showSourceButtons(false);
-      pauseBtn.style.display = 'none';
+      retryBtn.style.display = 'none';
       progressContainer.style.display = 'none';
       statusText.style.color = '';
-      setStatus('Game ready');
-      startBtn.style.display = 'inline-flex';
+      setStatus('Starting...');
       clearBtn.style.display = 'inline-flex';
       g_gameReady = true;
       return true;
@@ -1470,10 +1741,11 @@ function serveLoop() {
       };
     }
 
-    function installError(err, what) {
+    function installError(err, what, retry) {
       if (err.paused) {
         statusText.style.color = '';
-        setStatus('Paused');
+        setStatus('Download stopped');
+        progressContainer.style.display = 'none';
       } else {
         console.error(what, err);
         statusText.style.color = 'var(--danger)';
@@ -1484,25 +1756,26 @@ function serveLoop() {
           msg = 'cannot reach the archive server (' + msg + ')';
         setStatus(what + ': ' + msg);
       }
-      pauseBtn.style.display = 'none';
       showSourceButtons(true);
-      updateDownloadButton();
+      if (!err.paused && retry) retryBtn.style.display = 'inline-block';
     }
 
+    let g_downloading = false;
     async function downloadGame() {
-      if (g_gameReady || g_installWorker) return;
-      const url = archiveUrl();
-      if (!url) {
-        setUrlHint('Invalid link', 'bad');
-        urlInput.focus();
+      if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
+      let urls, url;
+      try {
+        urls = archiveUrls();
+        url = urls[0];
+      } catch (e) {
+        installError(new Error('invalid archive link'), 'Error', false);
         return;
       }
-      try { localStorage.setItem(URL_KEY, urlInput.value.trim()); } catch (e) {}
-      showSourceButtons(false);
+      g_downloading = true;
+      retryBtn.style.display = 'none';
       statusText.style.color = '';
       progressContainer.style.display = 'block';
       progressBar.style.width = '0%';
-      pauseBtn.style.display = 'inline-flex';
       setStatus('Connecting...');
       // keep the browser from evicting a multi-GB install under storage pressure
       try { if (navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
@@ -1514,19 +1787,29 @@ function serveLoop() {
       }
       const report = makeProgressReporter();
       try {
+        // a link to manifest.json is a chunked pack (tools/pack_web.py): chunks
+        // are unpacked while the next ones download
+        if (/\/manifest\.json$/i.test(new URL(url).pathname)) {
+          const res = await runInstallWorker({ type: 'chunks', urls, stateName: CHUNK_STATE }, report);
+          await finishInstall({ source: url, archiveBytes: res.download }, res);
+          return;
+        }
         const dl = await runInstallWorker({ type: 'download', url, zipName: DL_ZIP, stateName: DL_STATE,
                                             expectTotal: state ? state.total : 0 }, report);
         setStatus('Checking...', 0);
         const res = await runInstallWorker({ type: 'extract', zipName: DL_ZIP, deleteZip: true }, report);
         await finishInstall({ source: url, archiveBytes: dl.total }, res);
       } catch (err) {
-        installError(err, 'Error');
+        installError(err, 'Error', true);
+      } finally {
+        g_downloading = false;
       }
     }
 
     async function installFromZip(file) {
       if (g_gameReady || g_installWorker) return;
-      showSourceButtons(false);
+      g_offlineBusy = true;
+      retryBtn.style.display = 'none';
       statusText.style.color = '';
       progressContainer.style.display = 'block';
       progressBar.style.width = '0%';
@@ -1535,18 +1818,21 @@ function serveLoop() {
         const res = await runInstallWorker({ type: 'extract', blob: file }, makeProgressReporter());
         await finishInstall({ source: 'file:' + file.name, archiveBytes: file.size }, res);
       } catch (err) {
-        installError(err, 'Error');
+        g_offlineBusy = false;
+        installError(err, 'Error', true);
       }
     }
 
     async function finishInstall(info, res) {
-      pauseBtn.style.display = 'none';
       await writeRootJson(INSTALL_MARK, Object.assign(info, res, { date: new Date().toISOString() }));
       await removeRootEntry(DL_ZIP);
       await removeRootEntry(DL_STATE);
+      await removeRootEntry(CHUNK_STATE);
       console.log('[SHELL] game installed:', res.files, 'files,', mb(res.bytes), 'MB');
+      await g_runtimeReady;
       if (!await mountInstalledGame())
         throw new Error('game not found after unpacking');
+      startGame();
     }
 
     function initLazyBackend(paths, files) {
@@ -1636,6 +1922,7 @@ function serveLoop() {
       await removeRootEntry(INSTALL_MARK);
       await removeRootEntry(DL_ZIP);
       await removeRootEntry(DL_STATE);
+      await removeRootEntry(CHUNK_STATE);
       try {
         indexedDB.deleteDatabase('/gothic'); // legacy IDBFS database
         indexedDB.deleteDatabase('emscripten-fs'); // legacy runtime database
@@ -1649,6 +1936,7 @@ function serveLoop() {
     async function onFolderSelected(event) {
       const files = event.target.files;
       if (!files || files.length === 0) return;
+      g_offlineBusy = true;
       if (DIRECT_FOLDER_MODE)
         await mountFolderDirect(files);
       else
@@ -1678,9 +1966,21 @@ function serveLoop() {
       return out;
     }
 
+    // offline source failed: back to the download
+    function offlineFailed(err) {
+      g_offlineBusy = false;
+      statusText.style.color = 'var(--danger)';
+      setStatus('Error: ' + (err.message || err));
+      progressContainer.style.display = 'none';
+      showSourceButtons(true);
+      retryBtn.style.display = 'inline-block';
+    }
+
     async function mountFolderDirect(fileList) {
-      folderBtn.style.display = 'none';
-      zipBtn.style.display = 'none';
+      g_offlineBusy = true;
+      showSourceButtons(false);
+      retryBtn.style.display = 'none';
+      statusText.style.color = '';
       try {
         const list = [];
         for (const file of fileList) {
@@ -1724,23 +2024,23 @@ function serveLoop() {
           e.hIdx = -1;
         }
 
+        await g_runtimeReady;
         Module.FS.mkdir(GAME_ROOT);
         Module.FS.mount(GameFS, {}, GAME_ROOT);
-        setStatus('Game ready');
-        startBtn.style.display = 'inline-flex';
+        progressContainer.style.display = 'none';
+        setStatus('Starting...');
         g_gameReady = true;
+        startGame();
       } catch (err) {
         console.error('mount error:', err);
-        statusText.style.color = 'var(--danger)';
-        setStatus('Error: ' + (err.message || err));
-        folderBtn.style.display = 'inline-flex';
-        zipBtn.style.display = 'inline-flex';
+        offlineFailed(err);
       }
     }
 
     async function onZipSelected(event) {
       const file = event.target.files[0];
       if (!file) return;
+      g_offlineBusy = true;
       await installFromZip(file);
     }
 
@@ -1764,7 +2064,7 @@ function serveLoop() {
         totalBytes += file.size;
       }
       if (list.length === 0) {
-        setStatus('No game files found in the selected folder.');
+        offlineFailed(new Error('no game files found in the selected folder'));
         return;
       }
       await importToOpfs(list, totalBytes);
@@ -1773,8 +2073,7 @@ function serveLoop() {
     async function importToOpfs(list, totalBytes) {
       progressContainer.style.display = 'block';
       progressBar.style.width = '0%';
-      folderBtn.style.display = 'none';
-      zipBtn.style.display = 'none';
+      showSourceButtons(false);
 
       const dir = await opfsGameDir(true);
       let doneBytes = 0;
@@ -1808,10 +2107,7 @@ function serveLoop() {
         setTimeout(() => location.reload(), 600);
       } catch (err) {
         console.error('Import error:', err);
-        statusText.style.color = 'var(--danger)';
-        setStatus('Error: ' + (err.message || err));
-        folderBtn.style.display = 'inline-flex';
-        zipBtn.style.display = 'inline-flex';
+        offlineFailed(err);
       }
     }
 
@@ -1829,7 +2125,9 @@ function serveLoop() {
       e.preventDefault();
       uiOverlay.classList.remove('drag-over');
       const files = e.dataTransfer.files;
-      if (!files || files.length === 0) return;
+      if (!files || files.length === 0 || g_gameReady) return;
+      pauseInstall();
+      g_offlineBusy = true;
 
       if (files.length === 1 && files[0].name.toLowerCase().endsWith('.zip')) {
         await installFromZip(files[0]);
@@ -1888,8 +2186,12 @@ function serveLoop() {
       console.log('[SHELL] WebGPU device: features=' + requiredFeatures.join(','));
     }
 
+    let g_started = false;
     async function startGame() {
+      if (g_started) return;
+      g_started = true;
       uiOverlay.classList.add('hidden');
+      player.classList.add('playing');
       canvas.focus();
       console.log("Starting OpenGothic engine...");
       try {
@@ -1910,10 +2212,13 @@ function serveLoop() {
         window.__startErr = (err && err.stack) ? err.stack : String(err);
         console.error("Engine execution error:", err);
         uiOverlay.classList.remove('hidden');
+        player.classList.remove('playing');
         statusText.style.color = 'var(--danger)';
         statusText.innerText = "Error: " + err;
       }
     }
+
+    bootstrap();
   </script>
   {{{ SCRIPT }}}
 </body>

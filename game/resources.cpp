@@ -28,6 +28,7 @@
 #include "graphics/mesh/attachbinder.h"
 #include "graphics/material.h"
 #include "dmusic/directmusic.h"
+#include "sound/opussound.h"
 #include "utils/fileext.h"
 #include "utils/gthfont.h"
 
@@ -706,6 +707,13 @@ Tempest::Sound Resources::implLoadSoundBuffer(std::string_view name) {
   if(!getFileData(name,fBuff))
     return Tempest::Sound();
   try {
+    if(OpusSound::isOpus(fBuff.data(),fBuff.size())) {
+      auto wav = OpusSound::decodeToWav(fBuff.data(),fBuff.size());
+      if(wav.empty())
+        throw std::runtime_error("bad opus stream");
+      Tempest::MemReader rd(wav.data(),wav.size());
+      return Tempest::Sound(rd);
+      }
     Tempest::MemReader rd(fBuff.data(),fBuff.size());
     return Tempest::Sound(rd);
     }

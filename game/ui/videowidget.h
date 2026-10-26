@@ -30,12 +30,14 @@ class VideoWidget : public Tempest::Widget {
     struct Context;
 
     void  stopVideo();
+    bool  startBrowserVideo(zenkit::Read& fin);
 
     std::unique_ptr<Context>      ctx;
     Tempest::Texture2d            tex[Resources::MaxFramesInFlight];
     Tempest::Texture2d*           frame  = nullptr;
     bool                          active = false;
     bool                          restoreMusic = false;
+    bool                          browserVideo = false;
 
     std::atomic_bool              hasPendingVideo{false};
     std::mutex                    syncVideo;

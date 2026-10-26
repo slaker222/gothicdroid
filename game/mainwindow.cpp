@@ -1104,10 +1104,14 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
   auto tex = renderer.screenshoot(cmdId);
   auto pm  = device.readPixels(textureCast<const Texture2d&>(tex));
 
-  if(dialogs.isActive())
+  if(dialogs.isActive()) {
+    Tempest::Log::i("MainWindow::saveGame skipped: dialog is active");
     return;
-  if(auto w = Gothic::inst().world(); w!=nullptr && w->currentCs()!=nullptr)
+    }
+  if(auto w = Gothic::inst().world(); w!=nullptr && w->currentCs()!=nullptr) {
+    Tempest::Log::i("MainWindow::saveGame skipped: cutscene is active");
     return;
+    }
 
   Tempest::Log::i("MainWindow::saveGame slot: ", slot, " name: ", name);
   Gothic::inst().startSave(std::move(textureCast<Texture2d&>(tex)),[slot=std::string(slot),name=std::string(name),pm](std::unique_ptr<GameSession>&& game){

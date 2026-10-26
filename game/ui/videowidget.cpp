@@ -8,6 +8,11 @@
 #include <Tempest/Fence>
 
 #include <cstddef>
+#include <cstring>
+
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
 
 #include "bink/video.h"
 #include "graphics/shaders.h"
@@ -15,6 +20,48 @@
 #include "gothic.h"
 
 using namespace Tempest;
+
+#if defined(__EMSCRIPTEN__)
+// MP4 cutscenes (repacked game data, original *.BIK name) are played by the page itself:
+// a <video> element over the canvas decodes picture and sound; the engine only waits for it to end.
+EM_JS(void, ogVideoPlay, (const uint8_t* data, size_t size, float volume), {
+  var url = URL.createObjectURL(new Blob([HEAPU8.slice(data, data + size)], {type: 'video/mp4'}));
+  var v   = document.createElement('video');
+  var done = function() { Module.__ogVideoDone = true; };
+  v.id = 'og-video';
+  v.src = url;
+  v.playsInline = true;
+  v.volume = Math.max(0, Math.min(1, volume));
+  v.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:5';
+  v.onended = done;
+  v.onclick = done;
+  v.onerror = function() {
+    console.error('[video] browser cannot play this video', v.error && v.error.message);
+    done();
+    };
+  Module.__ogVideoDone = false;
+  Module.__ogVideoUrl  = url;
+  (document.getElementById('player') || document.body).appendChild(v);
+  // autoplay with sound may be blocked until the page got a user gesture
+  v.play().catch(function() { v.muted = true; v.play().catch(done); });
+  });
+
+EM_JS(int, ogVideoDone, (), {
+  return Module.__ogVideoDone ? 1 : 0;
+  });
+
+EM_JS(void, ogVideoStop, (), {
+  var v = document.getElementById('og-video');
+  if(v) {
+    v.pause();
+    v.remove();
+    }
+  if(Module.__ogVideoUrl)
+    URL.revokeObjectURL(Module.__ogVideoUrl);
+  Module.__ogVideoUrl  = null;
+  Module.__ogVideoDone = true;
+  });
+#endif
 
 struct VideoWidget::Input : Bink::Video::Input {
   Input(zenkit::Read& fin):fin(fin) {}
@@ -292,15 +339,20 @@ void VideoWidget::pushVideo(std::string_view filename) {
   }
 
 bool VideoWidget::isActive() const {
-  return ctx!=nullptr || hasPendingVideo.load();
+  return ctx!=nullptr || browserVideo || hasPendingVideo.load();
   }
 
 void VideoWidget::tick() {
   if(ctx!=nullptr && ctx->isEof()) {
     stopVideo();
     }
+#if defined(__EMSCRIPTEN__)
+  if(browserVideo && ogVideoDone()) {
+    stopVideo();
+    }
+#endif
 
-  if(ctx!=nullptr)
+  if(ctx!=nullptr || browserVideo)
     return;
 
   if(!hasPendingVideo)
@@ -332,7 +384,8 @@ void VideoWidget::tick() {
     }
 
   try {
-    ctx.reset(new Context(std::move(read)));
+    if(!startBrowserVideo(*read))
+      ctx.reset(new Context(std::move(read)));
     if(!active) {
       active       = true;
       restoreMusic = GameMusic::inst().isEnabled();
@@ -364,8 +417,35 @@ void VideoWidget::mouseDownEvent(Tempest::MouseEvent& event) {
 #endif
   }
 
+bool VideoWidget::startBrowserVideo(zenkit::Read& fin) {
+#if defined(__EMSCRIPTEN__)
+  char head[8] = {};
+  const bool isMp4 = fin.read(head,sizeof(head))==sizeof(head) && std::memcmp(head+4,"ftyp",4)==0;
+  fin.seek(0,zenkit::Whence::END);
+  const size_t size = fin.tell();
+  fin.seek(0,zenkit::Whence::BEG);
+  if(!isMp4)
+    return false;
+
+  std::vector<uint8_t> data(size);
+  if(fin.read(data.data(),size)!=size)
+    throw std::runtime_error("i/o error");
+  ogVideoPlay(data.data(),data.size(),Gothic::inst().settingsGetF("SOUND","soundVolume"));
+  browserVideo = true;
+  return true;
+#else
+  (void)fin;
+  return false;
+#endif
+  }
+
 void VideoWidget::stopVideo() {
   ctx.reset();
+#if defined(__EMSCRIPTEN__)
+  if(browserVideo)
+    ogVideoStop();
+#endif
+  browserVideo = false;
   if(!hasPendingVideo) {
     if(restoreMusic && !GameMusic::inst().isEnabled())
       GameMusic::inst().setEnabled(true);

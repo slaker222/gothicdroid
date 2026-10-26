@@ -558,11 +558,7 @@ void Gothic::implStartLoadSave(std::string_view banner,
 
   onStartLoading();
   auto g = clearGame().release();
-  EM_ASM({
-    if (!window.__hb) window.__hb = {};
-    window.__hb.phase = 'load-enter';
-    window.__hb.t = Date.now();
-    });
+  OG_HB("load-enter");
 #if defined(__EMSCRIPTEN__)
   // Single-threaded wasm: no loader thread. The job runs from a timer, so the
   // loading screen is painted before the (blocking) load starts.

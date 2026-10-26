@@ -147,6 +147,12 @@ set(DM_ENABLE_ASAN             OFF CACHE INTERNAL "")
 add_subdirectory(lib/dmusic)
 target_link_libraries(${PROJECT_NAME} dmusic)
 
+# opus (compressed speech/sfx in repacked archives)
+set(OPUS_INSTALL_PKG_CONFIG_MODULE   OFF CACHE INTERNAL "")
+set(OPUS_INSTALL_CMAKE_CONFIG_MODULE OFF CACHE INTERNAL "")
+add_subdirectory(lib/opus EXCLUDE_FROM_ALL)
+target_link_libraries(${PROJECT_NAME} opus)
+
 # TinySoundFont
 add_definitions(-DTSF_NO_STDIO)
 include_directories(lib/TinySoundFont)
