@@ -25,6 +25,9 @@
 //   --keep             leave the browser open (for a person to play), exit with Ctrl+C
 //   --profile=DIR      profile dir (default profile); a fresh dir installs the game again
 //   --jsflags=FLAGS    Chrome --js-flags (e.g. --no-wasm-inlining for honest self-time in profiles)
+//   --device           Chrome on an android phone over adb (adb reverse/forward set up by this script);
+//                      the page is then http://localhost:PORT/ of --url, profile options do not apply
+//   --gputime          GPU time per pass (timestamp queries): run script reads window.__gpuAgg()
 //   --log              print the game's console
 //
 // Prints one JSON line with the results.
@@ -45,9 +48,24 @@ let url = args.url || 'http://127.0.0.1:8322/';
 const q = ['archive=/game_web.zip'];
 if (args.nomenu) q.push('nomenu');
 if (args.uncapped) q.push('uncapped');
+if (args.device) url = url.replace('127.0.0.1', 'localhost');
 url += (url.includes('?') ? '&' : '?') + q.join('&');
 
-const browser = await puppeteer.launch({
+let deviceUrlPort = 0;
+async function connectDevice() {
+  const { execSync } = await import('child_process');
+  const sh = c => execSync(c, { encoding: 'utf8' });
+  deviceUrlPort = +new URL(url).port || 80;
+  sh(`adb reverse tcp:${deviceUrlPort} tcp:${deviceUrlPort}`);
+  sh('adb shell svc power stayon usb');
+  sh('adb shell input keyevent KEYCODE_WAKEUP');
+  sh('adb shell am force-stop com.android.chrome');
+  sh('adb shell am start -a android.intent.action.VIEW -d about:blank -n com.android.chrome/com.google.android.apps.chrome.Main');
+  await sleep(4000);
+  sh('adb forward tcp:9222 localabstract:chrome_devtools_remote');
+  return puppeteer.connect({ browserURL: 'http://127.0.0.1:9222', defaultViewport: null });
+}
+const browser = args.device ? await connectDevice() : await puppeteer.launch({
   executablePath: '/usr/bin/google-chrome-stable',
   headless: false,
   timeout: 120000, // the first start of a fresh profile is slow
@@ -59,7 +77,7 @@ const browser = await puppeteer.launch({
          '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
          '--disable-backgrounding-occluded-windows', ...(args.jsflags ? ['--js-flags=' + args.jsflags] : [])],
 });
-const page = (await browser.pages())[0];
+const page = args.device ? await browser.newPage() : (await browser.pages())[0];
 const cdp = await page.createCDPSession();
 
 if (args.phone) {
@@ -88,6 +106,7 @@ page.on('console', m => {
 });
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 
+if (args.gputime) await page.evaluateOnNewDocument(fs.readFileSync(path.join(HERE, 'gputime.js'), 'utf8'));
 // count the frames the engine renders (one canvas texture each)
 await page.evaluateOnNewDocument(() => {
   window.__frames = 0;
@@ -175,4 +194,4 @@ res.errors = errors.slice(0, 10);
 console.log(JSON.stringify(res));
 
 if (args.keep) { console.log('browser left open; Ctrl+C to quit'); await new Promise(() => {}); }
-await browser.close();
+if (args.device) await browser.disconnect(); else await browser.close();

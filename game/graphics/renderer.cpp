@@ -802,6 +802,8 @@ void Renderer::drawTonemapping(Attachment& result, Encoder<CommandBuffer>& cmd, 
   cmd.setBinding(0, wview.sceneGlobals().uboGlobal[SceneGlobals::V_Main]);
 #if defined(__MOBILE_PLATFORM__)
   cmd.setBinding(1, sceneLinear, Sampler::bilinear(ClampMode::ClampToEdge));
+#elif defined(__WEB_PLATFORM__)
+  cmd.setBinding(1, sceneLinear, Sampler::bilinear(ClampMode::ClampToEdge)); // lanczosUpscaleLinear
 #else
   cmd.setBinding(1, sceneLinear, Sampler::nearest(ClampMode::ClampToEdge)); // Lanczos upscale requires nearest sampling
 #endif

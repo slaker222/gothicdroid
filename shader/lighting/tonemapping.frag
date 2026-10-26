@@ -80,6 +80,8 @@ void main() {
 #if defined(UPSCALE)
 #if defined(__MOBILE_PLATFORM__)
   vec3  color      = textureLod(textureD, uv, 0).rgb;
+#elif defined(__WEB_PLATFORM__)
+  vec3  color      = lanczosUpscaleLinear(textureD, uv).rgb; // bilinear sampler
 #else
   vec3  color      = lanczosUpscale(textureD, uv).rgb;
 #endif
