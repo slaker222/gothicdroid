@@ -4576,6 +4576,10 @@ void Npc::updateAnimation(uint64_t dt, bool force) {
   }
 
 void Npc::updateAnimationPose(bool force) {
+  if(!force && !isPlayer() && visual.isFarPose()) {
+    visual.syncEffects();
+    return;
+    }
   bool syncAtt = visual.updatePose(owner,force);
   if(syncAtt)
     visual.syncAttaches();

@@ -64,6 +64,10 @@ class DrawCommands {
     void     drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void     logGeometryStats();
 
+    // web settings: object and world mesh draw distance in cm, 0 = no limit
+    static float drawDistance();
+    static float worldDistance();
+
   private:
     enum TaskLinkpackage : uint8_t {
       T_Scene      = 0,
@@ -115,7 +119,6 @@ class DrawCommands {
 
     bool                     isViewEnabled(SceneGlobals::VisCamera v) const;
 
-    static float             drawDistance();
     void                     setBindings(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera viewId,
                                          bool viewBound = false);
 

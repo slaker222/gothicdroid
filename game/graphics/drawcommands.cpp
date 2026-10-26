@@ -86,11 +86,25 @@ bool DrawCommands::isViewEnabled(SceneGlobals::VisCamera viewport) const {
 
 float DrawCommands::drawDistance() {
 #if defined(__EMSCRIPTEN__)
-  // web settings menu: [INTERNAL] webDrawDist 0 = no limit, 1..3 = 150/80/40 m
+  // web settings menu: [INTERNAL] webDrawDist 0 = no limit, 1..4 = 150/80/40/20 m
   switch(Gothic::settingsGetI("INTERNAL","webDrawDist")) {
     case 1: return 15000.f;
     case 2: return 8000.f;
     case 3: return 4000.f;
+    case 4: return 2000.f;
+    }
+#endif
+  return 0.f;
+  }
+
+float DrawCommands::worldDistance() {
+#if defined(__EMSCRIPTEN__)
+  // web settings menu: [INTERNAL] webWorldDist 0 = no limit, 1..4 = 500/300/150/80 m
+  switch(Gothic::settingsGetI("INTERNAL","webWorldDist")) {
+    case 1: return 50000.f;
+    case 2: return 30000.f;
+    case 3: return 15000.f;
+    case 4: return 8000.f;
     }
 #endif
   return 0.f;
@@ -334,11 +348,12 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
     if(!isViewEnabled(viewport))
       continue;
 
-    struct Push { uint32_t firstMeshlet; uint32_t meshletCount; float znear; float drawDistance; } push = {};
+    struct Push { uint32_t firstMeshlet; uint32_t meshletCount; float znear; float drawDistance; float worldDistance; } push = {};
     push.firstMeshlet = 0;
     push.meshletCount = uint32_t(clusters.size());
     push.znear        = scene.znear;
-    push.drawDistance = drawDistance();
+    push.drawDistance  = drawDistance();
+    push.worldDistance = worldDistance();
 
     auto* pso = &Shaders::inst().visibilityPassSh;
     if(viewport==SceneGlobals::V_Main) {

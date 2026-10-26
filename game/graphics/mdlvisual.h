@@ -79,6 +79,10 @@ class MdlVisual final {
     // updateAnimation in two steps: sound/particle events and effects, then the pose
     void                           processAnimEvents(Npc* npc, Interactive* mobsi, World& world, uint64_t dt);
     bool                           updatePose(World& world, bool force);
+    // web: npc out of the draw distance (setFarPose), its pose is not computed
+    static void                    setFarPose(bool enabled, float drawDistance, const Tempest::Vec3& camera);
+    bool                           isFarPose() const;
+    void                           syncEffects();
     void                           processLayers  (World& world);
     bool                           processEvents(World& world, uint64_t &barrier, Animation::EvCount &ev);
     auto                           mapBone(const size_t boneId) const -> Tempest::Vec3;

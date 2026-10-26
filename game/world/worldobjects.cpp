@@ -15,6 +15,9 @@
 #include "utils/workers.h"
 #include "utils/dbgpainter.h"
 #include "gothic.h"
+#include "camera.h"
+#include "graphics/drawcommands.h"
+#include "graphics/mdlvisual.h"
 
 #include <Tempest/Painter>
 #include <Tempest/Application>
@@ -427,6 +430,15 @@ void WorldObjects::updateAnimation(uint64_t dt) {
 #if defined(__EMSCRIPTEN_PTHREADS__)
   // web: audio, effects and GPU resources belong to the main thread. Transforms
   // and animation events run there in order, only poses run on the workers
+  {
+  Tempest::Vec3 cam;
+  if(auto c = Gothic::inst().camera()) {
+    auto v = c->view();
+    v.inverse();
+    v.project(cam);
+    }
+  MdlVisual::setFarPose(Gothic::settingsGetI("INTERNAL","webSkipFarAnim")!=0, DrawCommands::drawDistance(), cam);
+  }
   for(auto& i:npcArr)
     i->updateAnimationEvents(dt);
   Workers::parallelTasks(npcArr,[](std::unique_ptr<Npc>& i){

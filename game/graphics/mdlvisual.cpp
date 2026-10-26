@@ -524,6 +524,45 @@ void MdlVisual::processAnimEvents(Npc* npc, Interactive* mobsi, World& world, ui
     }
   }
 
+namespace {
+struct FarPose {
+  bool          enabled = false;
+  float         dist    = 0;
+  Tempest::Vec3 camera;
+  };
+FarPose g_farPose;
+}
+
+void MdlVisual::setFarPose(bool enabled, float drawDistance, const Tempest::Vec3& camera) {
+  g_farPose.enabled = enabled && drawDistance>0;
+  g_farPose.dist    = drawDistance;
+  g_farPose.camera  = camera;
+  }
+
+bool MdlVisual::isFarPose() const {
+  if(!g_farPose.enabled || torch.view!=nullptr)
+    return false; // torch light follows a bone
+  const Tempest::Vec3 p = {pos[3][0], pos[3][1], pos[3][2]};
+  const float d2     = (p-g_farPose.camera).quadLength();
+  // 10 m beyond the distance the visibility pass hides it at: the pose is
+  // computed again before the npc can be seen
+  const float margin = 1000;
+  float lim = g_farPose.dist + margin;
+  if(d2<=lim*lim)
+    return false;
+  const float r = bounds().rConservative;
+  lim = g_farPose.dist*std::max(1.f, r/250.f) + margin;
+  return d2>lim*lim;
+  }
+
+// attachments that follow the object, not a bone
+void MdlVisual::syncEffects() {
+  for(auto& i:effects)
+    i.view.setObjMatrix(pos);
+  pfx.view.setObjMatrix(pos);
+  hnpcVisual.view.setObjMatrix(pos);
+  }
+
 bool MdlVisual::updatePose(World& world, bool force) {
   Pose&    pose      = *skInst;
   uint64_t tickCount = world.tickCount();

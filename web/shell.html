@@ -265,8 +265,16 @@
         <select data-set="drawDist">
           <option value="0">Unlimited</option><option value="1">Far (150 m)</option>
           <option value="2">Medium (80 m)</option><option value="3">Near (40 m)</option>
+          <option value="4">Nearest (20 m)</option>
         </select>
       </label>
+      <label class="set-row">World draw distance
+        <select data-set="worldDist">
+          <option value="0">Unlimited</option><option value="1">500 m</option>
+          <option value="2">300 m</option><option value="3">150 m</option><option value="4">80 m</option>
+        </select>
+      </label>
+      <label class="set-row" title="NPCs beyond the object draw distance are not animated (their bones freeze until they come closer)">Skip hidden NPC animation <input type="checkbox" data-set="skipFarAnim"></label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
