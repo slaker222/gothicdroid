@@ -24,6 +24,7 @@
 //   --shot=NAME        screenshot out/NAME.png at the end
 //   --keep             leave the browser open (for a person to play), exit with Ctrl+C
 //   --profile=DIR      profile dir (default profile); a fresh dir installs the game again
+//   --jsflags=FLAGS    Chrome --js-flags (e.g. --no-wasm-inlining for honest self-time in profiles)
 //   --log              print the game's console
 //
 // Prints one JSON line with the results.
@@ -56,7 +57,7 @@ const browser = await puppeteer.launch({
   args: ['--enable-unsafe-webgpu', '--enable-features=Vulkan,WebGPU', '--ozone-platform=x11',
          '--window-size=1280,800', '--no-first-run', '--ignore-certificate-errors',
          '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
-         '--disable-backgrounding-occluded-windows'],
+         '--disable-backgrounding-occluded-windows', ...(args.jsflags ? ['--js-flags=' + args.jsflags] : [])],
 });
 const page = (await browser.pages())[0];
 const cdp = await page.createCDPSession();
