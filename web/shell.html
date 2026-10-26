@@ -263,7 +263,8 @@
       background: rgba(255, 255, 255, 0.4);
       transform: translate(var(--tx, 0px), var(--ty, 0px));
     }
-    #touch-stick.on { display: block; }
+    #touch-stick.on, #touch-stick.home { display: block; }
+    #touch-stick.home:not(.on) { opacity: 0.6; }
 
     #gfx-toast {
       position: absolute;
@@ -1589,10 +1590,20 @@ async function installChunks(m) {
         stickSet('W', dy < -dead); stickSet('S', dy > dead);
         stickSet('A', dx < -dead); stickSet('D', dx > dead);
       }
+      // resting place of the stick (shown in the world layout); a touch on the
+      // left part of the screen moves it under the finger
+      function stickHome() {
+        const r = ui.getBoundingClientRect(), m = Math.min(r.width, r.height);
+        stickEl.style.left = (m * 0.20) + 'px';
+        stickEl.style.top  = (r.height - m * 0.24) + 'px';
+        stickEl.style.setProperty('--tx', '0px');
+        stickEl.style.setProperty('--ty', '0px');
+      }
       function stickEnd() {
         stick = null;
         stickEl.classList.remove('on');
         for (const k in stickKeys) stickSet(k, false);
+        stickHome();
       }
       let lookId = null, lookX = 0, lookY = 0;
       look.addEventListener('pointerdown', e => {
@@ -1616,9 +1627,11 @@ async function installChunks(m) {
         } else if (e.pointerId === lookId) {
           const dx = e.clientX - lookX, dy = e.clientY - lookY;
           lookX = e.clientX; lookY = e.clientY;
-          // a finger moves less than a mouse for the same turn
+          // the game window is measured in css pixels like the touch; a finger
+          // moves less than a mouse for the same turn
+          const k = 2;
           if (g_runtimeUp) Module.ccall('og_input_look', null, ['number', 'number'],
-                                        [Math.round(dx * 2.5), Math.round(dy * 2.5)]);
+                                        [Math.round(dx * k), Math.round(dy * k)]);
         }
       });
       const lookUp = e => {
@@ -1648,6 +1661,10 @@ async function installChunks(m) {
         const layout = g_runtimeUp ? layoutOf(st) : 'none';
         if (layout !== lastLayout) { releaseAll(); lastLayout = layout; }
         ui.classList.toggle('no-look', layout !== 'world');
+        if (stickEl.classList.contains('home') !== (layout === 'world')) {
+          stickEl.classList.toggle('home', layout === 'world');
+          stickHome();
+        }
         const weapon = (st >> 12) & 7, focus = (st >> 16) & 7, hostile = !!(st & (1 << 19));
         const swim = !!(st & (1 << 8)), dive = !!(st & (1 << 9)), invMode = (st >> 20) & 7;
         const drawn = WEAPON_DRAWN[weapon];
@@ -1688,6 +1705,7 @@ async function installChunks(m) {
       chk.checked = saved === null ? isMobile : saved === '1';
       chk.addEventListener('change', apply);
       chk.addEventListener('click', e => e.stopPropagation());
+      window.addEventListener('resize', () => { if (!stick) stickHome(); });
       setInterval(update, 150);
       apply();
     })();
