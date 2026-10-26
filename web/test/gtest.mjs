@@ -27,6 +27,7 @@
 //   --jsflags=FLAGS    Chrome --js-flags (e.g. --no-wasm-inlining for honest self-time in profiles)
 //   --device           Chrome on an android phone over adb (adb reverse/forward set up by this script);
 //                      the page is then http://localhost:PORT/ of --url, profile options do not apply
+//   --devpkg=PKG       with --device: another browser (com.opera.browser; its devtools socket is found by itself)
 //   --gputime          GPU time per pass (timestamp queries): run script reads window.__gpuAgg()
 //   --manual           turn the page's automatic graphics settings off (gfxManual) for stable measurements
 //   --log              print the game's console
@@ -60,10 +61,15 @@ async function connectDevice() {
   sh(`adb reverse tcp:${deviceUrlPort} tcp:${deviceUrlPort}`);
   sh('adb shell svc power stayon usb');
   sh('adb shell input keyevent KEYCODE_WAKEUP');
-  sh('adb shell am force-stop com.android.chrome');
-  sh('adb shell am start -a android.intent.action.VIEW -d about:blank -n com.android.chrome/com.google.android.apps.chrome.Main');
-  await sleep(4000);
-  sh('adb forward tcp:9222 localabstract:chrome_devtools_remote');
+  const pkg = args.devpkg || 'com.android.chrome';
+  sh(`adb shell am force-stop ${pkg}`);
+  sh(`adb shell am start -a android.intent.action.VIEW -d about:blank ${pkg}`);
+  await sleep(5000);
+  // the devtools socket of a chromium browser: chrome_devtools_remote or <package>.devtools / _devtools_remote
+  const socks = sh('adb shell cat /proc/net/unix').split('\n').map(l => (l.match(/@(\S*devtools\S*)$/) || [])[1]).filter(Boolean);
+  const sock = socks.find(x => x.includes(pkg)) || (pkg === 'com.android.chrome' ? 'chrome_devtools_remote' : socks.find(x => x === 'chrome_devtools_remote'));
+  console.log('devtools socket: ' + sock);
+  sh(`adb forward tcp:9222 localabstract:${sock}`);
   return puppeteer.connect({ browserURL: 'http://127.0.0.1:9222', defaultViewport: null });
 }
 const browser = args.device ? await connectDevice() : await puppeteer.launch({
@@ -78,7 +84,8 @@ const browser = args.device ? await connectDevice() : await puppeteer.launch({
          '--disable-background-timer-throttling', '--disable-renderer-backgrounding',
          '--disable-backgrounding-occluded-windows', ...(args.jsflags ? ['--js-flags=' + args.jsflags] : [])],
 });
-const page = args.device ? await browser.newPage() : (await browser.pages())[0];
+const page = args.device && !args.devpkg ? await browser.newPage() :
+  (await browser.pages()).find(p => p.url().startsWith('about:') || p.url().includes('localhost')) || (await browser.pages())[0];
 const cdp = await page.createCDPSession();
 
 if (args.phone) {
