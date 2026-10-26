@@ -70,6 +70,21 @@
       aspect-ratio: auto;
     }
 
+    /* window mode: the player takes the whole browser page, nothing else is shown */
+    body.window-mode { overflow: hidden; }
+    body.window-mode #player {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      width: 100vw;
+      height: 100vh;
+      aspect-ratio: auto;
+    }
+    body.window-mode > :not(#player):not(script) { display: none !important; }
+    #win-btn .icon-exit { display: none; }
+    body.window-mode #win-btn .icon-enter { display: none; }
+    body.window-mode #win-btn .icon-exit { display: block; }
+
     #canvas {
       position: absolute;
       inset: 0;
@@ -315,6 +330,10 @@
       <label class="ctl fps-opt" title="Show FPS"><input type="checkbox" id="fps-chk"> Show FPS</label>
       <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
         <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
+      </button>
+      <button class="ctl" id="win-btn" onclick="toggleWindowMode()" aria-label="Window mode" title="Window mode">
+        <svg class="icon-enter" viewBox="0 0 24 24"><path d="M3 6h18v12H3V6zm2 2v8h14V8H5z"/></svg>
+        <svg class="icon-exit" viewBox="0 0 24 24"><path d="M5 8h14v8H5V8zm2 2v4h10v-4H7z"/></svg>
       </button>
       <button class="ctl" id="fs-btn" onclick="toggleFullscreen()" aria-label="Fullscreen" title="Fullscreen">
         <svg class="icon-enter" viewBox="0 0 24 24"><path d="M4 4h6v2H6v4H4V4zm10 0h6v6h-2V6h-4V4zM4 14h2v4h4v2H4v-6zm14 0h2v6h-6v-2h4v-4z"/></svg>
@@ -1372,6 +1391,29 @@ async function installChunks(m) {
         alert('Could not add the savegames: ' + (e.message || e));
       }
     }
+
+    // The canvas takes the player's size from CSS (the engine follows it).
+    // Emscripten's Browser.updateCanvasDimensions writes the screen size into
+    // the canvas' inline style (with !important) after the player was
+    // fullscreen once; that style outlives fullscreen and crops the picture.
+    new MutationObserver(() => {
+      if (canvas.style.width || canvas.style.height) {
+        canvas.style.removeProperty('width');
+        canvas.style.removeProperty('height');
+      }
+    }).observe(canvas, { attributes: true, attributeFilter: ['style'] });
+    canvas.style.removeProperty('width');
+    canvas.style.removeProperty('height');
+
+    // window mode: the player fills the browser page (the tabs stay)
+    function setWindowMode(on) {
+      document.body.classList.toggle('window-mode', on);
+      try { localStorage.setItem('windowMode', on ? '1' : '0'); } catch (e) {}
+    }
+    function toggleWindowMode() {
+      setWindowMode(!document.body.classList.contains('window-mode'));
+    }
+    try { if (localStorage.getItem('windowMode') === '1') setWindowMode(true); } catch (e) {}
 
     function toggleFullscreen() {
       if (!document.fullscreenElement) {
