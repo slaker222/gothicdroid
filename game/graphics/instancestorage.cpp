@@ -30,6 +30,17 @@ static void bitSet(std::vector<uint32_t>& b, size_t id) {
   reinterpret_cast<std::atomic<uint32_t>&>(bits).fetch_or(1u << id, std::memory_order_relaxed);
   }
 
+// sets bits [first, last]: one atomic per 32 blocks instead of one per block
+static void bitSetRange(std::vector<uint32_t>& b, size_t first, size_t last) {
+  while(first<=last) {
+    const size_t   lo   = first%32;
+    const size_t   hi   = std::min<size_t>(31, lo + (last-first));
+    const uint32_t mask = (hi==31 ? ~0u : ((1u << (hi+1)) - 1u)) & ~((1u << lo) - 1u);
+    reinterpret_cast<std::atomic<uint32_t>&>(b[first/32]).fetch_or(mask, std::memory_order_relaxed);
+    first += hi-lo+1;
+    }
+  }
+
 static bool bitAt(std::vector<uint32_t>& b, size_t id) {
   auto bits = b[id/32];
   id %= 32;
@@ -61,8 +72,8 @@ void InstanceStorage::Id::set(const Tempest::Matrix4x4* mat) {
   auto data = reinterpret_cast<Matrix4x4*>(owner->dataCpu.data() + rgn.begin);
   std::memcpy(data, mat, rgn.asize);
 
-  for(size_t i=0; i<rgn.asize; i+=blockSz)
-    bitSet(owner->durty, (rgn.begin+i)/blockSz);
+  if(rgn.asize>0)
+    bitSetRange(owner->durty, rgn.begin/blockSz, (rgn.begin + (rgn.asize-1)/blockSz*blockSz)/blockSz);
   }
 
 void InstanceStorage::Id::set(const Tempest::Matrix4x4& obj, size_t offset) {

@@ -11,7 +11,51 @@
 
 #include <cmath>
 
+#if defined(__wasm_simd128__)
+#include <wasm_simd128.h>
+#endif
+
 using namespace Tempest;
+
+#if defined(__wasm_simd128__)
+// r = a*b, b given as 16 floats row by row: the same operations in the same
+// order as Matrix4x4::operator* (bit-identical), without the out-of-line call
+// and the temporary matrices
+static inline void mulTo(Matrix4x4& r, const Matrix4x4& a, const float* b) {
+  const v128_t a0 = wasm_v128_load(a[0]);
+  const v128_t a1 = wasm_v128_load(a[1]);
+  const v128_t a2 = wasm_v128_load(a[2]);
+  const v128_t a3 = wasm_v128_load(a[3]);
+  for(int i=0; i<4; ++i) {
+    v128_t x = wasm_f32x4_mul(a0, wasm_f32x4_splat(b[i*4+0]));
+    x = wasm_f32x4_add(x, wasm_f32x4_mul(a1, wasm_f32x4_splat(b[i*4+1])));
+    x = wasm_f32x4_add(x, wasm_f32x4_mul(a2, wasm_f32x4_splat(b[i*4+2])));
+    x = wasm_f32x4_add(x, wasm_f32x4_mul(a3, wasm_f32x4_splat(b[i*4+3])));
+    wasm_v128_store(r[i], x);
+    }
+  }
+
+// the rows of mkMatrix(s), same expressions
+static inline void mkRows(float* m, const zenkit::AnimationSample& s) {
+  const float x = s.rotation.x, y = s.rotation.y, z = s.rotation.z, w = s.rotation.w;
+  m[0]  = w * w + x * x - y * y - z * z;
+  m[1]  = 2.0f * (x * y - w * z);
+  m[2]  = 2.0f * (x * z + w * y);
+  m[3]  = 0;
+  m[4]  = 2.0f * (x * y + w * z);
+  m[5]  = w * w - x * x + y * y - z * z;
+  m[6]  = 2.0f * (y * z - w * x);
+  m[7]  = 0;
+  m[8]  = 2.0f * (x * z - w * y);
+  m[9]  = 2.0f * (y * z + w * x);
+  m[10] = w * w - x * x - y * y + z * z;
+  m[11] = 0;
+  m[12] = s.position.x;
+  m[13] = s.position.y;
+  m[14] = s.position.z;
+  m[15] = 1;
+  }
+#endif
 
 Pose::Pose() {
   lay.reserve(4);
@@ -441,11 +485,22 @@ void Pose::implMkSkeleton(const Matrix4x4 &mt) {
   auto  BIP01_HEAD = skeleton->BIP01_HEAD;
   for(size_t i=0; i<nodes.size(); ++i) {
     size_t parent = nodes[i].parent;
+#if defined(__wasm_simd128__)
+    const Matrix4x4& pm = parent<Resources::MAX_NUM_SKELETAL_NODES ? tr[parent] : mt;
+    if(hasSamples[i]) {
+      float mat[16];
+      mkRows(mat, base[i]);
+      mulTo(tr[i], pm, mat);
+      } else {
+      mulTo(tr[i], pm, nodes[i].tr[0]);
+      }
+#else
     auto   mat    = hasSamples[i] ? mkMatrix(base[i]) : nodes[i].tr;
 
     if(parent<Resources::MAX_NUM_SKELETAL_NODES)
       tr[i] = tr[parent]*mat; else
       tr[i] = mt*mat;
+#endif
 
     if(i==BIP01_HEAD && (headRotX!=0 || headRotY!=0)) {
       Matrix4x4& m = tr[i];

@@ -74,7 +74,13 @@ void Workers::setThreadName(const char* threadName) { (void)threadName; }
 using namespace Tempest;
 
 const size_t Workers::taskPerThread = 128;
+#if defined(__EMSCRIPTEN__)
+// web: workers start one after another (a core may be busy with the browser):
+// small steps keep the late ones from holding the last chunk
+const size_t Workers::taskPerStep   = 4;
+#else
 const size_t Workers::taskPerStep   = 16;
+#endif
 
 Workers::Workers() {
 #if defined(__EMSCRIPTEN__) && !defined(__EMSCRIPTEN_PTHREADS__)
