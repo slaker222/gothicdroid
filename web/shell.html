@@ -172,7 +172,7 @@
     }
 
     .ctl:hover { color: var(--accent); }
-    .ctl-right { display: flex; align-items: center; }
+    .ctl-right, .ctl-left { display: flex; align-items: center; }
     .fps-opt { gap: 6px; user-select: none; }
     .fps-opt input { margin: 0; accent-color: var(--accent); cursor: pointer; }
     #fps-counter {
@@ -300,8 +300,12 @@
     </div>
 
     <div id="controls">
+      <div class="ctl-left">
       <button class="ctl" id="clear-btn" style="display:none;" onclick="clearStorage()">Delete game</button>
-      <span></span>
+      <button class="ctl" id="saves-dl-btn" onclick="downloadSaves()" title="Download all savegames as a ZIP archive">Download saves</button>
+      <button class="ctl" id="saves-ul-btn" onclick="document.getElementById('saves-picker').click()" title="Add savegames from a ZIP archive or .sav files">Upload saves</button>
+      <input type="file" id="saves-picker" class="file-input" accept=".zip,.sav" multiple onchange="onSavesPicked(event)">
+      </div>
       <div class="ctl-right">
       <label class="ctl fps-opt" title="Show FPS"><input type="checkbox" id="fps-chk"> Show FPS</label>
       <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
@@ -1111,6 +1115,7 @@ async function installChunks(m) {
         clearTimeout(toastTimer);
         toastTimer = setTimeout(() => toast.classList.remove('show'), 5000);
       }
+      window.ogToast = showToast;
       function listText(a) {
         return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
       }
@@ -1148,6 +1153,177 @@ async function installChunks(m) {
       }
       run();
     })();
+
+    // ---------------------------- savegames ----------------------------
+    // save_slot_N.sav in the game root: in the game's file system while it
+    // runs, in OPFS (gothic/) otherwise. Downloads are a stored ZIP archive.
+    const SAVE_RE = /^save_slot_(\d+)\.sav$/i;
+
+    const SAVE_CRC = (() => {
+      const t = new Uint32Array(256);
+      for (let n = 0; n < 256; n++) {
+        let c = n;
+        for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+        t[n] = c >>> 0;
+      }
+      return t;
+    })();
+    function saveCrc32(buf) {
+      let c = 0xFFFFFFFF;
+      for (let i = 0; i < buf.length; i++) c = SAVE_CRC[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+      return (c ^ 0xFFFFFFFF) >>> 0;
+    }
+
+    function gameFsMounted() {
+      try { return !!(Module.FS && Module.FS.analyzePath(GAME_ROOT).exists && Module.FS.readdir(GAME_ROOT).length > 2); }
+      catch (e) { return false; }
+    }
+
+    // [{name, bytes, time}]
+    async function collectSaves() {
+      const out = [];
+      if (gameFsMounted()) {
+        for (const name of Module.FS.readdir(GAME_ROOT)) {
+          if (!SAVE_RE.test(name)) continue;
+          const path = GAME_ROOT + '/' + name;
+          out.push({ name, bytes: Module.FS.readFile(path), time: +Module.FS.stat(path).mtime || 0 });
+        }
+        return out;
+      }
+      let dir;
+      try { dir = await opfsGameDir(false); } catch (e) { return out; }
+      for await (const [name, h] of dir.entries()) {
+        if (h.kind !== 'file' || !SAVE_RE.test(name)) continue;
+        const f = await h.getFile();
+        out.push({ name, bytes: new Uint8Array(await f.arrayBuffer()), time: f.lastModified });
+      }
+      return out;
+    }
+
+    function zipStore(files) {
+      const enc = new TextEncoder(), parts = [], central = [];
+      let off = 0;
+      for (const f of files) {
+        const name = enc.encode(f.name), crc = saveCrc32(f.bytes), size = f.bytes.length;
+        const lh = new DataView(new ArrayBuffer(30));
+        lh.setUint32(0, 0x04034b50, true); lh.setUint16(4, 20, true);
+        lh.setUint32(14, crc, true); lh.setUint32(18, size, true); lh.setUint32(22, size, true);
+        lh.setUint16(26, name.length, true);
+        parts.push(lh.buffer, name, f.bytes);
+        const ch = new DataView(new ArrayBuffer(46));
+        ch.setUint32(0, 0x02014b50, true); ch.setUint16(4, 20, true); ch.setUint16(6, 20, true);
+        ch.setUint32(16, crc, true); ch.setUint32(20, size, true); ch.setUint32(24, size, true);
+        ch.setUint16(28, name.length, true); ch.setUint32(42, off, true);
+        central.push(ch.buffer, name);
+        off += 30 + name.length + size;
+      }
+      const cdSize = central.reduce((a, b) => a + b.byteLength, 0);
+      const end = new DataView(new ArrayBuffer(22));
+      end.setUint32(0, 0x06054b50, true);
+      end.setUint16(8, files.length, true); end.setUint16(10, files.length, true);
+      end.setUint32(12, cdSize, true); end.setUint32(16, off, true);
+      return new Blob([...parts, ...central, end.buffer], { type: 'application/zip' });
+    }
+
+    // .sav files of a ZIP archive (stored or deflated), folders ignored
+    async function unzipSaves(file) {
+      const buf = new Uint8Array(await file.arrayBuffer());
+      const dv = new DataView(buf.buffer);
+      let eocd = -1;
+      for (let i = buf.length - 22; i >= Math.max(0, buf.length - 65557); i--)
+        if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+      if (eocd < 0) throw new Error(file.name + ' is not a ZIP archive');
+      const count = dv.getUint16(eocd + 10, true);
+      let p = dv.getUint32(eocd + 16, true);
+      const out = [], dec = new TextDecoder();
+      for (let i = 0; i < count; i++) {
+        if (dv.getUint32(p, true) !== 0x02014b50) throw new Error(file.name + ': corrupt ZIP archive');
+        const method = dv.getUint16(p + 10, true), comp = dv.getUint32(p + 20, true);
+        const nl = dv.getUint16(p + 28, true), xl = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true);
+        const loc = dv.getUint32(p + 42, true);
+        const name = dec.decode(buf.subarray(p + 46, p + 46 + nl)).split('/').pop();
+        p += 46 + nl + xl + cl;
+        if (!/\.sav$/i.test(name)) continue;
+        const data = loc + 30 + dv.getUint16(loc + 26, true) + dv.getUint16(loc + 28, true);
+        let bytes = buf.slice(data, data + comp);
+        if (method === 8) {
+          const s = new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+          bytes = new Uint8Array(await new Response(s).arrayBuffer());
+        } else if (method !== 0) {
+          throw new Error(name + ': unsupported compression');
+        }
+        out.push({ name, bytes });
+      }
+      return out;
+    }
+
+    async function downloadSaves() {
+      try {
+        const saves = await collectSaves();
+        if (saves.length === 0) { window.ogToast && window.ogToast('There are no savegames yet.'); return; }
+        saves.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(zipStore(saves));
+        a.download = 'gothic-saves.zip';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+      } catch (e) {
+        alert('Could not collect the savegames: ' + (e.message || e));
+      }
+    }
+
+    async function writeSave(name, bytes) {
+      const dir = await opfsGameDir(true);
+      const fh = await dir.getFileHandle(name, { create: true });
+      const w = await fh.createWritable();
+      await w.write(bytes); await w.close();
+      // the running game sees it at once (the save/load menu lists it)
+      if (gameFsMounted()) Module.FS.writeFile(GAME_ROOT + '/' + name, bytes);
+    }
+
+    async function onSavesPicked(ev) {
+      const picked = [...ev.target.files];
+      ev.target.value = '';
+      try {
+        let incoming = [];
+        for (const f of picked) {
+          if (/\.zip$/i.test(f.name)) incoming.push(...await unzipSaves(f));
+          else incoming.push({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) });
+        }
+        if (incoming.length === 0) { window.ogToast && window.ogToast('No savegames (.sav) found in the chosen files.'); return; }
+        let slots = 15;
+        try { if (Module.ccall && Module.ccall('og_setting_get', 'number', ['string'], ['gameVersion']) === 2) slots = 20; } catch (e) {}
+        const existing = await collectSaves();
+        const taken = new Map(existing.map(s => [s.name.toLowerCase(), s.time]));
+        // savegames named by slot go to that slot (replacing it), others take a
+        // free slot, or the one saved longest ago when all are used
+        const placed = [];
+        for (const s of incoming.filter(s => SAVE_RE.test(s.name)).concat(incoming.filter(s => !SAVE_RE.test(s.name)))) {
+          let name = s.name;
+          if (!SAVE_RE.test(name)) {
+            let slot = 0;
+            for (let i = 1; i <= slots && !slot; i++) if (!taken.has(('save_slot_' + i + '.sav'))) slot = i;
+            if (!slot) {
+              let oldest = Infinity;
+              for (let i = 1; i <= slots; i++) {
+                const t = taken.get('save_slot_' + i + '.sav');
+                if (t < oldest && !placed.includes(i)) { oldest = t; slot = i; }
+              }
+            }
+            if (!slot) continue;
+            name = 'save_slot_' + slot + '.sav';
+          }
+          name = name.toLowerCase();
+          await writeSave(name, s.bytes);
+          taken.set(name, Date.now());
+          placed.push(+SAVE_RE.exec(name)[1]);
+        }
+        const list = placed.map(n => n === 0 ? 'quick save' : 'slot ' + n).join(', ');
+        window.ogToast && window.ogToast('Savegames added: ' + list + '. Open Load game in the game menu to see them.');
+      } catch (e) {
+        alert('Could not add the savegames: ' + (e.message || e));
+      }
+    }
 
     function toggleFullscreen() {
       if (!document.fullscreenElement) {

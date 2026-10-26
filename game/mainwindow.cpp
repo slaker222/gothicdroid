@@ -29,6 +29,7 @@
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
 #include <cstring>
+#include <Tempest/WebGapi>
 
 // Settings menu of the web player (web/shell.html). The page calls these
 // between frames; values live in Gothic.ini like the in-game options.
@@ -57,6 +58,8 @@ const WebSetting* findWebSetting(const char* name) {
 }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
+  if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
+    return int(Gothic::inst().version().game); // save slots: 15 in Gothic 1, 20 in Gothic 2
   auto s = findWebSetting(name);
   if(s==nullptr || !g_webSettingsReady)
     return -1;
@@ -1183,7 +1186,14 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
 
     Tempest::WFile f(slot);
     Serialize      s(f);
+#if defined(__EMSCRIPTEN__)
+    // web: the screenshot is read back asynchronously, it arrives by now
+    Tempest::Pixmap shot = pm;
+    Tempest::WebGapi::takeReadback(shot);
+    game->save(s,name,shot);
+#else
     game->save(s,name,pm);
+#endif
     Tempest::Log::i("MainWindow::saveGame successfully wrote slot: ", slot);
 
     // no print yet, because threading
