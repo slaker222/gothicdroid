@@ -39,12 +39,35 @@ class IsolatedHandler(SimpleHTTPRequestHandler):
         ".wasm": "application/wasm",
         ".js": "text/javascript",
     }
+    # idle keep-alive connections end instead of holding a thread forever
+    timeout = 60
 
     def end_headers(self):
         self.send_header("Cross-Origin-Opener-Policy", "same-origin")
         self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
         self.send_header("Cache-Control", "no-store")
         super().end_headers()
+
+
+class Server(ThreadingHTTPServer):
+    """Threaded server; with TLS the handshake runs in the client's thread.
+
+    Wrapping the listening socket would do the handshake inside accept() on the
+    main thread: one client that connects and stalls (a phone that refused the
+    self-signed certificate, a browser preconnect) blocked everyone else.
+    """
+    daemon_threads = True
+    tls = None
+
+    def finish_request(self, request, client_address):
+        if self.tls is not None:
+            request.settimeout(30)
+            try:
+                request = self.tls.wrap_socket(request, server_side=True)
+            except (ssl.SSLError, OSError):
+                request.close()
+                return
+        super().finish_request(request, client_address)
 
 
 def lan_addresses():
@@ -92,14 +115,14 @@ def main():
 
     host = "0.0.0.0" if args.lan else "127.0.0.1"
     handler = partial(IsolatedHandler, directory=str(ROOT))
-    server = ThreadingHTTPServer((host, args.port), handler)
+    server = Server((host, args.port), handler)
     addrs = lan_addresses()
     scheme = "http"
     if args.https:
         cert, key = make_cert(addrs)
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_cert_chain(cert, key)
-        server.socket = ctx.wrap_socket(server.socket, server_side=True)
+        server.tls = ctx
         scheme = "https"
     print(f"Serving {ROOT} (COOP/COEP enabled)")
     print(f"  {scheme}://127.0.0.1:{args.port}/")
