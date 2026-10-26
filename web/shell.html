@@ -190,6 +190,24 @@
     .ctl svg { width: 22px; height: 22px; fill: currentColor; }
     #fs-btn .icon-exit { display: none; }
     #player.menu-open #controls { opacity: 1; }
+    #gfx-toast {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 30;
+      max-width: min(360px, calc(100% - 24px));
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text);
+      background: rgba(10, 10, 10, 0.9);
+      border: 1px solid var(--line);
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: opacity 0.6s, transform 0.6s;
+      pointer-events: none;
+    }
+    #gfx-toast.show { opacity: 1; transform: none; }
     #settings-btn[aria-expanded="true"] { color: var(--accent); }
     #settings-panel {
       position: absolute;
@@ -247,6 +265,7 @@
     </div>
 
     <div id="fps-counter">0 FPS</div>
+    <div id="gfx-toast" role="status" aria-live="polite"></div>
 
     <div id="settings-panel" class="disabled">
       <label class="set-row">Unlock FPS <input type="checkbox" data-set="fpsUnlock"></label>
@@ -943,10 +962,16 @@ async function installChunks(m) {
       const chk = document.getElementById('fps-chk');
       const box = document.getElementById('fps-counter');
       let frames = 0, last = performance.now(), timer = 0;
+      // frame stats shared with the automatic graphics settings
+      const stats = window.ogFrameStats = { count: 0, last: 0, maxGap: 0 };
       if (window.GPUCanvasContext) {
         const orig = GPUCanvasContext.prototype.getCurrentTexture;
         GPUCanvasContext.prototype.getCurrentTexture = function() {
           frames++;
+          const now = performance.now();
+          if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
+          stats.last = now;
+          stats.count++;
           return orig.apply(this, arguments);
         };
       }
@@ -1025,7 +1050,10 @@ async function installChunks(m) {
         e.stopPropagation();
         setOpen(!player.classList.contains('menu-open'));
       });
+      window.ogSettingsReload = () => { if (player.classList.contains('menu-open')) load(); };
       inputs.forEach(el => el.addEventListener('change', () => {
+        // the player chose: automatic settings leave the graphics alone from now on
+        try { localStorage.setItem('gfxManual', '1'); } catch (e) {}
         const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10);
         try { Module.ccall('og_setting_set', 'number', ['string', 'number'], [el.dataset.set, v]); } catch (e) {}
         el.blur(); // arrow keys go back to the game
@@ -1033,6 +1061,92 @@ async function installChunks(m) {
       panel.addEventListener('click', e => e.stopPropagation());
       // a click on the game closes the menu
       canvas.addEventListener('mousedown', () => setOpen(false));
+    })();
+
+    // Automatic graphics settings: when the game runs below 25 fps, quality is
+    // lowered one step at a time (least visible first, resolution last) until
+    // it reaches 35 fps. Never raised again automatically; a setting changed
+    // by the player in the menu turns this off.
+    (function() {
+      const LOW = 25, TARGET = 35, WINDOW = 3000, SETTLE = 2000;
+      const get = k => Module.ccall('og_setting_get', 'number', ['string'], [k]);
+      const set = (k, v) => Module.ccall('og_setting_set', 'number', ['string', 'number'], [k, v]);
+      // [what the player is told, setting, value, applies when]
+      const steps = [
+        ['shadows',               s => get('shadows') > 1   && (set('shadows', 1), true)],
+        ['draw distance',         s => get('drawDist') === 0 && (set('drawDist', 1), set('skipFarAnim', 1), true)],
+        ['water reflections',     s => get('reflections') !== 0 && (set('reflections', 0), true)],
+        ['ambient occlusion',     s => get('ssao') !== 0 && (set('ssao', 0), true)],
+        ['shadows',               s => get('shadows') > 0   && (set('shadows', 0), true)],
+        ['draw distance',         s => get('drawDist') < 2  && (set('drawDist', 2), set('skipFarAnim', 1), true)],
+        ['world draw distance',   s => get('worldDist') < 1 && (set('worldDist', 1), true)],
+        ['draw distance',         s => get('drawDist') < 3  && (set('drawDist', 3), true)],
+        ['world draw distance',   s => get('worldDist') < 2 && (set('worldDist', 2), true)],
+        ['resolution',            s => get('resScale') < 1  && (set('resScale', 1), true)],
+        ['resolution',            s => get('resScale') < 2  && (set('resScale', 2), true)],
+        ['resolution',            s => get('resScale') < 3  && (set('resScale', 3), true)],
+      ];
+      const sleep = ms => new Promise(r => setTimeout(r, ms));
+      const manual = () => { try { return localStorage.getItem('gfxManual') === '1'; } catch (e) { return false; } };
+      const inGame = () => {
+        try { return typeof Module.ccall === 'function' && get('shadows') >= 0 && !document.getElementById('og-video'); }
+        catch (e) { return false; }
+      };
+      // average fps over a window; null when it is not a fair sample
+      // (loading stall, hidden tab, intro video)
+      async function measure() {
+        const st = window.ogFrameStats;
+        if (!st || document.hidden || !inGame()) return null;
+        const c0 = st.count, t0 = performance.now();
+        st.maxGap = 0;
+        await sleep(WINDOW);
+        if (document.hidden || !inGame() || st.maxGap > 250) return null;
+        return (st.count - c0) * 1000 / (performance.now() - t0);
+      }
+      const toast = document.getElementById('gfx-toast');
+      let toastTimer = 0;
+      function showToast(text) {
+        toast.textContent = text;
+        toast.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 5000);
+      }
+      function listText(a) {
+        return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+      }
+      async function run() {
+        let slow = 0;
+        for (;;) {
+          if (manual()) return;
+          const fps = await measure();
+          if (fps === null) { slow = 0; await sleep(1000); continue; }
+          if (fps >= LOW) { slow = 0; continue; }
+          if (++slow < 2) continue; // two slow windows in a row, not a hiccup
+          // lower step by step until the target is reached
+          const before = fps, lowered = [];
+          let now = fps;
+          for (const [name, apply] of steps) {
+            if (manual()) break;
+            let changed = false;
+            try { changed = apply(); } catch (e) { changed = false; }
+            if (!changed) continue;
+            if (!lowered.includes(name)) lowered.push(name);
+            if (window.ogSettingsReload) window.ogSettingsReload();
+            await sleep(SETTLE);
+            let m = null;
+            for (let i = 0; i < 5 && m === null; ++i) m = await measure();
+            if (m !== null) now = m;
+            if (now >= TARGET) break;
+          }
+          slow = 0;
+          if (lowered.length === 0) return; // nothing left to lower
+          showToast('You had ' + Math.round(before) + ' FPS, so we lowered ' + listText(lowered) +
+                    '. Now you have ' + Math.round(now) + ' FPS. If these settings don\'t suit you, ' +
+                    'you can change them under the game player (\u2699 button).');
+          await sleep(10000);
+        }
+      }
+      run();
     })();
 
     function toggleFullscreen() {
