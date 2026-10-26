@@ -1,0 +1,7 @@
+{
+  "name": "opengothic-web-test",
+  "private": true,
+  "type": "module",
+  "description": "Browser test harness for the OpenGothic web port (see CLAUDE.md)",
+  "dependencies": { "puppeteer-core": "^24" }
+}

@@ -1713,7 +1713,6 @@ async function installChunks(m) {
 
       function apply() {
         document.body.classList.toggle('touch-on', chk.checked);
-        try { localStorage.setItem('touchInput', chk.checked ? '1' : '0'); } catch (e) {}
         if (!chk.checked) releaseAll();
         lastLayout = '';
         update();
@@ -1724,7 +1723,11 @@ async function installChunks(m) {
       let saved = null;
       try { saved = localStorage.getItem('touchInput'); } catch (e) {}
       chk.checked = saved === null ? isMobile : saved === '1';
-      chk.addEventListener('change', apply);
+      // only the player's own choice is remembered: the detection runs on every visit
+      chk.addEventListener('change', () => {
+        try { localStorage.setItem('touchInput', chk.checked ? '1' : '0'); } catch (e) {}
+        apply();
+      });
       chk.addEventListener('click', e => e.stopPropagation());
       // the player changes size with the window, window mode and fullscreen
       new ResizeObserver(() => { if (!stick) stickHome(); }).observe(ui);
