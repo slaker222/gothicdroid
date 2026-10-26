@@ -16,6 +16,7 @@
 //   --nolimit          drop FPS_Limit from SystemPack.ini (only in this profile)
 //   --phone            phone emulation: 800x380 css px, dpr 3, touch, mobile UA
 //   --portrait         with --phone: 380x800
+//   --dpr=N            with --phone: device pixel ratio (default 3)
 //   --set=k:v,k:v      game settings via ogSet (shadows:0,drawDist:2,...)
 //   --warm=S           seconds to wait in the world before measuring (default 15)
 //   --measure=S        measure FPS for S seconds (engine [PERF] lines and frames)
@@ -63,7 +64,7 @@ const cdp = await page.createCDPSession();
 if (args.phone) {
   const portrait = !!args.portrait;
   await cdp.send('Emulation.setDeviceMetricsOverride',
-    { width: portrait ? 380 : 800, height: portrait ? 800 : 380, deviceScaleFactor: 3, mobile: true });
+    { width: portrait ? 380 : 800, height: portrait ? 800 : 380, deviceScaleFactor: +(args.dpr || 3), mobile: true });
   await cdp.send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
   await cdp.send('Emulation.setUserAgentOverride', { userAgent:
     'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0 Mobile Safari/537.36' });

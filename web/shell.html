@@ -371,6 +371,13 @@
           <option value="6">20%</option><option value="7">15%</option>
         </select>
       </label>
+      <label class="set-row" title="Pixels of the picture per screen pixel. Phones have 2.5-3.5: a lower value is much faster on them, especially in landscape. Auto keeps the picture to about one megapixel">Screen sharpness
+        <select id="pixel-cap">
+          <option value="-1">Auto</option><option value="0">Native</option>
+          <option value="2">High (2x)</option><option value="1.5">Medium (1.5x)</option>
+          <option value="1">Low (1x)</option>
+        </select>
+      </label>
       <label class="set-row">Shadows
         <select data-set="shadows">
           <option value="2">High</option><option value="1">Low</option><option value="0">Off</option>
@@ -1163,6 +1170,21 @@ async function installChunks(m) {
       panel.addEventListener('click', e => e.stopPropagation());
       // a click on the game closes the menu
       canvas.addEventListener('mousedown', () => setOpen(false));
+    })();
+
+    // screen sharpness: the engine reads window.__ogPixelCap when it sizes the canvas
+    // buffer and resizes by itself when the value changes
+    (function() {
+      const sel = document.getElementById('pixel-cap');
+      let v = -1;
+      try { const s = localStorage.getItem('pixelCap'); if (s !== null && !isNaN(parseFloat(s))) v = parseFloat(s); } catch (e) {}
+      window.__ogPixelCap = v;
+      sel.value = String(v);
+      sel.addEventListener('change', () => {
+        window.__ogPixelCap = parseFloat(sel.value);
+        try { localStorage.setItem('pixelCap', sel.value); } catch (e) {}
+        sel.blur();
+      });
     })();
 
     // Automatic graphics settings: when the game runs below 25 fps, quality is
