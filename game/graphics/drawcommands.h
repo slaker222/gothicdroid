@@ -115,7 +115,8 @@ class DrawCommands {
 
     bool                     isViewEnabled(SceneGlobals::VisCamera v) const;
 
-    void                     setBindings(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera viewId);
+    void                     setBindings(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera viewId,
+                                         bool viewBound = false);
 
     VisualObjects&           owner;
     DrawBuckets&             buckets;

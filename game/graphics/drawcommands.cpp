@@ -84,16 +84,25 @@ bool DrawCommands::isViewEnabled(SceneGlobals::VisCamera viewport) const {
   return true;
   }
 
-void DrawCommands::setBindings(Tempest::Encoder<CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera v) {
+void DrawCommands::setBindings(Tempest::Encoder<CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera v, bool viewBound) {
   static const DrawBuckets::Bucket nullBk;
 
   const auto  bId = cx.bucketId;
   const auto& bx  = cx.isBindless() ? nullBk : buckets.buckets()[bId];
 
+#if defined(__EMSCRIPTEN__)
+  // web: bindings stay set across pipeline changes, the per-view ones are
+  // already in place after the first draw of the loop
+  if(!viewBound)
+#else
+  (void)viewBound;
+#endif
+  {
   cmd.setBinding(L_Scene,    scene.uboGlobal[v]);
   cmd.setBinding(L_Payload,  views[v].visClusters);
   cmd.setBinding(L_Instance, owner.instanceSsbo());
   cmd.setBinding(L_Bucket,   buckets.ssbo());
+  }
 
   if(cx.isBindless()) {
     cmd.setBinding(L_Ibo, buckets.ibo());
@@ -469,6 +478,7 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
     });
 
   auto& view = views[viewId];
+  bool  viewBound = false;
 
   for(auto i=b; i!=e; ++i) {
     auto& cx = **i;
@@ -499,7 +509,8 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
     push.firstMeshlet = cx.firstPayload;
     push.meshletCount = cx.maxPayload;
 
-    setBindings(cmd, cx, viewId);
+    setBindings(cmd, cx, viewId, viewBound);
+    viewBound = true;
     cmd.setPushData(push);
     cmd.setPipeline(*pso);
     if(cx.isMeshShader())
