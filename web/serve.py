@@ -34,7 +34,7 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent / "dist-web"
+ROOT = Path(os.environ.get("OG_ROOT") or Path(__file__).resolve().parent.parent / "dist-web")  # OG_ROOT: A/B tests of two builds
 CERT_DIR = Path(__file__).resolve().parent / ".cert"
 
 

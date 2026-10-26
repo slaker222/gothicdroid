@@ -49,6 +49,7 @@ DrawBuckets::Id DrawBuckets::alloc(const Material& mat, const StaticMesh& mesh) 
   bx.mat        = mat;
 
   bucketsDurtyBit = true;
+  ++gen;
   bucketsCpu.emplace_back(std::move(bx));
   return Id(this, bucketsCpu.size()-1);
   }
@@ -65,6 +66,7 @@ DrawBuckets::Id DrawBuckets::alloc(const Material& mat, const AnimMesh& mesh) {
   bx.mat      = mat;
 
   bucketsDurtyBit = true;
+  ++gen;
   bucketsCpu.emplace_back(std::move(bx));
   return Id(this, bucketsCpu.size()-1);
   }
@@ -120,6 +122,7 @@ bool DrawBuckets::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
   if(!bucketsDurtyBit)
     return false;
   bucketsDurtyBit = false;
+  ++gen;
 
   std::vector<BucketGpu> bucket;
   for(auto& i:bucketsCpu) {

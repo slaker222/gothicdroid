@@ -639,6 +639,11 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     return;
     }
 
+  // stage timings are only logged every 10th frame: the clock is a call into js on the web
+  static uint32_t s_dCnt = 0;
+  const bool logPerf = ((s_dCnt+1) % 10 == 0);
+  auto perfNow = [logPerf]() -> uint64_t { return logPerf ? Application::tickCount() : 0; };
+
   static int s_lastRenderScale = -1;
   int curScale = opengothic_debug_render_scale();
   if(s_lastRenderScale != -1 && s_lastRenderScale != curScale) {
@@ -672,34 +677,34 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   wview->preFrameUpdate(*camera,Gothic::inst().world()->tickCount(),fId);
   wview->prepareGlobals(cmd,fId);
 
-  auto t0 = Application::tickCount();
+  auto t0 = perfNow();
   wview->visibilityPass(cmd, 0);
   prepareSky(cmd,*wview);
-  auto tVis0 = Application::tickCount() - t0;
+  auto tVis0 = perfNow() - t0;
 
-  auto t1 = Application::tickCount();
+  auto t1 = perfNow();
   const bool useHizPrepass = opengothic_debug_use_hiz_prepass() && !opengothic_debug_skip_hiz();
   if(useHizPrepass) {
     drawHiZ (cmd, *wview);
     buildHiZ(cmd);
     }
-  auto tHiZ = Application::tickCount() - t1;
+  auto tHiZ = perfNow() - t1;
 
-  auto t2 = Application::tickCount();
+  auto t2 = perfNow();
   wview->visibilityPass(cmd, 1);
   drawGBuffer(cmd,fId,*wview);
-  auto tGBuf = Application::tickCount() - t2;
+  auto tGBuf = perfNow() - t2;
 
   const bool simpleRender = (opengothic_debug_simple_render() != 0);
 
-  auto t3 = Application::tickCount();
+  auto t3 = perfNow();
   if(!simpleRender) {
     drawShadowMap(cmd,fId,*wview);
     prepareEpipolar(cmd, *wview);
   }
-  auto tShadow = Application::tickCount() - t3;
+  auto tShadow = perfNow() - t3;
 
-  auto t4 = Application::tickCount();
+  auto t4 = perfNow();
   prepareExposure(cmd,*wview);
   prepareIrradiance(cmd,*wview);
 
@@ -727,9 +732,9 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     drawLights(cmd,*wview);
   }
   drawSky(cmd,*wview);
-  auto tLight = Application::tickCount() - t4;
+  auto tLight = perfNow() - t4;
 
-  auto t5 = Application::tickCount();
+  auto t5 = perfNow();
   stashSceneAux(cmd);
 
   drawGWater(cmd, *wview);
@@ -756,9 +761,9 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
       drawFog(cmd, *wview);
       }
     }
-  auto tTrans = Application::tickCount() - t5;
+  auto tTrans = perfNow() - t5;
 
-  auto t6 = Application::tickCount();
+  auto t6 = perfNow();
   if(settings.aaEnabled) {
     cmd.setDebugMarker("CMAA2 & Tonemapping");
     drawCMAA2(result, cmd, *wview);
@@ -766,9 +771,8 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     cmd.setDebugMarker("Tonemapping");
     drawTonemapping(result, cmd, *wview);
     }
-  auto tPost = Application::tickCount() - t6;
+  auto tPost = perfNow() - t6;
 
-  static uint32_t s_dCnt = 0;
   if(++s_dCnt % 10 == 0) {
     Log::i("[DRAW_PERF] vis0=", tVis0, " hiz=", tHiZ, " gbuf=", tGBuf, " sh=", tShadow, " light=", tLight, " trans=", tTrans, " post=", tPost);
   }

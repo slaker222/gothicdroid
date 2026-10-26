@@ -218,11 +218,13 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
   cx.alpha       = m.alpha;
   cmd.push_back(std::move(cx));
   cmdDurtyBit = true;
+  ++cmdGen;
   return ret;
   }
 
 void DrawCommands::addClusters(uint16_t cmdId, uint32_t meshletCount) {
   cmdDurtyBit = true;
+  ++cmdGen;
   cmd[cmdId].maxPayload += meshletCount;
   }
 
@@ -233,12 +235,14 @@ void DrawCommands::resetRendering() {
     Resources::recycle(std::move(v.vsmClusters));
     }
   cmdDurtyBit = true;
+  ++cmdGen;
   }
 
 void DrawCommands::commit(Encoder<CommandBuffer>& enc) {
   if(!cmdDurtyBit)
     return;
   cmdDurtyBit = false;
+  ++cmdGen;
 
   ord.resize(cmd.size());
   for(size_t i=0; i<cmd.size(); ++i)
@@ -487,6 +491,45 @@ void DrawCommands::drawHiZ(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
     }
   }
 
+// everything besides the GPU resources themselves (the backend watches those) that makes
+// drawCommon record other commands than in the previous frame
+uint64_t DrawCommands::replayGen(SceneGlobals::VisCamera viewId, Material::AlphaFunc func) {
+  auto mix = [](uint64_t h, uint64_t v) { return (h ^ v) * 0x100000001b3ull; };
+  uint64_t h = 0xcbf29ce484222325ull;
+  h = mix(h, cmdGen);
+  h = mix(h, buckets.generation());
+  h = mix(h, uint64_t(viewId));
+  // objects the bindings of this view point to (setBindings)
+  if(viewId==SceneGlobals::V_Main) {
+    h = mix(h, uintptr_t(scene.shadowMap[0]));
+    h = mix(h, uintptr_t(scene.shadowMap[1]));
+    h = mix(h, uintptr_t(scene.sceneColor));
+    h = mix(h, uintptr_t(scene.sceneDepth));
+    }
+
+  // animated textures: the frame is part of the commands of this call
+  const uint64_t gen2 = (uint64_t(cmdGen)<<32) | buckets.generation();
+  if(animCmdsGen!=gen2) {
+    animCmdsGen = gen2;
+    animCmds.clear();
+    for(auto& cx:cmd) {
+      if(cx.isBindless())
+        continue;
+      if(buckets.buckets()[cx.bucketId].mat.hasFrameAnimation())
+        animCmds.push_back(&cx);
+      }
+    }
+  for(auto cx:animCmds) {
+    if(cx->alpha!=func || cx->maxPayload==0)
+      continue;
+    if(viewId!=SceneGlobals::V_Main && !cx->isTextureInShadowPass())
+      continue;
+    auto& mat = buckets.buckets()[cx->bucketId].mat;
+    h = mix(h, size_t(scene.tickCount/mat.texAniFPSInv) % mat.frames.size());
+    }
+  return h;
+  }
+
 void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, SceneGlobals::VisCamera viewId, Material::AlphaFunc func) {
   struct Push { uint32_t firstMeshlet; uint32_t meshletCount; } push = {};
 
@@ -503,6 +546,14 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
 
   auto& view = views[viewId];
   bool  viewBound = false;
+
+#if defined(__EMSCRIPTEN__)
+  // the same draws as in the previous frame are replayed without walking the commands again
+  const uint64_t replayToken = (uint64_t(viewId)<<8) | uint64_t(func);
+  const uint64_t gen         = replayGen(viewId, func);
+  if(cmd.tryReplay(replayToken, gen))
+    return;
+#endif
 
   for(auto i=b; i!=e; ++i) {
     auto& cx = **i;
@@ -541,6 +592,10 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
       cmd.dispatchMeshIndirect(view.indirectCmd, sizeof(IndirectCmd)*id + sizeof(uint32_t)); else
       cmd.drawIndirect(view.indirectCmd, sizeof(IndirectCmd)*id);
     }
+
+#if defined(__EMSCRIPTEN__)
+  cmd.endReplay(replayToken, gen);
+#endif
   }
 
 void DrawCommands::logGeometryStats() {

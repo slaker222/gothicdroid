@@ -118,6 +118,7 @@ class DrawCommands {
       };
 
     bool                     isViewEnabled(SceneGlobals::VisCamera v) const;
+    uint64_t                 replayGen(SceneGlobals::VisCamera viewId, Material::AlphaFunc func);
 
     void                     setBindings(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const DrawCmd& cx, SceneGlobals::VisCamera viewId,
                                          bool viewBound = false);
@@ -131,6 +132,9 @@ class DrawCommands {
     std::vector<DrawCmd>     cmd;
     std::vector<DrawCmd*>    ord;
     bool                     cmdDurtyBit = false;
+    uint32_t                 cmdGen = 0; // changes with the draw commands: see drawCommon
+    std::vector<const DrawCmd*> animCmds; // commands of frame animated materials
+    uint64_t                 animCmdsGen = ~uint64_t(0);
     View                     views[SceneGlobals::V_Count];
 
     const bool               vsmSupported;

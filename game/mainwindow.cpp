@@ -1453,20 +1453,25 @@ void MainWindow::render(){
       Note: game update goes first
       once player position is updated, animation bones(cameraBone in particular) can be updated
       */
-    auto t0 = Application::tickCount();
+    // stage timings are only logged every 10th frame: the clock is a call into js on the web
+    static uint32_t s_pCnt = 0;
+    const bool logPerf = ((s_pCnt+1) % 10 == 0);
+    auto perfNow = [logPerf]() -> uint64_t { return logPerf ? Application::tickCount() : 0; };
+
+    auto t0 = perfNow();
     const uint64_t dt = tick();
     updateAnimation(dt);
     tickCamera(dt);
-    auto tTick = Application::tickCount() - t0;
+    auto tTick = perfNow() - t0;
 
-    auto t1 = Application::tickCount();
+    auto t1 = perfNow();
     auto& sync = fence[cmdId];
     if(!sync.wait(0)) {
       // GPU rendering is not done, pass to next frame
       std::this_thread::yield();
       return;
       }
-    auto tWait = Application::tickCount() - t1;
+    auto tWait = perfNow() - t1;
     Resources::resetRecycled(cmdId);
 
     if(video.isActive()) {
@@ -1485,26 +1490,26 @@ void MainWindow::render(){
     uiMesh [cmdId].update(device,uiLayer);
     numMesh[cmdId].update(device,numOverlay);
 
-    auto t2 = Application::tickCount();
+    auto t2 = perfNow();
     CommandBuffer& cmd = commands[cmdId];
     {
     auto enc = cmd.startEncoding(device);
     renderer.draw(enc,cmdId,swapchain.currentImage(),uiMesh[cmdId],numMesh[cmdId],inventory,video);
     }
-    auto tDraw = Application::tickCount() - t2;
+    auto tDraw = perfNow() - t2;
 
-    auto t3 = Application::tickCount();
+    auto t3 = perfNow();
     sync = device.submit(cmd);
-    auto tSub = Application::tickCount() - t3;
+    auto tSub = perfNow() - t3;
 
-    auto tGpuStart = Application::tickCount();
+    auto tGpuStart = perfNow();
     sync.wait();
-    auto tGpu = Application::tickCount() - tGpuStart;
+    auto tGpu = perfNow() - tGpuStart;
     commands[cmdId].collectGpuTimers();
 
-    auto t4 = Application::tickCount();
+    auto t4 = perfNow();
     device.present(swapchain);
-    auto tPres = Application::tickCount() - t4;
+    auto tPres = perfNow() - t4;
     cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
 
     auto t = Application::tickCount();
@@ -1520,7 +1525,6 @@ void MainWindow::render(){
       }
     fps.push(t-time);
 
-    static uint32_t s_pCnt = 0;
     if(++s_pCnt % 10 == 0) {
       Log::i("[PERF] frame=", (t-time), "ms (tick=", tTick, " wait=", tWait, " draw=", tDraw, " sub=", tSub, " gpu=", tGpu, " pres=", tPres, ") fps=", fps.get());
     }

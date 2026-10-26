@@ -55,6 +55,9 @@ class DrawBuckets {
 
     bool commit(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId);
 
+    // changes whenever a bucket or a bindless array does
+    uint32_t generation() const { return gen; }
+
   private:
     void updateBindlessArrays();
 
@@ -87,4 +90,5 @@ class DrawBuckets {
     std::vector<Bucket>      bucketsCpu;
     Tempest::StorageBuffer   bucketsGpu;
     bool                     bucketsDurtyBit = false;
+    uint32_t                 gen = 0;
   };
