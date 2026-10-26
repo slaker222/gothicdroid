@@ -19,8 +19,10 @@ elseif(EMSCRIPTEN)
   set_target_properties(${PROJECT_NAME} PROPERTIES OUTPUT_NAME "opengothic")
   set_target_properties(${PROJECT_NAME} PROPERTIES SUFFIX ".html")
   # native wasm exceptions: JS-emulated ones route every try-block call through JS
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -msimd128 -Wno-unused-command-line-argument")
-  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -sSUPPORT_LONGJMP=wasm -msimd128")
+  # bulk memory: memcpy/memset become memory.copy/fill instead of calls into JS;
+  # nontrapping-fptoint: float->int casts are single instructions
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fwasm-exceptions -sSUPPORT_LONGJMP=wasm -msimd128 -mbulk-memory -mnontrapping-fptoint -Wno-unused-command-line-argument")
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -sSUPPORT_LONGJMP=wasm -msimd128 -mbulk-memory -mnontrapping-fptoint")
   target_link_options(${PROJECT_NAME} PRIVATE
     "-sUSE_WEBGPU=1"
     "-sALLOW_MEMORY_GROWTH=1"
@@ -29,6 +31,8 @@ elseif(EMSCRIPTEN)
     "-sNO_EXIT_RUNTIME=1"
     "-fwasm-exceptions"
     "-sSUPPORT_LONGJMP=wasm"
+    "-mbulk-memory"
+    "-mnontrapping-fptoint"
     "--profiling-funcs"
     "-lidbfs.js"
     "-sEXPORTED_RUNTIME_METHODS=['ccall','cwrap','FS','callMain','mmapAlloc']"
