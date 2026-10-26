@@ -28,6 +28,7 @@
 //   --device           Chrome on an android phone over adb (adb reverse/forward set up by this script);
 //                      the page is then http://localhost:PORT/ of --url, profile options do not apply
 //   --gputime          GPU time per pass (timestamp queries): run script reads window.__gpuAgg()
+//   --manual           turn the page's automatic graphics settings off (gfxManual) for stable measurements
 //   --log              print the game's console
 //
 // Prints one JSON line with the results.
@@ -106,6 +107,7 @@ page.on('console', m => {
 });
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 
+if (args.manual) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('gfxManual', '1'); } catch (e) {} });
 if (args.gputime) await page.evaluateOnNewDocument(fs.readFileSync(path.join(HERE, 'gputime.js'), 'utf8'));
 // count the frames the engine renders (one canvas texture each)
 await page.evaluateOnNewDocument(() => {
