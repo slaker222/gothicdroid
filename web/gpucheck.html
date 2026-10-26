@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WebGPU check</title>
+<style>
+  body { font: 14px/1.4 system-ui, sans-serif; margin: 12px; background: #151515; color: #ddd; }
+  h1 { font-size: 18px; margin: 0 0 8px; }
+  .row { display: flex; gap: 8px; padding: 2px 0; border-bottom: 1px solid #2a2a2a; }
+  .k { flex: 0 0 46%; color: #9ab; word-break: break-word; }
+  .v { flex: 1; word-break: break-word; }
+  .ok { color: #6c6; } .bad { color: #f66; } .warn { color: #db6; }
+  pre { white-space: pre-wrap; background: #1e1e1e; padding: 8px; border-radius: 6px; }
+  button { font-size: 16px; padding: 8px 14px; margin: 8px 0; }
+</style>
+</head>
+<body>
+<h1>OpenGothic: WebGPU check</h1>
+<div id="out"></div>
+<button id="copy">Copy the report</button>
+<pre id="txt"></pre>
+<script>
+const out = document.getElementById('out');
+const lines = [];
+function row(k, v, cls) {
+  lines.push(k + ': ' + v);
+  const d = document.createElement('div'); d.className = 'row';
+  d.innerHTML = '<div class="k"></div><div class="v ' + (cls || '') + '"></div>';
+  d.firstChild.textContent = k; d.lastChild.textContent = String(v);
+  out.appendChild(d);
+}
+(async () => {
+  row('userAgent', navigator.userAgent);
+  row('secure context (https or localhost)', window.isSecureContext, window.isSecureContext ? 'ok' : 'bad');
+  row('cross-origin isolated (threads)', window.crossOriginIsolated, window.crossOriginIsolated ? 'ok' : 'warn');
+  row('SharedArrayBuffer', typeof SharedArrayBuffer !== 'undefined', typeof SharedArrayBuffer !== 'undefined' ? 'ok' : 'warn');
+  row('cores', navigator.hardwareConcurrency);
+  row('device memory GB', navigator.deviceMemory ?? 'n/a');
+  row('navigator.gpu', !!navigator.gpu, navigator.gpu ? 'ok' : 'bad');
+  if (!navigator.gpu) {
+    row('verdict', window.isSecureContext
+      ? 'this browser has no WebGPU (the game cannot run here)'
+      : 'page is not a secure context: open it over https:// (accept the certificate) or localhost',
+      'bad');
+  } else {
+    try {
+      let ad = null, how = '';
+      for (const opt of [{ powerPreference: 'high-performance' }, {}, { forceFallbackAdapter: true }]) {
+        try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { row('requestAdapter ' + JSON.stringify(opt), 'threw ' + e, 'bad'); }
+        if (ad) { how = JSON.stringify(opt); break; }
+      }
+      row('adapter', ad ? 'yes (' + how + ')' : 'NONE', ad ? 'ok' : 'bad');
+      if (ad) {
+        const info = ad.info || (ad.requestAdapterInfo && await ad.requestAdapterInfo()) || {};
+        row('vendor / architecture', (info.vendor || '?') + ' / ' + (info.architecture || '?'));
+        row('device / description', (info.device || '?') + ' / ' + (info.description || '?'));
+        row('isFallbackAdapter', ad.isFallbackAdapter ?? 'n/a');
+        const want = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable', 'indirect-first-instance',
+                      'depth-clip-control', 'depth32float-stencil8', 'clip-distances', 'timestamp-query', 'shader-f16',
+                      'texture-compression-astc', 'texture-compression-etc2', 'bgra8unorm-storage'];
+        for (const f of want) row('feature ' + f, ad.features.has(f), ad.features.has(f) ? 'ok' : 'warn');
+        const lim = ['maxStorageBuffersPerShaderStage', 'maxStorageTexturesPerShaderStage', 'maxSampledTexturesPerShaderStage',
+                     'maxBindingsPerBindGroup', 'maxBufferSize', 'maxStorageBufferBindingSize', 'maxTextureDimension2D',
+                     'maxComputeWorkgroupStorageSize', 'maxComputeInvocationsPerWorkgroup', 'maxColorAttachmentBytesPerSample',
+                     'maxBindGroups', 'maxVertexBuffers'];
+        for (const k of lim) row('limit ' + k, ad.limits[k]);
+        // the same request the game makes
+        const wanted = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable', 'indirect-first-instance',
+                        'depth-clip-control', 'depth32float-stencil8', 'clip-distances'];
+        const requiredFeatures = wanted.filter(f => ad.features.has(f));
+        const requiredLimits = {};
+        for (const k of lim.concat(['maxSamplersPerShaderStage', 'maxUniformBuffersPerShaderStage', 'maxUniformBufferBindingSize',
+                                    'maxTextureDimension3D', 'maxComputeWorkgroupSizeX', 'maxComputeWorkgroupSizeY',
+                                    'maxComputeWorkgroupSizeZ', 'maxDynamicUniformBuffersPerPipelineLayout']))
+          if (ad.limits[k] !== undefined) requiredLimits[k] = ad.limits[k];
+        try {
+          const dev = await ad.requestDevice({ requiredFeatures, requiredLimits });
+          row('requestDevice (as the game does)', 'ok', 'ok');
+          dev.destroy();
+        } catch (e) { row('requestDevice (as the game does)', 'FAILED: ' + e, 'bad'); }
+        // the game needs a webgpu canvas context and the preferred format
+        try {
+          const c = document.createElement('canvas'); const ctx = c.getContext('webgpu');
+          row('canvas webgpu context', !!ctx, ctx ? 'ok' : 'bad');
+          row('preferred canvas format', navigator.gpu.getPreferredCanvasFormat());
+        } catch (e) { row('canvas webgpu context', 'threw ' + e, 'bad'); }
+      }
+    } catch (e) { row('error', e && e.stack || e, 'bad'); }
+  }
+  document.getElementById('txt').textContent = lines.join('\n');
+})();
+document.getElementById('copy').onclick = () => { try { navigator.clipboard.writeText(lines.join('\n')); } catch (e) {} };
+</script>
+</body>
+</html>

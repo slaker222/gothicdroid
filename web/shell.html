@@ -1039,7 +1039,7 @@ async function installChunks(m) {
         return canvas;
       })(),
       setStatus: function(text) {
-        if (!text) return;
+        if (!text || window.__ogFatal) return; // a fatal message stays on the screen
         statusText.innerText = text;
         const m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
         if (m) {
@@ -2715,6 +2715,7 @@ function serveLoop() {
 
     async function downloadGame() {
       if (isolationBlocked()) return;
+      if (await webgpuBlocked()) return;
       if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
       let urls, url;
       try {
@@ -3107,16 +3108,65 @@ function serveLoop() {
       }
     }
 
+    // Why WebGPU is not usable here, as html for the status box (null: it is). Checked before the
+    // game archive is downloaded, so nobody waits for 270 MB to read an error.
+    let g_gpuAdapter = null;
+    async function webgpuProblem() {
+      const ua = navigator.userAgent || '';
+      const check = ' <a href="gpucheck.html" style="color:inherit">Run the WebGPU check</a> and send its report if this is wrong.';
+      if (!navigator.gpu) {
+        let why;
+        if (!window.isSecureContext)
+          why = 'The page is not in a secure context, so the browser hides WebGPU. Open it over <b>https://</b> ' +
+                '(accept the certificate warning) or through localhost, not over plain http://.';
+        else if (/Firefox|FxiOS/.test(ua))
+          why = 'This Firefox has no WebGPU' + (/Android/.test(ua) ? ' (Firefox for Android does not offer it yet)' : '') +
+                '. Use Google Chrome.';
+        else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1))
+          why = 'WebGPU needs iOS/iPadOS 26 or newer (Safari). Update the system, or use Google Chrome on a computer or an Android phone.';
+        else if (/SamsungBrowser|EdgA|OPR|Opera|Brave|Vivaldi|DuckDuckGo|MiuiBrowser|UCBrowser|YaBrowser/.test(ua))
+          why = 'This Chromium-based browser keeps WebGPU switched off. Open its flags page (chrome://flags, edge://flags, ' +
+                'opera://flags, brave://flags) and enable <b>Unsafe WebGPU Support</b> (#enable-unsafe-webgpu), then restart it; ' +
+                'or use Google Chrome.';
+        else if (/Chrome\/(\d+)/.test(ua) && +RegExp.$1 < 121)
+          why = 'This Chrome is too old for WebGPU (needs 121+ on Android, 113+ on computers). Update it.';
+        else
+          why = 'This browser does not offer WebGPU. Use a current Google Chrome (Android 12+, or a computer).';
+        return why + check;
+      }
+      if (g_gpuAdapter) return null;
+      let ad = null;
+      for (const opt of [{ powerPreference: 'high-performance' }, {}, { forceFallbackAdapter: true }]) {
+        try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
+        if (ad) break;
+      }
+      if (!ad)
+        return 'WebGPU is there, but the browser found no graphics adapter. On Android Chrome needs Android 12 or newer ' +
+               'and a Vulkan 1.1 GPU; on computers check that hardware acceleration is on (chrome://gpu).' + check;
+      g_gpuAdapter = ad;
+      return null;
+    }
+    async function webgpuBlocked() {
+      const why = await webgpuProblem();
+      if (!why) return false;
+      window.__ogFatal = true;
+      progressContainer.style.display = 'none';
+      statusText.style.color = 'var(--danger)';
+      statusText.innerHTML = why;
+      return true;
+    }
+
     // The engine creates its graphics device synchronously inside main(),
     // while WebGPU only hands out adapters/devices asynchronously: acquire
     // the device up front and pass it via Module.preinitializedWebGPUDevice.
     async function initWebGPU() {
-      if (!navigator.gpu)
-        throw new Error("WebGPU is not supported by this browser. Use Chrome/Edge 113+, " +
-                        "Firefox 141+ (Windows) or Safari 26+; the page must be opened over HTTPS or localhost");
-      const adapter = await navigator.gpu.requestAdapter({ powerPreference: 'high-performance' });
-      if (!adapter)
-        throw new Error("WebGPU: no graphics adapter found (check that hardware acceleration is enabled)");
+      const why = await webgpuProblem();
+      if (why) {
+        const e = new Error(why.replace(/<[^>]+>/g, ''));
+        e.html = why;
+        throw e;
+      }
+      const adapter = g_gpuAdapter;
       const wanted = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable',
                       'indirect-first-instance', 'depth-clip-control', 'depth32float-stencil8',
                       'clip-distances'];
@@ -3133,10 +3183,31 @@ function serveLoop() {
                        'maxDynamicUniformBuffersPerPipelineLayout']) {
         if (adapter.limits[k] !== undefined) requiredLimits[k] = adapter.limits[k];
       }
-      const device = await adapter.requestDevice({ requiredFeatures, requiredLimits });
+      // a device request that a browser rejects over one feature or limit is retried with less:
+      // every feature is optional for the engine, and the default limits are what the spec guarantees
+      let device = null, lastErr = null;
+      const attempts = [
+        { requiredFeatures, requiredLimits },
+        { requiredFeatures, requiredLimits: {} },
+        { requiredFeatures: [], requiredLimits: {} },
+      ];
+      for (const a of attempts) {
+        try { device = await adapter.requestDevice(a); break; } catch (e) {
+          lastErr = e;
+          console.warn('[SHELL] requestDevice failed (' + a.requiredFeatures.length + ' features, ' +
+                       Object.keys(a.requiredLimits).length + ' limits):', e);
+        }
+      }
+      if (!device) {
+        const e = new Error('WebGPU: the browser refused to create a graphics device (' + lastErr + ')');
+        e.html = 'WebGPU is there, but the browser refused to create a graphics device (' +
+                 String(lastErr).replace(/[<>&]/g, '') + '). <a href="gpucheck.html" style="color:inherit">Run the WebGPU check</a> ' +
+                 'and send its report.';
+        throw e;
+      }
       device.lost.then(info => console.error('[WebGPU] device lost:', info.reason, info.message));
       Module.preinitializedWebGPUDevice = device;
-      console.log('[SHELL] WebGPU device: features=' + requiredFeatures.join(','));
+      console.log('[SHELL] WebGPU device: features=' + [...device.features].join(','));
     }
 
     let g_started = false;
@@ -3168,7 +3239,8 @@ function serveLoop() {
         uiOverlay.classList.remove('hidden');
         player.classList.remove('playing');
         statusText.style.color = 'var(--danger)';
-        statusText.innerText = "Error: " + err;
+        window.__ogFatal = true;
+        if (err && err.html) statusText.innerHTML = err.html; else statusText.innerText = "Error: " + err;
       }
     }
 
