@@ -35,6 +35,7 @@
 // between frames; values live in Gothic.ini like the in-game options.
 namespace {
 bool g_webSettingsReady = false;
+MainWindow* g_webMain   = nullptr;
 bool g_webTimingDirty   = true;
 
 struct WebSetting { const char* name; const char* sec; const char* key; bool real; };
@@ -56,6 +57,17 @@ const WebSetting* findWebSetting(const char* name) {
   return nullptr;
   }
 }
+
+// touch controls: state for the button layout, see MainWindow::webUiState
+extern "C" EMSCRIPTEN_KEEPALIVE int og_ui_state() {
+  return g_webMain!=nullptr ? g_webMain->webUiState() : 0;
+  }
+
+// touch controls: camera look, in pixels like a mouse move
+extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
+  if(g_webMain!=nullptr)
+    g_webMain->webLook(dx, dy);
+  }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
@@ -96,6 +108,7 @@ MainWindow::MainWindow(Device& device)
   onSettings();
 #if defined(__EMSCRIPTEN__)
   g_webSettingsReady = true;
+  g_webMain          = this;
 #endif
 
   if(Gothic::inst().version().game==2)
@@ -173,6 +186,7 @@ MainWindow::MainWindow(Device& device)
 MainWindow::~MainWindow() {
 #if defined(__EMSCRIPTEN__)
   g_webSettingsReady = false;
+  g_webMain          = nullptr;
 #endif
   GameMusic::inst().stopMusic();
   Gothic::inst().cancelLoading();
@@ -436,14 +450,20 @@ void MainWindow::tickMouse(uint64_t dt) {
   auto camera = Gothic::inst().camera();
   if(dialogs.hasContent() || Gothic::inst().isPause() || camera==nullptr || camera->isCutscene()) {
     dMouse = Point();
+#if defined(__EMSCRIPTEN__)
+    webLookDelta = Point();
+#endif
     return;
     }
 
   const bool enableMouse = Gothic::inst().settingsGetI("GAME","enableMouse");
-  if(enableMouse==0) {
+  if(enableMouse==0)
     dMouse = Point();
-    return;
-    }
+#if defined(__EMSCRIPTEN__)
+  // touch look works like the mouse, also with the mouse disabled
+  dMouse += webLookDelta;
+  webLookDelta = Point();
+#endif
 
   if(dMouse==Point())
     return;
@@ -474,6 +494,59 @@ void MainWindow::tickMouse(uint64_t dt) {
 
   dMouse = Point();
   }
+
+#if defined(__EMSCRIPTEN__)
+// bits: 0 world, 1 menu, 2 dialog, 3 dialog choices, 4 inventory, 5 document,
+// 6 video, 7 cutscene, 8 swimming, 9 diving, 10 loading, 11 using a mob;
+// 12..14 weapon (WeaponState); 16..18 focus: 1 npc, 2 npc down, 3 item, 4 mob;
+// 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State)
+int MainWindow::webUiState() const {
+  int s = 0;
+  auto& gothic = Gothic::inst();
+  if(gothic.checkLoading()!=Gothic::LoadState::Idle)
+    s |= 1<<10;
+  if(rootMenu.isActive())
+    s |= 1<<1;
+  if(video.isActive())
+    s |= 1<<6;
+  if(document.isActive())
+    s |= 1<<5;
+  if(dialogs.isActive())
+    s |= 1<<2;
+  if(dialogs.isChoiceMenuActive())
+    s |= 1<<3;
+  if(inventory.isOpen()!=InventoryMenu::State::Closed) {
+    s |= 1<<4;
+    s |= int(inventory.isOpen())<<20;
+    }
+  if(auto c = gothic.camera(); c!=nullptr && c->isCutscene())
+    s |= 1<<7;
+  auto pl = gothic.player();
+  if(gothic.world()!=nullptr && pl!=nullptr && gothic.isInGame())
+    s |= 1;
+  if(pl!=nullptr) {
+    if(pl->isSwim())
+      s |= 1<<8;
+    if(pl->isDive())
+      s |= 1<<9;
+    if(pl->interactive()!=nullptr)
+      s |= 1<<11;
+    s |= (int(pl->weaponState()) & 7)<<12;
+    const Focus f = player.focus();
+    int fk = 0;
+    if(f.npc!=nullptr)
+      fk = f.npc->isDown() ? 2 : 1;
+    else if(f.item!=nullptr)
+      fk = 3;
+    else if(f.interactive!=nullptr)
+      fk = 4;
+    s |= fk<<16;
+    if(f.npc!=nullptr && !f.npc->isDown() && f.npc->attitude()==ATT_HOSTILE)
+      s |= 1<<19;
+    }
+  return s;
+  }
+#endif
 
 void MainWindow::onSettings() {
   auto zMaxFps = Gothic::options().fpsLimit;

@@ -33,6 +33,7 @@ class DialogMenu : public Tempest::Widget {
 
     bool isActive() const;
     bool hasContent() const;
+    bool isChoiceMenuActive() const;
 
     void print      (std::string_view msg);
     void printScreen(std::string_view msg, int x, int y, int time, const GthFont &font);
@@ -50,7 +51,6 @@ class DialogMenu : public Tempest::Widget {
 
     void onSelect();
     void setupSettings();
-    bool isChoiceMenuActive() const;
 
   private:
     const Tempest::Texture2d* tex    =nullptr;

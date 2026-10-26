@@ -51,7 +51,16 @@ class MainWindow : public Tempest::Window {
 
     float uiScale() const;
 
+#if defined(__EMSCRIPTEN__)
+    // web touch controls (web/shell.html): what the player is doing, camera look
+    int   webUiState() const;
+    void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
+#endif
+
   private:
+#if defined(__EMSCRIPTEN__)
+    Tempest::Point webLookDelta;
+#endif
     void paintEvent     (Tempest::PaintEvent& event) override;
     void resizeEvent    (Tempest::SizeEvent & event) override;
 
