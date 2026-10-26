@@ -13,6 +13,7 @@
 #include "utils/gthfont.h"
 #include "utils/dbgpainter.h"
 #include "gothic.h"
+#include "graphics/drawcommands.h"
 
 #include "utils/string_frm.h"
 
@@ -159,6 +160,13 @@ float Camera::zNear() const {
 
 float Camera::zFar() const {
   static float far = 100000.0f;
+#if defined(__EMSCRIPTEN__)
+  // web world draw distance: the far plane cuts the world per pixel (a smooth
+  // edge, the sky shows the horizon haze beyond it) and frustum culling drops
+  // everything behind it
+  if(const float wd = DrawCommands::worldDistance(); wd>0)
+    return wd;
+#endif
   return far;
   }
 

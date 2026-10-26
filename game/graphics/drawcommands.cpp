@@ -348,12 +348,11 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
     if(!isViewEnabled(viewport))
       continue;
 
-    struct Push { uint32_t firstMeshlet; uint32_t meshletCount; float znear; float drawDistance; float worldDistance; } push = {};
+    struct Push { uint32_t firstMeshlet; uint32_t meshletCount; float znear; float drawDistance; } push = {};
     push.firstMeshlet = 0;
     push.meshletCount = uint32_t(clusters.size());
     push.znear        = scene.znear;
     push.drawDistance  = drawDistance();
-    push.worldDistance = worldDistance();
 
     auto* pso = &Shaders::inst().visibilityPassSh;
     if(viewport==SceneGlobals::V_Main) {

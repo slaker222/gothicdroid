@@ -64,6 +64,15 @@ vec3 transmittanceAprox(in vec3 pos0, in vec3 pos1) {
   return exp(-length(dir)*sc0.extinction);
   }
 
+// The world normally covers everything below the horizon. With a shortened
+// far plane (web world draw distance) the sky shows there: the horizon haze
+// instead of the planet surface.
+vec3 belowHorizon(vec3 dir) {
+  if(scene.clipInfo.z < 99999.0)
+    dir.y = max(dir.y, 0.002*length(dir));
+  return dir;
+  }
+
 vec3 sky(vec2 uv, vec3 sunDir) {
   const vec2 inPos  = (2.0*gl_FragCoord.xy)*scene.screenResInv - 1.0;
 
@@ -71,7 +80,7 @@ vec3 sky(vec2 uv, vec3 sunDir) {
   vec3  pos1 = inverse(vec3(inPos,1.0));
   vec3  pos0 = inverse(vec3(inPos,0));
 
-  vec3 view  = normalize(pos1);
+  vec3 view  = normalize(belowHorizon(pos1));
   vec3 lum   = atmosphere(view, sunDir);
   return lum;
   }
@@ -82,6 +91,9 @@ vec3 applyClouds(vec3 skyColor) {
   float night    = scene.isNight;
   vec3  plPos    = vec3(0, RPlanet + scene.plPosY, 0);
   vec3  pos1     = inverse(vec3(inPos,1.0));
+  // below the horizon of a shortened world: plain haze, no clouds
+  if(scene.clipInfo.z < 99999.0 && pos1.y < 0.0)
+    return skyColor;
   vec3  viewDir  = normalize(pos1);
   return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, viewDir, night,
                      scene.cloudsDir.xy, scene.cloudsDir.zw,

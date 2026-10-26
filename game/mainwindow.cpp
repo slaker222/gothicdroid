@@ -488,6 +488,9 @@ void MainWindow::onSettings() {
   if(Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")!=0)
     maxFpsInv = 0;
   g_webTimingDirty = true;
+  // the world draw distance is the camera's far plane
+  if(auto camera = Gothic::inst().camera())
+    camera->setViewport(swapchain.w(), swapchain.h());
 #endif
   }
 

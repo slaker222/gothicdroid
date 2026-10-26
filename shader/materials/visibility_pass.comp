@@ -24,7 +24,6 @@ layout(push_constant, std430) uniform UboPush {
   int       meshletCount;
   float     znear;
   float     drawDistance;  // objects (not the world mesh) farther than this are skipped; 0 = no limit
-  float     worldDistance; // world mesh and landscape: same, 0 = no limit
   } push;
 
 Instance pullInstance(uint i) {
@@ -184,23 +183,14 @@ void runCluster(const uint clusterId) {
   if(!frustrumTest(cluster.sphere))
     return;
 
-  if(push.drawDistance>0 || push.worldDistance>0) {
-    const vec3  d     = cluster.sphere.xyz - scene.camPos;
-    const float dist2 = dot(d,d);
-    if(cluster.instanceId==0xFFFFFFFF) {
-      // world mesh piece: drawn while any part of it is in range
-      const float maxDist = push.worldDistance + cluster.sphere.w;
-      if(push.worldDistance>0 && dist2 > maxDist*maxDist)
-        return;
-      } else {
-      // objects up to 2.5 m share the distance (all parts of a character vanish
-      // together), bigger ones are visible proportionally farther, not beyond the world
-      float maxDist = push.drawDistance>0 ? push.drawDistance * max(1.0, cluster.sphere.w/250.0) : 1.0e30;
-      if(push.worldDistance>0)
-        maxDist = min(maxDist, push.worldDistance + cluster.sphere.w);
-      if(dist2 > maxDist*maxDist)
-        return;
-      }
+  if(push.drawDistance>0 && cluster.instanceId!=0xFFFFFFFF) {
+    // objects up to 2.5 m share the distance (all parts of a character vanish
+    // together), bigger ones are visible proportionally farther. The world
+    // draw distance is the camera far plane (frustum test above).
+    const float maxDist = push.drawDistance * max(1.0, cluster.sphere.w/250.0);
+    const vec3  d       = cluster.sphere.xyz - scene.camPos;
+    if(dot(d,d) > maxDist*maxDist)
+      return;
     }
 
 #if defined(MAIN_VIEW)
