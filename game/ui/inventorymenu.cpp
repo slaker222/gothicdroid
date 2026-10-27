@@ -758,4 +758,119 @@ void InventoryMenu::drawInfo(Painter &p) {
 
 void InventoryMenu::draw(Tempest::Encoder<CommandBuffer>& cmd, float sx, float sy) {
   renderer.draw(cmd,sx,sy);
+#if defined(__EMSCRIPTEN__)
+  if(quickVisible())
+    quickRenderer.draw(cmd,sx,sy);
+#endif
   }
+
+#if defined(__EMSCRIPTEN__)
+// the quick panel: the weapons and spells of the number keys, then everything of the inventory that can
+// be used (scrolls and letters, runes, potions, food, weapons, armor, rings, torches) - a tap uses it.
+// The slots have their place in window pixels; the page puts its buttons on top of the same rectangles
+// (og_quickslots), the icons are drawn here
+void InventoryMenu::quickUpdate() {
+  auto pl = Gothic::inst().player();
+  std::vector<QuickSlot> all;
+  if(pl!=nullptr && Gothic::inst().world()!=nullptr) {
+    auto& inv = pl->inventory();
+    const auto ws = pl->weaponState();
+    const uint8_t spell = inv.currentSpellSlot();
+    std::vector<size_t> have;
+    auto add = [&](int key, const Item* it, bool on, uint32_t count) {
+      if(it==nullptr)
+        return;
+      QuickSlot s;
+      s.key   = key;
+      s.item  = it;
+      s.cls   = it->clsId();
+      s.on    = on;
+      s.count = count;
+      all.push_back(s);
+      have.push_back(s.cls);
+      };
+    add(1, pl->currentMeleeWeapon(),  ws==WeaponState::Fist || ws==WeaponState::W1H || ws==WeaponState::W2H, 1);
+    add(2, pl->currentRangedWeapon(), ws==WeaponState::Bow  || ws==WeaponState::CBow, 1);
+    for(int i=3; i<=10; ++i)
+      add(i%10, inv.currentSpell(uint8_t(i)), ws==WeaponState::Mage && spell==i, 1);
+
+    const uint32_t usable = ITM_CAT_NF | ITM_CAT_FF | ITM_CAT_ARMOR | ITM_CAT_FOOD | ITM_CAT_DOCS |
+                            ITM_CAT_POTION | ITM_CAT_LIGHT | ITM_CAT_RUNE | ITM_CAT_MAGIC;
+    for(auto it = inv.iterator(Inventory::T_Inventory); it.isValid(); ++it) {
+      if((uint32_t(it->mainFlag()) & usable)==0)
+        continue;
+      if(std::find(have.begin(),have.end(),it->clsId())!=have.end())
+        continue;
+      add(-1, &(*it), it.isEquipped(), uint32_t(it.count()));
+      }
+    }
+
+  // a row at the bottom, in the middle: clear of the stick and the buttons; more than fits - pages
+  const int ww = w(), hh = h();
+  const int sz = std::max(24, int(float(hh)*0.12f));
+  const int gp = sz/6;
+  quickCols  = std::max(1, int(float(ww)*0.46f)/(sz+gp));
+  quickTotal = int(all.size());
+  quickFirst = std::max(0, std::min(quickFirst, std::max(0, quickTotal-quickCols)));
+  std::vector<QuickSlot> slots;
+  for(int i=quickFirst; i<quickTotal && i<quickFirst+quickCols; ++i)
+    slots.push_back(all[size_t(i)]);
+
+  const int n = int(slots.size());
+  int       x = (ww - (n*sz + (n-1)*gp))/2;
+  const int y = hh - sz - int(float(hh)*0.035f);
+  for(auto& s:slots) {
+    s.x = x;
+    s.y = y;
+    s.s = sz;
+    x  += sz+gp;
+    }
+
+  std::vector<size_t> sig;
+  for(auto& s:slots)
+    sig.push_back(s.cls*16u + size_t(s.key+1));
+  sig.push_back(size_t(quickFirst));
+  const bool changed = (sig!=quickSig || ww!=quickW || hh!=quickH);
+  quickSlots = std::move(slots);
+  if(!changed)
+    return;
+  quickSig = std::move(sig);
+  quickW   = ww;
+  quickH   = hh;
+  quickRenderer.reset();
+  for(auto& s:quickSlots)
+    quickRenderer.drawItem(s.x,s.y,s.s,s.s,*s.item);
+  }
+
+// the same as the use button of the inventory: put on / take off, eat, drink, read, cast
+void InventoryMenu::quickUse(size_t cls) {
+  auto pl = Gothic::inst().player();
+  if(pl==nullptr || Gothic::inst().world()==nullptr)
+    return;
+  for(auto it = pl->inventory().iterator(Inventory::T_Inventory); it.isValid(); ++it) {
+    if(it->clsId()!=cls)
+      continue;
+    if(it.isEquipped())
+      pl->unequipItem(cls); else
+      pl->useItem(cls,Item::NSLOT,false);
+    return;
+    }
+  }
+
+std::string InventoryMenu::quickJson() const {
+  std::string r = "{\"w\":" + std::to_string(w()) + ",\"h\":" + std::to_string(h()) +
+                  ",\"f\":" + std::to_string(quickFirst) + ",\"c\":" + std::to_string(quickCols) +
+                  ",\"t\":" + std::to_string(quickTotal) + ",\"s\":[";
+  for(size_t i=0; i<quickSlots.size(); ++i) {
+    auto& s = quickSlots[i];
+    if(i>0)
+      r += ',';
+    r += "{\"k\":" + std::to_string(s.key) + ",\"u\":" + std::to_string(s.cls) +
+         ",\"n\":" + std::to_string(s.count) +
+         ",\"x\":" + std::to_string(s.x) + ",\"y\":" + std::to_string(s.y) +
+         ",\"b\":" + std::to_string(s.s) + ",\"on\":" + (s.on ? "1" : "0") + "}";
+    }
+  r += "]}";
+  return r;
+  }
+#endif

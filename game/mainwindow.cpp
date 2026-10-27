@@ -129,6 +129,23 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* og_quests() {
   return out.c_str();
   }
 
+// touch controls: the quick panel (weapons and spells of the number keys) under the world view
+extern "C" EMSCRIPTEN_KEEPALIVE const char* og_quickslots() {
+  static std::string out;
+  out = g_webMain!=nullptr ? g_webMain->webQuickSlots() : std::string("{\"w\":0,\"h\":0,\"s\":[]}");
+  return out.c_str();
+  }
+
+extern "C" EMSCRIPTEN_KEEPALIVE void og_quickpanel(int open, int first) {
+  if(g_webMain!=nullptr)
+    g_webMain->webQuickPanel(open!=0, first);
+  }
+
+extern "C" EMSCRIPTEN_KEEPALIVE void og_quickuse(int cls) {
+  if(g_webMain!=nullptr && cls>=0)
+    g_webMain->webQuickUse(size_t(cls));
+  }
+
 // touch controls: camera look, in pixels like a mouse move
 extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
   if(g_webMain!=nullptr)
@@ -1202,6 +1219,9 @@ uint64_t MainWindow::tick() {
 
   dialogs.tick(dt);
   inventory.tick(dt);
+#if defined(__EMSCRIPTEN__)
+  inventory.quickUpdate();
+#endif
   Gothic::inst().tick(dt);
   player.tickFocus();
 

@@ -51,6 +51,15 @@ class InventoryMenu : public Tempest::Widget {
 
     void  tick(uint64_t dt);
     void  draw(Tempest::Encoder<Tempest::CommandBuffer>& cmd, float sx = 1.f, float sy = 1.f);
+#if defined(__EMSCRIPTEN__)
+    // web touch controls: the quick panel under the world view - the melee and ranged weapon and the
+    // spells of the number keys 1..0, drawn with the same 3D item icons as the inventory
+    bool  quickVisible() const { return quickOpen && !quickSlots.empty(); }
+    void  quickSetOpen(bool on, int first) { quickOpen = on; quickFirst = std::max(0,first); }
+    void  quickUpdate();
+    void  quickUse(size_t cls);
+    std::string quickJson() const;
+#endif
     void  paintNumOverlay(Tempest::PaintEvent& e);
 
     void  keyDownEvent  (Tempest::KeyEvent&   e) override;
@@ -95,6 +104,16 @@ class InventoryMenu : public Tempest::Widget {
     size_t                    takeCount  =0;
     LootMode                  lootMode   =LootMode::Normal;
     InventoryRenderer         renderer;
+#if defined(__EMSCRIPTEN__)
+    // key: the number key (1..0) of a weapon or spell, -1: an item of the inventory (cls), used by a tap
+    struct QuickSlot { int key=-1, x=0, y=0, s=0; bool on=false; size_t cls=0; uint32_t count=1; const Item* item=nullptr; };
+    InventoryRenderer         quickRenderer;
+    std::vector<QuickSlot>    quickSlots;
+    std::vector<size_t>       quickSig;
+    bool                      quickOpen = false;
+    int                       quickW = 0, quickH = 0;
+    int                       quickFirst = 0, quickCols = 1, quickTotal = 0;
+#endif
 
     size_t                    columsCount = 5;
     int32_t                   scrollDelta = 0;

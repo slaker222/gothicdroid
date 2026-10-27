@@ -55,6 +55,9 @@ class MainWindow : public Tempest::Window {
     // web touch controls (web/shell.html): what the player is doing, camera look
     int   webUiState() const;
     void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
+    std::string webQuickSlots() const { return inventory.quickJson(); }
+    void  webQuickPanel(bool open, int first) { inventory.quickSetOpen(open, first); }
+    void  webQuickUse(size_t cls)     { inventory.quickUse(cls); }
 #endif
 
   private:

@@ -254,6 +254,33 @@
     .tbtn svg .ar { opacity: 0.45; }
     .tbtn[data-dir="l"] svg .ar.l, .tbtn[data-dir="u"] svg .ar.u, .tbtn[data-dir="r"] svg .ar.r
       { opacity: 1; stroke-width: 3.2; }
+    /* quick panel: the weapons and spells of the number keys at the bottom (the icons are the game's own
+       3D item pictures, drawn by the engine under these frames) */
+    .tq-slot {
+      position: absolute; box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2cqmin;
+      background: rgba(0, 0, 0, 0.3); pointer-events: auto; touch-action: none;
+    }
+    .tq-slot.on { border: 2px solid #ffd54a; background: rgba(255, 213, 74, 0.18); }
+    .tq-slot.down { background: rgba(255, 255, 255, 0.3); }
+    .tq-slot i { position: absolute; right: 3px; bottom: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif; font-style: normal;
+                 color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+    .tq-page { position: absolute; width: 5cqmin; height: 8cqmin; display: flex; align-items: center; justify-content: center;
+               border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(0, 0, 0, 0.35); color: #fff;
+               pointer-events: auto; touch-action: none; }
+    .tq-page svg { width: 80%; height: 80%; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .tq-slot span { position: absolute; left: 3px; top: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif;
+                    color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+    #tq-open, #tq-close {
+      position: absolute; transform: translateX(-50%);
+      width: 14cqmin; height: 5cqmin;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.35); color: #fff; pointer-events: auto; touch-action: none;
+    }
+    #tq-open { left: 50%; bottom: 1cqmin; }
+    #tq-open.hidden, #tq-close.hidden { display: none; }
+    #tq-open svg, #tq-close svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     /* the quest journal for the touch layout: under the inventory and character buttons */
     #tj {
       position: absolute;
@@ -1555,6 +1582,8 @@ async function installChunks(m) {
         Up: ['ArrowUp', 'ArrowUp', 38], Down: ['ArrowDown', 'ArrowDown', 40],
         Left: ['ArrowLeft', 'ArrowLeft', 37], Right: ['ArrowRight', 'ArrowRight', 39],
         W: ['w', 'KeyW', 87], S: ['s', 'KeyS', 83], A: ['a', 'KeyA', 65], D: ['d', 'KeyD', 68],
+        '1': ['1', 'Digit1', 49], '2': ['2', 'Digit2', 50], '3': ['3', 'Digit3', 51], '4': ['4', 'Digit4', 52], '5': ['5', 'Digit5', 53],
+        '6': ['6', 'Digit6', 54], '7': ['7', 'Digit7', 55], '8': ['8', 'Digit8', 56], '9': ['9', 'Digit9', 57], '0': ['0', 'Digit0', 48],
         Shift: ['Shift', 'ShiftLeft', 16], Ctrl: ['Control', 'ControlLeft', 17], Space: [' ', 'Space', 32], Alt: ['Alt', 'AltLeft', 18],
         End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], K: ['k', 'KeyK', 75], Tab: ['Tab', 'Tab', 9],
         N: ['n', 'KeyN', 78], B: ['b', 'KeyB', 66], M: ['m', 'KeyM', 77],
@@ -1976,6 +2005,88 @@ async function installChunks(m) {
       jBack.addEventListener('click', () => { jr.detail = -1; renderJournal(); });
       jOpen.addEventListener('click', () => setJournalOpen(true));
 
+      // ---- quick panel (bottom): tap the arrow to open, tap a block to draw that weapon / spell
+      const tqOpen = document.createElement('div');
+      tqOpen.id = 'tq-open'; tqOpen.className = 'hidden'; tqOpen.title = 'Weapons and spells';
+      tqOpen.innerHTML = '<svg viewBox="0 0 28 12"><path d="M4 9l10-6 10 6"/></svg>';
+      const tqClose = document.createElement('div');
+      tqClose.id = 'tq-close'; tqClose.className = 'hidden'; tqClose.title = 'Close';
+      tqClose.innerHTML = '<svg viewBox="0 0 28 12"><path d="M4 3l10 6 10-6"/></svg>';
+      ui.appendChild(tqOpen);
+      ui.appendChild(tqClose);
+      const tq = { open: false, raw: '', n: 0, sig: '', polled: 0, sent: -1, sentFirst: -1, els: [], first: 0, total: 0, cols: 1 };
+      const tqPrev = document.createElement('div'), tqNext = document.createElement('div');
+      tqPrev.className = 'tq-page'; tqNext.className = 'tq-page';
+      tqPrev.innerHTML = '<svg viewBox="0 0 12 24"><path d="M9 4L3 12l6 8"/></svg>';
+      tqNext.innerHTML = '<svg viewBox="0 0 12 24"><path d="M3 4l6 8-6 8"/></svg>';
+      ui.appendChild(tqPrev); ui.appendChild(tqNext);
+      tqPrev.addEventListener('click', () => { tq.first = Math.max(0, tq.first - tq.cols); tq.sig = ''; update(); });
+      tqNext.addEventListener('click', () => { tq.first = Math.min(Math.max(0, tq.total - tq.cols), tq.first + tq.cols); tq.sig = ''; update(); });
+      try { tq.open = localStorage.getItem('touchQuick') === '1'; } catch (e) {}
+      function setQuickOpen(on) {
+        tq.open = on;
+        try { localStorage.setItem('touchQuick', on ? '1' : '0'); } catch (e) {}
+        update();
+      }
+      tqOpen.addEventListener('click', () => setQuickOpen(true));
+      tqClose.addEventListener('click', () => setQuickOpen(false));
+      function pollQuick(layoutIsWorld) {
+        const now = performance.now();
+        if (now - tq.polled < 250) return;
+        tq.polled = now;
+        let raw = '';
+        try { raw = Module.ccall('og_quickslots', 'string', [], []); } catch (e) { return; }
+        const cr = document.getElementById('canvas').getBoundingClientRect(), ur = ui.getBoundingClientRect();
+        const sig = raw + '|' + Math.round(cr.left - ur.left) + '|' + Math.round(cr.width) + '|' + Math.round(cr.top - ur.top);
+        if (sig === tq.sig) return;
+        tq.sig = sig;
+        let d = { w: 0, s: [] };
+        try { d = JSON.parse(raw); } catch (e) { return; }
+        tq.els.forEach(e => e.remove());
+        tq.els = [];
+        tq.n = d.s.length;
+        tq.total = d.t || 0; tq.cols = d.c || 1; tq.first = d.f || 0;
+        if (!d.w) return;
+        const k = cr.width / d.w, ox = cr.left - ur.left, oy = cr.top - ur.top;
+        let top = 1e9, mid = 0;
+        d.s.forEach(sl => {
+          const el = document.createElement('div');
+          el.className = 'tq-slot' + (sl.on ? ' on' : '');
+          el.style.left = (ox + sl.x * k) + 'px'; el.style.top = (oy + sl.y * k) + 'px';
+          el.style.width = (sl.b * k) + 'px'; el.style.height = (sl.b * k) + 'px';
+          el.innerHTML = (sl.k >= 0 ? '<span>' + sl.k + '</span>' : '') + (sl.n > 1 ? '<i>' + sl.n + '</i>' : '');
+          const kn = String(sl.k);
+          el.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            el.classList.add('down');
+            if (sl.k >= 0) {
+              // weapon or spell of a number key
+              key(kn, true, true);
+              setTimeout(() => { key(kn, false); el.classList.remove('down'); }, 70);
+            } else {
+              // an item of the inventory: use it (put on, eat, drink, read ...)
+              try { Module.ccall('og_quickuse', null, ['number'], [sl.u]); } catch (err) {}
+              setTimeout(() => el.classList.remove('down'), 120);
+            }
+          });
+          ui.appendChild(el);
+          tq.els.push(el);
+          top = Math.min(top, oy + sl.y * k);
+          mid = ox + (sl.x + sl.b / 2) * k;
+        });
+        if (d.s.length) {
+          // the middle of the row (the close arrow goes above it)
+          const first = d.s[0], last = d.s[d.s.length - 1];
+          tqClose.style.left = (ox + (first.x + last.x + last.b) / 2 * k) + 'px';
+          tqClose.style.top = (top - ur.height * 0.05 - 6) + 'px';
+          // page arrows at the ends of the row
+          const rowH = (d.s[0].b * k);
+          tqPrev.style.left = (ox + first.x * k - ur.height * 0.07 - 4) + 'px';
+          tqNext.style.left = (ox + (last.x + last.b) * k + 4) + 'px';
+          tqPrev.style.top = tqNext.style.top = (top + rowH / 2 - ur.height * 0.04) + 'px';
+        }
+      }
+
       let lastLayout = '';
       function update() {
         if (!document.body.classList.contains('touch-on')) return;
@@ -1993,6 +2104,19 @@ async function installChunks(m) {
         }
         marvinOn = !!(st & (1 << 26));
         if (layout === 'world') pollJournal();
+        const isWorld = layout === 'world';
+        if (isWorld) pollQuick(true);
+        const qShow = isWorld && tq.n > 0;
+        tqOpen.classList.toggle('hidden', !(qShow && !tq.open));
+        tqClose.classList.toggle('hidden', !(qShow && tq.open));
+        tq.els.forEach(e => e.style.display = (qShow && tq.open) ? '' : 'none');
+        const paged = qShow && tq.open && tq.total > tq.cols;
+        tqPrev.style.display = (paged && tq.first > 0) ? '' : 'none';
+        tqNext.style.display = (paged && tq.first + tq.cols < tq.total) ? '' : 'none';
+        const want = (qShow && tq.open) ? 1 : 0;
+        if ((want !== tq.sent || tq.first !== tq.sentFirst) && g_runtimeUp) {
+          try { Module.ccall('og_quickpanel', null, ['number', 'number'], [want, tq.first]); tq.sent = want; tq.sentFirst = tq.first; } catch (e) {}
+        }
         const jShow = layout === 'world' && jr.list.length > 0;
         jEl.classList.toggle('hidden', !(jShow && jr.open));
         jOpen.classList.toggle('hidden', !(jShow && !jr.open));

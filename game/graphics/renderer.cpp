@@ -597,6 +597,19 @@ void Renderer::draw(Encoder<CommandBuffer>& cmd, uint8_t cmdId, size_t imgId,
   cmd.setDebugMarker("UI");
   uiLayer.draw(cmd);
 
+#if defined(__EMSCRIPTEN__)
+  const bool quick = inventory.quickVisible();
+#else
+  const bool quick = false;
+#endif
+  if(quick && inventory.isOpen()==InventoryMenu::State::Closed) {
+    auto& zb = (zbufferUi.isEmpty() ? zbuffer : zbufferUi);
+    cmd.setFramebuffer({{result, Tempest::Preserve, Tempest::Preserve}},{zb, 1.f, Tempest::Preserve});
+    cmd.setDebugMarker("Quick slots");
+    const float sx = float(result.w())/float(std::max(1,inventory.w()));
+    const float sy = float(result.h())/float(std::max(1,inventory.h()));
+    inventory.draw(cmd,sx,sy);
+    }
   if(inventory.isOpen()!=InventoryMenu::State::Closed) {
     auto& zb = (zbufferUi.isEmpty() ? zbuffer : zbufferUi);
     cmd.setFramebuffer({{result, Tempest::Preserve, Tempest::Preserve}},{zb, 1.f, Tempest::Preserve});
