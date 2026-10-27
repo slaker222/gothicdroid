@@ -127,6 +127,18 @@ void Resources::mountWork(const std::filesystem::path& path) {
   inst->gothicAssets.mount_host(path, "/_work", zenkit::VfsOverwriteBehavior::NONE);
   }
 
+bool Resources::mountOver(const std::filesystem::path& path) {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  try {
+    inst->gothicAssets.mount_disk(path, zenkit::VfsOverwriteBehavior::ALL);
+    return true;
+    }
+  catch(const std::exception& err) {
+    Log::e("unable to mount archive: \"", path.string(), "\", reason: ", err.what());
+    return false;
+    }
+  }
+
 void Resources::loadVdfs(const std::vector<std::u16string>& modvdfs, bool modFilter) {
   std::vector<Archive> archives;
   inst->detectVdf(archives,Gothic::inst().nestedPath({u"Data"},Dir::FT_Dir));

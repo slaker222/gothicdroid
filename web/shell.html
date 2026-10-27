@@ -43,6 +43,48 @@
       overflow: hidden;
     }
 
+    /* language bar above the player (only when the server has lang/languages.json) */
+    #lang-bar {
+      --lang-h: 40px;
+      height: var(--lang-h);
+      width: min(100vw, calc((100vh - 70px) * 16 / 9));
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      color: var(--dim);
+    }
+    #lang-bar[hidden] { display: none; }
+    #lang-bar label { display: flex; align-items: center; gap: 6px; }
+    #lang-bar select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 3px 6px;
+      font: inherit;
+    }
+    #lang-bar .btn { padding: 3px 12px; }
+    #lang-note { overflow: hidden; text-overflow: ellipsis; }
+    body.has-lang #player { width: min(100vw, calc((100vh - 70px) * 16 / 9)); }
+    /* strip under the player: progress of a voice language download */
+    #voice-bar { display: none; }
+    body.has-lang #voice-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 30px;
+      width: min(100vw, calc((100vh - 70px) * 16 / 9));
+      padding: 0 4px;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    #voice-bar.idle { visibility: hidden; }
+    #voice-track { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    #voice-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
     #player:fullscreen {
       width: 100%;
       height: 100%;
@@ -397,6 +439,12 @@
   </style>
 </head>
 <body>
+  <div id="lang-bar" hidden>
+    <label>Text language <select id="lang-text"></select></label>
+    <label>Voice language <select id="lang-voice"></select></label>
+    <button class="btn" id="lang-apply" onclick="applyLanguages()">Apply</button>
+    <span id="lang-note"></span>
+  </div>
   <div id="player">
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
 
@@ -497,6 +545,8 @@
       </div>
     </div>
   </div>
+
+  <div id="voice-bar" class="idle"><div id="voice-track"><div id="voice-fill"></div></div><span id="voice-text"></span></div>
 
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
        unpacks ZIP archives into the OPFS game directory. Kept as text and
@@ -967,7 +1017,15 @@ async function installChunks(m) {
       }
       const fh = await d.getFileHandle(fname, { create: true });
       fileHandles.push(fh);
-      const h = await fh.createSyncAccessHandle();
+      // after a page reload the previous page may still hold the file for a moment
+      let h;
+      for (let tries = 0; ; tries++) {
+        try { h = await fh.createSyncAccessHandle(); break; }
+        catch (e) {
+          if (e.name !== 'NoModificationAllowedError' || tries >= 40) throw e;
+          await sleep(250);
+        }
+      }
       if (h.getSize() !== f.size) h.truncate(f.size);
       return h;
     })());
@@ -1044,8 +1102,8 @@ async function installChunks(m) {
     await Promise.all(Array.from({ length: Math.min(CHUNK_JOBS, todo.length) }, lane));
     progress({ phase: 'download', done: total, total });
 
-    // files no chunk wrote into (empty ones) still have to exist
-    for (let fi = 0; fi < man.files.length; fi++) await handleFor(fi);
+    // files no chunk wrote into (empty ones) still have to exist (a finished pack has them)
+    if (todo.length) for (let fi = 0; fi < man.files.length; fi++) await handleFor(fi);
   } finally {
     for (const p of handles.values()) {
       const h = await p.catch(() => null);
@@ -2660,7 +2718,7 @@ function serveLoop() {
 
       // ---- lazy bridge helpers ----
       bridgeReadInto(e, heapBuffer, offset, position, length) {
-        const br = GameFS.bridge;
+        const br = e.br || GameFS.bridge; // a voice language added while the game runs has its own
         // loop over 16MB chunks until the whole request is satisfied
         let done = 0;
         while (done < length) {
@@ -2846,9 +2904,15 @@ function serveLoop() {
     // stay available and stop the download when used.
     async function bootstrap() {
       try {
+        g_langIndex = await loadLangIndex();
+        if (g_langIndex) await adoptLiveVoice();
+        if (g_langIndex) await initLangBar();
+        // Apply on the language bar: install the chosen packs instead of mounting
+        const applyLang = !!g_langIndex && lsGet(LANG_APPLY) === '1';
+        lsSet(LANG_APPLY, null);
         const installed = await readRootJson(INSTALL_MARK);
         // without the direct mode a game imported into OPFS is used as well
-        if (installed || !DIRECT_FOLDER_MODE) {
+        if (!applyLang && (installed || !DIRECT_FOLDER_MODE)) {
           await g_runtimeReady;
           if (await mountInstalledGame()) {
             startGame();
@@ -3043,6 +3107,7 @@ function serveLoop() {
     }
 
     async function downloadGame() {
+      if (g_langIndex) return installLanguagePacks();
       if (isolationBlocked()) return;
       if (await webgpuBlocked()) return;
       if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
@@ -3082,6 +3147,383 @@ function serveLoop() {
         setStatus('Checking...', 0);
         const res = await runInstallWorker({ type: 'extract', zipName: DL_ZIP, deleteZip: true }, report);
         await finishInstall({ source: url, archiveBytes: dl.total }, res);
+      } catch (err) {
+        installError(err, 'Error', true);
+      } finally {
+        g_downloading = false;
+      }
+    }
+
+    // ------------------------- language packs (test) -------------------------
+    // The server may offer lang/languages.json (tools/pack_langs.py): a shared
+    // base pack plus, per language, a text pack and a voice pack. The bar above
+    // the player picks the text and the voice language independently. A choice
+    // is applied at the next start (Apply reloads the page): the packs of the
+    // choice are installed over the base and the game mounts as usual.
+    // ?langs=<url of languages.json> overrides the address.
+    const LANG_STATE = 'gothic-langs.json';  // {text, voice, files:{base,text,voice}} of the installed game
+    const LANG_SEL = 'langSel';              // localStorage: {text, voice} chosen on the bar
+    const LANG_APPLY = 'langApply';          // localStorage: install the choice at this start
+    let g_langIndex = null;
+    let g_langBase = '';
+
+    function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+    function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
+
+    async function loadLangIndex() {
+      try {
+        const q = new URLSearchParams(location.search).get('langs');
+        const r = await fetch(new URL(q || 'lang/languages.json', location.href).href, { cache: 'no-store' });
+        if (!r.ok) return null;
+        const idx = await r.json();
+        if (idx.version !== 1 || !idx.base || !Array.isArray(idx.languages)) return null;
+        g_langBase = new URL('.', r.url).href;
+        return idx;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // the choice made on the bar; first start: Russian when the server has it
+    function langSelection() {
+      let s = null;
+      try { s = JSON.parse(lsGet(LANG_SEL)); } catch (e) {}
+      const text = g_langIndex.languages.filter(l => l.text);
+      const voice = g_langIndex.languages.filter(l => l.voice);
+      const pick = (list, id) => (list.find(l => l.id === id) || list.find(l => l.id === 'ru') || list[0] || {}).id;
+      return { text: pick(text, s && s.text), voice: pick(voice, s && s.voice) };
+    }
+
+    async function initLangBar() {
+      const st = await readRootJson(LANG_STATE);
+      // a choice waiting for its install (Apply) is shown, otherwise what is installed
+      const sel = st && lsGet(LANG_APPLY) !== '1' ? { text: st.text, voice: st.voice } : langSelection();
+      const fill = (el, kind, cur) => {
+        el.textContent = '';
+        for (const l of g_langIndex.languages) {
+          if (!l[kind]) continue;
+          const o = document.createElement('option');
+          o.value = l.id;
+          o.textContent = l.name + ' (' + mb(l[kind].size) + ' MB)';
+          o.selected = l.id === cur;
+          el.appendChild(o);
+        }
+      };
+      fill(document.getElementById('lang-text'), 'text', sel.text);
+      fill(document.getElementById('lang-voice'), 'voice', sel.voice);
+      document.getElementById('lang-note').textContent = st ? '' : 'game installed without language packs';
+      document.getElementById('lang-bar').hidden = false;
+      document.body.classList.add('has-lang');
+    }
+
+    async function applyLanguages() {
+      const sel = { text: document.getElementById('lang-text').value, voice: document.getElementById('lang-voice').value };
+      const st = await readRootJson(LANG_STATE);
+      const note = document.getElementById('lang-note');
+      if (st && st.text === sel.text && st.voice === sel.voice) {
+        note.textContent = 'this choice is already installed';
+        return;
+      }
+      // only the voice changes in a running game: it is swapped without a restart
+      if (g_gameReady && st && st.text === sel.text) {
+        const v = g_langIndex.languages.find(l => l.id === sel.voice);
+        if (v && v.voice) { swapVoiceLive(v); return; }
+      }
+      if (g_gameReady && !confirm('The game restarts to change the language. Unsaved progress is lost. Continue?'))
+        return;
+      lsSet(LANG_SEL, JSON.stringify(sel));
+      lsSet(LANG_APPLY, '1');
+      location.reload();
+    }
+
+    // removeEntry that waits while the previous page (before a reload) still holds the file
+    async function removeEntryRetry(dir, name) {
+      for (let tries = 0; ; tries++) {
+        try { await dir.removeEntry(name, { recursive: true }); return; }
+        catch (e) {
+          if (e.name === 'NotFoundError') return;
+          if (e.name !== 'NoModificationAllowedError' || tries >= 60) throw e;
+          await new Promise(r => setTimeout(r, 250));
+        }
+      }
+    }
+
+    // Removes game files that do not belong to the install: with `expected` (a Set of paths)
+    // everything under Data/ and _work/ that is not in it (an older language's archives,
+    // cutscenes, scripts); without it every game file. Savegames and settings stay.
+    async function pruneGameFiles(expected) {
+      let dir;
+      try { dir = await opfsGameDir(false); } catch (e) { return 0; }
+      let removed = 0;
+      async function walk(d, prefix) {
+        const list = [];
+        for await (const e of d.entries()) list.push(e);
+        for (const [name, h] of list) {
+          const path = prefix + name;
+          if (h.kind === 'directory') {
+            if (!prefix && /^saves/i.test(name)) continue;
+            await walk(h, path + '/');
+            continue;
+          }
+          if (isPersistedPath(path)) continue;
+          if (expected && (expected.has(path) || !/^(data|_work)\//i.test(path))) continue;
+          await removeEntryRetry(d, name);
+          removed++;
+        }
+      }
+      await walk(dir, '');
+      return removed;
+    }
+
+    // --------------------- voice language in a running game ---------------------
+    // The new voice pack is downloaded into its own OPFS folder (the files of the current voice
+    // are in use), read through a second bridge worker and mounted over the old archives by the
+    // engine (dialogue lines are read from the archives when they are spoken). The next start
+    // moves the new files into the game folder (adoptLiveVoice) in place of the old ones.
+    const LIVE_VOICE_DIR = 'gothic-voice-';
+    const LIVE_VOICE_STATE = 'gothic-voice-live-';
+    let g_liveBusy = false;
+    let g_liveSeq = 0;
+
+    function voiceBar(text, pct) {
+      document.getElementById('voice-bar').classList.toggle('idle', text === null);
+      document.getElementById('voice-text').textContent = text || '';
+      document.getElementById('voice-fill').style.width = (pct || 0) + '%';
+    }
+
+    // a bridge worker (see makeBridgeWorkerSource) over File objects: they are read without locking
+    function startVoiceBridge(files) {
+      return new Promise((resolve, reject) => {
+        const cmdSab = new SharedArrayBuffer(8 * 4);
+        const dataSab = new SharedArrayBuffer(BRIDGE_CHUNK);
+        const cmd = new Int32Array(cmdSab);
+        const data = new Uint8Array(dataSab);
+        const url = URL.createObjectURL(new Blob([makeBridgeWorkerSource()], { type: 'text/javascript' }));
+        const worker = new Worker(url);
+        URL.revokeObjectURL(url);
+        worker.onerror = (e) => reject(new Error('voice bridge: ' + e.message));
+        worker.postMessage({ type: 'init', cmd: cmdSab, data: dataSab, files });
+        const wait = () => {
+          if (Atomics.load(cmd, 6) !== 1) { setTimeout(wait, 20); return; }
+          if (Atomics.load(cmd, 7) !== 0) reject(new Error('voice bridge init failed'));
+          else resolve({ worker, cmd, data });
+        };
+        wait();
+      });
+    }
+
+    async function swapVoiceLive(voice) {
+      if (g_liveBusy) return;
+      g_liveBusy = true;
+      const note = document.getElementById('lang-note');
+      const applyBtn = document.getElementById('lang-apply');
+      applyBtn.disabled = true;
+      note.textContent = '';
+      try {
+        const url = new URL(voice.voice.path, g_langBase).href;
+        const man = await (await fetch(url, { cache: 'no-store' })).json();
+        const dirName = LIVE_VOICE_DIR + voice.id;
+        const stateName = LIVE_VOICE_STATE + voice.id + '.json';
+        voiceBar('Voice ' + voice.name + ': connecting...', 0);
+        await runInstallWorker({ type: 'chunks', urls: [url], stateName, gameDirName: dirName }, (m) => {
+          if (m.phase === 'download')
+            voiceBar('Voice ' + voice.name + ': ' + mb(m.done) + ' / ' + mb(m.total) + ' MB',
+                     m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0);
+          else if (m.phase === 'retry')
+            voiceBar('Voice ' + voice.name + ': network error, retry ' + m.attempt + '/' + m.max, 0);
+        });
+
+        voiceBar('Voice ' + voice.name + ': applying...', 100);
+        const root = await navigator.storage.getDirectory();
+        const vdir = await root.getDirectoryHandle(dirName);
+        const archives = [];
+        for (const f of man.files) {
+          if (!/^data\/speech[^/]*\.vdf$/i.test(f.path)) continue;
+          const parts = f.path.split('/');
+          const name = parts.pop();
+          let d = vdir;
+          for (const seg of parts) d = await d.getDirectoryHandle(seg);
+          archives.push({ path: f.path, file: await (await d.getFileHandle(name)).getFile() });
+        }
+        if (!archives.length) throw new Error('no speech archive in the voice pack');
+        const br = await startVoiceBridge(archives.map(a => a.file));
+        let mounted = 0;
+        g_liveSeq++;
+        archives.forEach((a, i) => {
+          const vname = 'voice_live' + g_liveSeq + '_' + a.path.split('/').pop();
+          const e = GameFS.addEntry('Data/' + vname, false, a.file.size);
+          e.hIdx = i;
+          e.br = br;
+          if (Module.ccall('og_voice_mount', 'number', ['string'], ['/gothic/Data/' + vname]) === 1) mounted++;
+        });
+        if (!mounted) throw new Error('the engine could not mount the voice archives');
+
+        // the next start moves these files into the game folder (adoptLiveVoice)
+        const st = await readRootJson(LANG_STATE);
+        const prev = st.liveVoice;
+        const prevVoice = prev ? prev.prevVoice : st.voice; // the voice the files on disk belong to
+        st.voice = voice.id;
+        st.liveVoice = { id: voice.id, prevVoice, dir: dirName, state: stateName, files: man.files.map(f => f.path),
+                         dirs: [...new Set([...(prev ? prev.dirs : []), dirName])] };
+        await writeRootJson(LANG_STATE, st);
+        lsSet(LANG_SEL, JSON.stringify({ text: st.text, voice: voice.id }));
+        voiceBar('Voice ' + voice.name + ': ready', 100);
+        note.textContent = 'voice changed to ' + voice.name;
+        setTimeout(() => voiceBar(null), 4000);
+      } catch (err) {
+        console.error('voice change failed:', err);
+        voiceBar('Voice change failed: ' + String(err && err.message || err), 0);
+      } finally {
+        applyBtn.disabled = false;
+        g_liveBusy = false;
+      }
+    }
+
+    async function removeGamePath(dir, path) {
+      try {
+        const parts = path.split('/');
+        const name = parts.pop();
+        let d = dir;
+        for (const seg of parts) d = await d.getDirectoryHandle(seg);
+        await removeEntryRetry(d, name);
+      } catch (e) { /* already gone */ }
+    }
+
+    // moves a file between OPFS folders (copies where move() is missing)
+    async function moveOpfsFile(srcDir, name, destDir, newName) {
+      const fh = await srcDir.getFileHandle(name);
+      try { await fh.move(destDir, newName); return; } catch (e) { /* copy instead */ }
+      const w = await (await destDir.getFileHandle(newName, { create: true })).createWritable();
+      await (await fh.getFile()).stream().pipeTo(w);
+    }
+
+    // at a start after a live voice change: the downloaded voice files take the place of the old ones
+    async function adoptLiveVoice() {
+      const st = await readRootJson(LANG_STATE);
+      if (!st || !st.liveVoice) return;
+      const lv = st.liveVoice;
+      const root = await navigator.storage.getDirectory();
+      let vdir = null;
+      try { vdir = await root.getDirectoryHandle(lv.dir); } catch (e) {}
+      if (vdir) {
+        const game = await opfsGameDir(true);
+        for (const p of st.files.voice) await removeGamePath(game, p);
+        for (const p of lv.files) {
+          const parts = p.split('/');
+          const name = parts.pop();
+          try {
+            let sd = vdir;
+            for (const seg of parts) sd = await sd.getDirectoryHandle(seg);
+            const dd = await opfsEnsureDir(game, parts);
+            await removeGamePath(game, p);
+            await moveOpfsFile(sd, name, dd, name);
+          } catch (e) { /* a file the installer skips */ }
+        }
+        // the pack counts as installed in the game folder: same state, new place
+        const ls = await readRootJson(lv.state);
+        if (ls) await writeRootJson('gothic-chunks-voice.json', ls);
+        st.files.voice = lv.files;
+      } else {
+        st.voice = lv.prevVoice; // the new files are gone: the old voice is still in the game folder
+      }
+      for (const d of lv.dirs) {
+        await removeRootEntry(d);
+        await removeRootEntry(LIVE_VOICE_STATE + d.slice(LIVE_VOICE_DIR.length) + '.json');
+      }
+      delete st.liveVoice;
+      await writeRootJson(LANG_STATE, st);
+    }
+
+    // every file of a pack is in the game directory with the size the pack says
+    async function packIntact(files) {
+      let dir;
+      try { dir = await opfsGameDir(false); } catch (e) { return false; }
+      const dirs = new Map([['', dir]]);
+      // what the installer skips (junk) or leaves to the game (savegames, settings) is not checked
+      for (const f of files.filter(f => shouldImport(f.path) && !isPersistedPath(f.path))) {
+        try {
+          const parts = f.path.split('/');
+          const name = parts.pop();
+          let key = '', d = dir;
+          for (const seg of parts) {
+            key += '/' + seg;
+            if (!dirs.has(key)) dirs.set(key, await d.getDirectoryHandle(seg));
+            d = dirs.get(key);
+          }
+          if ((await (await d.getFileHandle(name)).getFile()).size !== f.size) return false;
+        } catch (e) {
+          return false;
+        }
+      }
+      return true;
+    }
+
+    async function installLanguagePacks() {
+      if (isolationBlocked()) return;
+      if (await webgpuBlocked()) return;
+      if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
+      const sel = langSelection();
+      const L = id => g_langIndex.languages.find(l => l.id === id);
+      const text = L(sel.text), voice = L(sel.voice);
+      g_downloading = true;
+      retryBtn.style.display = 'none';
+      statusText.style.color = '';
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      setStatus('Connecting...');
+      try { if (navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
+      try {
+        if (!text || !text.text || !voice || !voice.voice) throw new Error('no such language pack');
+        const steps = [
+          { key: 'base', info: g_langIndex.base, state: 'gothic-chunks-base.json' },
+          { key: 'text', info: text.text, state: 'gothic-chunks-text.json', lang: text.id },
+          { key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id }
+        ];
+        for (const s of steps) {
+          s.url = new URL(s.info.path, g_langBase).href;
+          const man = await (await fetch(s.url, { cache: 'no-store' })).json();
+          s.files = man.files.map(f => f.path);
+          s.sizes = man.files;
+        }
+        // the chunk state says "done" also after the files were deleted (Delete game, evicted
+        // storage): a pack whose files are not all there is installed again
+        for (const s of steps) {
+          if (!await packIntact(s.sizes)) await removeRootEntry(s.state);
+        }
+
+        // a pack that changes starts from scratch; a game installed another way is cleared
+        const old = await readRootJson(LANG_STATE);
+        await removeRootEntry(INSTALL_MARK);
+        if (!old) {
+          await pruneGameFiles(null);
+          for (const s of steps) await removeRootEntry(s.state);
+        } else {
+          for (const s of steps)
+            if (s.key !== 'base' && old[s.key] !== s.lang) await removeRootEntry(s.state);
+        }
+
+        const total = steps.reduce((a, s) => a + s.info.size, 0);
+        const report = makeProgressReporter();
+        let before = 0;
+        const files = {};
+        let bytes = 0, count = 0;
+        for (const s of steps) {
+          const res = await runInstallWorker({ type: 'chunks', urls: [s.url], stateName: s.state }, (m) =>
+            report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m));
+          before += s.info.size;
+          files[s.key] = s.files;
+          bytes += res.bytes;
+          count += res.files;
+        }
+        // what the previous choice left behind (its speech archives, cutscenes, scripts) must go:
+        // two languages side by side would both be mounted
+        const removed = await pruneGameFiles(new Set(steps.flatMap(s => s.files)));
+        if (removed) console.log('[SHELL] removed', removed, 'files of the previous language');
+        await writeRootJson(LANG_STATE, { text: text.id, voice: voice.id, files });
+        lsSet(LANG_SEL, JSON.stringify({ text: text.id, voice: voice.id }));
+        document.getElementById('lang-note').textContent = '';
+        await finishInstall({ source: 'language packs ' + text.id + '/' + voice.id, archiveBytes: total },
+                            { files: count, bytes, download: total });
       } catch (err) {
         installError(err, 'Error', true);
       } finally {
@@ -3206,6 +3648,8 @@ function serveLoop() {
       await removeRootEntry(DL_ZIP);
       await removeRootEntry(DL_STATE);
       await removeRootEntry(CHUNK_STATE);
+      await removeRootEntry(LANG_STATE);
+      for (const k of ['base', 'text', 'voice']) await removeRootEntry('gothic-chunks-' + k + '.json');
       try {
         indexedDB.deleteDatabase('/gothic'); // legacy IDBFS database
         indexedDB.deleteDatabase('emscripten-fs'); // legacy runtime database

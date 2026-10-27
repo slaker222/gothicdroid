@@ -136,6 +136,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* og_quickslots() {
   return out.c_str();
   }
 
+// the page switched the voice language in a running game: the archive of the new language is
+// mounted over the old one (dialogue lines are read from the archives when they are spoken)
+extern "C" EMSCRIPTEN_KEEPALIVE int og_voice_mount(const char* path) {
+  return Resources::mountOver(path) ? 1 : 0;
+  }
+
 extern "C" EMSCRIPTEN_KEEPALIVE void og_quickpanel(int open, int first) {
   if(g_webMain!=nullptr)
     g_webMain->webQuickPanel(open!=0, first);

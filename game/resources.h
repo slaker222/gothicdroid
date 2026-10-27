@@ -83,6 +83,8 @@ class Resources final {
     static Tempest::Device&          device() { return inst->dev; }
     static const char*               renderer();
     static void                      mountWork(const std::filesystem::path& path);
+    // mounts one more archive over the loaded ones (replaced files win): the voice language changed in a running game
+    static bool                      mountOver(const std::filesystem::path& path);
     static void                      loadVdfs(const std::vector<std::u16string> &modvdfs, bool modFilter);
 
     static const Tempest::Sampler&   shadowSampler();
