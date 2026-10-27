@@ -100,6 +100,11 @@ int ConsoleWidget::exec() {
 
   updateSizeHint();
   setVisible(true);
+#if defined(__EMSCRIPTEN__)
+  // the browser delivers events only after this call returns: a nested loop here froze the page.
+  // The console stays an overlay and takes the keys while the game goes on
+  return 0;
+#endif
   while(overlay && Application::isRunning()) {
     Application::processEvents();
     }

@@ -526,7 +526,8 @@ void MainWindow::tickMouse(uint64_t dt) {
 // 6 video, 7 cutscene, 8 swimming, 9 diving, 10 loading, 11 using a mob;
 // 12..14 weapon (WeaponState); 16..18 focus: 1 npc, 2 npc down, 3 item, 4 mob;
 // 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State);
-// 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats)
+// 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats);
+// 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it)
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
@@ -574,6 +575,10 @@ int MainWindow::webUiState() const {
     s |= fk<<16;
     if(f.npc!=nullptr && !f.npc->isDown() && f.npc->attitude()==ATT_HOSTILE)
       s |= 1<<19;
+    if(f.npc!=nullptr && !f.npc->isDown() && f.npc->hasPerc(PERC_ASSESSTALK))
+      s |= 1<<27;
+    if(bool(pl->walkMode() & WalkBit::WM_Walk))
+      s |= 1<<28;
     if(pl->talentSkill(TALENT_SNEAK)>0)
       s |= 1<<23;
     // the map key opens a map the player carries (ItWrWorldmap, ItWr_Map_...)
