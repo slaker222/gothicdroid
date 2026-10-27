@@ -270,16 +270,12 @@
     .tq-slot.down { background: rgba(255, 255, 255, 0.3); }
     .tq-slot i { position: absolute; right: 3px; bottom: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif; font-style: normal;
                  color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
-    .tq-page { position: absolute; width: 5cqmin; height: 8cqmin; display: flex; align-items: center; justify-content: center;
-               border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.45); background: rgba(0, 0, 0, 0.35); color: #fff;
-               pointer-events: auto; touch-action: none; }
-    .tq-page svg { width: 80%; height: 80%; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
     .tq-slot span { position: absolute; left: 3px; top: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif;
                     color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
     /* the quest journal for the touch layout: under the inventory and character buttons */
     #tj {
       position: absolute;
-      right: 4cqmin;
+      left: 4cqmin;
       top: calc(36px + 12.5cqmin);
       width: 46cqmin;
       background: rgba(0, 0, 0, 0.6);
@@ -306,7 +302,7 @@
     #tj .tj-sep { height: 0; border-top: 1px dashed rgba(255, 255, 255, 0.4); margin: 0 2cqmin; }
     /* closed: a wide, low arrow under the character button brings it back */
     #tj-open {
-      position: absolute; right: 14cqmin; top: calc(36px + 12cqmin);
+      position: absolute; left: 14cqmin; top: calc(36px + 12cqmin);
       width: 14cqmin; height: 5cqmin;
       display: flex; align-items: center; justify-content: center;
       border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
@@ -2001,20 +1997,13 @@ async function installChunks(m) {
       jOpen.addEventListener('click', () => setJournalOpen(true));
 
       // ---- quick panel (bottom): four slots over the ring of the ten number keys 1..9,0 (melee 1, ranged 2,
-      // runes and scrolls 3..0; the empty keys too). The ring is turned round by the arrows (a page) or by a
-      // swipe along the row (a slot per slot width); a tap on a slot presses its key (draws the weapon /
+      // runes and scrolls 3..0; the empty keys too). The ring is turned round by a swipe along the row (a slot per
+      // slot width); a tap on a slot presses its key (draws the weapon /
       // the spell). The inventory button is one more block, right of the row, it stays in its place
-      const tqPrev = document.createElement('div'), tqNext = document.createElement('div'), tqHit = document.createElement('div');
-      tqPrev.className = 'tq-page'; tqNext.className = 'tq-page';
-      tqPrev.innerHTML = '<svg viewBox="0 0 12 24"><path d="M9 4L3 12l6 8"/></svg>';
-      tqNext.innerHTML = '<svg viewBox="0 0 12 24"><path d="M3 4l6 8-6 8"/></svg>';
+      const tqHit = document.createElement('div');
       tqHit.id = 'tq-hit';
-      ui.appendChild(tqPrev); ui.appendChild(tqNext); ui.appendChild(tqHit);
+      ui.appendChild(tqHit);
       const tq = { sig: '', polled: 0, sent: -1, sentFirst: -999, els: [], first: 0, total: 0, cols: 4, drag: false, hold: 0, step: 50, keys: [], row: null };
-      // the poll must not overwrite a turn that the engine has not taken yet
-      const turn = d => { tq.first += d; tq.hold = performance.now() + 600; tq.sig = ''; update(); };
-      tqPrev.addEventListener('click', () => turn(-tq.cols));
-      tqNext.addEventListener('click', () => turn(tq.cols));
       {
         let dn = null;
         tqHit.addEventListener('pointerdown', e => {
@@ -2078,7 +2067,7 @@ async function installChunks(m) {
           tq.els.push(el);
         });
         const first = d.s[0], last = d.s[d.s.length - 1];
-        const pw = ur.height * 0.05, ph = ur.height * 0.08, gap = last.b * k / 6;
+        const gap = last.b * k / 6;
         const pitch = (d.s.length > 1 ? (d.s[1].x - d.s[0].x) : first.b) * k;
         tq.step = pitch;
         tq.row = { pitch };
@@ -2087,11 +2076,6 @@ async function installChunks(m) {
         tqHit.style.top = (oy + first.y * k) + 'px';
         tqHit.style.width = (pitch * d.s.length) + 'px';
         tqHit.style.height = (first.b * k) + 'px';
-        // both arrows left of the row, so that the inventory button can stay close to it
-        const cy = oy + (first.y + first.b / 2) * k - ph / 2;
-        tqPrev.style.left = (ox + first.x * k - gap * 2 - pw * 2) + 'px';
-        tqNext.style.left = (ox + first.x * k - gap - pw) + 'px';
-        tqPrev.style.top = tqNext.style.top = cy + 'px';
         // the inventory button: a block of the row, right of the last slot
         const inv = byId.inv.el, isz = first.b * k;
         inv.classList.add('sq');
@@ -2122,9 +2106,6 @@ async function installChunks(m) {
         if (isWorld) pollQuick();
         tq.els.forEach(e => e.style.display = isWorld ? '' : 'none');
         tqHit.style.display = isWorld ? '' : 'none';
-        const paged = isWorld && tq.total > tq.cols;
-        tqPrev.style.display = paged ? '' : 'none';
-        tqNext.style.display = paged ? '' : 'none';
         const want = isWorld ? 1 : 0;
         if ((want !== tq.sent || tq.first !== tq.sentFirst) && g_runtimeUp) {
           try { Module.ccall('og_quickpanel', null, ['number', 'number'], [want, tq.first]); tq.sent = want; tq.sentFirst = tq.first; } catch (e) {}

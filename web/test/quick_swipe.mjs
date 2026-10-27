@@ -10,11 +10,6 @@ export default async ({ page, cdp, sleep, OUT }) => {
   const keys = () => page.evaluate(() => [...document.querySelectorAll('.tq-slot span')].map(e => e.textContent).join(' '));
   console.log('start', await keys(), JSON.parse(await page.evaluate(() => Module.ccall('og_quickslots', 'string', [], []))).t);
   await page.screenshot({ path: OUT + '/qs_start.png' });
-  const arrows = await page.$$('.tq-page');
-  await arrows[1].click(); await sleep(800);
-  console.log('after next arrow', await keys());
-  await arrows[0].click(); await sleep(800); await arrows[0].click(); await sleep(800);
-  console.log('after 2x prev', await keys());
   // swipe: drag to the left by 2 slots
   const r = await page.evaluate(() => { const h = document.getElementById('tq-hit').getBoundingClientRect(); return { x: h.left, y: h.top + h.height / 2, w: h.width }; });
   const pitch = r.w / 4;
@@ -22,6 +17,11 @@ export default async ({ page, cdp, sleep, OUT }) => {
   for (let i = 1; i <= 8; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: r.x + r.w - 10 - pitch * 2 * i / 8, y: r.y, id: 1 }] }); await sleep(40); }
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   await sleep(900);
-  console.log('after swipe left by 2 slots', await keys());
+  console.log('after swipe left by 2 slots', await keys(), 'arrows', await page.evaluate(() => document.querySelectorAll('.tq-page').length));
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x + 10, y: r.y, id: 1 }] });
+  for (let i = 1; i <= 8; i++) { await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: r.x + 10 + pitch * 3 * i / 8, y: r.y, id: 1 }] }); await sleep(40); }
+  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  await sleep(900);
+  console.log('after swipe right by 3 slots', await keys());
   await page.screenshot({ path: OUT + '/qs_end.png' });
 };
