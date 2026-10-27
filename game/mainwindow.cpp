@@ -80,6 +80,55 @@ extern "C" EMSCRIPTEN_KEEPALIVE void og_quick(int kind) {
     g.quickLoad();
   }
 
+// touch controls: the quest log for the page's own journal. JSON, newest quest first:
+// [{"n":name,"s":status 1..4,"t":section 0 mission / 1 note,"e":[entries, newest last]}].
+// The texts are in the game's code page: every byte >=0x80 goes out as \u00XX, the page decodes them
+extern "C" EMSCRIPTEN_KEEPALIVE const char* og_quests() {
+  static std::string out;
+  out.clear();
+  out += '[';
+  auto esc = [](std::string& o, const std::string& s) {
+    o += '"';
+    for(unsigned char c:s) {
+      if(c=='"' || c=='\\') {
+        o += '\\';
+        o += char(c);
+        }
+      else if(c<0x20 || c>=0x80) {
+        static const char* hex = "0123456789abcdef";
+        o += "\\u00";
+        o += hex[c>>4];
+        o += hex[c&15];
+        }
+      else
+        o += char(c);
+      }
+    o += '"';
+    };
+  if(g_webSettingsReady) {
+    if(auto ql = Gothic::inst().questLog()) {
+      for(size_t i=ql->questCount(); i>0; --i) {
+        auto& q = ql->quest(i-1);
+        if(i!=ql->questCount())
+          out += ',';
+        out += "{\"n\":";
+        esc(out, q.name);
+        out += ",\"s\":" + std::to_string(int(q.status));
+        out += ",\"t\":" + std::to_string(int(q.section));
+        out += ",\"e\":[";
+        for(size_t r=0; r<q.entry.size(); ++r) {
+          if(r>0)
+            out += ',';
+          esc(out, q.entry[r]);
+          }
+        out += "]}";
+        }
+      }
+    }
+  out += ']';
+  return out.c_str();
+  }
+
 // touch controls: camera look, in pixels like a mouse move
 extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
   if(g_webMain!=nullptr)
@@ -527,7 +576,8 @@ void MainWindow::tickMouse(uint64_t dt) {
 // 12..14 weapon (WeaponState); 16..18 focus: 1 npc, 2 npc down, 3 item, 4 mob;
 // 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State);
 // 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats);
-// 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it)
+// 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it);
+// 29 sneaking is on
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
@@ -579,6 +629,8 @@ int MainWindow::webUiState() const {
       s |= 1<<27;
     if(bool(pl->walkMode() & WalkBit::WM_Walk))
       s |= 1<<28;
+    if(bool(pl->walkMode() & WalkBit::WM_Sneak))
+      s |= 1<<29;
     if(pl->talentSkill(TALENT_SNEAK)>0)
       s |= 1<<23;
     // the map key opens a map the player carries (ItWrWorldmap, ItWr_Map_...)

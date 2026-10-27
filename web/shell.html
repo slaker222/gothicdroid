@@ -254,6 +254,43 @@
     .tbtn svg .ar { opacity: 0.45; }
     .tbtn[data-dir="l"] svg .ar.l, .tbtn[data-dir="u"] svg .ar.u, .tbtn[data-dir="r"] svg .ar.r
       { opacity: 1; stroke-width: 3.2; }
+    /* the quest journal for the touch layout: under the inventory and character buttons */
+    #tj {
+      position: absolute;
+      right: 4cqmin;
+      top: calc(36px + 12.5cqmin);
+      width: 46cqmin;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 1.6cqmin;
+      color: #fff;
+      font: 500 clamp(11px, 3cqmin, 15px)/1.25 -apple-system, 'Segoe UI', Roboto, sans-serif;
+      pointer-events: auto;
+      touch-action: pan-y;
+      overflow: hidden;
+    }
+    #tj.hidden, #tj-open.hidden { display: none; }
+    #tj .tj-head { display: flex; align-items: center; height: 7.5cqmin; padding-left: 2cqmin; }
+    #tj .tj-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #tj button { all: unset; display: flex; align-items: center; justify-content: center; width: 7.5cqmin; height: 7.5cqmin; color: #fff; cursor: pointer; }
+    #tj button.hidden { display: none; }
+    #tj button svg { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    #tj .tj-body { max-height: 24cqmin; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border-top: 1px solid rgba(255, 255, 255, 0.25); }
+    #tj .tj-row { height: 8cqmin; line-height: 8cqmin; padding: 0 2cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                  border-top: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; }
+    #tj .tj-row:first-child { border-top: 0; }
+    #tj .tj-row:active { background: rgba(255, 255, 255, 0.18); }
+    #tj .tj-entry { padding: 1.2cqmin 2cqmin; white-space: pre-wrap; }
+    #tj .tj-sep { height: 0; border-top: 1px dashed rgba(255, 255, 255, 0.4); margin: 0 2cqmin; }
+    /* closed: a wide, low arrow under the character button brings it back */
+    #tj-open {
+      position: absolute; right: 14cqmin; top: calc(36px + 12cqmin);
+      width: 14cqmin; height: 5cqmin;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.35); color: #fff; pointer-events: auto; touch-action: none;
+    }
+    #tj-open svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     #touch-stick {
       position: absolute;
       width: 26cqmin; height: 26cqmin;
@@ -274,6 +311,16 @@
       background: rgba(255, 255, 255, 0.4);
       transform: translate(var(--tx, 0px), var(--ty, 0px));
     }
+    #touch-stick .stick-icon {
+      position: absolute; left: 50%; top: 50%;
+      width: 8cqmin; height: 8cqmin; margin: -4cqmin 0 0 -4cqmin;
+      color: #fff; display: none; pointer-events: none;
+    }
+    #touch-stick .stick-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2;
+                                   stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
+    /* sneaking learned: its icon sits on the stick (double tap switches it), gone while the stick is pulled */
+    #touch-stick.sneak-known:not(.on) .stick-icon { display: block; }
+    #touch-stick.sneaking .stick-icon { color: #ffd54a; }
     #touch-stick.on, #touch-stick.home { display: block; }
     #touch-stick.home:not(.on) { opacity: 0.6; }
 
@@ -1509,7 +1556,7 @@ async function installChunks(m) {
         Left: ['ArrowLeft', 'ArrowLeft', 37], Right: ['ArrowRight', 'ArrowRight', 39],
         W: ['w', 'KeyW', 87], S: ['s', 'KeyS', 83], A: ['a', 'KeyA', 65], D: ['d', 'KeyD', 68],
         Shift: ['Shift', 'ShiftLeft', 16], Ctrl: ['Control', 'ControlLeft', 17], Space: [' ', 'Space', 32], Alt: ['Alt', 'AltLeft', 18],
-        End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], Tab: ['Tab', 'Tab', 9],
+        End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], K: ['k', 'KeyK', 75], Tab: ['Tab', 'Tab', 9],
         N: ['n', 'KeyN', 78], B: ['b', 'KeyB', 66], M: ['m', 'KeyM', 77],
         Esc: ['Escape', 'Escape', 27], Enter: ['Enter', 'Enter', 13],
         F2: ['F2', 'F2', 113], F8: ['F8', 'F8', 119], O: ['o', 'KeyO', 79],
@@ -1553,7 +1600,6 @@ async function installChunks(m) {
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
         ['block',  'Ctrl+S', '',     'right:28cqmin;bottom:24cqmin',           'world'],
-        ['sneak',  'X',     'small', 'right:43cqmin;bottom:8cqmin',            'world'],
         ['inv',    'Tab',   'small', 'right:4cqmin;top:calc(36px + 1cqmin)',                'world'],
         ['stats',  'B',     'small', 'right:16cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
@@ -1568,7 +1614,8 @@ async function installChunks(m) {
         ['cheat',  '',      'small cheat', 'left:68.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         ['console','F2',    'small cheat', 'left:68.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         ['fly',    'F8',    'small cheat', 'left:79cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['possess','O',     'small cheat', 'left:89.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['kfast',  'K',     'small cheat', 'left:89.5cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
+        ['possess','O',     'small cheat', 'left:100cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         // dialog
         ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
         ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
@@ -1686,7 +1733,7 @@ async function installChunks(m) {
         dive:   '<path d="M12 4v15M6 13l6 6 6-6M3 4h18"/>',
         up:     '<path d="M12 20V5M6 11l6-6 6 6M3 20h18"/>',
         block:  '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>',
-        sneak: '<circle cx="9" cy="4.5" r="2"/><path d="M9 7.5l5 3.5-1.5 5M13.5 11.5l-4.5 3-1.5 5.5M12.5 16l4 1.5v3M9.5 8.5L6 11l2 2.5"/>',
+        sneak: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4"/>',
         inv:    '<path d="M6 10a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM9.5 6V4h5v2M9 14h6v4H9zM6 12H4v5M18 12h2v5"/>',
         log:    '<path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM9.5 3v18M12.5 8h4M12.5 12h4M12.5 16h2"/>',
         stats:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
@@ -1702,6 +1749,7 @@ async function installChunks(m) {
         qload: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 11.5V18M9.5 15.5L12 18l2.5-2.5"/>',
         cheat:  '<path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 20 12 16.5 6.5 20 8 13.5 3 9l6.5-.5z"/>',
         console:'<path d="M3 5h18v14H3zM7 9l3 3-3 3M12 15h5"/>',
+        kfast: '<text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">K</text>',
         fly: '<text x="12" y="16" text-anchor="middle" font-size="10.5" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">F8</text>',
         possess:'<path d="M7 8h11l-3-3M17 16H6l3 3"/>',
         trade:  '<circle cx="9" cy="9" r="5"/><path d="M14.5 6.5a5 5 0 1 1-6 8"/>',
@@ -1713,15 +1761,16 @@ async function installChunks(m) {
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
         camera: 'Camera: first / third person (F)', tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
-        console: 'Console (F2)', fly: 'Fly (F8, hold)', possess: 'Take over a character (O)', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
+        console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
       // the icon each button shows unless the situation picks another one
-      const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', sneak: 'sneak', inv: 'inv', log: 'log',
+      const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', inv: 'inv', log: 'log',
         stats: 'stats', map: 'map', menu: 'menu', skip: 'skip', dUp: 'up1', dDown: 'down1', select: 'ok',
         pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
         ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
-        tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly',
+        tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
         possess: 'possess' };
+      stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');
       function setLabel(b, icon) {
         if (b.label === icon) return;
         b.label = icon;
@@ -1747,7 +1796,7 @@ async function installChunks(m) {
       function stickMove(dx, dy) {
         const r = stickEl.offsetWidth / 2 || 60, dead = r * 0.25;
         const len = Math.hypot(dx, dy), k = len > r ? r / len : 1;
-        if (len > dead) { if (len < r * 0.45) wantSlow = true; else if (len > r * 0.6) wantSlow = false; }
+        if (len > dead) { if (stick) stick.moved = true; if (len < r * 0.45) wantSlow = true; else if (len > r * 0.6) wantSlow = false; }
         stickEl.style.setProperty('--tx', dx * k + 'px');
         stickEl.style.setProperty('--ty', dy * k + 'px');
         stickSet('W', dy < -dead); stickSet('S', dy > dead);
@@ -1781,7 +1830,7 @@ async function installChunks(m) {
         const sx = parseFloat(stickEl.style.left), sy = parseFloat(stickEl.style.top);
         const grab = (stickEl.offsetWidth || 120) * 0.9;
         if (!stick && Math.hypot(x - sx, y - sy) < grab) {
-          stick = { id, x: sx, y: sy };
+          stick = { id, x: sx, y: sy, t0: performance.now(), moved: false };
           stickEl.classList.add('on');
           stickMove(x - sx, y - sy);
         } else if (lookId === null) {
@@ -1818,8 +1867,20 @@ async function installChunks(m) {
                                         [Math.round(dx * k), Math.round(dy * k)]);
         }
       });
+      // a double tap on the stick (no pull) switches sneaking (the game's X key)
+      let lastStickTap = 0, sneakKnown = false;
+      function stickTap(st) {
+        const now = performance.now();
+        if (!st.moved && now - st.t0 < 300) {
+          if (sneakKnown && now - lastStickTap < 450) {
+            lastStickTap = 0;
+            key('X', true, true);
+            setTimeout(() => key('X', false), 60);
+          } else lastStickTap = now;
+        } else lastStickTap = 0;
+      }
       const lookUp = e => {
-        if (stick && e.pointerId === stick.id) stickEnd();
+        if (stick && e.pointerId === stick.id) { stickTap(stick); stickEnd(); }
         if (e.pointerId === lookId) lookId = null;
       };
       // the layout leaves the world: the fingers on the stick and the look area stay
@@ -1847,6 +1908,74 @@ async function installChunks(m) {
         if (st & 1) return 'world';
         return 'menu';
       }
+      // ---- quest journal (the game's own one is hard to use by touch): the running missions and the
+      // notes (the game's "Log" page), newest first; a tap on a title shows its entries
+      const jEl = document.createElement('div');
+      jEl.id = 'tj';
+      jEl.className = 'hidden';
+      jEl.innerHTML = '<div class="tj-head"><button class="tj-back hidden" title="Back" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>' +
+        '<span class="tj-title">Quests</span><button class="tj-x" title="Close" aria-label="Close"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div><div class="tj-body"></div>';
+      const jOpen = document.createElement('div');
+      jOpen.id = 'tj-open';
+      jOpen.className = 'hidden';
+      jOpen.title = 'Quests';
+      jOpen.innerHTML = '<svg viewBox="0 0 28 12"><path d="M4 3l10 6 10-6"/></svg>';
+      ui.appendChild(jEl);
+      ui.appendChild(jOpen);
+      const jBody = jEl.querySelector('.tj-body'), jTitle = jEl.querySelector('.tj-title'), jBack = jEl.querySelector('.tj-back');
+      const jr = { open: true, list: [], raw: null, detail: -1, polled: 0 };
+      try { jr.open = localStorage.getItem('touchJournal') !== '0'; } catch (e) {}
+      // the texts come in the game's code page (bytes as \u00XX)
+      const dec = new TextDecoder('windows-1251');
+      const fromGame = t => dec.decode(Uint8Array.from(t, c => c.charCodeAt(0) & 255));
+      function setJournalOpen(on) {
+        jr.open = on;
+        try { localStorage.setItem('touchJournal', on ? '1' : '0'); } catch (e) {}
+        update();
+      }
+      function renderJournal() {
+        const top = jBody.scrollTop;
+        jBody.textContent = '';
+        const q = jr.list[jr.detail];
+        if (q) {
+          jTitle.textContent = q.name;
+          jBack.classList.remove('hidden');
+          q.entries.forEach((t, i) => {
+            if (i > 0) { const sep = document.createElement('div'); sep.className = 'tj-sep'; jBody.appendChild(sep); }
+            const d = document.createElement('div'); d.className = 'tj-entry'; d.textContent = t; jBody.appendChild(d);
+          });
+        } else {
+          jr.detail = -1;
+          jTitle.textContent = 'Quests';
+          jBack.classList.add('hidden');
+          jr.list.forEach((it, i) => {
+            const r = document.createElement('div'); r.className = 'tj-row'; r.textContent = it.name;
+            r.addEventListener('click', () => { jr.detail = i; renderJournal(); jBody.scrollTop = 0; });
+            jBody.appendChild(r);
+          });
+        }
+        jBody.scrollTop = top;
+      }
+      function pollJournal() {
+        const now = performance.now();
+        if (now - jr.polled < 700) return;
+        jr.polled = now;
+        let raw = '[]';
+        try { raw = Module.ccall('og_quests', 'string', [], []); } catch (e) { return; }
+        if (raw === jr.raw) return;
+        jr.raw = raw;
+        let all = [];
+        try { all = JSON.parse(raw); } catch (e) { return; }
+        // running missions and notes, like the game's "Log" page
+        jr.list = all.filter(q => (q.t === 0 && q.s === 1) || q.t === 1)
+                     .map(q => ({ name: fromGame(q.n), entries: q.e.map(fromGame) }));
+        if (jr.detail >= jr.list.length) jr.detail = -1;
+        renderJournal();
+      }
+      jEl.querySelector('.tj-x').addEventListener('click', () => setJournalOpen(false));
+      jBack.addEventListener('click', () => { jr.detail = -1; renderJournal(); });
+      jOpen.addEventListener('click', () => setJournalOpen(true));
+
       let lastLayout = '';
       function update() {
         if (!document.body.classList.contains('touch-on')) return;
@@ -1863,6 +1992,10 @@ async function installChunks(m) {
           }
         }
         marvinOn = !!(st & (1 << 26));
+        if (layout === 'world') pollJournal();
+        const jShow = layout === 'world' && jr.list.length > 0;
+        jEl.classList.toggle('hidden', !(jShow && jr.open));
+        jOpen.classList.toggle('hidden', !(jShow && !jr.open));
         document.body.classList.toggle('touch-menu', layout === 'menu' || layout === 'none');
         ui.classList.toggle('no-look', layout !== 'world');
         if (stickEl.classList.contains('home') !== (layout === 'world')) {
@@ -1871,6 +2004,9 @@ async function installChunks(m) {
         }
         const weapon = (st >> 12) & 7, focus = (st >> 16) & 7, hostile = !!(st & (1 << 19));
         const canTalk = !!(st & (1 << 27)), engineSlow = !!(st & (1 << 28));
+        sneakKnown = !!(st & (1 << 23));
+        stickEl.classList.toggle('sneak-known', sneakKnown);
+        stickEl.classList.toggle('sneaking', !!(st & (1 << 29)));
         const swim = !!(st & (1 << 8)), dive = !!(st & (1 << 9)), invMode = (st >> 20) & 7;
         const drawn = WEAPON_DRAWN[weapon];
         weaponOut = drawn;
@@ -1895,7 +2031,6 @@ async function installChunks(m) {
           if (b.id === 'cheat' && marvinOn) show = false;
           if (b.id === 'action' && layout === 'world' && act === 'action') show = false;
           if (b.id === 'block' && !(drawn && weapon <= 3)) show = false; // fists and melee weapons
-          if (b.id === 'sneak' && !(st & (1 << 23))) show = false;       // not learned yet
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
           b.el.classList.toggle('hidden', !show);
           // action, jump and use pick their icon below from the situation
