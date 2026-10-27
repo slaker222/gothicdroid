@@ -795,21 +795,27 @@ void InventoryMenu::quickUpdate() {
 
     }
 
-  // a row at the bottom, in the middle: clear of the stick and the buttons; more than fits - pages
+  // four slots in a row at the bottom, in the middle: clear of the stick and the buttons. The used
+  // items are a ring: the page turns it round by `quickFirst`; the slots stay when they have no item
   const int ww = w(), hh = h();
   const int sz = std::max(24, int(float(hh)*0.12f));
   const int gp = sz/6;
-  quickCols  = std::max(1, int(float(ww)*0.46f)/(sz+gp));
+  const int cols = 4;
+  quickCols  = cols;
   quickTotal = int(all.size());
-  quickFirst = std::max(0, std::min(quickFirst, std::max(0, quickTotal-quickCols)));
-  std::vector<QuickSlot> slots;
-  for(int i=quickFirst; i<quickTotal && i<quickFirst+quickCols; ++i)
-    slots.push_back(all[size_t(i)]);
-
-  const int n = int(slots.size());
-  int       x = (ww - (n*sz + (n-1)*gp))/2;
+  quickFirst = quickTotal>0 ? ((quickFirst%quickTotal)+quickTotal)%quickTotal : 0;
+  std::vector<QuickSlot> slots(cols);
+  int x = (ww - (cols*sz + (cols-1)*gp))/2;
   const int y = hh - sz - int(float(hh)*0.035f);
-  for(auto& s:slots) {
+  for(int i=0; i<cols; ++i) {
+    auto& s = slots[size_t(i)];
+    if(i<quickTotal) {
+      auto& e = all[size_t((quickFirst+i)%quickTotal)];
+      s.key   = e.key;
+      s.item  = e.item;
+      s.cls   = e.cls;
+      s.on    = e.on;
+      }
     s.x = x;
     s.y = y;
     s.s = sz;
@@ -818,8 +824,7 @@ void InventoryMenu::quickUpdate() {
 
   std::vector<size_t> sig;
   for(auto& s:slots)
-    sig.push_back(s.cls*16u + size_t(s.key+1));
-  sig.push_back(size_t(quickFirst));
+    sig.push_back(s.item!=nullptr ? s.cls*16u + size_t(s.key+1) : 0);
   const bool changed = (sig!=quickSig || ww!=quickW || hh!=quickH);
   quickSlots = std::move(slots);
   if(!changed)
@@ -829,22 +834,8 @@ void InventoryMenu::quickUpdate() {
   quickH   = hh;
   quickRenderer.reset();
   for(auto& s:quickSlots)
-    quickRenderer.drawItem(s.x,s.y,s.s,s.s,*s.item);
-  }
-
-// the same as the use button of the inventory: put on / take off, eat, drink, read, cast
-void InventoryMenu::quickUse(size_t cls) {
-  auto pl = Gothic::inst().player();
-  if(pl==nullptr || Gothic::inst().world()==nullptr)
-    return;
-  for(auto it = pl->inventory().iterator(Inventory::T_Inventory); it.isValid(); ++it) {
-    if(it->clsId()!=cls)
-      continue;
-    if(it.isEquipped())
-      pl->unequipItem(cls); else
-      pl->useItem(cls,Item::NSLOT,false);
-    return;
-    }
+    if(s.item!=nullptr)
+      quickRenderer.drawItem(s.x,s.y,s.s,s.s,*s.item);
   }
 
 std::string InventoryMenu::quickJson() const {
@@ -855,8 +846,8 @@ std::string InventoryMenu::quickJson() const {
     auto& s = quickSlots[i];
     if(i>0)
       r += ',';
-    r += "{\"k\":" + std::to_string(s.key) + ",\"u\":" + std::to_string(s.cls) +
-         ",\"n\":" + std::to_string(s.count) +
+    r += "{\"k\":" + std::to_string(s.item!=nullptr ? s.key : -1) +
+         ",\"e\":" + (s.item!=nullptr ? "0" : "1") +
          ",\"x\":" + std::to_string(s.x) + ",\"y\":" + std::to_string(s.y) +
          ",\"b\":" + std::to_string(s.s) + ",\"on\":" + (s.on ? "1" : "0") + "}";
     }

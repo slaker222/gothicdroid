@@ -141,10 +141,6 @@ extern "C" EMSCRIPTEN_KEEPALIVE void og_quickpanel(int open, int first) {
     g_webMain->webQuickPanel(open!=0, first);
   }
 
-extern "C" EMSCRIPTEN_KEEPALIVE void og_quickuse(int cls) {
-  if(g_webMain!=nullptr && cls>=0)
-    g_webMain->webQuickUse(size_t(cls));
-  }
 
 // touch controls: camera look, in pixels like a mouse move
 extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {

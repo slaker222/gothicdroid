@@ -261,6 +261,10 @@
       border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2cqmin;
       background: rgba(0, 0, 0, 0.3); pointer-events: auto; touch-action: none;
     }
+    /* the inventory button: one more block of the quick row, always in its place */
+    .tbtn.sq { border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
+    .tbtn.sq.down { background: rgba(255, 255, 255, 0.3); }
+    .tq-slot.empty { border-color: rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.18); }
     .tq-slot.on { border: 2px solid #ffd54a; background: rgba(255, 213, 74, 0.18); }
     .tq-slot.down { background: rgba(255, 255, 255, 0.3); }
     .tq-slot i { position: absolute; right: 3px; bottom: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif; font-style: normal;
@@ -271,16 +275,6 @@
     .tq-page svg { width: 80%; height: 80%; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
     .tq-slot span { position: absolute; left: 3px; top: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif;
                     color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
-    #tq-open, #tq-close {
-      position: absolute; transform: translateX(-50%);
-      width: 14cqmin; height: 5cqmin;
-      display: flex; align-items: center; justify-content: center;
-      border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
-      background: rgba(0, 0, 0, 0.35); color: #fff; pointer-events: auto; touch-action: none;
-    }
-    #tq-open { left: 50%; bottom: 1cqmin; }
-    #tq-open.hidden, #tq-close.hidden { display: none; }
-    #tq-open svg, #tq-close svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     /* the quest journal for the touch layout: under the inventory and character buttons */
     #tj {
       position: absolute;
@@ -1629,22 +1623,22 @@ async function installChunks(m) {
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
         ['block',  'Ctrl+S', '',     'right:28cqmin;bottom:24cqmin',           'world'],
-        ['inv',    'Tab',   'small', 'right:4cqmin;top:calc(36px + 1cqmin)',                'world'],
-        ['stats',  'B',     'small', 'right:16cqmin;top:calc(36px + 1cqmin)',               'world'],
+        ['inv',    'Tab',   'small', 'left:calc(50% + 31cqmin);bottom:2.5cqmin',                       'world'],
+        ['stats',  'B',     'small', 'left:16cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
         // the tool bar: a button next to the menu opens a row of buttons to its right
-        ['tools',  '',      'small', 'left:16cqmin;top:calc(36px + 1cqmin)',                'world'],
-        ['qsave',  '',      'small', 'left:26.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['qload',  '',      'small', 'left:37cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['log',    'N',     'small', 'left:47.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['tools',  '',      'small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
+        ['qsave',  '',      'small', 'left:38cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['qload',  '',      'small', 'left:48.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['log',    'N',     'small', 'left:59cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // camera: first / third person (the game's F key), left of the cheat buttons
-        ['camera', 'F',     'small', 'left:58cqmin;top:calc(36px + 1cqmin)',              'wtools'],
-        ['cheat',  '',      'small cheat', 'left:68.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['console','F2',    'small cheat', 'left:68.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['fly',    'F8',    'small cheat', 'left:79cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['kfast',  'K',     'small cheat', 'left:89.5cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
-        ['possess','O',     'small cheat', 'left:100cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['camera', 'F',     'small', 'left:69.5cqmin;top:calc(36px + 1cqmin)',              'wtools'],
+        ['cheat',  '',      'small cheat', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['console','F2',    'small cheat', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['fly',    'F8',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['kfast',  'K',     'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
+        ['possess','O',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         // dialog
         ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
         ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
@@ -2005,32 +1999,18 @@ async function installChunks(m) {
       jBack.addEventListener('click', () => { jr.detail = -1; renderJournal(); });
       jOpen.addEventListener('click', () => setJournalOpen(true));
 
-      // ---- quick panel (bottom): tap the arrow to open, tap a block to draw that weapon / spell
-      const tqOpen = document.createElement('div');
-      tqOpen.id = 'tq-open'; tqOpen.className = 'hidden'; tqOpen.title = 'Weapons and spells';
-      tqOpen.innerHTML = '<svg viewBox="0 0 28 12"><path d="M4 9l10-6 10 6"/></svg>';
-      const tqClose = document.createElement('div');
-      tqClose.id = 'tq-close'; tqClose.className = 'hidden'; tqClose.title = 'Close';
-      tqClose.innerHTML = '<svg viewBox="0 0 28 12"><path d="M4 3l10 6 10-6"/></svg>';
-      ui.appendChild(tqOpen);
-      ui.appendChild(tqClose);
-      const tq = { open: false, raw: '', n: 0, sig: '', polled: 0, sent: -1, sentFirst: -1, els: [], first: 0, total: 0, cols: 1 };
+      // ---- quick panel (bottom): four slots with what the player put on the number keys (melee 1, ranged 2,
+      // runes and scrolls 3..0); more of them: the arrows turn the ring round. The inventory button sits
+      // right of the row. A tap on a slot presses its key (draws the weapon / the spell)
       const tqPrev = document.createElement('div'), tqNext = document.createElement('div');
       tqPrev.className = 'tq-page'; tqNext.className = 'tq-page';
       tqPrev.innerHTML = '<svg viewBox="0 0 12 24"><path d="M9 4L3 12l6 8"/></svg>';
       tqNext.innerHTML = '<svg viewBox="0 0 12 24"><path d="M3 4l6 8-6 8"/></svg>';
       ui.appendChild(tqPrev); ui.appendChild(tqNext);
-      tqPrev.addEventListener('click', () => { tq.first = Math.max(0, tq.first - tq.cols); tq.sig = ''; update(); });
-      tqNext.addEventListener('click', () => { tq.first = Math.min(Math.max(0, tq.total - tq.cols), tq.first + tq.cols); tq.sig = ''; update(); });
-      try { tq.open = localStorage.getItem('touchQuick') === '1'; } catch (e) {}
-      function setQuickOpen(on) {
-        tq.open = on;
-        try { localStorage.setItem('touchQuick', on ? '1' : '0'); } catch (e) {}
-        update();
-      }
-      tqOpen.addEventListener('click', () => setQuickOpen(true));
-      tqClose.addEventListener('click', () => setQuickOpen(false));
-      function pollQuick(layoutIsWorld) {
+      const tq = { sig: '', polled: 0, sent: -1, sentFirst: -999, els: [], first: 0, total: 0, cols: 4 };
+      tqPrev.addEventListener('click', () => { tq.first -= tq.cols; tq.sig = ''; update(); });
+      tqNext.addEventListener('click', () => { tq.first += tq.cols; tq.sig = ''; update(); });
+      function pollQuick() {
         const now = performance.now();
         if (now - tq.polled < 250) return;
         tq.polled = now;
@@ -2044,47 +2024,39 @@ async function installChunks(m) {
         try { d = JSON.parse(raw); } catch (e) { return; }
         tq.els.forEach(e => e.remove());
         tq.els = [];
-        tq.n = d.s.length;
-        tq.total = d.t || 0; tq.cols = d.c || 1; tq.first = d.f || 0;
-        if (!d.w) return;
+        tq.total = d.t || 0; tq.cols = d.c || 4; tq.first = d.f || 0;
+        if (!d.w || !d.s.length) return;
         const k = cr.width / d.w, ox = cr.left - ur.left, oy = cr.top - ur.top;
-        let top = 1e9, mid = 0;
         d.s.forEach(sl => {
           const el = document.createElement('div');
-          el.className = 'tq-slot' + (sl.on ? ' on' : '');
+          el.className = 'tq-slot' + (sl.on ? ' on' : '') + (sl.e ? ' empty' : '');
           el.style.left = (ox + sl.x * k) + 'px'; el.style.top = (oy + sl.y * k) + 'px';
           el.style.width = (sl.b * k) + 'px'; el.style.height = (sl.b * k) + 'px';
-          el.innerHTML = (sl.k >= 0 ? '<span>' + sl.k + '</span>' : '') + (sl.n > 1 ? '<i>' + sl.n + '</i>' : '');
+          if (!sl.e) el.innerHTML = '<span>' + sl.k + '</span>';
           const kn = String(sl.k);
           el.addEventListener('pointerdown', e => {
             e.preventDefault(); e.stopPropagation();
+            if (sl.e) return;
             el.classList.add('down');
-            if (sl.k >= 0) {
-              // weapon or spell of a number key
-              key(kn, true, true);
-              setTimeout(() => { key(kn, false); el.classList.remove('down'); }, 70);
-            } else {
-              // an item of the inventory: use it (put on, eat, drink, read ...)
-              try { Module.ccall('og_quickuse', null, ['number'], [sl.u]); } catch (err) {}
-              setTimeout(() => el.classList.remove('down'), 120);
-            }
+            key(kn, true, true);
+            setTimeout(() => { key(kn, false); el.classList.remove('down'); }, 70);
           });
           ui.appendChild(el);
           tq.els.push(el);
-          top = Math.min(top, oy + sl.y * k);
-          mid = ox + (sl.x + sl.b / 2) * k;
         });
-        if (d.s.length) {
-          // the middle of the row (the close arrow goes above it)
-          const first = d.s[0], last = d.s[d.s.length - 1];
-          tqClose.style.left = (ox + (first.x + last.x + last.b) / 2 * k) + 'px';
-          tqClose.style.top = (top - ur.height * 0.05 - 6) + 'px';
-          // page arrows at the ends of the row
-          const rowH = (d.s[0].b * k);
-          tqPrev.style.left = (ox + first.x * k - ur.height * 0.07 - 4) + 'px';
-          tqNext.style.left = (ox + (last.x + last.b) * k + 4) + 'px';
-          tqPrev.style.top = tqNext.style.top = (top + rowH / 2 - ur.height * 0.04) + 'px';
-        }
+        const first = d.s[0], last = d.s[d.s.length - 1];
+        const pw = ur.height * 0.05, ph = ur.height * 0.08, gap = last.b * k / 6;
+        const cy = oy + (first.y + first.b / 2) * k - ph / 2;
+        tqPrev.style.left = (ox + first.x * k - gap - pw) + 'px';
+        tqNext.style.left = (ox + (last.x + last.b) * k + gap) + 'px';
+        tqPrev.style.top = tqNext.style.top = cy + 'px';
+        // the inventory button: right of the row and of the right arrow
+        const inv = byId.inv.el, isz = first.b * k;
+        inv.classList.add('sq');
+        inv.style.width = inv.style.height = isz + 'px';
+        inv.style.left = (ox + (last.x + last.b) * k + gap * 2 + pw) + 'px';
+        inv.style.bottom = 'auto';
+        inv.style.top = (oy + first.y * k) + 'px';
       }
 
       let lastLayout = '';
@@ -2105,15 +2077,12 @@ async function installChunks(m) {
         marvinOn = !!(st & (1 << 26));
         if (layout === 'world') pollJournal();
         const isWorld = layout === 'world';
-        if (isWorld) pollQuick(true);
-        const qShow = isWorld && tq.n > 0;
-        tqOpen.classList.toggle('hidden', !(qShow && !tq.open));
-        tqClose.classList.toggle('hidden', !(qShow && tq.open));
-        tq.els.forEach(e => e.style.display = (qShow && tq.open) ? '' : 'none');
-        const paged = qShow && tq.open && tq.total > tq.cols;
-        tqPrev.style.display = (paged && tq.first > 0) ? '' : 'none';
-        tqNext.style.display = (paged && tq.first + tq.cols < tq.total) ? '' : 'none';
-        const want = (qShow && tq.open) ? 1 : 0;
+        if (isWorld) pollQuick();
+        tq.els.forEach(e => e.style.display = isWorld ? '' : 'none');
+        const paged = isWorld && tq.total > tq.cols;
+        tqPrev.style.display = paged ? '' : 'none';
+        tqNext.style.display = paged ? '' : 'none';
+        const want = isWorld ? 1 : 0;
         if ((want !== tq.sent || tq.first !== tq.sentFirst) && g_runtimeUp) {
           try { Module.ccall('og_quickpanel', null, ['number', 'number'], [want, tq.first]); tq.sent = want; tq.sentFirst = tq.first; } catch (e) {}
         }
