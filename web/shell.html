@@ -1509,7 +1509,7 @@ async function installChunks(m) {
         Left: ['ArrowLeft', 'ArrowLeft', 37], Right: ['ArrowRight', 'ArrowRight', 39],
         W: ['w', 'KeyW', 87], S: ['s', 'KeyS', 83], A: ['a', 'KeyA', 65], D: ['d', 'KeyD', 68],
         Shift: ['Shift', 'ShiftLeft', 16], Ctrl: ['Control', 'ControlLeft', 17], Space: [' ', 'Space', 32], Alt: ['Alt', 'AltLeft', 18],
-        End: ['End', 'End', 35], X: ['x', 'KeyX', 88], Tab: ['Tab', 'Tab', 9],
+        End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], Tab: ['Tab', 'Tab', 9],
         N: ['n', 'KeyN', 78], B: ['b', 'KeyB', 66], M: ['m', 'KeyM', 77],
         Esc: ['Escape', 'Escape', 27], Enter: ['Enter', 'Enter', 13],
         F2: ['F2', 'F2', 113], F8: ['F8', 'F8', 119], O: ['o', 'KeyO', 79],
@@ -1560,13 +1560,15 @@ async function installChunks(m) {
         ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
         // the tool bar: a button next to the menu opens a row of buttons to its right
         ['tools',  '',      'small', 'left:16cqmin;top:calc(36px + 1cqmin)',                'world'],
-        ['qsave',  '',      'small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['qload',  '',      'small', 'left:40cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['log',    'N',     'small', 'left:52cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['cheat',  '',      'small cheat', 'left:64cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['console','F2',    'small cheat', 'left:64cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['fly',    'F8',    'small cheat', 'left:76cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['possess','O',     'small cheat', 'left:88cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['qsave',  '',      'small', 'left:26.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['qload',  '',      'small', 'left:37cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['log',    'N',     'small', 'left:47.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        // camera: first / third person (the game's F key), left of the cheat buttons
+        ['camera', 'F',     'small', 'left:58cqmin;top:calc(36px + 1cqmin)',              'wtools'],
+        ['cheat',  '',      'small cheat', 'left:68.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['console','F2',    'small cheat', 'left:68.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['fly',    'F8',    'small cheat', 'left:79cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['possess','O',     'small cheat', 'left:89.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         // dialog
         ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
         ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
@@ -1684,7 +1686,7 @@ async function installChunks(m) {
         dive:   '<path d="M12 4v15M6 13l6 6 6-6M3 4h18"/>',
         up:     '<path d="M12 20V5M6 11l6-6 6 6M3 20h18"/>',
         block:  '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>',
-        sneak:  '<ellipse cx="8.5" cy="9" rx="2.5" ry="4.5"/><ellipse cx="15.5" cy="15" rx="2.5" ry="4.5"/>',
+        sneak: '<circle cx="9" cy="4.5" r="2"/><path d="M9 7.5l5 3.5-1.5 5M13.5 11.5l-4.5 3-1.5 5.5M12.5 16l4 1.5v3M9.5 8.5L6 11l2 2.5"/>',
         inv:    '<path d="M6 10a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM9.5 6V4h5v2M9 14h6v4H9zM6 12H4v5M18 12h2v5"/>',
         log:    '<path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM9.5 3v18M12.5 8h4M12.5 12h4M12.5 16h2"/>',
         stats:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
@@ -1695,6 +1697,7 @@ async function installChunks(m) {
         ok:     '<path d="M5 12l5 5 9-10"/>',
         back:   '<path d="M9 14l-5-5 5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
         tools:  '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+        camera: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
         qsave: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 18v-6.5M9.5 14l2.5-2.5 2.5 2.5"/>',
         qload: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 11.5V18M9.5 15.5L12 18l2.5-2.5"/>',
         cheat:  '<path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 20 12 16.5 6.5 20 8 13.5 3 9l6.5-.5z"/>',
@@ -1709,7 +1712,7 @@ async function installChunks(m) {
         fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', dive: 'Dive', up: 'Surface', block: 'Block',
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
-        tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
+        camera: 'Camera: first / third person (F)', tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
         console: 'Console (F2)', fly: 'Fly (F8, hold)', possess: 'Take over a character (O)', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
       // the icon each button shows unless the situation picks another one
       const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', sneak: 'sneak', inv: 'inv', log: 'log',
@@ -1717,7 +1720,7 @@ async function installChunks(m) {
         pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
         ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
-        tools: 'tools', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly',
+        tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly',
         possess: 'possess' };
       function setLabel(b, icon) {
         if (b.label === icon) return;

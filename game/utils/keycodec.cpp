@@ -2,6 +2,7 @@
 
 #include "gothic.h"
 #include <cstring>
+#include <Tempest/Log>
 
 std::initializer_list<KeyCodec::K_Key> KeyCodec::keys = {
   {Tempest::Event::K_A,        0x1e00},
@@ -435,6 +436,17 @@ int32_t KeyCodec::keyToCode(Tempest::Event::MouseButton t) {
   }
 
 void KeyCodec::setupSettings() {
+#if defined(__EMSCRIPTEN__)
+  // the stock Gothic 1 layout sneaks on A (and numpad *), but A also turns the hero left, and the
+  // touch button has no numpad: the web port moves sneaking to X (the layout of the alternative keys)
+  {
+  auto s = Gothic::settingsGetS("KEYS","keySneak");
+  if(s.size()>=4 && s.compare(0,4,"1e00")==0) {
+    Tempest::Log::i("keySneak ",std::string(s)," -> X");
+    Gothic::settingsSetS("KEYS","keySneak",std::string("2d00")+std::string(s.substr(4)));
+    }
+  }
+#endif
   keyEnd         = setup("keyEnd");
   keyHeal        = setup("keyHeal");
   keyPotion      = setup("keyPotion");
