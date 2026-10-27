@@ -2088,6 +2088,8 @@ async function installChunks(m) {
       let lastLayout = '';
       function update() {
         if (!document.body.classList.contains('touch-on')) return;
+        // a lock taken before the touch controls were switched on (or by the game): give it back
+        if (document.pointerLockElement) { try { document.exitPointerLock(); } catch (e) {} }
         let st = 0;
         try { st = g_runtimeUp ? Module.ccall('og_ui_state', 'number', [], []) : 0; } catch (e) { st = 0; }
         const layout = g_runtimeUp ? layoutOf(st) : 'none';
@@ -2210,6 +2212,10 @@ async function installChunks(m) {
     player.addEventListener('mouseleave', () => player.classList.remove('active'));
 
     canvas.addEventListener('click', function() {
+      // not with the touch controls: under the lock every touch reports the position 0,0 (the stick and
+      // the taps on the inventory stop working), and a tap turns into a click on the canvas
+      if (document.body.classList.contains('touch-on'))
+        return;
       if (document.pointerLockElement !== canvas) {
         canvas.requestPointerLock().catch(() => {});
       }

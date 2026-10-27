@@ -1,0 +1,14 @@
+import { attach, sleep } from './phone_lib.mjs';
+const { b, page, cdp, vis, tap, st } = await attach();
+await page.evaluate(() => { window.__touchDebug = true; window.__tl = []; const l = console.log; if (!window.__hooked) { window.__hooked = true; console.log = (...a) => { if (String(a[0]).startsWith('[touch]') && !String(a[0]).includes('repeat')) window.__tl.push(String(a[0])); l.apply(console, a); }; } });
+console.log('layout', JSON.stringify(await vis()), (await st()).toString(2));
+const r = await page.evaluate(() => { const s = document.getElementById('touch-stick'); const u = document.getElementById('touch-ui').getBoundingClientRect(); return { x: u.left + parseFloat(s.style.left), y: u.top + parseFloat(s.style.top), rad: s.offsetWidth / 2, disp: getComputedStyle(s).display, cls: s.className }; });
+console.log('stick', JSON.stringify(r));
+await page.screenshot({ path: 'out/pt_5a.png' });
+await page.evaluate(() => { window.__tl.length = 0; });
+await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: r.x, y: r.y, id: 1 }] }); await sleep(100);
+await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: r.x, y: r.y - r.rad * 0.9, id: 1 }] }); await sleep(1500);
+console.log('keys', JSON.stringify(await page.evaluate(() => window.__tl)));
+await page.screenshot({ path: 'out/pt_5b.png' });
+await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+await b.disconnect();
