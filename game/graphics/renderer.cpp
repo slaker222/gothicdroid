@@ -237,6 +237,14 @@ void Renderer::setupSettings() {
     settings.vidResIndex = 1;
   else if(rscale == 100)
     settings.vidResIndex = 0;
+  else if(rscale == 30)
+    settings.vidResIndex = 4;
+  else if(rscale == 25)
+    settings.vidResIndex = 5;
+  else if(rscale == 20)
+    settings.vidResIndex = 6;
+  else if(rscale == 15)
+    settings.vidResIndex = 7;
   settings.aaEnabled = (Gothic::options().aaPreset>0) && (settings.vidResIndex==0);
 
   // direct lighting

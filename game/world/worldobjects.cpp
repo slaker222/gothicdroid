@@ -450,6 +450,19 @@ void WorldObjects::updateAnimation(uint64_t dt) {
     i.updateAnimationPose();
     });
 #else
+#if defined(__ANDROID__)
+  // npc beyond the draw distance are not visible: their pose is not computed
+  // (animation events still run); inactive without a distance limit
+  {
+  Tempest::Vec3 cam;
+  if(auto c = Gothic::inst().camera()) {
+    auto v = c->view();
+    v.inverse();
+    v.project(cam);
+    }
+  MdlVisual::setFarPose(true, DrawCommands::drawDistance(), cam);
+  }
+#endif
   Workers::parallelTasks(npcArr,[dt](std::unique_ptr<Npc>& i){
     i->updateAnimation(dt);
     });
