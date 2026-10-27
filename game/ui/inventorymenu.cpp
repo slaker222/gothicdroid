@@ -772,27 +772,21 @@ void InventoryMenu::quickUpdate() {
   auto pl = Gothic::inst().player();
   std::vector<QuickSlot> all;
   if(pl!=nullptr && Gothic::inst().world()!=nullptr) {
-    auto& inv = pl->inventory();
+    // the ring: the ten number keys 1..9,0 in a row, the empty ones too
     const auto ws = pl->weaponState();
-    const uint8_t spell = inv.currentSpellSlot();
-    std::vector<size_t> have;
-    auto add = [&](int key, const Item* it, bool on, uint32_t count) {
-      if(it==nullptr)
-        return;
+    const uint8_t spell = pl->inventory().currentSpellSlot();
+    auto add = [&](int key, const Item* it, bool on) {
       QuickSlot s;
-      s.key   = key;
-      s.item  = it;
-      s.cls   = it->clsId();
-      s.on    = on;
-      s.count = count;
+      s.key  = key;
+      s.item = it;
+      s.cls  = it!=nullptr ? it->clsId() : 0;
+      s.on   = on && it!=nullptr;
       all.push_back(s);
-      have.push_back(s.cls);
       };
-    add(1, pl->currentMeleeWeapon(),  ws==WeaponState::Fist || ws==WeaponState::W1H || ws==WeaponState::W2H, 1);
-    add(2, pl->currentRangedWeapon(), ws==WeaponState::Bow  || ws==WeaponState::CBow, 1);
+    add(1, pl->currentMeleeWeapon(),  ws==WeaponState::Fist || ws==WeaponState::W1H || ws==WeaponState::W2H);
+    add(2, pl->currentRangedWeapon(), ws==WeaponState::Bow  || ws==WeaponState::CBow);
     for(int i=3; i<=10; ++i)
-      add(i%10, inv.currentSpell(uint8_t(i-3)), ws==WeaponState::Mage && spell==i, 1); // numslot[0..7]: keys 3..0
-
+      add(i%10, pl->inventory().currentSpell(uint8_t(i-3)), ws==WeaponState::Mage && spell==i); // numslot[0..7]: keys 3..0
     }
 
   // four slots in a row at the bottom, in the middle: clear of the stick and the buttons. The used
@@ -846,7 +840,7 @@ std::string InventoryMenu::quickJson() const {
     auto& s = quickSlots[i];
     if(i>0)
       r += ',';
-    r += "{\"k\":" + std::to_string(s.item!=nullptr ? s.key : -1) +
+    r += "{\"k\":" + std::to_string(s.key) +
          ",\"e\":" + (s.item!=nullptr ? "0" : "1") +
          ",\"x\":" + std::to_string(s.x) + ",\"y\":" + std::to_string(s.y) +
          ",\"b\":" + std::to_string(s.s) + ",\"on\":" + (s.on ? "1" : "0") + "}";

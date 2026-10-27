@@ -55,7 +55,7 @@ class InventoryMenu : public Tempest::Widget {
     // web touch controls: the quick panel under the world view - the melee and ranged weapon and the
     // spells of the number keys 1..0, drawn with the same 3D item icons as the inventory
     bool  quickVisible() const { return quickOpen && !quickSlots.empty() && quickTotal>0; }
-    void  quickSetOpen(bool on, int first) { quickOpen = on; quickFirst = std::max(0,first); }
+    void  quickSetOpen(bool on, int first) { quickOpen = on; quickFirst = first; }
     void  quickUpdate();
     std::string quickJson() const;
 #endif

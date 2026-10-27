@@ -259,8 +259,9 @@
     .tq-slot {
       position: absolute; box-sizing: border-box;
       border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2cqmin;
-      background: rgba(0, 0, 0, 0.3); pointer-events: auto; touch-action: none;
+      background: rgba(0, 0, 0, 0.3); pointer-events: none;
     }
+    #tq-hit { position: absolute; pointer-events: auto; touch-action: none; }
     /* the inventory button: one more block of the quick row, always in its place */
     .tbtn.sq { border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
     .tbtn.sq.down { background: rgba(255, 255, 255, 0.3); }
@@ -1999,17 +2000,55 @@ async function installChunks(m) {
       jBack.addEventListener('click', () => { jr.detail = -1; renderJournal(); });
       jOpen.addEventListener('click', () => setJournalOpen(true));
 
-      // ---- quick panel (bottom): four slots with what the player put on the number keys (melee 1, ranged 2,
-      // runes and scrolls 3..0); more of them: the arrows turn the ring round. The inventory button sits
-      // right of the row. A tap on a slot presses its key (draws the weapon / the spell)
-      const tqPrev = document.createElement('div'), tqNext = document.createElement('div');
+      // ---- quick panel (bottom): four slots over the ring of the ten number keys 1..9,0 (melee 1, ranged 2,
+      // runes and scrolls 3..0; the empty keys too). The ring is turned round by the arrows (a page) or by a
+      // swipe along the row (a slot per slot width); a tap on a slot presses its key (draws the weapon /
+      // the spell). The inventory button is one more block, right of the row, it stays in its place
+      const tqPrev = document.createElement('div'), tqNext = document.createElement('div'), tqHit = document.createElement('div');
       tqPrev.className = 'tq-page'; tqNext.className = 'tq-page';
       tqPrev.innerHTML = '<svg viewBox="0 0 12 24"><path d="M9 4L3 12l6 8"/></svg>';
       tqNext.innerHTML = '<svg viewBox="0 0 12 24"><path d="M3 4l6 8-6 8"/></svg>';
-      ui.appendChild(tqPrev); ui.appendChild(tqNext);
-      const tq = { sig: '', polled: 0, sent: -1, sentFirst: -999, els: [], first: 0, total: 0, cols: 4 };
-      tqPrev.addEventListener('click', () => { tq.first -= tq.cols; tq.sig = ''; update(); });
-      tqNext.addEventListener('click', () => { tq.first += tq.cols; tq.sig = ''; update(); });
+      tqHit.id = 'tq-hit';
+      ui.appendChild(tqPrev); ui.appendChild(tqNext); ui.appendChild(tqHit);
+      const tq = { sig: '', polled: 0, sent: -1, sentFirst: -999, els: [], first: 0, total: 0, cols: 4, drag: false, hold: 0, step: 50, keys: [], row: null };
+      // the poll must not overwrite a turn that the engine has not taken yet
+      const turn = d => { tq.first += d; tq.hold = performance.now() + 600; tq.sig = ''; update(); };
+      tqPrev.addEventListener('click', () => turn(-tq.cols));
+      tqNext.addEventListener('click', () => turn(tq.cols));
+      {
+        let dn = null;
+        tqHit.addEventListener('pointerdown', e => {
+          e.preventDefault(); e.stopPropagation();
+          dn = { x: e.clientX, first: tq.first, moved: false };
+          tq.drag = true;
+          try { tqHit.setPointerCapture(e.pointerId); } catch (err) {}
+        });
+        tqHit.addEventListener('pointermove', e => {
+          if (!dn) return;
+          const dx = e.clientX - dn.x;
+          if (Math.abs(dx) > 8) dn.moved = true;
+          if (!dn.moved) return;
+          // the row follows the finger: dragged to the left shows the next slots
+          const f = dn.first - Math.round(dx / tq.step);
+          if (f !== tq.first) { tq.first = f; tq.hold = performance.now() + 600; update(); }
+        });
+        const end = e => {
+          if (!dn) return;
+          const d = dn; dn = null; tq.drag = false;
+          if (d.moved || e.type === 'pointercancel' || !tq.row) return;
+          // a tap: the slot under the finger
+          const r = tqHit.getBoundingClientRect();
+          const i = Math.floor((e.clientX - r.left) / (tq.row.pitch));
+          const sl = tq.keys[i];
+          if (!sl || sl.e) return;
+          const kn = String(sl.k), el = tq.els[i];
+          if (el) el.classList.add('down');
+          key(kn, true, true);
+          setTimeout(() => { key(kn, false); if (el) el.classList.remove('down'); }, 70);
+        };
+        tqHit.addEventListener('pointerup', end);
+        tqHit.addEventListener('pointercancel', end);
+      }
       function pollQuick() {
         const now = performance.now();
         if (now - tq.polled < 250) return;
@@ -2024,7 +2063,9 @@ async function installChunks(m) {
         try { d = JSON.parse(raw); } catch (e) { return; }
         tq.els.forEach(e => e.remove());
         tq.els = [];
-        tq.total = d.t || 0; tq.cols = d.c || 4; tq.first = d.f || 0;
+        tq.total = d.t || 0; tq.cols = d.c || 4;
+        if (!tq.drag && performance.now() > tq.hold) tq.first = d.f || 0;
+        tq.keys = d.s;
         if (!d.w || !d.s.length) return;
         const k = cr.width / d.w, ox = cr.left - ur.left, oy = cr.top - ur.top;
         d.s.forEach(sl => {
@@ -2032,29 +2073,30 @@ async function installChunks(m) {
           el.className = 'tq-slot' + (sl.on ? ' on' : '') + (sl.e ? ' empty' : '');
           el.style.left = (ox + sl.x * k) + 'px'; el.style.top = (oy + sl.y * k) + 'px';
           el.style.width = (sl.b * k) + 'px'; el.style.height = (sl.b * k) + 'px';
-          if (!sl.e) el.innerHTML = '<span>' + sl.k + '</span>';
-          const kn = String(sl.k);
-          el.addEventListener('pointerdown', e => {
-            e.preventDefault(); e.stopPropagation();
-            if (sl.e) return;
-            el.classList.add('down');
-            key(kn, true, true);
-            setTimeout(() => { key(kn, false); el.classList.remove('down'); }, 70);
-          });
+          el.innerHTML = '<span>' + sl.k + '</span>';
           ui.appendChild(el);
           tq.els.push(el);
         });
         const first = d.s[0], last = d.s[d.s.length - 1];
         const pw = ur.height * 0.05, ph = ur.height * 0.08, gap = last.b * k / 6;
+        const pitch = (d.s.length > 1 ? (d.s[1].x - d.s[0].x) : first.b) * k;
+        tq.step = pitch;
+        tq.row = { pitch };
+        // the hit area of the whole row
+        tqHit.style.left = (ox + first.x * k) + 'px';
+        tqHit.style.top = (oy + first.y * k) + 'px';
+        tqHit.style.width = (pitch * d.s.length) + 'px';
+        tqHit.style.height = (first.b * k) + 'px';
+        // both arrows left of the row, so that the inventory button can stay close to it
         const cy = oy + (first.y + first.b / 2) * k - ph / 2;
-        tqPrev.style.left = (ox + first.x * k - gap - pw) + 'px';
-        tqNext.style.left = (ox + (last.x + last.b) * k + gap) + 'px';
+        tqPrev.style.left = (ox + first.x * k - gap * 2 - pw * 2) + 'px';
+        tqNext.style.left = (ox + first.x * k - gap - pw) + 'px';
         tqPrev.style.top = tqNext.style.top = cy + 'px';
-        // the inventory button: right of the row and of the right arrow
+        // the inventory button: a block of the row, right of the last slot
         const inv = byId.inv.el, isz = first.b * k;
         inv.classList.add('sq');
         inv.style.width = inv.style.height = isz + 'px';
-        inv.style.left = (ox + (last.x + last.b) * k + gap * 2 + pw) + 'px';
+        inv.style.left = (ox + (last.x + last.b) * k + gap) + 'px';
         inv.style.bottom = 'auto';
         inv.style.top = (oy + first.y * k) + 'px';
       }
@@ -2079,6 +2121,7 @@ async function installChunks(m) {
         const isWorld = layout === 'world';
         if (isWorld) pollQuick();
         tq.els.forEach(e => e.style.display = isWorld ? '' : 'none');
+        tqHit.style.display = isWorld ? '' : 'none';
         const paged = isWorld && tq.total > tq.cols;
         tqPrev.style.display = paged ? '' : 'none';
         tqNext.style.display = paged ? '' : 'none';
