@@ -171,6 +171,12 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    // big logs hang the ui thread in a TextView: only the end of the file is shown
+    private fun readTail(f: File, max: Int = 20000): String {
+        val t = f.readText()
+        return if (t.length > max) "...\n" + t.substring(t.length - max) else t
+    }
+
     private fun readCompleteLog(): String {
         val sb = StringBuilder()
 
@@ -178,7 +184,7 @@ class MainActivity : AppCompatActivity() {
         val crashFile = File(detectedGameDir, "crash.log")
         if (crashFile.exists()) {
             sb.append("=== CRASH LOG (/sdcard/Gothic2/crash.log) ===\n")
-            sb.append(crashFile.readText())
+            sb.append(readTail(crashFile))
             sb.append("\n\n")
         }
 
@@ -186,7 +192,7 @@ class MainActivity : AppCompatActivity() {
         val javaCrashFile = File(filesDir, "last_crash.txt")
         if (javaCrashFile.exists()) {
             sb.append("=== JAVA CRASH LOG ===\n")
-            sb.append(javaCrashFile.readText())
+            sb.append(readTail(javaCrashFile))
             sb.append("\n\n")
         }
 
@@ -195,7 +201,7 @@ class MainActivity : AppCompatActivity() {
             val nativeLog = nativeGetLastLog()
             if (nativeLog.isNotBlank()) {
                 sb.append("=== NATIVE LOG ===\n")
-                sb.append(nativeLog)
+                sb.append(if (nativeLog.length > 20000) nativeLog.substring(nativeLog.length - 20000) else nativeLog)
                 sb.append("\n\n")
             }
         } catch (e: Exception) {
@@ -206,7 +212,7 @@ class MainActivity : AppCompatActivity() {
         val sessionLogFile = File(detectedGameDir, "opengothic_log.txt")
         if (sessionLogFile.exists() && sb.length < 500) {
             sb.append("=== LOG FILE ===\n")
-            sb.append(sessionLogFile.readText())
+            sb.append(readTail(sessionLogFile))
         }
 
         return if (sb.isNotBlank()) sb.toString() else "Лог пуст. Запустите игру для сбора логов."
@@ -229,25 +235,23 @@ class MainActivity : AppCompatActivity() {
         try {
             val dir = File(detectedGameDir)
             if (!dir.exists()) dir.mkdirs()
+            val prefs = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
+            val values = linkedMapOf(
+                "render_scale" to scalePercent.toString(),
+                "simple_render" to (if (simpleRender) "1" else "0"),
+                "draw_dist" to prefs.getInt("draw_dist", 0).toString(),
+                "world_dist" to prefs.getInt("world_dist", 0).toString()
+            )
             val cfgFile = File(dir, "debug.cfg")
             val lines = if (cfgFile.exists()) cfgFile.readLines().toMutableList() else mutableListOf()
-            var repScale = false
-            var repSimple = false
+            val done = HashSet<String>()
             for (i in lines.indices) {
-                if (lines[i].startsWith("render_scale=")) {
-                    lines[i] = "render_scale=$scalePercent"
-                    repScale = true
-                } else if (lines[i].startsWith("simple_render=")) {
-                    lines[i] = "simple_render=" + (if (simpleRender) "1" else "0")
-                    repSimple = true
-                }
+                val key = lines[i].substringBefore('=', "")
+                val v = values[key] ?: continue
+                lines[i] = "$key=$v"
+                done.add(key)
             }
-            if (!repScale) {
-                lines.add("render_scale=$scalePercent")
-            }
-            if (!repSimple) {
-                lines.add("simple_render=" + (if (simpleRender) "1" else "0"))
-            }
+            for ((k, v) in values) if (k !in done) lines.add("$k=$v")
             cfgFile.writeText(lines.joinToString("\n") + "\n")
         } catch (e: Exception) {
             Log.e(TAG, "updateDebugCfg error: ${e.message}")
@@ -406,22 +410,22 @@ class MainActivity : AppCompatActivity() {
         val scaleDesc = TextView(this).apply {
             textSize = 11f
             setTextColor(Color.parseColor("#9AA0A6"))
-            text = "100% (Native 2400x1080) • 75% • 50% • 40% (Высокий FPS)"
+            text = "100% (Native 2400x1080) • 75% • 50% • 40% • 30% • 25% • 20% (Макс. FPS)"
             setPadding(0, dp(2), 0, dp(6))
         }
         scaleCard.addView(scaleDesc)
 
-        // 4 discrete steps: 0 -> 40%, 1 -> 50%, 2 -> 75%, 3 -> 100%
-        val scaleValues = intArrayOf(40, 50, 75, 100)
+        // discrete steps, left to right
+        val scaleValues = intArrayOf(20, 25, 30, 40, 50, 75, 100)
         var initialStep = scaleValues.indexOf(currentScalePercent)
-        if (initialStep < 0) initialStep = 3
+        if (initialStep < 0) initialStep = scaleValues.size - 1
 
         val scaleSeekBar = SeekBar(this).apply {
-            max = 3
+            max = scaleValues.size - 1
             progress = initialStep
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
                 override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val p = scaleValues[progress.coerceIn(0, 3)]
+                    val p = scaleValues[progress.coerceIn(0, scaleValues.size - 1)]
                     currentScalePercent = p
                     scaleLabel.text = "Разрешение рендеринга: $p%"
                     prefs.edit().putInt("render_scale", p).apply()
@@ -434,6 +438,59 @@ class MainActivity : AppCompatActivity() {
         }
         scaleCard.addView(scaleSeekBar)
         mainLayout.addView(scaleCard)
+
+        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
+
+        // --- DISTANCE LIMITS ---
+        val distCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1C2025"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#2E353D"))
+            }
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        val distNames = arrayOf("без ограничения", "150 м", "80 м", "40 м", "20 м")
+        val worldValues = intArrayOf(0, 400, 250, 150, 100)
+        val worldNames = arrayOf("без ограничения", "400 м", "250 м", "150 м", "100 м")
+
+        fun addSteps(title: String, key: String, values: IntArray, names: Array<String>, hint: String) {
+            val cur = prefs.getInt(key, 0)
+            val label = TextView(this).apply {
+                textSize = 14f
+                setTypeface(Typeface.DEFAULT_BOLD)
+                setTextColor(Color.parseColor("#E0C068"))
+            }
+            val idx0 = values.indexOf(cur).let { if (it < 0) 0 else it }
+            label.text = "$title: ${names[idx0]}"
+            distCard.addView(label)
+            distCard.addView(TextView(this).apply {
+                textSize = 11f
+                setTextColor(Color.parseColor("#9AA0A6"))
+                text = hint
+                setPadding(0, dp(2), 0, dp(4))
+            })
+            distCard.addView(SeekBar(this).apply {
+                max = values.size - 1
+                progress = idx0
+                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                        label.text = "$title: ${names[progress]}"
+                        prefs.edit().putInt(key, values[progress]).apply()
+                        updateDebugCfg(prefs.getInt("render_scale", 100), prefs.getBoolean("simple_render", false))
+                    }
+                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+                })
+            })
+        }
+        addSteps("Дальность объектов", "draw_dist", intArrayOf(0, 1, 2, 3, 4), distNames,
+            "Объекты и NPC дальше не рисуются и не анимируются (больше FPS)")
+        distCard.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(8)) })
+        addSteps("Дальность мира", "world_dist", worldValues, worldNames,
+            "Всё, включая ландшафт, дальше этого не рисуется")
+        mainLayout.addView(distCard)
 
         // Space
         mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
