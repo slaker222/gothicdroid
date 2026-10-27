@@ -1,5 +1,5 @@
 #!/bin/bash
-# launcher settings of the app on the phone: android_setprefs.sh GAME_DIR RENDER_SCALE SIMPLE(true|false) [DRAW_DIST 0..4] [WORLD_DIST m]
+# launcher settings of the app on the phone: android_setprefs.sh GAME_DIR RENDER_SCALE SIMPLE(true|false) [DRAW_DIST 0..4] [WORLD_DIST m] [SHADOWS 0..3] [SSAO true|false] [REFLECTIONS true|false]
 adb shell am force-stop com.opengothic
 adb shell "run-as com.opengothic sh -c 'mkdir -p shared_prefs; cat > shared_prefs/opengothic_launcher.xml'" <<X
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
@@ -9,5 +9,8 @@ adb shell "run-as com.opengothic sh -c 'mkdir -p shared_prefs; cat > shared_pref
     <boolean name="simple_render" value="${3:-true}" />
     <int name="draw_dist" value="${4:-4}" />
     <int name="world_dist" value="${5:-150}" />
+    <int name="shadows" value="${6:-1}" />
+    <boolean name="ssao" value="${7:-false}" />
+    <boolean name="reflections" value="${8:-false}" />
 </map>
 X

@@ -27,6 +27,9 @@
 
 #include "commandline.h"
 #include "gothic.h"
+#if defined(__ANDROID__)
+#include "gapi/vulkan/vpipelinelogger.h"
+#endif
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
@@ -353,7 +356,7 @@ void MainWindow::paintEvent(PaintEvent& event) {
 
   const float scale = Gothic::interfaceScale(this);
 #if defined(__MOBILE_PLATFORM__) || defined(__ANDROID__)
-  {
+  if(opengothic_debug_show_fps()!=0) {
     char fpsT[64]={};
     double f = fps.get();
     double ms = f > 0.01 ? (1000.0 / f) : 0.0;
@@ -601,6 +604,10 @@ void MainWindow::onSettings() {
   if(zMaxFps>0)
     maxFpsInv = 1000u/uint64_t(zMaxFps); else
     maxFpsInv = 0;
+#if defined(__ANDROID__)
+  if(opengothic_debug_fps_unlimited()!=0)
+    maxFpsInv = 0;
+#endif
 #if defined(__EMSCRIPTEN__)
   // web FPS limit: 0 = the game's limit, 1 = display refresh rate (no game
   // limit, frames follow vsync), 2 = unlimited (frames do not wait for vsync)

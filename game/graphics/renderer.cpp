@@ -195,9 +195,15 @@ void Renderer::setupSettings() {
   settings.zFogRadial         = Gothic::settingsGetI("RENDERER_D3D","zFogRadial")!=0;
 
 #if defined(__ANDROID__)
-  settings.zCloudShadowScale  = false;
+  // debug.cfg (launcher): off by default, heavy on a phone
+  settings.zCloudShadowScale  = opengothic_debug_ssao()!=0;
   settings.zFogRadial         = false;
-  settings.zEnvMappingEnabled = false; // Disable heavy SSR raymarching
+  settings.zEnvMappingEnabled = opengothic_debug_reflections()!=0;
+  {
+  const int sh = opengothic_debug_shadows();
+  settings.shadowsEnabled   = sh>0;
+  settings.shadowResolution = sh>=3 ? 2048 : (sh==2 ? 1024 : 512);
+  }
 #endif
 
 #if defined(__EMSCRIPTEN__)
@@ -1755,7 +1761,7 @@ void Renderer::drawShadowMap(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView
       continue;
     cmd.setDebugMarker(string_frm("ShadowMap #",i));
     cmd.setFramebuffer({}, {shadowMap[i], 0.f, Tempest::Preserve});
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
     if(!settings.shadowsEnabled)
       continue; // cleared to the far plane: nothing casts a shadow
 #endif

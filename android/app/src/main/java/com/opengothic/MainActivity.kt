@@ -61,6 +61,11 @@ class MainActivity : AppCompatActivity() {
         setContentView(buildLauncherLayout())
         updateStatus()
         updateLogView()
+        // adb: am start -n com.opengothic/.MainActivity --ez autostart true (scripts/android_*.sh)
+        if (intent.getBooleanExtra("autostart", false)) {
+            intent.removeExtra("autostart")
+            launchGame()
+        }
     }
 
     override fun onResume() {
@@ -240,7 +245,12 @@ class MainActivity : AppCompatActivity() {
                 "render_scale" to scalePercent.toString(),
                 "simple_render" to (if (simpleRender) "1" else "0"),
                 "draw_dist" to prefs.getInt("draw_dist", 0).toString(),
-                "world_dist" to prefs.getInt("world_dist", 0).toString()
+                "world_dist" to prefs.getInt("world_dist", 0).toString(),
+                "shadows" to prefs.getInt("shadows", 1).toString(),
+                "ssao" to (if (prefs.getBoolean("ssao", false)) "1" else "0"),
+                "reflections" to (if (prefs.getBoolean("reflections", false)) "1" else "0"),
+                "show_fps" to (if (prefs.getBoolean("show_fps", true)) "1" else "0"),
+                "fps_unlimited" to (if (prefs.getBoolean("fps_unlimited", false)) "1" else "0")
             )
             val cfgFile = File(dir, "debug.cfg")
             val lines = if (cfgFile.exists()) cfgFile.readLines().toMutableList() else mutableListOf()
@@ -538,6 +548,73 @@ class MainActivity : AppCompatActivity() {
         }
         modeCard.addView(modeSwitch)
         mainLayout.addView(modeCard)
+
+        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
+
+        // --- QUALITY / FPS ---
+        val qualCard = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                setColor(Color.parseColor("#1C2025"))
+                cornerRadius = dp(10).toFloat()
+                setStroke(dp(1), Color.parseColor("#2E353D"))
+            }
+            setPadding(dp(16), dp(12), dp(16), dp(12))
+        }
+        qualCard.addView(TextView(this).apply {
+            textSize = 14f
+            setTypeface(Typeface.DEFAULT_BOLD)
+            setTextColor(Color.parseColor("#E0C068"))
+            text = "Качество и FPS"
+        })
+        qualCard.addView(TextView(this).apply {
+            textSize = 11f
+            setTextColor(Color.parseColor("#9AA0A6"))
+            text = "Тени, SSAO и отражения работают только в стандартном режиме графики"
+            setPadding(0, dp(2), 0, dp(6))
+        })
+
+        // shadows: off / 512 / 1024 / 2048
+        val shadowNames = arrayOf("Выкл", "512 (по умолчанию)", "1024", "2048")
+        val shadowLabel = TextView(this).apply {
+            textSize = 13f
+            setTextColor(Color.parseColor("#D0D5DD"))
+        }
+        val sh0 = prefs.getInt("shadows", 1).coerceIn(0, 3)
+        shadowLabel.text = "Тени: ${shadowNames[sh0]}"
+        qualCard.addView(shadowLabel)
+        qualCard.addView(SeekBar(this).apply {
+            max = 3
+            progress = sh0
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    shadowLabel.text = "Тени: ${shadowNames[progress]}"
+                    prefs.edit().putInt("shadows", progress).apply()
+                    updateDebugCfg(prefs.getInt("render_scale", 100), prefs.getBoolean("simple_render", false))
+                }
+                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+            })
+        })
+
+        fun addSwitch(title: String, key: String, def: Boolean) {
+            qualCard.addView(android.widget.Switch(this).apply {
+                text = title
+                setTextColor(Color.parseColor("#D0D5DD"))
+                textSize = 13f
+                isChecked = prefs.getBoolean(key, def)
+                setPadding(0, dp(6), 0, dp(2))
+                setOnCheckedChangeListener { _, checked ->
+                    prefs.edit().putBoolean(key, checked).apply()
+                    updateDebugCfg(prefs.getInt("render_scale", 100), prefs.getBoolean("simple_render", false))
+                }
+            })
+        }
+        addSwitch("Ambient occlusion (SSAO)", "ssao", false)
+        addSwitch("Отражения воды", "reflections", false)
+        addSwitch("Показывать FPS", "show_fps", true)
+        addSwitch("Снять лимит FPS игры", "fps_unlimited", false)
+        mainLayout.addView(qualCard)
 
         // Space
         mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(16)) })
