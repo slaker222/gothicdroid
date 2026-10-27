@@ -16,14 +16,14 @@ InventoryRenderer::InventoryRenderer()
   scene.setViewProject(mv,p,0,1,shMv);
   }
 
-void InventoryRenderer::draw(Tempest::Encoder<CommandBuffer>& cmd) {
+void InventoryRenderer::draw(Tempest::Encoder<CommandBuffer>& cmd, float sx, float sy) {
   Tempest::Matrix4x4 mv = Tempest::Matrix4x4::mkIdentity();
   mv.translate(0, 0, 0.5f);
   mv.scale(0.8f,1.f,1.f);
 
   auto& pso = Shaders::inst().inventory;
   for(auto& i:items) {
-    cmd.setViewport(i.x,i.y,i.w,i.h);
+    cmd.setViewport(int(float(i.x)*sx+0.5f), int(float(i.y)*sy+0.5f), int(float(i.w)*sx+0.5f), int(float(i.h)*sy+0.5f));
     for(size_t r=0;r<i.mesh.nodesCount();++r) {
       auto  n = i.mesh.node(r);
       auto& m = n.material();

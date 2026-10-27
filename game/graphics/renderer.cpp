@@ -601,7 +601,11 @@ void Renderer::draw(Encoder<CommandBuffer>& cmd, uint8_t cmdId, size_t imgId,
     auto& zb = (zbufferUi.isEmpty() ? zbuffer : zbufferUi);
     cmd.setFramebuffer({{result, Tempest::Preserve, Tempest::Preserve}},{zb, 1.f, Tempest::Preserve});
     cmd.setDebugMarker("Inventory");
-    inventory.draw(cmd);
+    // the items are placed in window pixels: the swapchain is not always the size of the window
+    // (web on a phone: the canvas has about two pixels per css pixel)
+    const float sx = float(result.w())/float(std::max(1,inventory.w()));
+    const float sy = float(result.h())/float(std::max(1,inventory.h()));
+    inventory.draw(cmd,sx,sy);
 
     cmd.setFramebuffer({{result, Tempest::Preserve, Tempest::Preserve}});
     cmd.setDebugMarker("Inventory-counters");

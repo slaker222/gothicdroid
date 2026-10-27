@@ -13,7 +13,8 @@ class InventoryRenderer {
   public:
     InventoryRenderer();
 
-    void draw(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
+    // sx, sy: framebuffer pixels per window pixel (they differ when the swapchain is not the size of the window)
+    void draw(Tempest::Encoder<Tempest::CommandBuffer>& cmd, float sx = 1.f, float sy = 1.f);
 
     void reset(bool full=false);
     void drawItem(int x, int y, int w, int h, const Item &item);
