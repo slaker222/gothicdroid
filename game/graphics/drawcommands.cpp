@@ -93,6 +93,14 @@ float DrawCommands::drawDistance() {
     case 3: return 4000.f;
     case 4: return 2000.f;
     }
+#elif defined(__ANDROID__)
+  // launcher / debug.cfg: draw_dist 0 = no limit, 1..4 = 150/80/40/20 m
+  switch(opengothic_debug_draw_dist()) {
+    case 1: return 15000.f;
+    case 2: return 8000.f;
+    case 3: return 4000.f;
+    case 4: return 2000.f;
+    }
 #endif
   return 0.f;
   }
@@ -101,6 +109,10 @@ float DrawCommands::worldDistance() {
 #if defined(__EMSCRIPTEN__)
   // web settings menu: [INTERNAL] webWorldDistM in meters, 0 = no limit
   const int m = Gothic::settingsGetI("INTERNAL","webWorldDistM");
+  if(m>0)
+    return float(std::max(m, 10))*100.f;
+#elif defined(__ANDROID__)
+  const int m = opengothic_debug_world_dist();
   if(m>0)
     return float(std::max(m, 10))*100.f;
 #endif

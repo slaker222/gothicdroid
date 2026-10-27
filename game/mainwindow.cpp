@@ -1472,6 +1472,8 @@ void MainWindow::render(){
       return;
       }
     auto tWait = perfNow() - t1;
+    // the previous frame of this slot is done: its gpu timestamps can be read without a stall
+    commands[cmdId].collectGpuTimers();
     Resources::resetRecycled(cmdId);
 
     if(video.isActive()) {
@@ -1502,10 +1504,9 @@ void MainWindow::render(){
     sync = device.submit(cmd);
     auto tSub = perfNow() - t3;
 
-    auto tGpuStart = perfNow();
-    sync.wait();
-    auto tGpu = perfNow() - tGpuStart;
-    commands[cmdId].collectGpuTimers();
+    // no wait for the gpu here: the cpu records the next frame while it renders this one, the
+    // fence of the slot is checked before the slot is reused (frame time: max of cpu and gpu, not their sum)
+    const uint64_t tGpu = 0;
 
     auto t4 = perfNow();
     device.present(swapchain);

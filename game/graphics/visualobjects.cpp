@@ -583,7 +583,9 @@ void VisualObjects::drawWater(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
 
 void VisualObjects::drawGBuffer(Tempest::Encoder<CommandBuffer>& cmd) {
   // return;
+  cmd.setDebugMarker("GBuffer solid");
   drawCmd.drawCommon(cmd, SceneGlobals::V_Main, Material::Solid);
+  cmd.setDebugMarker("GBuffer atest");
   if(!opengothic_debug_skip_atest())
     drawCmd.drawCommon(cmd, SceneGlobals::V_Main, Material::AlphaTest);
   }

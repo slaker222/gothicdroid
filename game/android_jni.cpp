@@ -1,4 +1,5 @@
 #if defined(__ANDROID__)
+#include "gapi/vulkan/vpipelinelogger.h"
 #include <jni.h>
 #include <android/log.h>
 #include <android/native_window_jni.h>
@@ -50,6 +51,7 @@ void androidAppendLog(const char* text) {
 
 static void runGameThread(std::string gameDir) {
   s_gameRunning.store(true);
+  opengothic_debug_set_game_dir(gameDir.c_str()); // debug.cfg and logs of this game, not of the first Gothic2 folder
   s_logFilePath = gameDir + "/opengothic_log.txt";
   {
     FILE* f = fopen(s_logFilePath.c_str(), "w");

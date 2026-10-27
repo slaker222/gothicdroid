@@ -143,6 +143,7 @@ void WorldView::drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
 
 void WorldView::drawGBuffer(Tempest::Encoder<CommandBuffer>& cmd, uint8_t fId) {
   visuals.drawGBuffer(cmd);
+  cmd.setDebugMarker("GBuffer pfx");
   pfxGroup.drawGBuffer(cmd, fId);
   }
 
