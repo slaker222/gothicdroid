@@ -765,9 +765,8 @@ void InventoryMenu::draw(Tempest::Encoder<CommandBuffer>& cmd, float sx, float s
   }
 
 #if defined(__EMSCRIPTEN__)
-// the quick panel: the weapons and spells of the number keys, then everything of the inventory that can
-// be used (scrolls and letters, runes, potions, food, weapons, armor, rings, torches) - a tap uses it.
-// The slots have their place in window pixels; the page puts its buttons on top of the same rectangles
+// the quick panel: the weapons and spells (runes, scrolls) the player put on the number keys 1..0 (melee 1,
+// ranged 2, magic 3..0), a tap presses the key. The slots have their place in window pixels; the page puts its buttons on top of the same rectangles
 // (og_quickslots), the icons are drawn here
 void InventoryMenu::quickUpdate() {
   auto pl = Gothic::inst().player();
@@ -792,17 +791,8 @@ void InventoryMenu::quickUpdate() {
     add(1, pl->currentMeleeWeapon(),  ws==WeaponState::Fist || ws==WeaponState::W1H || ws==WeaponState::W2H, 1);
     add(2, pl->currentRangedWeapon(), ws==WeaponState::Bow  || ws==WeaponState::CBow, 1);
     for(int i=3; i<=10; ++i)
-      add(i%10, inv.currentSpell(uint8_t(i)), ws==WeaponState::Mage && spell==i, 1);
+      add(i%10, inv.currentSpell(uint8_t(i-3)), ws==WeaponState::Mage && spell==i, 1); // numslot[0..7]: keys 3..0
 
-    const uint32_t usable = ITM_CAT_NF | ITM_CAT_FF | ITM_CAT_ARMOR | ITM_CAT_FOOD | ITM_CAT_DOCS |
-                            ITM_CAT_POTION | ITM_CAT_LIGHT | ITM_CAT_RUNE | ITM_CAT_MAGIC;
-    for(auto it = inv.iterator(Inventory::T_Inventory); it.isValid(); ++it) {
-      if((uint32_t(it->mainFlag()) & usable)==0)
-        continue;
-      if(std::find(have.begin(),have.end(),it->clsId())!=have.end())
-        continue;
-      add(-1, &(*it), it.isEquipped(), uint32_t(it.count()));
-      }
     }
 
   // a row at the bottom, in the middle: clear of the stick and the buttons; more than fits - pages
