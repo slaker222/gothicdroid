@@ -6,6 +6,7 @@
 Makes, with tools/pack_web.py, one pack per piece the page can ask for:
 
     <out>/base/manifest.json               gothic_base: everything shared by all languages
+    <out>/base_compact/manifest.json       gothic_base_compact (if present): the same, smaller, lossy pictures
     <out>/<code>/text/manifest.json        text of a language (lang.json files.text)
     <out>/<code>/voice/manifest.json       voice of a language (lang.json files.voice)
     <out>/languages.json                   index the page reads: names, sizes, pack paths
@@ -64,6 +65,12 @@ def main():
     man, size, line = pack(None, os.path.join(args.src, 'gothic_base'), os.path.join(args.dst, 'base'), mirror('base'))
     index['base'] = {'path': 'base/manifest.json', 'size': size, 'files': len(man['files'])}
     print('base:', line)
+    # a smaller base with reduced-colour pictures (tools/compact_vdf.py); needs the palette+tRNS PNG fix
+    compact = os.path.join(args.src, 'gothic_base_compact')
+    if os.path.isdir(compact):
+        man, size, line = pack(None, compact, os.path.join(args.dst, 'base_compact'), mirror('base_compact'))
+        index['baseCompact'] = {'path': 'base_compact/manifest.json', 'size': size, 'files': len(man['files'])}
+        print('base_compact:', line)
 
     # a language without voice-over only lists what differs from English: its text pack
     # is the English text with the language's own files laid over it

@@ -58,6 +58,7 @@
     }
     #lang-bar[hidden] { display: none; }
     #lang-bar label { display: flex; align-items: center; gap: 6px; }
+    #lang-bar label[hidden] { display: none; }
     #lang-bar select {
       background: var(--bg);
       color: var(--text);
@@ -440,9 +441,13 @@
 </head>
 <body>
   <div id="lang-bar" hidden>
-    <label>Text language <select id="lang-text"></select></label>
-    <label>Voice language <select id="lang-voice"></select></label>
-    <button class="btn" id="lang-apply" onclick="applyLanguages()">Apply</button>
+    <label>Game <select id="game-select" onchange="gameChosen()">
+      <option value="g1">Gothic 1</option>
+      <option value="g2">Gothic 2</option>
+    </select></label>
+    <label id="lang-text-label" hidden>Text language <select id="lang-text"></select></label>
+    <label id="lang-voice-label" hidden>Voice language <select id="lang-voice"></select></label>
+    <button class="btn" id="lang-apply" onclick="applyLanguages()" style="display:none">Apply</button>
     <span id="lang-note"></span>
   </div>
   <div id="player">
@@ -2302,8 +2307,16 @@ async function installChunks(m) {
     //  * preload: all files are read into memory once at startup (fallback).
     // ============================================================================
 
-    const GAME_ROOT = '/gothic';
-    const OPFS_ROOT_DIR = 'gothic';
+    // The game chosen on the language bar (reload on change): ?game=1|2 or the last choice (localStorage
+    // 'game'). Gothic 2 lives in its own OPFS folder with its own state files, saves and settings.
+    const GAME_ID = (() => {
+      let v = new URLSearchParams(location.search).get('game');
+      if (!v) { try { v = localStorage.getItem('game'); } catch (e) {} }
+      return /2/.test(v || '') ? 'g2' : 'g1';
+    })();
+    const GAME_SUF = GAME_ID === 'g2' ? '-g2' : '';   // added to the names of everything that belongs to one game
+    const GAME_ROOT = GAME_ID === 'g2' ? '/gothic2' : '/gothic';
+    const OPFS_ROOT_DIR = GAME_ID === 'g2' ? 'gothic2' : 'gothic';
     const BRIDGE_CHUNK = 16 * 1024 * 1024; // 16MB transfer buffer for the lazy backend
 
     // Junk that must never be imported into the game storage.
@@ -2840,10 +2853,10 @@ function serveLoop() {
     ];
 
     // OPFS root entries next to the game directory
-    const DL_ZIP = 'gothic-download.zip';     // archive being downloaded
-    const DL_STATE = 'gothic-download.json';  // {url, total} of that download
-    const INSTALL_MARK = 'gothic-install.json'; // written once the game is unpacked
-    const CHUNK_STATE = 'gothic-chunks.json'; // chunks installed from a manifest.json pack
+    const DL_ZIP = 'gothic-download' + GAME_SUF + '.zip';     // archive being downloaded
+    const DL_STATE = 'gothic-download' + GAME_SUF + '.json';  // {url, total} of that download
+    const INSTALL_MARK = 'gothic-install' + GAME_SUF + '.json'; // written once the game is unpacked
+    const CHUNK_STATE = 'gothic-chunks' + GAME_SUF + '.json'; // chunks installed from a manifest.json pack
 
     // savegames and settings written by the engine (see loadPersistedFiles)
     function isPersistedPath(rel) {
@@ -2905,6 +2918,7 @@ function serveLoop() {
     async function bootstrap() {
       try {
         g_langIndex = await loadLangIndex();
+        await initGameSelect();
         if (g_langIndex) await adoptLiveVoice();
         if (g_langIndex) await initLangBar();
         // Apply on the language bar: install the chosen packs instead of mounting
@@ -3108,6 +3122,14 @@ function serveLoop() {
 
     async function downloadGame() {
       if (g_langIndex) return installLanguagePacks();
+      if (GAME_ID === 'g2') {
+        // the single archive (?archive=, game_web.zip) is Gothic 1
+        progressContainer.style.display = 'none';
+        showSourceButtons(false);
+        statusText.style.color = 'var(--danger)';
+        statusText.innerText = 'Gothic 2 is not available on this server (no ' + langDir('g2') + '/languages.json). Pick Gothic 1 in the bar above.';
+        return;
+      }
       if (isolationBlocked()) return;
       if (await webgpuBlocked()) return;
       if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
@@ -3161,19 +3183,22 @@ function serveLoop() {
     // is applied at the next start (Apply reloads the page): the packs of the
     // choice are installed over the base and the game mounts as usual.
     // ?langs=<url of languages.json> overrides the address.
-    const LANG_STATE = 'gothic-langs.json';  // {text, voice, files:{base,text,voice}} of the installed game
-    const LANG_SEL = 'langSel';              // localStorage: {text, voice} chosen on the bar
-    const LANG_APPLY = 'langApply';          // localStorage: install the choice at this start
+    const LANG_STATE = 'gothic-langs' + GAME_SUF + '.json';  // {text, voice, files:{base,text,voice}} of the installed game
+    const LANG_SEL = 'langSel' + GAME_SUF;              // localStorage: {text, voice} chosen on the bar
+    const LANG_APPLY = 'langApply' + GAME_SUF;          // localStorage: install the choice at this start
     let g_langIndex = null;
     let g_langBase = '';
 
     function lsGet(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
     function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
 
+    // folder of the language packs of a game on the server (tools/pack_langs.py output)
+    function langDir(game) { return game === 'g2' ? 'lang_g2' : 'lang'; }
+
     async function loadLangIndex() {
       try {
         const q = new URLSearchParams(location.search).get('langs');
-        const r = await fetch(new URL(q || 'lang/languages.json', location.href).href, { cache: 'no-store' });
+        const r = await fetch(new URL(q || langDir(GAME_ID) + '/languages.json', location.href).href, { cache: 'no-store' });
         if (!r.ok) return null;
         const idx = await r.json();
         if (idx.version !== 1 || !idx.base || !Array.isArray(idx.languages)) return null;
@@ -3194,6 +3219,41 @@ function serveLoop() {
       return { text: pick(text, s && s.text), voice: pick(voice, s && s.voice) };
     }
 
+    // The game selector of the bar: both games are offered when the server has language packs of them.
+    // A change reloads the page (every game has its own folder, saves and settings).
+    async function initGameSelect() {
+      const sel = document.getElementById('game-select');
+      const has = {};
+      for (const g of ['g1', 'g2']) {
+        try {
+          const r = await fetch(new URL(langDir(g) + '/languages.json', location.href).href, { method: 'HEAD', cache: 'no-store' });
+          has[g] = r.ok;
+        } catch (e) { has[g] = false; }
+      }
+      for (const o of sel.options) o.disabled = !has[o.value] && o.value !== GAME_ID;
+      sel.value = GAME_ID;
+      if (has.g1 && has.g2 || !has[GAME_ID]) {
+        document.getElementById('lang-bar').hidden = false;
+        document.body.classList.add('has-lang');
+      } else {
+        sel.closest('label').hidden = true; // only one game on this server
+      }
+    }
+
+    function gameChosen() {
+      const sel = document.getElementById('game-select');
+      if (sel.value === GAME_ID) return;
+      if (g_gameReady && !confirm('The game restarts to switch to ' + sel.options[sel.selectedIndex].text +
+                                  '. Unsaved progress is lost. Continue?')) {
+        sel.value = GAME_ID;
+        return;
+      }
+      lsSet('game', sel.value === 'g2' ? '2' : '1');
+      const url = new URL(location.href);
+      url.searchParams.delete('game');
+      location.href = url.href;
+    }
+
     async function initLangBar() {
       const st = await readRootJson(LANG_STATE);
       // a choice waiting for its install (Apply) is shown, otherwise what is installed
@@ -3212,6 +3272,9 @@ function serveLoop() {
       fill(document.getElementById('lang-text'), 'text', sel.text);
       fill(document.getElementById('lang-voice'), 'voice', sel.voice);
       document.getElementById('lang-note').textContent = st ? '' : 'game installed without language packs';
+      document.getElementById('lang-text-label').hidden = false;
+      document.getElementById('lang-voice-label').hidden = false;
+      document.getElementById('lang-apply').style.display = '';
       document.getElementById('lang-bar').hidden = false;
       document.body.classList.add('has-lang');
     }
@@ -3280,8 +3343,8 @@ function serveLoop() {
     // are in use), read through a second bridge worker and mounted over the old archives by the
     // engine (dialogue lines are read from the archives when they are spoken). The next start
     // moves the new files into the game folder (adoptLiveVoice) in place of the old ones.
-    const LIVE_VOICE_DIR = 'gothic-voice-';
-    const LIVE_VOICE_STATE = 'gothic-voice-live-';
+    const LIVE_VOICE_DIR = 'gothic-voice' + GAME_SUF + '-';
+    const LIVE_VOICE_STATE = 'gothic-voice-live' + GAME_SUF + '-';
     let g_liveBusy = false;
     let g_liveSeq = 0;
 
@@ -3354,7 +3417,7 @@ function serveLoop() {
           const e = GameFS.addEntry('Data/' + vname, false, a.file.size);
           e.hIdx = i;
           e.br = br;
-          if (Module.ccall('og_voice_mount', 'number', ['string'], ['/gothic/Data/' + vname]) === 1) mounted++;
+          if (Module.ccall('og_voice_mount', 'number', ['string'], [GAME_ROOT + '/Data/' + vname]) === 1) mounted++;
         });
         if (!mounted) throw new Error('the engine could not mount the voice archives');
 
@@ -4001,7 +4064,7 @@ function serveLoop() {
         // relative paths (savegames, Gothic.ini) must land on the persistent
         // game mount, not on the in-memory root filesystem
         try { Module.FS.chdir(GAME_ROOT); } catch (e) {}
-        const args = ["-g", GAME_ROOT];
+        const args = ["-g", GAME_ROOT, GAME_ID === 'g2' ? "-g2" : "-g1"];
         if (noMenu) args.push("-nomenu");
         const ret = Module.callMain(args);
         window.__callMainReturned = { ret: ret, t: Date.now() };
