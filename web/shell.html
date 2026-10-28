@@ -2309,9 +2309,38 @@ async function installChunks(m) {
 
     // The game chosen on the language bar (reload on change): ?game=1|2 or the last choice (localStorage
     // 'game'). Gothic 2 lives in its own OPFS folder with its own state files, saves and settings.
+    // A link can choose the game and the languages: #g2/ru/en (game / text / voice; with two parts the
+    // language is both) or ?game=2&text=ru&voice=en. It is read once and taken out of the address, so a later
+    // choice on the bar is not overridden by the link at the next reload.
+    const LINK_CHOICE = (() => {
+      const out = { game: null, text: null, voice: null };
+      const lang = v => (/^[a-z]{2}$/i.test(v || '') ? v.toLowerCase() : null);
+      const url = new URL(location.href);
+      const parts = decodeURIComponent(url.hash).replace(/^#\/?/, '').split('/').filter(Boolean);
+      const g = /^(?:g|gothic)?([12])$/i.exec(parts[0] || '');
+      if (g) {
+        out.game = 'g' + g[1];
+        out.text = lang(parts[1]);
+        out.voice = lang(parts[2]) || out.text;
+      }
+      const q = url.searchParams;
+      const qg = /^(?:g|gothic)?([12])$/i.exec(q.get('game') || '');
+      if (qg) out.game = 'g' + qg[1];
+      if (lang(q.get('text'))) out.text = lang(q.get('text'));
+      if (lang(q.get('voice'))) out.voice = lang(q.get('voice'));
+      if (lang(q.get('lang'))) out.text = out.voice = lang(q.get('lang'));
+      if (g || ['game', 'text', 'voice', 'lang'].some(k => q.has(k))) {
+        if (g) url.hash = '';
+        for (const k of ['game', 'text', 'voice', 'lang']) q.delete(k);
+        try { history.replaceState(null, '', url.href); } catch (e) {}
+      }
+      if (out.game) { try { localStorage.setItem('game', out.game === 'g2' ? '2' : '1'); } catch (e) {} }
+      return out;
+    })();
     const GAME_ID = (() => {
-      let v = new URLSearchParams(location.search).get('game');
-      if (!v) { try { v = localStorage.getItem('game'); } catch (e) {} }
+      if (LINK_CHOICE.game) return LINK_CHOICE.game;
+      let v = null;
+      try { v = localStorage.getItem('game'); } catch (e) {}
       return /2/.test(v || '') ? 'g2' : 'g1';
     })();
     const GAME_SUF = GAME_ID === 'g2' ? '-g2' : '';   // added to the names of everything that belongs to one game
@@ -2918,6 +2947,7 @@ function serveLoop() {
     async function bootstrap() {
       try {
         g_langIndex = await loadLangIndex();
+        await applyLinkLanguages();
         await initGameSelect();
         if (g_langIndex) await adoptLiveVoice();
         if (g_langIndex) await initLangBar();
@@ -3221,6 +3251,19 @@ function serveLoop() {
 
     // The game selector of the bar: both games are offered when the server has language packs of them.
     // A change reloads the page (every game has its own folder, saves and settings).
+    // the languages of the link (see LINK_CHOICE): they are taken as the choice of the bar; installed with
+    // other languages, the game installs these at this start
+    async function applyLinkLanguages() {
+      if (!g_langIndex || !(LINK_CHOICE.text || LINK_CHOICE.voice)) return;
+      const L = id => g_langIndex.languages.find(l => l.id === id);
+      const cur = langSelection();
+      const text = LINK_CHOICE.text && L(LINK_CHOICE.text) && L(LINK_CHOICE.text).text ? LINK_CHOICE.text : cur.text;
+      const voice = LINK_CHOICE.voice && L(LINK_CHOICE.voice) && L(LINK_CHOICE.voice).voice ? LINK_CHOICE.voice : cur.voice;
+      lsSet(LANG_SEL, JSON.stringify({ text, voice }));
+      const st = await readRootJson(LANG_STATE);
+      if (!st || st.text !== text || st.voice !== voice) lsSet(LANG_APPLY, '1');
+    }
+
     async function initGameSelect() {
       const sel = document.getElementById('game-select');
       const has = {};
