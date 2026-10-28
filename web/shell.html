@@ -123,6 +123,20 @@
       display: block;
     }
 
+    /* the main-menu picture of the chosen game (web/img/g1.png, g2.png) instead of black while the game is
+       installed and loads; stretched like the menu of the game itself, dimmed to keep the status text readable;
+       it fades out when the engine has drawn its first frames (ogFrameStats) */
+    #boot-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: #000 center / 100% 100% no-repeat;
+      transition: opacity 0.7s ease;
+    }
+    #boot-bg::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.42); }
+    #boot-bg.gone { opacity: 0; }
+
     #ui-overlay {
       position: absolute;
       inset: 0;
@@ -452,6 +466,7 @@
   </div>
   <div id="player">
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <div id="boot-bg"></div>
 
     <div id="ui-overlay">
       <div class="status-box" id="status-text">Loading...</div>
@@ -1217,6 +1232,13 @@ async function installChunks(m) {
       let frames = 0, last = performance.now(), timer = 0;
       // frame stats shared with the automatic graphics settings
       const stats = window.ogFrameStats = { count: 0, last: 0, maxGap: 0 };
+      // the picture under the status text goes when the engine has drawn its first frames (its own loading
+      // screen); a page that cannot start the game keeps it
+      const bootBg = document.getElementById('boot-bg');
+      const hideBootBg = () => {
+        bootBg.classList.add('gone');
+        setTimeout(() => bootBg.remove(), 900);
+      };
       if (window.GPUCanvasContext) {
         const orig = GPUCanvasContext.prototype.getCurrentTexture;
         GPUCanvasContext.prototype.getCurrentTexture = function() {
@@ -1225,6 +1247,7 @@ async function installChunks(m) {
           if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
           stats.last = now;
           stats.count++;
+          if (stats.count === 4 && bootBg.isConnected) hideBootBg();
           return orig.apply(this, arguments);
         };
       }
@@ -2343,6 +2366,7 @@ async function installChunks(m) {
       try { v = localStorage.getItem('game'); } catch (e) {}
       return /2/.test(v || '') ? 'g2' : 'g1';
     })();
+    document.getElementById('boot-bg').style.backgroundImage = 'url(img/' + GAME_ID + '.png)';   // img/g1.png, img/g2.png
     const GAME_SUF = GAME_ID === 'g2' ? '-g2' : '';   // added to the names of everything that belongs to one game
     const GAME_ROOT = GAME_ID === 'g2' ? '/gothic2' : '/gothic';
     const OPFS_ROOT_DIR = GAME_ID === 'g2' ? 'gothic2' : 'gothic';
