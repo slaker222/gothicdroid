@@ -4019,9 +4019,25 @@ function serveLoop() {
         try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
         if (ad) break;
       }
-      if (!ad)
-        return 'WebGPU is there, but the browser found no graphics adapter. On Android Chrome needs Android 12 or newer ' +
-               'and a Vulkan 1.1 GPU; on computers check that hardware acceleration is on (chrome://gpu).' + check;
+      if (!ad) {
+        const android = /Android/.test(ua);
+        let how;
+        if (/Firefox/.test(ua) && !android)
+          how = 'In Firefox: <b>Settings &rarr; General &rarr; Performance</b>, untick &quot;Use recommended performance settings&quot; ' +
+                'and tick <b>Use hardware acceleration when available</b>. If that is not enough, open <b>about:config</b> and set ' +
+                '<b>dom.webgpu.enabled</b> and <b>gfx.webgpu.ignore-blocklist</b> to <b>true</b>, then restart Firefox.';
+        else if (/Chrome\/\d+/.test(ua) && !android) {
+          // the flags page of this browser (a page cannot link to it: the browser blocks such links)
+          const flags = /Edg\//.test(ua) ? 'edge://flags' : /OPR\//.test(ua) ? 'opera://flags'
+                      : navigator.brave ? 'brave://flags' : 'chrome://flags';
+          how = 'On a computer: open <b>' + flags + '</b> in a new tab, type <b>Vulkan</b> in the search box, set it to <b>Enabled</b> ' +
+                'and click <b>Relaunch</b>. If the adapter is still missing, do the same with <b>Unsafe WebGPU Support</b>, and check ' +
+                'that hardware acceleration is on (Settings &rarr; System).';
+        } else
+          how = 'On Android Chrome needs Android 12 or newer and a Vulkan 1.1 GPU; on computers check that hardware ' +
+                'acceleration is on (chrome://gpu).';
+        return 'WebGPU is there, but the browser found no graphics adapter. ' + how + check;
+      }
       g_gpuAdapter = ad;
       return null;
     }
