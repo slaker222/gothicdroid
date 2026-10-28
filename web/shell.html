@@ -1006,10 +1006,12 @@ async function installChunks(m) {
   const totalBytes = man.files.reduce((a, f, i) => a + (wanted[i] ? f.size : 0), 0);
   if (navigator.storage.estimate) {
     const est = await navigator.storage.estimate();
-    const free = (est.quota || 0) - (est.usage || 0);
-    if (est.quota && free < totalBytes) {
+    // m.reserve stays free for savegames; m.credit is space the page has just freed (the estimate may lag)
+    const free = (est.quota || 0) - (est.usage || 0) + (m.credit || 0);
+    if (est.quota && free - (m.reserve || 0) < totalBytes) {
       const err = new Error('not enough browser storage: need ~' + Math.ceil(totalBytes / 1048576) +
-                            ' MB, available ' + Math.floor(free / 1048576) + ' MB');
+                            ' MB' + (m.reserve ? ' and ' + Math.ceil(m.reserve / 1048576) + ' MB kept for savegames' : '') +
+                            ', available ' + Math.floor(free / 1048576) + ' MB');
       err.fatal = true;
       throw err;
     }
@@ -2961,6 +2963,33 @@ function serveLoop() {
 
     function mb(bytes) { return (bytes / 1048576).toFixed(0); }
 
+    // Space. Savegames and settings are written into the same browser storage as the game, so SAVE_RESERVE
+    // always stays free; what an install or a language change needs is worked out before anything is downloaded.
+    const SAVE_RESERVE = 50 * 1048576;
+    let g_spaceCredit = 0;   // bytes the page has just freed and navigator.storage.estimate() may not show yet
+
+    async function storageFree() {
+      try {
+        const e = await navigator.storage.estimate();
+        if (e.quota) return Math.max(0, e.quota - (e.usage || 0)) + g_spaceCredit;
+      } catch (err) {}
+      return Infinity;   // no estimate: the install itself reports QuotaExceededError
+    }
+    function storageError(need, have) {
+      const err = new Error('not enough browser storage: need ~' + mb(need) + ' MB and ' + mb(SAVE_RESERVE) +
+                            ' MB kept for savegames, available ' + mb(have) + ' MB. Delete the other game (Delete game) or free space on the device.');
+      err.fatal = true;
+      return err;
+    }
+    // bytes the files of a pack take on disk (the junk the installer skips and the saves are not counted)
+    const sumSizes = files => files.reduce((a, f) => a + (shouldImport(f.path) && !isPersistedPath(f.path) ? f.size : 0), 0);
+    const g_packFiles = new Map();
+    async function packFiles(info) {
+      const url = new URL(info.path, g_langBase).href;
+      if (!g_packFiles.has(url)) g_packFiles.set(url, (await (await fetch(url, { cache: 'no-store' })).json()).files);
+      return g_packFiles.get(url);
+    }
+
     function showSourceButtons(show) {
       sourceRow.style.display = show ? 'flex' : 'none';
     }
@@ -3096,6 +3125,8 @@ function serveLoop() {
           }
         };
         worker.postMessage(Object.assign({
+          reserve: SAVE_RESERVE,
+          credit: g_spaceCredit,
           gameDirName: OPFS_ROOT_DIR,
           skip: IMPORT_SKIP,
           persisted: [/^[^/]+\.(sav|ini)$/i, /^saves[^/]*\//i]
@@ -3381,10 +3412,10 @@ function serveLoop() {
     // Removes game files that do not belong to the install: with `expected` (a Set of paths)
     // everything under Data/ and _work/ that is not in it (an older language's archives,
     // cutscenes, scripts); without it every game file. Savegames and settings stay.
-    async function pruneGameFiles(expected) {
+    async function pruneGameFiles(expected, dry) {
       let dir;
       try { dir = await opfsGameDir(false); } catch (e) { return 0; }
-      let removed = 0;
+      let removed = 0, bytes = 0;
       async function walk(d, prefix) {
         const list = [];
         for await (const e of d.entries()) list.push(e);
@@ -3397,12 +3428,16 @@ function serveLoop() {
           }
           if (isPersistedPath(path)) continue;
           if (expected && (expected.has(path) || !/^(data|_work)\//i.test(path))) continue;
+          if (dry) {   // only measure: the bytes that would be freed
+            try { bytes += (await h.getFile()).size; } catch (e) {}
+            continue;
+          }
           await removeEntryRetry(d, name);
           removed++;
         }
       }
       await walk(dir, '');
-      return removed;
+      return dry ? bytes : removed;
     }
 
     // --------------------- voice language in a running game ---------------------
@@ -3565,6 +3600,29 @@ function serveLoop() {
     }
 
     // every file of a pack is in the game directory with the size the pack says
+    // path -> size of the files of the list that already lie in the game folder: the installer rewrites such a
+    // file in place, so a pack needs only the growth over them
+    async function installedSizes(files) {
+      const out = new Map();
+      let dir;
+      try { dir = await opfsGameDir(false); } catch (e) { return out; }
+      const dirs = new Map([['', dir]]);
+      for (const f of files.filter(f => shouldImport(f.path) && !isPersistedPath(f.path))) {
+        try {
+          const parts = f.path.split('/');
+          const name = parts.pop();
+          let key = '', d = dir;
+          for (const seg of parts) {
+            key += '/' + seg;
+            if (!dirs.has(key)) dirs.set(key, await d.getDirectoryHandle(seg));
+            d = dirs.get(key);
+          }
+          out.set(f.path, (await (await d.getFileHandle(name)).getFile()).size);
+        } catch (e) { /* not there yet */ }
+      }
+      return out;
+    }
+
     async function packIntact(files) {
       let dir;
       try { dir = await opfsGameDir(false); } catch (e) { return false; }
@@ -3618,7 +3676,8 @@ function serveLoop() {
         // the chunk state says "done" also after the files were deleted (Delete game, evicted
         // storage): a pack whose files are not all there is installed again
         for (const s of steps) {
-          if (!await packIntact(s.sizes)) await removeRootEntry(s.state);
+          s.intact = await packIntact(s.sizes);
+          if (!s.intact) await removeRootEntry(s.state);
         }
 
         // a pack that changes starts from scratch; a game installed another way is cleared
@@ -3632,14 +3691,48 @@ function serveLoop() {
             if (s.key !== 'base' && old[s.key] !== s.lang) await removeRootEntry(s.state);
         }
 
+        // Room: the packs that are not there yet are written next to the files of the previous language, which go
+        // only at the end. When that does not fit (SAVE_RESERVE stays free for savegames), they go first.
+        let need = 0, reclaimed = 0;
+        for (const s of steps) {
+          if (s.intact) continue;
+          const have = await installedSizes(s.sizes);   // rewritten in place: only the growth counts
+          s.overwrite = 0;
+          for (const f of s.sizes) {
+            if (!shouldImport(f.path) || isPersistedPath(f.path)) continue;
+            const old = have.get(f.path) || 0;
+            s.overwrite += old;
+            need += Math.max(0, f.size - old);
+          }
+        }
+        if (need) {
+          const free = await storageFree();
+          if (free - SAVE_RESERVE < need) {
+            const reclaim = await pruneGameFiles(new Set(steps.flatMap(s => s.files)), true);
+            if (free + reclaim - SAVE_RESERVE < need) throw storageError(need, free + reclaim);
+            setStatus('Not enough room for two languages: removing the previous one first...', 0);
+            await pruneGameFiles(new Set(steps.flatMap(s => s.files)));
+            reclaimed = reclaim;
+          }
+        }
+
         const total = steps.reduce((a, s) => a + s.info.size, 0);
         const report = makeProgressReporter();
         let before = 0;
         const files = {};
         let bytes = 0, count = 0;
         for (const s of steps) {
-          const res = await runInstallWorker({ type: 'chunks', urls: [s.url], stateName: s.state }, (m) =>
-            report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m));
+          // the worker checks the room again: the files rewritten in place and what was just removed (the
+          // storage estimate may not show it yet) are not needed any more
+          g_spaceCredit = s.intact ? 0 : (s.overwrite || 0) + reclaimed;
+          reclaimed = 0;
+          let res;
+          try {
+            res = await runInstallWorker({ type: 'chunks', urls: [s.url], stateName: s.state }, (m) =>
+              report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m));
+          } finally {
+            g_spaceCredit = 0;
+          }
           before += s.info.size;
           files[s.key] = s.files;
           bytes += res.bytes;
