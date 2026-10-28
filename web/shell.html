@@ -4025,7 +4025,9 @@ function serveLoop() {
         if (/Firefox/.test(ua) && !android)
           how = 'In Firefox: <b>Settings &rarr; General &rarr; Performance</b>, untick &quot;Use recommended performance settings&quot; ' +
                 'and tick <b>Use hardware acceleration when available</b>. If that is not enough, open <b>about:config</b> and set ' +
-                '<b>dom.webgpu.enabled</b> and <b>gfx.webgpu.ignore-blocklist</b> to <b>true</b>, then restart Firefox.';
+                '<b>dom.webgpu.enabled</b> and <b>gfx.webgpu.ignore-blocklist</b> to <b>true</b>, then restart Firefox. ' +
+                'On Linux Firefox runs WebGPU on <b>Vulkan</b>, so Vulkan has to work in the system: run <b>vulkaninfo --summary</b> in a ' +
+                'terminal, your graphics card must be listed (AMD: install <b>vulkan-radeon</b> and <b>vulkan-icd-loader</b>).';
         else if (/Chrome\/\d+/.test(ua) && !android) {
           // the flags page of this browser (a page cannot link to it: the browser blocks such links)
           const flags = /Edg\//.test(ua) ? 'edge://flags' : /OPR\//.test(ua) ? 'opera://flags'
