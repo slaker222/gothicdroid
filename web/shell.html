@@ -639,6 +639,11 @@
       </label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
+      <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: only the engine's own thin atmosphere">Fog
+        <select data-set="fog">
+          <option value="0">On</option><option value="2">Dense</option><option value="1">Off</option>
+        </select>
+      </label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
     </div>
 
@@ -1541,9 +1546,9 @@ async function installChunks(m) {
       }));
       // graphics presets: render resolution and textures are never touched
       const PRESETS = {
-        ultralow: { shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
+        ultralow: { fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
         low:      { shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
-        classic:  { shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, reflections: 0, ssao: 0 },
+        classic:  { fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, reflections: 0, ssao: 0 },
         ultra:    { shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 0, reflections: 1, ssao: 1, skipFarAnim: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {

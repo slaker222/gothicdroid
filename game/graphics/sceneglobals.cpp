@@ -153,6 +153,7 @@ void SceneGlobals::setSky(const Sky& s) {
   uboGlobalCpu.cloudsDir[0]  = s.cloudsOffset(0);
   uboGlobalCpu.cloudsDir[1]  = s.cloudsOffset(1);
   uboGlobalCpu.isNight       = s.isNight();
+  uboGlobalCpu.fogAmount     = Gothic::inst().webFogAmount();
   uboGlobalCpu.exposure      = 1;
   }
 

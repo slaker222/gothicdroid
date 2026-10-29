@@ -212,6 +212,8 @@ class Gothic final {
 
     // web shadows "ultra low": a translucent circle under every npc instead of shadow maps
     bool                                  blobShadows() const { return blobShadow; }
+    // web fog setting: 0 = as before (engine fog only), 1 = soft haze, 2 = dense haze
+    float                                 webFogAmount() const { return fogAmount; }
 
   private:
     VersionInfo                             vinfo;
@@ -223,6 +225,7 @@ class Gothic final {
     bool                                    desktop        = false;
     bool                                    showFpsCounter = false;
     bool                                    blobShadow     = false;
+    float                                   fogAmount      = 0;
     bool                                    showTime       = false;
     bool                                    vobBox         = false;
     Benchmark                               isBenchmark    = Benchmark::None;

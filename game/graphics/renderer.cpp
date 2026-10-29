@@ -215,6 +215,8 @@ void Renderer::setupSettings() {
   settings.shadowResolution = sh==3 ? 512 : (sh>=2 ? 2048 : (sh==1 ? 1024 : 512));
   }
   // water quality low: no water material (it is picked at world load) and no water passes
+  // HQ fog (zFogRadial) is not supported on the web: the final fog pass would be skipped
+  settings.zFogRadial  = false;
   settings.simpleWater = Gothic::settingsGetI("INTERNAL","webWaterQuality")!=0;
   Material::simpleWater = settings.simpleWater;
 #endif

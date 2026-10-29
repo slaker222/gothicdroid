@@ -959,6 +959,11 @@ void Gothic::setupSettings() {
     game->setupSettings();
 #if defined(__EMSCRIPTEN__)
   blobShadow = settingsGetI("INTERNAL","webShadows")==3;
+  {
+  // webFog: 0 = soft haze (default), 1 = off, 2 = dense haze
+  const int fog = settingsGetI("INTERNAL","webFog");
+  fogAmount = fog==1 ? 0.f : (fog==2 ? 3.f : 1.6f);
+  }
 #endif
 
   const float soundVolume = settingsGetF("SOUND","soundVolume");

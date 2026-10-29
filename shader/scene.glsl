@@ -38,6 +38,7 @@ struct SceneDesc {
   ivec2 screenRes;
   vec4  cloudsDir;
   float probeGridBias;
+  float fogAmount;    // soft distance haze, 0 = off
   };
 
 struct LightSource {

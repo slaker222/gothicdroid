@@ -32,6 +32,13 @@ layout(binding = 3, std140) uniform UboScene {
   SceneDesc scene;
   };
 
+// soft haze, see main_frag
+const float fogRange   = 400.0;               // meters to ~63% haze
+const float fogSkyHaze = 0.8;                 // haze on the horizon sky
+const float fogMaxDens = 0.86;                // far objects stay faintly visible
+const vec3  fogTint    = vec3(1.0, 0.70, 0.38);
+const float fogGain    = 1.7;
+
 vec3 inverse(vec3 pos) {
   vec4 ret = scene.viewProjectInv*vec4(pos,1.0);
   return (ret.xyz/ret.w)/100.f;
@@ -198,6 +205,26 @@ void main_frag() {
 
   lum *= scene.GSunIntensity;
   lum *= scene.exposure;
+
+#if !defined(VOLUMETRIC)
+  if(scene.fogAmount>0) {
+    // soft sandy haze: thickens with distance, strongest near the horizon, tinted by the sky
+    const vec3  pos0   = project(scene.viewProjectInv, vec3(inPos,0.0));
+    const vec3  posz   = project(scene.viewProjectInv, vec3(inPos,dMax));
+    const float meters = length(posz-pos0)*0.01;
+    float       dens   = isSky ? 0.0 : pow(meters/fogRange, 1.5)*scene.fogAmount;
+    float       a      = fogMaxDens*(1.0 - exp(-dens));
+    if(isSky)
+      a = fogSkyHaze*min(scene.fogAmount,1.0)*exp(-max(view.y,0.0)*5.0);
+
+    vec3  farLum = textureLod(fogLut, vec3(uv,1.0), 0).rgb*scene.GSunIntensity*scene.exposure;
+    float luma  = dot(farLum, vec3(0.299,0.587,0.114));
+    vec3  haze  = mix(farLum, luma*fogTint, 0.92)*fogGain;
+
+    lum = lum*(1.0-a) + haze*a;
+    tr  = tr*(1.0-a);
+    }
+#endif
 
   outColor = vec4(lum, 1.0-tr);
   }
