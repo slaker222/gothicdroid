@@ -4585,10 +4585,94 @@ void Npc::updateAnimationPose(bool force) {
     visual.syncAttaches();
   }
 
+void Npc::updateBlobShadow() {
+  // only the characters have the circle, not monsters
+  if(!Gothic::inst().blobShadows() || !isHuman()) {
+    if(!blobShadow.isEmpty())
+      blobShadow = MeshObjects::Mesh();
+    return;
+    }
+  if(blobShadow.isEmpty()) {
+    blobShadow = owner.addBlobShadowView();
+    durtyTranform |= TR_Pos;
+    }
+  if(blobShadow.isEmpty() || durtyTranform==0)
+    return;
+
+  auto phys = owner.physic();
+  // the collision box of the skeleton: the same for all the humans, unlike the visual bounds (armor, weapons)
+  float size = 60.f;
+  if(auto sk = visual.visualSkeleton())
+    size = std::max(sk->bboxCol[1].x-sk->bboxCol[0].x, sk->bboxCol[1].z-sk->bboxCol[0].z);
+  size *= std::max(sz[0], sz[2]);
+  const float rad0 = std::min(std::max(size*1.04f, 52.f), 416.f);
+
+  // the circle lies on the ground under the npc, not on the npc: it shrinks while the npc is in the air
+  Vec3  n(0,1,0);
+  Vec3  cen = {};
+  float rad = 0;
+  float lift = 0;
+  auto  c   = phys->landRay(Vec3(x,y+60.f,z), 600.f);
+  if(c.hasCol && !isSwim()) {
+    const float h = std::max(y-c.v.y, 0.f);
+    const float k = 1.f - std::min(h/350.f, 1.f);
+    rad = rad0*k;
+
+    n   = c.n;
+    cen = c.v;
+    // near the camera the ground around is sampled: the circle follows polygons at an angle
+    auto pl = owner.player();
+    if(rad>0.f && pl!=nullptr && qDistTo(*pl)<2000.f*2000.f) {
+      Vec3 pt[3];
+      bool ok = true;
+      for(int i=0; i<3; ++i) {
+        const float a = float(i)*2.0943951f;
+        auto r = phys->landRay(Vec3(x+std::cos(a)*rad, c.v.y+60.f, z+std::sin(a)*rad), 160.f);
+        if(!r.hasCol) {
+          ok = false;
+          break;
+          }
+        pt[i] = r.v;
+        }
+      if(ok) {
+        auto pn = Vec3::crossProduct(pt[1]-pt[0], pt[2]-pt[0]);
+        if(pn.y<0)
+          pn = -pn;
+        if(Vec3::dotProduct(pn,pn)>0.f) {
+          n = Vec3::normalize(pn);
+          // the plane is above all the points
+          for(auto& i:pt)
+            lift = std::max(lift, Vec3::dotProduct(n,i-c.v));
+          }
+        }
+      }
+    }
+  if(Vec3::dotProduct(n,n)<0.5f)
+    n = Vec3(0,1,0); else
+    n = Vec3::normalize(n);
+  lift += 5.f; // no z-fight
+
+  auto r = Vec3::crossProduct(Vec3(0,0,1),n);
+  if(Vec3::dotProduct(r,r)<0.0001f)
+    r = Vec3(1,0,0); else
+    r = Vec3::normalize(r);
+  const auto f = Vec3::crossProduct(n,r);
+
+  Matrix4x4 m;
+  m.identity();
+  m.set(0,0,r.x*rad); m.set(0,1,r.y*rad); m.set(0,2,r.z*rad);
+  m.set(1,0,n.x);     m.set(1,1,n.y);     m.set(1,2,n.z);
+  m.set(2,0,f.x*rad); m.set(2,1,f.y*rad); m.set(2,2,f.z*rad);
+  m.set(3,0,cen.x+n.x*lift); m.set(3,1,cen.y+n.y*lift); m.set(3,2,cen.z+n.z*lift);
+  blobShadow.setObjMatrix(m);
+  }
+
 void Npc::updateAnimationEvents(uint64_t dt) {
   const auto camera = Gothic::inst().camera();
   if(isPlayer() && camera!=nullptr && camera->isFree())
     dt = 0;
+
+  updateBlobShadow();
 
   if(durtyTranform) {
     const auto ground = groundNormal();

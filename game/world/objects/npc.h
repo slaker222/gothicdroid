@@ -551,6 +551,8 @@ class Npc final {
     // visual props (cache)
     uint8_t                        durtyTranform=0;
     Tempest::Vec3                  lastGroundNormal;
+    MeshObjects::Mesh              blobShadow; // "ultra low" shadows
+    void                           updateBlobShadow();
 
     DynamicWorld::NpcItem          physic;
 

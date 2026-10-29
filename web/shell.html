@@ -600,7 +600,7 @@
       </label>
       <label class="set-row">Shadows
         <select data-set="shadows">
-          <option value="2">High</option><option value="1">Low</option><option value="0">Off</option>
+          <option value="2">High</option><option value="1">Low</option><option value="3">Ultra low (circles)</option><option value="0">Off</option>
         </select>
       </label>
       <label class="set-row">Object draw distance
@@ -620,6 +620,11 @@
         </select>
       </label>
       <label class="set-row" title="NPCs beyond the object draw distance are not animated (their bones freeze until they come closer)">Skip hidden NPC animation <input type="checkbox" data-set="skipFarAnim"></label>
+      <label class="set-row" title="Low: water is a plain animated texture like in the original Gothic, no waves, transparency or reflections; much lighter for the GPU. Applies the next time a world is loaded (new game, loading a save, changing the area)">Water quality
+        <select data-set="waterQuality">
+          <option value="0">High</option><option value="1">Low</option>
+        </select>
+      </label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
@@ -1461,14 +1466,15 @@ async function installChunks(m) {
       // shadows and medium distance beat one setting at its lowest) down to the
       // minimum; the resolution goes last. Values are "at least this low":
       // a setting the player already has lower is kept.
-      // shadows: 2 high .. 0 off; reflections/ssao: 1 on; distances: higher = nearer
+      // shadows: 2 high, 1 low, 3 ultra low (circles under npcs), 0 off; reflections/ssao: 1 on;
+      // distances: higher = nearer
       // worldDist is in meters (0 = no limit)
       const levels = [
         { shadows: 1, drawDist: 1, worldDist: 0,   reflections: 1, ssao: 1, resScale: 0 },
         { shadows: 1, drawDist: 2, worldDist: 500, reflections: 0, ssao: 1, resScale: 0 },
-        { shadows: 0, drawDist: 2, worldDist: 300, reflections: 0, ssao: 0, resScale: 0 },
-        { shadows: 0, drawDist: 3, worldDist: 150, reflections: 0, ssao: 0, resScale: 0 },
-        { shadows: 0, drawDist: 4, worldDist: 80,  reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 3, drawDist: 2, worldDist: 300, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 3, drawDist: 3, worldDist: 150, reflections: 0, ssao: 0, resScale: 0 },
+        { shadows: 3, drawDist: 4, worldDist: 80,  reflections: 0, ssao: 0, resScale: 0 },
         { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 0 },
         { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 1 },
         { shadows: 0, drawDist: 4, worldDist: 30,  reflections: 0, ssao: 0, resScale: 2 },
@@ -1482,12 +1488,14 @@ async function installChunks(m) {
       function applyLevel(lv) {
         const changed = [];
         for (const k in lv) {
-          const cur = get(k), want = lv[k];
+          let cur = get(k), want = lv[k];
+          // the shadows go 2, 1, 3 (ultra low), 0: their values are not in that order
+          if (k === 'shadows') { const rank = [0, 2, 3, 1]; cur = rank[cur]; want = rank[want]; }
           // a world distance of 0 is "no limit", the farthest
           const lower = k === 'worldDist' ? want > 0 && (cur === 0 || want < cur)
                                           : lowerIsLess[k] ? want < cur : want > cur;
           if (!lower) continue;
-          set(k, want);
+          set(k, lv[k]);
           changed.push(k);
         }
         // far npcs are not animated once objects have a draw distance

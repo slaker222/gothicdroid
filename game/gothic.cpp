@@ -957,6 +957,9 @@ void Gothic::detectGothicVersion() {
 void Gothic::setupSettings() {
   if(game!=nullptr)
     game->setupSettings();
+#if defined(__EMSCRIPTEN__)
+  blobShadow = settingsGetI("INTERNAL","webShadows")==3;
+#endif
 
   const float soundVolume = settingsGetF("SOUND","soundVolume");
   sndDev.setGlobalVolume(soundVolume);

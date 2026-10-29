@@ -101,6 +101,7 @@ class World final {
     MeshObjects::Mesh    addStaticView(const ProtoMesh* visual, bool staticDraw);
     MeshObjects::Mesh    addStaticView(std::string_view visual);
     MeshObjects::Mesh    addDecalView (const zenkit::VisualDecal& decal);
+    MeshObjects::Mesh    addBlobShadowView();
     LightGroup::Light    addLight(const zenkit::VLight& vob);
     LightGroup::Light    addLight(std::string_view preset);
 

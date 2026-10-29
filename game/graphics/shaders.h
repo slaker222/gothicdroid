@@ -134,6 +134,7 @@ class Shaders {
       PipelineType            pipelineType = PipelineType::T_Main;
       bool                    bindless     = false;
       bool                    trivial      = false;
+      bool                    flatWater    = false;
       };
 
     void                     compileKeyShaders();

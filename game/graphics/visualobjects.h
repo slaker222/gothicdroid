@@ -79,6 +79,7 @@ class VisualObjects final {
     void visibilityVsm  (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
 
     void drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
+    bool hasWater       () const;
     void drawWater      (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawGBuffer    (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawShadow     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, int layer);

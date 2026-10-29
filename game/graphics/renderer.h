@@ -122,6 +122,7 @@ class Renderer final {
       bool           zEnvMappingEnabled = false;
       bool           zCloudShadowScale  = false;
       bool           zFogRadial         = false;
+      bool           simpleWater        = false;
 
       bool           giEnabled          = false;
       bool           aaEnabled          = false;

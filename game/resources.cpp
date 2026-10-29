@@ -1175,3 +1175,50 @@ Tempest::VertexBuffer<Resources::Vertex> Resources::sphere(int passCount, float 
 
   return dev.vbo(r);
   }
+ProtoMesh* Resources::implBlobShadowMesh() {
+  if(blobMesh!=nullptr)
+    return blobMesh.get();
+
+  // soft dark circle: the shadow under a character
+  const int sz = 64;
+  Pixmap pm(sz,sz,TextureFormat::RGBA8);
+  auto* pix = reinterpret_cast<uint8_t*>(pm.data());
+  for(int y=0; y<sz; ++y)
+    for(int x=0; x<sz; ++x) {
+      const float dx = (float(x)+0.5f)/float(sz)*2.f-1.f;
+      const float dy = (float(y)+0.5f)/float(sz)*2.f-1.f;
+      const float r  = std::sqrt(dx*dx+dy*dy);
+      float k = std::min(std::max((1.f-r)/0.3f, 0.f), 1.f);
+      k = k*k*(3.f-2.f*k);
+      auto* p = pix + size_t(y*sz+x)*4;
+      p[0] = p[1] = p[2] = 0;
+      p[3] = uint8_t(k*0.56f*255.f);
+      }
+  blobTex.reset(new Texture2d(dev.texture(pm)));
+
+  Material mat;
+  mat.tex   = blobTex.get();
+  mat.alpha = Material::Transparent;
+
+  // lies in the XZ plane, both sides are drawn
+  Resources::Vertex vbo[8] = {
+    {{-1.f, 0.f, -1.f},{0, 1,0},{0,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f, -1.f},{0, 1,0},{1,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f,  1.f},{0, 1,0},{1,0}, 0xFFFFFFFF},
+    {{-1.f, 0.f,  1.f},{0, 1,0},{0,0}, 0xFFFFFFFF},
+    {{-1.f, 0.f, -1.f},{0,-1,0},{0,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f, -1.f},{0,-1,0},{1,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f,  1.f},{0,-1,0},{1,0}, 0xFFFFFFFF},
+    {{-1.f, 0.f,  1.f},{0,-1,0},{0,0}, 0xFFFFFFFF},
+    };
+  std::vector<Resources::Vertex> cvbo(vbo,vbo+8);
+  std::vector<uint32_t>          cibo = { 0,1,2, 0,2,3, 4,6,5, 4,7,6 };
+  blobMesh.reset(new ProtoMesh(mat, std::move(cvbo), std::move(cibo)));
+  return blobMesh.get();
+  }
+
+const ProtoMesh* Resources::blobShadowMesh() {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  return inst->implBlobShadowMesh();
+  }
+

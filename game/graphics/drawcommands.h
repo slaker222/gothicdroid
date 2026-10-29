@@ -28,6 +28,10 @@ class DrawCommands {
       const Tempest::RenderPipeline* pHiZ         = nullptr;
       Type                           type         = Type::Landscape;
 
+      // water only: the high quality pipeline (pMain is the active one) and the plain one
+      const Tempest::RenderPipeline* pMainWater   = nullptr;
+      const Tempest::RenderPipeline* pMainSimple  = nullptr;
+
       Material::AlphaFunc            alpha        = Material::Solid;
       uint32_t                       firstPayload = 0;
       uint32_t                       maxPayload   = 0;
@@ -59,6 +63,7 @@ class DrawCommands {
     void     visibilityVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
 
     void     drawHiZ(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
+    bool     hasCommands(Material::AlphaFunc func) const;
     void     drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, SceneGlobals::VisCamera viewId, Material::AlphaFunc func);
 
     void     drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd);

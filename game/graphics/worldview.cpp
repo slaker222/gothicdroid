@@ -147,6 +147,10 @@ void WorldView::drawGBuffer(Tempest::Encoder<CommandBuffer>& cmd, uint8_t fId) {
   pfxGroup.drawGBuffer(cmd, fId);
   }
 
+bool WorldView::hasWater() const {
+  return visuals.hasWater();
+  }
+
 void WorldView::drawWater(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
   visuals.drawWater(cmd);
   }
@@ -194,6 +198,12 @@ MeshObjects::Mesh WorldView::addStaticView(std::string_view visual) {
 
 MeshObjects::Mesh WorldView::addDecalView(const zenkit::VisualDecal& vob) {
   if(auto mesh=Resources::decalMesh(vob))
+    return MeshObjects::Mesh(objGroup,*mesh,0,0,0,true);
+  return MeshObjects::Mesh();
+  }
+
+MeshObjects::Mesh WorldView::addBlobShadowView() {
+  if(auto mesh=Resources::blobShadowMesh())
     return MeshObjects::Mesh(objGroup,*mesh,0,0,0,true);
   return MeshObjects::Mesh();
   }

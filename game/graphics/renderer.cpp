@@ -207,12 +207,16 @@ void Renderer::setupSettings() {
 #endif
 
 #if defined(__EMSCRIPTEN__)
-  // web settings menu: 0 = off (the shadow maps are only cleared: all lit), 1 = 1024, 2 = 2048
+  // web settings menu: 0 = off (the shadow maps are only cleared: all lit), 1 = 1024, 2 = 2048,
+  // 3 = ultra low: as off, with a circle under every npc
   {
   const int sh = Gothic::settingsGetI("INTERNAL","webShadows");
-  settings.shadowsEnabled   = sh>0;
-  settings.shadowResolution = sh>=2 ? 2048 : (sh==1 ? 1024 : 512);
+  settings.shadowsEnabled   = sh>0 && sh!=3; // 3: ultra low, circles under npcs
+  settings.shadowResolution = sh==3 ? 512 : (sh>=2 ? 2048 : (sh==1 ? 1024 : 512));
   }
+  // water quality low: no water material (it is picked at world load) and no water passes
+  settings.simpleWater = Gothic::settingsGetI("INTERNAL","webWaterQuality")!=0;
+  Material::simpleWater = settings.simpleWater;
 #endif
 
   settings.zVidBrightness     = Gothic::settingsGetF("VIDEO","zVidBrightness");
@@ -768,7 +772,10 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   auto t5 = perfNow();
   stashSceneAux(cmd);
 
-  drawGWater(cmd, *wview);
+  // water quality low: a world loaded before the switch still has its water
+  const bool drawWater = !settings.simpleWater || wview->hasWater();
+  if(drawWater)
+    drawGWater(cmd, *wview);
 
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Preserve, Tempest::Preserve});
   cmd.setDebugMarker("Sun&Moon");
@@ -784,7 +791,8 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
 
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}});
   if(!simpleRender) {
-    drawReflections(cmd, *wview);
+    if(drawWater)
+      drawReflections(cmd, *wview);
     if(camera->isInWater()) {
       cmd.setDebugMarker("Underwater");
       drawUnderwater(cmd, *wview);

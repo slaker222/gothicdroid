@@ -140,7 +140,11 @@ float lambert() {
 
 vec3 diffuseLight() {
   float light  = lambert();
+#if defined(WATER_SIMPLE)
+  float shadow = 1.0; // water of low quality: nothing is cast onto it
+#else
   float shadow = calcShadow(vec4(shInp.pos,1), 0, scene, textureSm0, textureSm1);
+#endif
 
   vec3  lcolor  = scene.sunColor * light * shadow;
   vec3  ambient = scene.ambient; // TODO: irradiance
@@ -177,7 +181,12 @@ vec4 diffuseTex() {
       texAnim.y  = float(fract)/float(texAniMapDirPeriod.y);
       }
   }
+#if defined(WATER_SIMPLE)
+  // the texture is tiled in the world: big pools are not stretched by their polygons
+  const vec2 uv = shInp.pos.xz*(1.0/500.0) + texAnim;
+#else
   const vec2 uv = shInp.uv + texAnim;
+#endif
 #else
   const vec2 uv = shInp.uv;
 #endif

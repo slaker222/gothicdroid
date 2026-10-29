@@ -126,6 +126,7 @@ class Resources final {
 
     static Tempest::StorageBuffer    ssbo(const void* data, size_t size)         { return inst->dev.ssbo(data,size); }
     static Tempest::StorageBuffer    ssbo(Tempest::Uninitialized_t, size_t size) { return inst->dev.ssbo(Tempest::Uninitialized,size); }
+    static const ProtoMesh*          blobShadowMesh();
 
     template<class V, class I>
     static Tempest::AccelerationStructure
@@ -203,6 +204,7 @@ class Resources final {
     Tempest::StorageImage fbImg;
 
     using BindK  = std::tuple<const Skeleton*,const ProtoMesh*>;
+    ProtoMesh*            implBlobShadowMesh();
     using FontK  = std::tuple<const std::string,FontType,float>;
 
     struct Hash {
@@ -261,3 +263,5 @@ class Resources final {
     std::recursive_mutex                                              syncFont;
     std::unordered_map<FontK,std::unique_ptr<GthFont>,Hash>           gothicFnt;
   };
+    std::unique_ptr<Tempest::Texture2d>                               blobTex;
+    std::unique_ptr<ProtoMesh>                                        blobMesh;

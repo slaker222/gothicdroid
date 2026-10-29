@@ -57,6 +57,8 @@ const WebSetting g_webSettings[] = {
 
 const WebSetting* findWebSetting(const char* name) {
   for(auto& s:g_webSettings)
+  {"texQuality",  "INTERNAL", "webTexQuality",      false},
+  {"waterQuality","INTERNAL", "webWaterQuality",    false},
     if(std::strcmp(s.name, name)==0)
       return &s;
   return nullptr;

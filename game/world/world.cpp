@@ -296,6 +296,10 @@ MeshObjects::Mesh World::addStaticView(std::string_view visual) {
   return view()->addStaticView(visual);
   }
 
+MeshObjects::Mesh World::addBlobShadowView() {
+  return view()->addBlobShadowView();
+  }
+
 MeshObjects::Mesh World::addDecalView(const zenkit::VisualDecal& decal) {
   return view()->addDecalView(decal);
   }

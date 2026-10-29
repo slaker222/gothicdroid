@@ -64,6 +64,7 @@ class WorldView {
     void drawShadow     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t frameId, uint8_t layer);
     void drawVsm        (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawGBuffer    (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t frameId);
+    bool hasWater       () const;
     void drawWater      (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t frameId);
 
@@ -74,6 +75,7 @@ class WorldView {
     MeshObjects::Mesh   addStaticView(const ProtoMesh* visual, bool staticDraw = false);
     MeshObjects::Mesh   addStaticView(std::string_view visual);
     MeshObjects::Mesh   addDecalView (const zenkit::VisualDecal& vob);
+    MeshObjects::Mesh   addBlobShadowView();
     LightGroup::Light   addLight     (const zenkit::VLight& vob);
     LightGroup::Light   addLight     (std::string_view preset);
 

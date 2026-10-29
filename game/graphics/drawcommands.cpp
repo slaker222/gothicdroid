@@ -24,6 +24,9 @@ bool DrawCommands::DrawCmd::isForwardShading() const {
   }
 
 bool DrawCommands::DrawCmd::isShadowmapRequired() const {
+  // the plain water does not take shadows
+  if(pMainSimple!=nullptr && pMain==pMainSimple)
+    return false;
   return Material::isShadowmapRequired(alpha);
   }
 
@@ -210,8 +213,17 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
   if(pMain==nullptr && pShadow==nullptr && pHiZ==nullptr)
     return uint16_t(-1);
 
+  const RenderPipeline* pSimple = nullptr;
+  if(m.alpha==Material::Water) {
+    Material ms = m;
+    ms.alpha = Material::Transparent;
+    ms.flatWater = true;
+    pSimple  = Shaders::inst().materialPipeline(ms, type, Shaders::T_Main, bindless);
+    }
+
   for(size_t i=0; i<cmd.size(); ++i) {
-    if(cmd[i].pMain!=pMain || cmd[i].pShadow!=pShadow || cmd[i].pHiZ!=pHiZ)
+    const auto* cmain = (cmd[i].pMainWater!=nullptr ? cmd[i].pMainWater : cmd[i].pMain);
+    if(cmain!=pMain || cmd[i].pShadow!=pShadow || cmd[i].pHiZ!=pHiZ)
       continue;
     if(!bindless && cmd[i].bucketId!=bucketId)
       continue;
@@ -228,6 +240,14 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
   cx.bucketId    = bindless ? 0xFFFFFFFF : bucketId;
   cx.type        = type;
   cx.alpha       = m.alpha;
+  if(pSimple!=nullptr) {
+    cx.pMainWater  = pMain;
+    cx.pMainSimple = pSimple;
+    if(Material::simpleWater) {
+      cx.pMain = pSimple;
+      cx.alpha = Material::Transparent;
+      }
+    }
   cmd.push_back(std::move(cx));
   cmdDurtyBit = true;
   ++cmdGen;
@@ -251,6 +271,18 @@ void DrawCommands::resetRendering() {
   }
 
 void DrawCommands::commit(Encoder<CommandBuffer>& enc) {
+  // water quality can change at any time: water is drawn as a plain blended texture or as the water shader
+  for(auto& i:cmd) {
+    if(i.pMainWater==nullptr || i.pMainSimple==nullptr)
+      continue;
+    const auto alpha = Material::simpleWater ? Material::Transparent : Material::Water;
+    if(i.alpha==alpha)
+      continue;
+    i.alpha = alpha;
+    i.pMain = Material::simpleWater ? i.pMainSimple : i.pMainWater;
+    cmdDurtyBit = true;
+    }
+
   if(!cmdDurtyBit)
     return;
   cmdDurtyBit = false;
@@ -540,6 +572,13 @@ uint64_t DrawCommands::replayGen(SceneGlobals::VisCamera viewId, Material::Alpha
     h = mix(h, size_t(scene.tickCount/mat.texAniFPSInv) % mat.frames.size());
     }
   return h;
+  }
+
+bool DrawCommands::hasCommands(Material::AlphaFunc func) const {
+  for(auto i:ord)
+    if(i->alpha==func)
+      return true;
+  return false;
   }
 
 void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, SceneGlobals::VisCamera viewId, Material::AlphaFunc func) {

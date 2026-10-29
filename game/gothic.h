@@ -210,6 +210,9 @@ class Gothic final {
     static void                           settingsSetF(std::string_view sec, std::string_view name, float val);
     static void                           flushSettings();
 
+    // web shadows "ultra low": a translucent circle under every npc instead of shadow maps
+    bool                                  blobShadows() const { return blobShadow; }
+
   private:
     VersionInfo                             vinfo;
     Options                                 opts;
@@ -219,6 +222,7 @@ class Gothic final {
     bool                                    godMode        = false;
     bool                                    desktop        = false;
     bool                                    showFpsCounter = false;
+    bool                                    blobShadow     = false;
     bool                                    showTime       = false;
     bool                                    vobBox         = false;
     Benchmark                               isBenchmark    = Benchmark::None;

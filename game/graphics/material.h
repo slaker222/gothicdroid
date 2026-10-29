@@ -32,6 +32,7 @@ class Material final {
     Tempest::Point            texAniMapDirPeriod;
     uint64_t                  texAniFPSInv     = 1;
     bool                      isGhost          = false;
+    bool                      flatWater        = false; // see Material::simpleWater
     float                     waveMaxAmplitude = 0;
     float                     envMapping       = 0;
 
@@ -46,6 +47,9 @@ class Material final {
     bool isSceneInfoRequired()   const { return isSceneInfoRequired(alpha);            }
     bool isShadowmapRequired()   const { return isShadowmapRequired(alpha);            }
     bool isTextureInShadowPass() const { return isTextureInShadowPass(alpha);          }
+
+    // web water quality low: water materials are drawn as plain blended textures (see DrawCommands::commit)
+    static bool simpleWater;
 
     static bool isTesselated(AlphaFunc alpha);
     static bool isForwardShading(AlphaFunc alpha);
