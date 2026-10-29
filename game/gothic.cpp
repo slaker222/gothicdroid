@@ -965,6 +965,8 @@ void Gothic::setupSettings() {
   fogAmount = fog==1 ? -1.f : (fog==2 ? 3.f : 1.6f);
   // the haze is thick enough at the world draw distance to hide where the world ends
   const int worldM = settingsGetI("INTERNAL","webWorldDistM");
+  if(worldM>0 && worldM<150)
+    fogAmount = -1.f; // too short a world for the haze: off
   fogScale = worldM>0 ? std::clamp(float(worldM)/1100.f, 0.02f, 1.f) : 1.f;
   }
 #endif

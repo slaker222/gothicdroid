@@ -639,7 +639,7 @@
       </label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
-      <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: no fog on objects">Fog
+      <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: no fog on objects. Always off when the world draw distance is below 150 m">Fog
         <select data-set="fog">
           <option value="0">On</option><option value="2">Dense</option><option value="1">Off</option>
         </select>
@@ -1547,9 +1547,9 @@ async function installChunks(m) {
       // graphics presets: render resolution and textures are never touched
       const PRESETS = {
         ultralow: { fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
-        low:      { shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
+        low:      { fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
         classic:  { fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, reflections: 0, ssao: 0 },
-        ultra:    { shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 0, reflections: 1, ssao: 1, skipFarAnim: 0 },
+        ultra:    { fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 0, reflections: 1, ssao: 1, skipFarAnim: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {
         const b = e.target.closest('[data-preset]');
