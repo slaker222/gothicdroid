@@ -33,14 +33,14 @@ layout(binding = 3, std140) uniform UboScene {
   };
 
 // soft haze, see main_frag
-const float fogStart   = 80.0;                // meters without any haze: the foreground stays crisp
-const float fogRange   = 480.0;               // meters after the start to ~63% haze
+const float fogStart   = 120.0;               // meters without any haze: the foreground stays crisp
+const float fogRange   = 600.0;               // meters after the start to ~63% haze
 const float fogMaxDens = 0.90;                // far objects stay faintly visible
 const vec3  fogTint    = vec3(1.0, 0.65, 0.36);
 const float fogGain    = 2.85;
-const float fogSkyTop  = 0.75;                // sky haze at the zenith / on the horizon
+const float fogSkyTop  = 0.85;                // sky haze at the zenith / on the horizon
 const float fogSkyHor  = 0.92;
-const float fogSkyDim  = 0.42;                // haze brightness at the zenith relative to the horizon
+const float fogSkyDim  = 0.72;                // haze brightness at the zenith relative to the horizon
 
 vec3 inverse(vec3 pos) {
   vec4 ret = scene.viewProjectInv*vec4(pos,1.0);
