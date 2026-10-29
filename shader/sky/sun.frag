@@ -50,13 +50,17 @@ void main() {
   const vec3 pos1 = project(push.viewProjectInv, vec3(inPos,1.0));
   const vec3 view = normalize(pos1);
 
-  const vec4 clr = texture(sunSprite, uv);
+  vec4 clr = texture(sunSprite, uv);
   vec3 lum;
   if(push.isSun!=0) {
-    //lum = srgbDecode(clr.rgb);
-    lum = clr.rgb;
-    //lum = textureEmmisive(clr.rgb)*1.1;
-    lum *= textureLUT(tLUT, pos, push.sunDir).rgb;
+    // bright disc over a soft halo, drawn after the fog; the disc is opaque and burns out to white
+    const float r    = length(uv*2.0 - 1.0);
+    const float disc = 1.0 - smoothstep(0.10, 0.15, r);
+    const vec3  core = mix(vec3(1.0,0.97,0.90), vec3(1.0,0.80,0.45), smoothstep(0.05, 0.15, r));
+    const float halo = exp(-r*r*14.0)*0.22 + exp(-r*5.0)*0.05;
+    const vec3  tint = textureLUT(tLUT, pos, push.sunDir).rgb;
+    lum   = tint*(core*(disc*14.0) + vec3(1.0,0.85,0.6)*halo*2.0);
+    clr.a = 1.0 - disc;
     } else {
     lum = textureEmmisive(clr.rgb);
     }
@@ -65,7 +69,8 @@ void main() {
   lum *= scene.exposure;
 
   if(rayIntersect(pos, view, RPlanet)>=0.0) {
-    lum = vec3(0.0);
+    lum   = vec3(0.0);
+    clr.a = 1.0;
     }
 
   outColor = vec4(lum, clr.a);

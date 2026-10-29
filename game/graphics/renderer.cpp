@@ -780,8 +780,6 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     drawGWater(cmd, *wview);
 
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Preserve, Tempest::Preserve});
-  cmd.setDebugMarker("Sun&Moon");
-  drawSunMoon(cmd, *wview);
   cmd.setDebugMarker("Translucent");
   wview->drawTranslucent(cmd, fId);
 
@@ -803,6 +801,10 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
       drawFog(cmd, *wview);
       }
     }
+  // after the fog: the haze is nearly opaque on the sky and would swallow the sun disc
+  cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
+  cmd.setDebugMarker("Sun&Moon");
+  drawSunMoon(cmd, *wview);
   auto tTrans = perfNow() - t5;
 
   auto t6 = perfNow();
