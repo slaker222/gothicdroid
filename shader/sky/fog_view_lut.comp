@@ -134,7 +134,10 @@ void main() {
   //const float planetDist = rayIntersect(viewPos, rayDir, RPlanet);
   const float atmoDist   = rayIntersect(viewPos, rayDir, RAtmos);
   const float groundDist = length(pos1-pos0)*0.01;  // meters
-  const float tMax       = min(atmoDist, groundDist*viewDistanceScale);
+  // web fog: the far plane is the world draw distance; the haze must not get darker with it,
+  // so the light is integrated as for the 1000 m far plane of the unlimited world
+  const float refDist    = scene.fogAmount!=0 ? max(groundDist, 1000.0) : groundDist;
+  const float tMax       = min(atmoDist, refDist*viewDistanceScale);
 
   raymarchScattering(viewPos, rayDir, sunDir, tMax, numScatteringSteps);
   }
