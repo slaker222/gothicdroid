@@ -39,6 +39,7 @@ struct SceneDesc {
   vec4  cloudsDir;
   float probeGridBias;
   float fogAmount;    // soft distance haze, 0 = off
+  float fogScale;     // haze distances relative to the unlimited world
   };
 
 struct LightSource {

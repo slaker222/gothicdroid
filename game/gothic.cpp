@@ -963,6 +963,9 @@ void Gothic::setupSettings() {
   // webFog: 0 = soft haze (default), 1 = off, 2 = dense haze
   const int fog = settingsGetI("INTERNAL","webFog");
   fogAmount = fog==1 ? -1.f : (fog==2 ? 3.f : 1.6f);
+  // the haze is thick enough at the world draw distance to hide where the world ends
+  const int worldM = settingsGetI("INTERNAL","webWorldDistM");
+  fogScale = worldM>0 ? std::clamp(float(worldM)/1100.f, 0.02f, 1.f) : 1.f;
   }
 #endif
 

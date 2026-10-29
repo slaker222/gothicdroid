@@ -214,6 +214,8 @@ class Gothic final {
     bool                                  blobShadows() const { return blobShadow; }
     // web fog setting: <0 = off, >0 = soft haze (1.6) / dense haze (3); 0 = the engine fog (other platforms)
     float                                 webFogAmount() const { return fogAmount; }
+    // fog distances relative to the unlimited world (1), smaller for a shorter world draw distance
+    float                                 webFogScale() const { return fogScale; }
 
   private:
     VersionInfo                             vinfo;
@@ -226,6 +228,7 @@ class Gothic final {
     bool                                    showFpsCounter = false;
     bool                                    blobShadow     = false;
     float                                   fogAmount      = 0;
+    float                                   fogScale       = 1;
     bool                                    showTime       = false;
     bool                                    vobBox         = false;
     Benchmark                               isBenchmark    = Benchmark::None;

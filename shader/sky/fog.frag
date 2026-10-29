@@ -215,18 +215,27 @@ void main_frag() {
     const vec3  pos0   = project(scene.viewProjectInv, vec3(inPos,0.0));
     const vec3  posz   = project(scene.viewProjectInv, vec3(inPos,dMax));
     const float meters = length(posz-pos0)*0.01;
+    const vec3  dir    = normalize(project(scene.viewProjectInv, vec3(inPos,dFogMax))-pos0);
     // valleys below the viewer are thicker, ridges above it thinner
     const float dy     = (posz.y-pos0.y)*0.01;
     const float height = 1.0 + clamp(-dy/200.0,0.0,1.0)*0.4 - clamp(dy/300.0,0.0,1.0)*0.4;
-    float       dens   = pow(max(meters-fogStart,0.0)/fogRange, 1.17)*height*scene.fogAmount;
-    float       a      = fogMaxDens*(1.0 - exp(-dens));
+    float       dens   = pow(max(meters-fogStart*scene.fogScale,0.0)/(fogRange*scene.fogScale), 1.17)*height*scene.fogAmount;
+    float       a      = mix(0.97, fogMaxDens, scene.fogScale)*(1.0 - exp(-dens));
     // same brightness for the sky and the terrain above the horizon: no seam along the ridges
-    const float hor    = exp(-max(view.y-0.04,0.0)*3.0);
+    const float hor    = exp(-max(dir.y-0.04,0.0)*3.0);
     const float skyDim = mix(fogSkyDim, 1.0, hor);
     if(isSky)
       a = mix(fogSkyTop, fogSkyHor, hor)*min(scene.fogAmount,1.0);
 
-    vec3  farLum = textureLod(fogLut, vec3(uv,1.0), 0).rgb*scene.GSunIntensity*scene.exposure;
+    // brightness of the haze is taken at the horizon in this direction: even above and below it
+    vec2  horUv  = uv;
+    {
+    const vec3 dirH = normalize(vec3(dir.x,0.0,dir.z)+vec3(1e-4,0.0,0.0));
+    const vec4 clip = scene.viewProject*vec4(pos0+dirH*1000000.0, 1.0);
+    if(clip.w>0.0)
+      horUv = clamp(clip.xy/clip.w*0.5+vec2(0.5), vec2(0.0), vec2(1.0));
+    }
+    vec3  farLum = textureLod(fogLut, vec3(horUv,1.0), 0).rgb*scene.GSunIntensity*scene.exposure;
     float luma  = dot(farLum, vec3(0.299,0.587,0.114));
     vec3  haze  = luma*fogTint*fogGain*skyDim;
 
