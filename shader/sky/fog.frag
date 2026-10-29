@@ -33,11 +33,12 @@ layout(binding = 3, std140) uniform UboScene {
   };
 
 // soft haze, see main_frag
-const float fogRange   = 400.0;               // meters to ~63% haze
-const float fogSkyHaze = 0.8;                 // haze on the horizon sky
-const float fogMaxDens = 0.86;                // far objects stay faintly visible
-const vec3  fogTint    = vec3(1.0, 0.70, 0.38);
-const float fogGain    = 1.7;
+const float fogRange   = 520.0;               // meters to ~63% haze
+const float fogSkyHaze = 0.75;                // haze on the sky, strongest on the horizon
+const float fogSkyBase = 0.40;                // share of it that covers the whole sky
+const float fogMaxDens = 0.80;                // far objects stay faintly visible
+const vec3  fogTint    = vec3(1.0, 0.74, 0.42);
+const float fogGain    = 3.0;
 
 vec3 inverse(vec3 pos) {
   vec4 ret = scene.viewProjectInv*vec4(pos,1.0);
@@ -212,14 +213,17 @@ void main_frag() {
     const vec3  pos0   = project(scene.viewProjectInv, vec3(inPos,0.0));
     const vec3  posz   = project(scene.viewProjectInv, vec3(inPos,dMax));
     const float meters = length(posz-pos0)*0.01;
-    float       dens   = isSky ? 0.0 : pow(meters/fogRange, 1.5)*scene.fogAmount;
+    // valleys below the viewer are thicker, ridges above it thinner
+    const float dy     = (posz.y-pos0.y)*0.01;
+    const float height = 1.0 + clamp(-dy/200.0,0.0,1.0)*0.8 - clamp(dy/300.0,0.0,1.0)*0.4;
+    float       dens   = pow(meters/fogRange, 1.15)*height*scene.fogAmount;
     float       a      = fogMaxDens*(1.0 - exp(-dens));
     if(isSky)
-      a = fogSkyHaze*min(scene.fogAmount,1.0)*exp(-max(view.y,0.0)*5.0);
+      a = fogSkyHaze*min(scene.fogAmount,1.0)*mix(fogSkyBase, 1.0, exp(-max(view.y,0.0)*4.0));
 
     vec3  farLum = textureLod(fogLut, vec3(uv,1.0), 0).rgb*scene.GSunIntensity*scene.exposure;
     float luma  = dot(farLum, vec3(0.299,0.587,0.114));
-    vec3  haze  = mix(farLum, luma*fogTint, 0.92)*fogGain;
+    vec3  haze  = mix(farLum, luma*fogTint, 0.97)*fogGain;
 
     lum = lum*(1.0-a) + haze*a;
     tr  = tr*(1.0-a);
