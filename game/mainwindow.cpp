@@ -8,6 +8,8 @@
 #include <Tempest/Layout>
 #include <Tempest/Application>
 #include <Tempest/Log>
+#include <Tempest/MemReader>
+#include <Tempest/MemWriter>
 
 #include "ui/dialogmenu.h"
 #include "ui/menuroot.h"
@@ -43,9 +45,11 @@ bool g_webSettingsReady = false;
 MainWindow* g_webMain   = nullptr;
 bool g_webTimingDirty   = true;
 
+extern "C" void tempest_web_set_tex_skip(int levels);
+
 struct WebSetting { const char* name; const char* sec; const char* key; bool real; };
 const WebSetting g_webSettings[] = {
-  {"fpsUnlock",   "INTERNAL", "webFpsUnlock",       false},
+  {"fpsLimit",    "INTERNAL", "webFpsLimit",        false},
   {"resScale",    "INTERNAL", "vidResIndex",        true },
   {"shadows",     "INTERNAL", "webShadows",         false},
   {"drawDist",    "INTERNAL", "webDrawDist",        false},
@@ -53,12 +57,12 @@ const WebSetting g_webSettings[] = {
   {"skipFarAnim", "INTERNAL", "webSkipFarAnim",     false},
   {"reflections", "ENGINE",   "zEnvMappingEnabled", false},
   {"ssao",        "ENGINE",   "zCloudShadowScale",  false},
+  {"texQuality",  "INTERNAL", "webTexQuality",      false},
+  {"waterQuality","INTERNAL", "webWaterQuality",    false},
   };
 
 const WebSetting* findWebSetting(const char* name) {
   for(auto& s:g_webSettings)
-  {"texQuality",  "INTERNAL", "webTexQuality",      false},
-  {"waterQuality","INTERNAL", "webWaterQuality",    false},
     if(std::strcmp(s.name, name)==0)
       return &s;
   return nullptr;
@@ -144,11 +148,33 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_voice_mount(const char* path) {
   return Resources::mountOver(path) ? 1 : 0;
   }
 
+// the text language changed in a running game (the page put the new language's files under `dir`):
+// kind 0 - a folder with _work/ (scripts, dialogue lines), 1 - an archive (fonts, textures)
+extern "C" EMSCRIPTEN_KEEPALIVE int og_text_mount(const char* path, int kind) {
+  if(kind==2) { // an archive of the language the game started with: only its file list is read
+    Resources::scanTextArchive(path);
+    return 1;
+    }
+  return (kind==0 ? Resources::mountTextHost(path) : Resources::mountTextArchive(path)) ? 1 : 0;
+  }
+
+// ... and the game is saved to memory and loaded again with the new scripts. 1: reloading, 2: there is
+// no game running (the next one uses the new language), 0: not possible now (dialog, cutscene, loading)
+extern "C" EMSCRIPTEN_KEEPALIVE int og_text_apply() {
+  return g_webMain!=nullptr ? g_webMain->switchText() : 0;
+  }
+
 extern "C" EMSCRIPTEN_KEEPALIVE void og_quickpanel(int open, int first) {
   if(g_webMain!=nullptr)
     g_webMain->webQuickPanel(open!=0, first);
   }
 
+
+// touch controls: a finger on the inventory (the page sends the touches there instead of mouse events)
+extern "C" EMSCRIPTEN_KEEPALIVE void og_pointer(int type, int x, int y) {
+  if(g_webMain!=nullptr)
+    g_webMain->webPointer(type, x, y);
+  }
 
 // touch controls: camera look, in pixels like a mouse move
 extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
@@ -598,7 +624,7 @@ void MainWindow::tickMouse(uint64_t dt) {
 // 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State);
 // 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats);
 // 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it);
-// 29 sneaking is on
+// 29 sneaking is on; 30 the graphics options menu is open
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
@@ -606,6 +632,8 @@ int MainWindow::webUiState() const {
     s |= 1<<10;
   if(rootMenu.isActive())
     s |= 1<<1;
+  if(rootMenu.isGraphicsMenu())
+    s |= 1<<30;
   if(video.isActive())
     s |= 1<<6;
   if(document.isActive())
@@ -687,11 +715,15 @@ void MainWindow::onSettings() {
     maxFpsInv = 0;
 #endif
 #if defined(__EMSCRIPTEN__)
-  // web FPS limit: 0 = the game's limit, 1 = display refresh rate (no game
-  // limit, frames follow vsync), 2 = unlimited (frames do not wait for vsync)
-  if(Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")!=0)
-    maxFpsInv = 0;
+  // web FPS limit (slider of the page): frames per second, 0 = display refresh
+  // rate (frames follow vsync); the game's own FPS_Limit is not used
+  {
+    const int lim = Gothic::inst().settingsGetI("INTERNAL", "webFpsLimit");
+    maxFpsInv = lim>0 ? uint64_t((1000.0/double(std::max(lim,25)))+0.5) : 0;
+  }
   g_webTimingDirty = true;
+  // texture quality: 0 full .. 3 lowest, the number of top mip levels left out of new textures
+  tempest_web_set_tex_skip(Gothic::inst().settingsGetI("INTERNAL", "webTexQuality"));
   // the world draw distance is the camera's far plane
   if(auto camera = Gothic::inst().camera())
     camera->setViewport(swapchain.w(), swapchain.h());
@@ -1377,6 +1409,48 @@ void MainWindow::loadGame(std::string_view slot) {
   update();
   }
 
+#if defined(__EMSCRIPTEN__)
+int MainWindow::switchText() {
+  if(Gothic::inst().checkLoading()!=Gothic::LoadState::Idle)
+    return 0;
+  if(Gothic::inst().gameSession()==nullptr) {
+    Resources::reloadTextAssets();
+    rootMenu.reloadScripts();
+    return 2;
+    }
+  if(dialogs.isActive())
+    return 0;
+  if(auto w = Gothic::inst().world(); w==nullptr || w->currentCs()!=nullptr)
+    return 0;
+
+  Tempest::Log::i("MainWindow::switchText");
+  Gothic::inst().startLoad("LOADING.TGA",[this](std::unique_ptr<GameSession>&& game){
+    if(!game)
+      return std::move(game);
+    // the running game goes to memory, the scripts of the new language are read when it is loaded back
+    std::vector<uint8_t> buf;
+    {
+    Tempest::MemWriter wr{buf};
+    Serialize          sw{wr};
+    Tempest::Pixmap    shot(1,1,Tempest::TextureFormat::RGBA8);
+    game->save(sw,"language",shot);
+    }
+    game = nullptr; // clear world-memory now
+    Resources::reloadTextAssets();
+    rootMenu.reloadScripts();
+    Tempest::MemReader rd{buf.data(),buf.size()};
+    Serialize          sr{rd};
+    sr.setRefreshText(true);
+    std::unique_ptr<GameSession> w(new GameSession(sr));
+    Tempest::Log::i("MainWindow::switchText completed");
+    return w;
+    });
+  background = Texture2d();
+  update();
+  return 1;
+  }
+#endif
+
 void MainWindow::saveGame(std::string_view slot, std::string_view name) {
   auto tex = renderer.screenshoot(cmdId);
   auto pm  = device.readPixels(textureCast<const Texture2d&>(tex));
@@ -1514,9 +1588,8 @@ void MainWindow::render(){
     if(g_webTimingDirty) {
       g_webTimingDirty = false;
       // frames faster than the display are never shown and their uneven
-      // presentation looks jerky: only "unlimited" leaves vsync
-      const bool unlocked = Gothic::inst().settingsGetI("INTERNAL", "webFpsUnlock")>=2 ||
-                            EM_ASM_INT({ return location.search.indexOf('uncapped')>=0 ? 1 : 0; });
+      // presentation looks jerky: only the benchmark flag leaves vsync
+      const bool unlocked = EM_ASM_INT({ return location.search.indexOf('uncapped')>=0 ? 1 : 0; });
       if(unlocked)
         emscripten_set_main_loop_timing(EM_TIMING_SETIMMEDIATE, 1); else
         emscripten_set_main_loop_timing(EM_TIMING_RAF, 1);

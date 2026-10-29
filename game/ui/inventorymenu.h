@@ -58,6 +58,9 @@ class InventoryMenu : public Tempest::Widget {
     void  quickSetOpen(bool on, int first) { quickOpen = on; quickFirst = first; }
     void  quickUpdate();
     std::string quickJson() const;
+    // a finger on the inventory (the page forwards the touches): 0 down, 1 up, 2 move, 3 cancelled; x, y in
+    // the window. A slot is selected by a touch, the second tap in a row uses it, holding it drops it
+    void  webPointer(int type, int x, int y);
 #endif
     void  paintNumOverlay(Tempest::PaintEvent& e);
 
@@ -112,6 +115,16 @@ class InventoryMenu : public Tempest::Widget {
     bool                      quickOpen = false;
     int                       quickW = 0, quickH = 0;
     int                       quickFirst = 0, quickCols = 1, quickTotal = 0;
+    std::string               quickAll = "[]"; // all ten keys: [[key, has an item, in use], ...]
+
+    struct TouchHold { bool on=false, wasSel=false; int pg=0; size_t idx=0; uint64_t t0=0; };
+    TouchHold                 hold;
+    int                       tapPg = -1;  // the slot selected by the last tap (the one a second tap uses)
+    size_t                    tapIdx = 0;
+    Tempest::Timer            holdTimer;   // repaints the filling frame, drops the item when it is full
+    bool                      slotAt(int x, int y, int& pg, size_t& idx);
+    void                      onHoldTick();
+    float                     holdFill() const;
 #endif
 
     size_t                    columsCount = 5;

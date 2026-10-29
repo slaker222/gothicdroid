@@ -149,6 +149,18 @@ GameSession::GameSession(Serialize &fin) {
   vm.reset(new GameScript(*this));
   vm->initDialogs();
 
+  // the save may come from scripts with another symbol table (another text language)
+  if(auto map = vm->loadSymbolMap(fin)) {
+    fin.setSymbolMap(map);
+    for(auto& i:visitedWorlds)
+      i.symMap = map;
+    }
+  if(fin.refreshText()) {
+    setTextRefresh(fin);
+    for(auto& i:visitedWorlds)
+      i.refreshText = true;
+    }
+
   if(true) {
     setWorld(std::unique_ptr<World>(new World(*this,wname,false,[&](int v){
       Gothic::inst().setLoadingProgress(int(v*0.55));
@@ -173,6 +185,7 @@ GameSession::GameSession(Serialize &fin) {
 
   fin.setEntry("game/camera");
   cam->load(fin,wrld->player());
+  vm->endTextRefresh();
   Gothic::inst().setLoadingProgress(96);
   }
 
@@ -229,7 +242,16 @@ void GameSession::save(Serialize &fout, std::string_view name, const Pixmap& scr
 
   fout.setEntry("game/daedalus");
   vm->saveVar(fout);
+
+  fout.setEntry("game/symbols");
+  vm->saveSymbolNames(fout);
   Gothic::inst().setLoadingProgress(80);
+  }
+
+void GameSession::setTextRefresh(Serialize& fin) {
+  auto* script = vm.get();
+  fin.setTextRefresh([script](zenkit::INpc& npc){ script->refreshNpcText(npc); },
+                     [script](zenkit::IItem& item){ script->refreshItemText(item); });
   }
 
 void GameSession::setupSettings() {
@@ -401,7 +423,11 @@ auto GameSession::implChangeWorld(std::unique_ptr<GameSession>&& game,
   if(!wss.isEmpty()) {
     Tempest::MemReader rd {wss.storage.data(),wss.storage.size()};
     Serialize          fin{rd};
+    fin.setSymbolMap(wss.symMap);
+    if(wss.refreshText)
+      setTextRefresh(fin);
     wrld->load(fin);
+    vm->endTextRefresh();
     }
 
   if(1) {

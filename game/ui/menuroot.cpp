@@ -2,6 +2,10 @@
 
 #include <Tempest/Log>
 
+#include <algorithm>
+#include <cctype>
+#include <string_view>
+
 #include "ui/gamemenu.h"
 #include "gothic.h"
 
@@ -24,13 +28,17 @@ void MenuRoot::initSettings() {
   if(lang==vmLang && vm!=nullptr)
     return;
 
+  vmLang = lang;
+  reloadScripts();
+  }
+
+void MenuRoot::reloadScripts() {
   // clear pointer to vm-objects
   for(auto& i:menuStack)
     i->resetVm(nullptr);
   if(current!=nullptr)
     current->resetVm(nullptr);
 
-  vmLang = lang;
   vm     = Gothic::inst().createPhoenixVm("MENU.DAT", ScriptLang(vmLang));
   vm->register_external("apply_options_video",[](){
     Log::d("TODO: apply_options_video");
@@ -107,6 +115,15 @@ bool MenuRoot::isActive() const {
   return current!=nullptr;
   }
 
+bool MenuRoot::isGraphicsMenu() const {
+  if(current==nullptr)
+    return false;
+  const auto& n = current->sectionName();
+  static const std::string_view want = "MENU_OPT_GRAPHICS";
+  return n.size()==want.size() &&
+         std::equal(n.begin(),n.end(),want.begin(),[](char a,char b){ return std::toupper((unsigned char)a)==b; });
+  }
+
 void MenuRoot::setPlayer(const Npc &pl) {
   if(current!=nullptr)
     current->setPlayer(pl);
@@ -130,9 +147,14 @@ void MenuRoot::mouseDownEvent(MouseEvent& event) {
   if(current!=nullptr) {
     if(event.button==Event::ButtonRight) {
       popMenu();
-      } else {
-      current->onKeyboard(KeyCodec::ActionGeneric);
+      return;
       }
+#if defined(__EMSCRIPTEN__)
+    // the item under the finger / cursor is used; a tap beside the items does nothing
+    current->onPointer(event.pos() - current->pos());
+#else
+    current->onKeyboard(KeyCodec::ActionGeneric);
+#endif
     } else {
     event.ignore();
     }

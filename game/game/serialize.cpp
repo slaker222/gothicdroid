@@ -223,9 +223,29 @@ void Serialize::implWrite(const ScriptFn& fn) {
   implWrite(v);
   }
 
+uint32_t Serialize::remapSymbol(uint32_t sym) const {
+  if(symMap==nullptr || sym==std::numeric_limits<uint32_t>::max())
+    return sym;
+  return sym<symMap->size() ? (*symMap)[sym] : std::numeric_limits<uint32_t>::max();
+  }
+
+void Serialize::remapSymbolField(int32_t& sym) const {
+  if(symMap==nullptr || sym<=0)
+    return;
+  uint32_t r = remapSymbol(uint32_t(sym));
+  sym = (r==std::numeric_limits<uint32_t>::max()) ? 0 : int32_t(r);
+  }
+
+void Serialize::remapSymbolField(uint32_t& sym) const {
+  int32_t v = int32_t(sym);
+  remapSymbolField(v);
+  sym = uint32_t(v);
+  }
+
 void Serialize::implRead(ScriptFn& fn) {
   uint32_t v=0;
   implRead(v);
+  v = remapSymbol(v);
   if(v==std::numeric_limits<uint32_t>::max())
     fn.ptr = size_t(-1); else
     fn.ptr = v;
@@ -303,6 +323,7 @@ void Serialize::implWrite(const zenkit::INpc& h) {
 void Serialize::readNpc(zenkit::DaedalusVm& vm, std::shared_ptr<zenkit::INpc>& h) {
   uint32_t instanceSymbol=0;
   read(instanceSymbol);
+  instanceSymbol = remapSymbol(instanceSymbol);
 
   auto sym = vm.find_symbol_by_index(instanceSymbol);
 
@@ -319,9 +340,12 @@ void Serialize::readNpc(zenkit::DaedalusVm& vm, std::shared_ptr<zenkit::INpc>& h
   read(h->mission);
   read(h->fight_tactic,h->weapon,h->voice,h->voice_pitch,h->body_mass);
   read(h->daily_routine,h->start_aistate);
+  remapSymbolField(h->daily_routine);
+  remapSymbolField(h->start_aistate);
   read(h->spawnpoint,h->spawn_delay,h->senses,h->senses_range);
   read(h->aivar);
   read(h->wp,h->exp,h->exp_next,h->lp,h->bodystate_interruptable_override,h->no_focus);
+  textRefresh(*h);
   }
 
 void Serialize::implWrite(const FpLock &fp) {

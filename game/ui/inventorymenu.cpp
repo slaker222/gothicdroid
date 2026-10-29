@@ -2,6 +2,7 @@
 
 #include <Tempest/Painter>
 #include <Tempest/SoundEffect>
+#include <Tempest/Application>
 
 #include "utils/string_frm.h"
 #include "world/objects/npc.h"
@@ -90,12 +91,19 @@ InventoryMenu::InventoryMenu(const KeyCodec& key)
   setFocusPolicy(NoFocus);
   setCursorShape(CursorShape::Hidden);
   takeTimer.timeout.bind(this,&InventoryMenu::onTakeStuff);
+#if defined(__EMSCRIPTEN__)
+  holdTimer.timeout.bind(this,&InventoryMenu::onHoldTick);
+#endif
   }
 
 InventoryMenu::~InventoryMenu() {
   }
 
 void InventoryMenu::close() {
+#if defined(__EMSCRIPTEN__)
+  tapPg = -1;
+  hold  = TouchHold();
+#endif
   if(state!=State::Closed) {
     if(state==State::Trade)
       Gothic::inst().emitGlobalSound("TRADE_CLOSE"); else
@@ -107,6 +115,10 @@ void InventoryMenu::close() {
   }
 
 void InventoryMenu::open(Npc &pl) {
+#if defined(__EMSCRIPTEN__)
+  tapPg = -1;
+  hold  = TouchHold();
+#endif
   if(pl.isDown() || pl.isMonster() || pl.isInAir() || pl.isSlide() || (pl.interactive()!=nullptr))
     return;
   if(pl.bodyStateMasked()==BS_UNCONSCIOUS || pl.bodyStateMasked()==BS_LIE)
@@ -130,6 +142,10 @@ void InventoryMenu::open(Npc &pl) {
   }
 
 void InventoryMenu::trade(Npc &pl, Npc &tr) {
+#if defined(__EMSCRIPTEN__)
+  tapPg = -1;
+  hold  = TouchHold();
+#endif
   if(pl.isDown())
     return;
   state  = State::Trade;
@@ -164,6 +180,10 @@ bool InventoryMenu::ransack(Npc &pl, Npc &tr) {
   }
 
 void InventoryMenu::open(Npc &pl, Interactive &ch) {
+#if defined(__EMSCRIPTEN__)
+  tapPg = -1;
+  hold  = TouchHold();
+#endif
   if(pl.isDown())
     return;
   const bool needToPicklock = ch.needToLockpick(pl);
@@ -458,6 +478,114 @@ InventoryMenu::PageLocal &InventoryMenu::activePageSel() {
   return pageLocal[1];
   }
   
+#if defined(__EMSCRIPTEN__)
+static const uint64_t holdDropMs = 1300;   // a held slot is dropped after this
+static const uint64_t holdShowMs = 150;    // the frame starts to fill after this (a tap does not flicker)
+
+float InventoryMenu::holdFill() const {
+  if(!hold.on)
+    return 0;
+  const uint64_t dt = Application::tickCount()-hold.t0;
+  if(dt<holdShowMs)
+    return 0;
+  return std::min(1.f,float(dt)/float(holdDropMs));
+  }
+
+bool InventoryMenu::slotAt(int x, int y, int& pg, size_t& idx) {
+  const int padd  = 43;
+  const int iy    = 30+34+70;
+  const int sw    = slotSize().w, sh = slotSize().h;
+  const int wc    = int(columsCount), hc = int(rowsCount());
+  if(sw<=0 || sh<=0 || y<iy || y>=iy+hc*sh)
+    return false;
+  const int row = (y-iy)/sh;
+
+  auto test = [&](int x0, const PageLocal& sel, const Page* page, int no) {
+    if(page==nullptr || x<x0 || x>=x0+wc*sw)
+      return false;
+    const size_t id = (sel.scroll+size_t(row))*size_t(wc) + size_t((x-x0)/sw);
+    if(id>=page->size())
+      return false;
+    pg  = no;
+    idx = id;
+    return true;
+    };
+
+  if(pageOth!=nullptr && test(padd,pageLocal[0],pageOth.get(),0))
+    return true;
+  if(state!=State::Ransack && test(w()-padd-wc*sw,pageLocal[1],pagePl.get(),1))
+    return true;
+  return false;
+  }
+
+void InventoryMenu::webPointer(int type, int x, int y) {
+  if(player==nullptr || state==State::Closed || state==State::LockPicking)
+    return;
+
+  int    pg  = 0;
+  size_t idx = 0;
+  const bool onSlot = slotAt(x,y,pg,idx);
+
+  if(type==0) {
+    hold = TouchHold();
+    if(!onSlot)
+      return;
+    if(pageOth!=nullptr)
+      page = uint8_t(pg);
+    auto& sel = activePageSel();
+    hold.on     = true;
+    hold.wasSel = (tapPg==pg && tapIdx==idx);
+    tapPg       = pg;
+    tapIdx      = idx;
+    hold.pg     = pg;
+    hold.idx    = idx;
+    hold.t0     = Application::tickCount();
+    sel.sel     = idx;
+    adjustScroll();
+    holdTimer.start(30);
+    }
+  else if(type==1) {
+    holdTimer.stop();
+    // a tap uses the slot; released while the frame fills up it only cancels the drop
+    const bool use = hold.on && hold.wasSel && onSlot && pg==hold.pg && idx==hold.idx &&
+                     Application::tickCount()-hold.t0<holdShowMs;
+    hold = TouchHold();
+    if(use)
+      onItemAction(Item::NSLOT);   // the second tap in a row
+    adjustScroll();
+    }
+  else if(type==2) {
+    if(hold.on && !(onSlot && pg==hold.pg && idx==hold.idx)) {
+      // the finger left the slot: neither use nor drop
+      hold = TouchHold();
+      holdTimer.stop();
+      }
+    }
+  else {
+    hold = TouchHold();
+    holdTimer.stop();
+    }
+  update();
+  }
+
+void InventoryMenu::onHoldTick() {
+  if(!hold.on) {
+    holdTimer.stop();
+    return;
+    }
+  if(Application::tickCount()-hold.t0>=holdDropMs) {
+    hold = TouchHold();
+    holdTimer.stop();
+    // the whole stack: dropped from the inventory, moved to the other side of a chest or trade
+    lootMode = LootMode::Stack;
+    onTakeStuff();
+    lootMode = LootMode::Normal;
+    takeCount = 0;
+    }
+  update();
+  }
+#endif
+
 void InventoryMenu::onItemAction(uint8_t slotHint) {
   auto& page = activePage();
   auto& sel  = activePageSel();
@@ -659,6 +787,27 @@ void InventoryMenu::drawSlot(Painter &p, DrawPass pass, const Inventory::Iterato
                    vint);
       }
 
+#if defined(__EMSCRIPTEN__)
+    if(hold.on && id==hold.idx && hold.pg==(&page==pageOth.get() ? 0 : 1)) {
+      // the frame of the held slot fills up clockwise; full: the item is dropped
+      const float fill = holdFill();
+      if(fill>0) {
+        const int sw = slotSize().w, sh = slotSize().h;
+        const int t  = std::max(3,int(4*scale));
+        int       len = int(fill*float(2*(sw+sh)));
+        p.setBrush(Color(1.f,0.6f,0.1f,1.f));
+        int l = std::min(len,sw);   len -= l;
+        p.drawRect(x,y,l,t);
+        l = std::min(len,sh);       len -= l;
+        p.drawRect(x+sw-t,y,t,l);
+        l = std::min(len,sw);       len -= l;
+        p.drawRect(x+sw-l,y+sh-t,l,t);
+        l = std::min(len,sh);
+        p.drawRect(x,y+sh-l,t,l);
+        }
+      }
+#endif
+
     if(it.slot()!=Item::NSLOT) {
       fnt = Resources::font(Resources::FontType::Red, scale);
 
@@ -789,6 +938,14 @@ void InventoryMenu::quickUpdate() {
       add(i%10, pl->inventory().currentSpell(uint8_t(i-3)), ws==WeaponState::Mage && spell==i); // numslot[0..7]: keys 3..0
     }
 
+  quickAll = "[";
+  for(size_t i=0; i<all.size(); ++i) {
+    if(i>0)
+      quickAll += ',';
+    quickAll += "[" + std::to_string(all[i].key) + "," + (all[i].item!=nullptr ? "1" : "0") + "," + (all[i].on ? "1" : "0") + "]";
+    }
+  quickAll += "]";
+
   // four slots in a row at the bottom, in the middle: clear of the stick and the buttons. The used
   // items are a ring: the page turns it round by `quickFirst`; the slots stay when they have no item
   const int ww = w(), hh = h();
@@ -835,7 +992,7 @@ void InventoryMenu::quickUpdate() {
 std::string InventoryMenu::quickJson() const {
   std::string r = "{\"w\":" + std::to_string(w()) + ",\"h\":" + std::to_string(h()) +
                   ",\"f\":" + std::to_string(quickFirst) + ",\"c\":" + std::to_string(quickCols) +
-                  ",\"t\":" + std::to_string(quickTotal) + ",\"s\":[";
+                  ",\"t\":" + std::to_string(quickTotal) + ",\"a\":" + quickAll + ",\"s\":[";
   for(size_t i=0; i<quickSlots.size(); ++i) {
     auto& s = quickSlots[i];
     if(i>0)

@@ -549,6 +549,10 @@ void GameScript::loadQuests(Serialize& fin) {
   for(size_t i=0;i<sz;++i){
     uint32_t f=0,s=0;
     fin.read(f,s);
+    f = fin.remapSymbol(f);
+    s = fin.remapSymbol(s);
+    if(f==uint32_t(-1) || s==uint32_t(-1))
+      continue;
     dlgKnownInfos.insert(std::make_pair(f,s));
     }
 
@@ -562,6 +566,99 @@ void GameScript::saveVar(Serialize &fout) {
     auto* sym = vm.find_symbol_by_index(i); // never returns nullptr
     saveSym(fout,*sym);
     }
+  }
+
+void GameScript::saveSymbolNames(Serialize& fout) {
+  const uint32_t sz = uint32_t(vm.symbols().size());
+  fout.write(sz);
+  for(uint32_t i=0; i<sz; ++i)
+    fout.write(vm.find_symbol_by_index(i)->name());
+  }
+
+Serialize::SymbolMap GameScript::loadSymbolMap(Serialize& fin) {
+  if(!fin.setEntry("game/symbols"))
+    return nullptr; // a save from before the table was written: the same scripts are assumed
+  uint32_t sz=0;
+  fin.read(sz);
+  auto map  = std::make_shared<std::vector<uint32_t>>(sz,uint32_t(-1));
+  bool same = (sz==vm.symbols().size());
+  std::string name;
+  for(uint32_t i=0; i<sz; ++i) {
+    fin.read(name);
+    const size_t at = name.empty() ? size_t(-1) : findSymbolIndex(name);
+    (*map)[i] = uint32_t(at);
+    if(at!=i)
+      same = false;
+    }
+  if(same)
+    return nullptr;
+  Log::i("save was made with other scripts: ",sz," symbols in the save, ",vm.symbols().size()," in the game, indices are remapped");
+  return map;
+  }
+
+void GameScript::refreshNpcText(zenkit::INpc& npc) {
+  const uint32_t id = uint32_t(npc.symbol_index());
+  auto it = textNpc.find(id);
+  if(it==textNpc.end()) {
+    std::shared_ptr<zenkit::INpc> fresh;
+    try {
+      if(textVm==nullptr) {
+        textVm.reset(new zenkit::DaedalusVm(createVm(Gothic::inst())));
+        textVm->register_exception_handler(zenkit::lenient_vm_exception_handler);
+        Gothic::inst().setupCommonScriptClasses(*textVm);
+        textVm->register_default_external([](std::string_view){});
+        }
+      if(auto* sym = textVm->find_symbol_by_index(id)) {
+        fresh = std::make_shared<zenkit::INpc>();
+        textVm->init_instance(fresh,sym);
+        }
+      }
+    catch(const std::exception& err) {
+      Log::e("cannot read the name of npc ",id,": ",err.what());
+      fresh = nullptr;
+      }
+    it = textNpc.emplace(id,std::move(fresh)).first;
+    }
+  if(it->second!=nullptr)
+    for(size_t i=0; i<std::size(npc.name); ++i)
+      npc.name[i] = it->second->name[i];
+  }
+
+void GameScript::refreshItemText(zenkit::IItem& item) {
+  const uint32_t id = uint32_t(item.symbol_index());
+  auto it = textItem.find(id);
+  if(it==textItem.end()) {
+    std::shared_ptr<zenkit::IItem> fresh;
+    try {
+      if(textVm==nullptr) {
+        textVm.reset(new zenkit::DaedalusVm(createVm(Gothic::inst())));
+        textVm->register_exception_handler(zenkit::lenient_vm_exception_handler);
+        Gothic::inst().setupCommonScriptClasses(*textVm);
+        textVm->register_default_external([](std::string_view){});
+        }
+      if(auto* sym = textVm->find_symbol_by_index(id)) {
+        fresh = std::make_shared<zenkit::IItem>();
+        textVm->init_instance(fresh,sym);
+        }
+      }
+    catch(const std::exception& err) {
+      Log::e("cannot read the name of item ",id,": ",err.what());
+      fresh = nullptr;
+      }
+    it = textItem.emplace(id,std::move(fresh)).first;
+    }
+  if(it->second!=nullptr) {
+    item.name        = it->second->name;
+    item.description = it->second->description;
+    for(size_t i=0; i<std::size(item.text); ++i)
+      item.text[i] = it->second->text[i];
+    }
+  }
+
+void GameScript::endTextRefresh() {
+  textVm.reset();
+  textNpc.clear();
+  textItem.clear();
   }
 
 void GameScript::loadVar(Serialize &fin) {

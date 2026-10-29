@@ -521,6 +521,15 @@
       border: 1px solid var(--line);
       padding: 2px 4px;
     }
+    #settings-panel .presets { display: flex; gap: 4px; margin-bottom: 6px; }
+    #settings-panel .presets button {
+      flex: 1; font: inherit; font-size: 12px; padding: 4px 2px; color: var(--text);
+      background: #222; border: 1px solid var(--line); cursor: pointer;
+    }
+    #settings-panel .presets button:hover { border-color: var(--accent); }
+    #settings-panel .fps-slider { display: flex; align-items: center; gap: 6px; }
+    #settings-panel .fps-slider input { width: 100px; accent-color: var(--accent); cursor: pointer; }
+    #settings-panel .fps-slider output { min-width: 24px; text-align: right; }
     #settings-panel input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
     #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
@@ -571,11 +580,14 @@
     <div id="gfx-toast" role="status" aria-live="polite"></div>
 
     <div id="settings-panel" class="disabled">
-      <label class="set-row" title="Display refresh rate: no game limit, smooth (frames follow the monitor). Unlimited: for benchmarks, frames the monitor cannot show make motion uneven">FPS limit
-        <select data-set="fpsUnlock">
-          <option value="0">Game setting</option><option value="1">Display refresh rate</option>
-          <option value="2">Unlimited (jerky)</option>
-        </select>
+      <div class="presets" id="gfx-presets">
+        <button type="button" data-preset="ultralow" title="Everything at the minimum, shortest draw distance">Ultra low</button>
+        <button type="button" data-preset="low" title="Fewer effects, short draw distance">Low</button>
+        <button type="button" data-preset="classic" title="Like the original: circle shadows, 80 m objects, 200 m world, simple water, no reflections or occlusion">Classic</button>
+        <button type="button" data-preset="ultra" title="Everything at the maximum and on">Ultra</button>
+      </div>
+      <label class="set-row" title="Frame rate limit, from 25 up to the display refresh rate (the right end: frames follow the monitor, no limit)">FPS limit
+        <span class="fps-slider"><input type="range" id="fps-limit" min="25" max="60" step="1" value="60"><output id="fps-limit-val">60</output></span>
       </label>
       <label class="set-row">Render resolution
         <select data-set="resScale">
@@ -671,9 +683,12 @@ let root = null;
 self.onmessage = async (e) => {
   const m = e.data;
   try {
-    root = await navigator.storage.getDirectory();
+    // memory mode: the browser gives no (or no room in the) storage, the files are kept in memory
+    root = m.memory ? null : await navigator.storage.getDirectory();
     let result = null;
-    if (m.type === 'download') {
+    if (m.type === 'memzip') {
+      result = await extract(await fetchBlob(m), m);
+    } else if (m.type === 'download') {
       result = await download(m);
     } else if (m.type === 'chunks') {
       result = await installChunks(m);
@@ -681,7 +696,7 @@ self.onmessage = async (e) => {
       const blob = m.blob || await (await root.getFileHandle(m.zipName)).getFile();
       result = await extract(blob, m);
     }
-    self.postMessage({ type: 'done', result });
+    self.postMessage({ type: 'done', result }, result && result.mem ? result.mem.map(f => f.buf.buffer) : []);
   } catch (err) {
     self.postMessage({ type: 'error', name: err && err.name, msg: String(err && err.message || err) });
   }
@@ -689,6 +704,37 @@ self.onmessage = async (e) => {
 
 function progress(o) { self.postMessage(Object.assign({ type: 'progress' }, o)); }
 const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// memory mode: stands in for a sync access handle of an OPFS file
+function memHandle(size) {
+  const buf = new Uint8Array(size);
+  return { buf, getSize: () => size, read() {}, write(b, o) { buf.set(b, o.at); }, truncate() {}, flush() {}, close() {} };
+}
+
+// the whole archive into memory (memory mode of a single ZIP)
+async function fetchBlob(m) {
+  const resp = await fetch(m.url, { cache: 'no-store' });
+  if (!resp.ok) {
+    const err = new Error('server responded with HTTP ' + resp.status);
+    err.fatal = true;
+    throw err;
+  }
+  const total = +resp.headers.get('Content-Length') || 0;
+  const parts = [];
+  let have = 0, lastPost = 0;
+  const reader = resp.body.getReader();
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    parts.push(value);
+    have += value.byteLength;
+    const now = performance.now();
+    if (now - lastPost > 200) { lastPost = now; progress({ phase: 'download', done: have, total }); }
+  }
+  if (total && have < total) throw new Error('connection lost');
+  progress({ phase: 'download', done: have, total: have });
+  return new Blob(parts);
+}
 
 function writeJsonSync(h, obj) {
   const bytes = new TextEncoder().encode(JSON.stringify(obj));
@@ -929,7 +975,7 @@ async function extract(blob, m) {
   }
   if (list.length === 0) throw new Error('no game files in the archive');
 
-  const gameDir = await root.getDirectoryHandle(m.gameDirName, { create: true });
+  const gameDir = m.memory ? null : await root.getDirectoryHandle(m.gameDirName, { create: true });
   const dirs = new Map([['', gameDir]]);
   async function dirFor(parts) {
     let key = '', d = gameDir;
@@ -945,15 +991,16 @@ async function extract(blob, m) {
     return d;
   }
 
+  const memFiles = [];
   const totalComp = list.reduce((a, e) => a + e.compSize, 0);
   let doneComp = 0, doneBytes = 0, lastPost = 0, n = 0;
   for (const e of list) {
     n++;
     const parts = e.rel.split('/');
     const fname = parts.pop();
-    const d = await dirFor(parts);
+    const d = m.memory ? null : await dirFor(parts);
     // savegames and settings made in the browser win over the archive copies
-    if (m.persisted.some(re => re.test(e.rel))) {
+    if (!m.memory && m.persisted.some(re => re.test(e.rel))) {
       let exists = true;
       try { await d.getFileHandle(fname, { create: false }); } catch (_) { exists = false; }
       if (exists) { doneComp += e.compSize; continue; }
@@ -963,8 +1010,13 @@ async function extract(blob, m) {
     if (lh.getUint32(0, true) !== 0x04034b50) throw new Error('corrupt ZIP archive: ' + e.rel);
     const dataOff = e.localOff + 30 + lh.getUint16(26, true) + lh.getUint16(28, true);
 
-    const fh = await d.getFileHandle(fname, { create: true });
-    const h = await fh.createSyncAccessHandle();
+    let h;
+    if (m.memory) {
+      h = memHandle(e.size);
+      memFiles.push({ path: e.rel, buf: h.buf });
+    } else {
+      h = await (await d.getFileHandle(fname, { create: true })).createSyncAccessHandle();
+    }
     try {
       h.truncate(0);
       let stream = blob.slice(dataOff, dataOff + e.compSize).stream();
@@ -998,7 +1050,7 @@ async function extract(blob, m) {
   if (m.deleteZip) {
     try { await root.removeEntry(m.zipName); } catch (_) {}
   }
-  return { files: list.length, bytes: doneBytes };
+  return { files: list.length, bytes: doneBytes, mem: m.memory ? memFiles : undefined };
 }
 
 // --------------------------- chunked install ---------------------------
@@ -1063,8 +1115,7 @@ async function installChunks(m) {
   }
   const names = man.chunks.map(c => c.name);
 
-  const stateFh = await root.getFileHandle(m.stateName, { create: true });
-  const stateH = await stateFh.createSyncAccessHandle();
+  const stateH = m.memory ? { getSize: () => 0, read() {}, write() {}, truncate() {}, flush() {}, close() {} } : await (await root.getFileHandle(m.stateName, { create: true })).createSyncAccessHandle();
   let state = null;
   try {
     const buf = new Uint8Array(stateH.getSize());
@@ -1076,7 +1127,7 @@ async function installChunks(m) {
     state = { url: m.urls[0], names, done: [], created: [] };
   const done = new Set(state.done);
 
-  const gameDir = await root.getDirectoryHandle(m.gameDirName, { create: true });
+  const gameDir = m.memory ? null : await root.getDirectoryHandle(m.gameDirName, { create: true });
   const dirs = new Map([['', gameDir]]);
   async function dirFor(parts) {
     let key = '', d = gameDir;
@@ -1095,7 +1146,7 @@ async function installChunks(m) {
   const wanted = man.files.map(f => !f.path.split('/').some(s => s === '' || s === '.' || s === '..') &&
                                       !m.skip.some(re => re.test(f.path)));
   const totalBytes = man.files.reduce((a, f, i) => a + (wanted[i] ? f.size : 0), 0);
-  if (navigator.storage.estimate) {
+  if (!m.memory && navigator.storage.estimate) {
     const est = await navigator.storage.estimate();
     // m.reserve stays free for savegames; m.credit is space the page has just freed (the estimate may lag)
     const free = (est.quota || 0) - (est.usage || 0) + (m.credit || 0);
@@ -1114,10 +1165,16 @@ async function installChunks(m) {
   // the file handles stay referenced: Chrome never settles createSyncAccessHandle()
   // when its file handle gets garbage-collected meanwhile (chunk buffers churn the GC)
   const fileHandles = [];
+  const memFiles = [];
   function handleFor(fi) {
     if (!handles.has(fi)) handles.set(fi, (async () => {
       const f = man.files[fi];
       if (!wanted[fi]) return null;
+      if (m.memory) {
+        const h = memHandle(f.size);
+        memFiles.push({ path: f.path, buf: h.buf });
+        return h;
+      }
       const parts = f.path.split('/');
       const fname = parts.pop();
       const d = await dirFor(parts);
@@ -1239,7 +1296,7 @@ async function installChunks(m) {
     }
     stateH.close();
   }
-  return { files: wanted.filter(Boolean).length, bytes: totalBytes, download: total };
+  return { files: wanted.filter(Boolean).length, bytes: totalBytes, download: total, mem: m.memory ? memFiles : undefined };
 }
   </script>
 
@@ -1392,6 +1449,35 @@ async function installChunks(m) {
       const panel = document.getElementById('settings-panel');
       const note  = document.getElementById('settings-note');
       const inputs = panel.querySelectorAll('[data-set]');
+      // FPS limit slider: 25 .. display refresh rate (measured); the right end = no limit (0)
+      const fpsSlider = document.getElementById('fps-limit');
+      const fpsOut    = document.getElementById('fps-limit-val');
+      let hz = 60;
+      function showFps() { fpsOut.textContent = fpsSlider.value; }
+      (function measureHz() {
+        const dts = []; let last = 0;
+        function tick(t) {
+          if (last) dts.push(t - last);
+          last = t;
+          if (dts.length < 45) { requestAnimationFrame(tick); return; }
+          dts.sort((x, y) => x - y);
+          const m = dts[dts.length >> 1];
+          if (m > 3 && m < 40) {
+            hz = Math.max(30, Math.round(1000 / m));
+            // 59.9 -> 60, 143.8 -> 144
+            const known = [30, 48, 50, 60, 72, 75, 90, 100, 120, 144, 165, 170, 180, 240, 360];
+            for (const k of known) if (Math.abs(hz - k) <= 2) { hz = k; break; }
+            fpsSlider.max = String(hz);
+            if (panel.classList.contains('menu-open')) load();
+          }
+        }
+        requestAnimationFrame(tick);
+      })();
+      fpsSlider.addEventListener('input', showFps);
+      fpsSlider.addEventListener('change', () => {
+        try { ogSet('fpsLimit', +fpsSlider.value >= hz ? 0 : +fpsSlider.value); } catch (e) {}
+        fpsSlider.blur();
+      });
       // the engine answers once the game window exists
       const ready = () => ogGet('shadows') >= 0;
       function load() {
@@ -1402,6 +1488,9 @@ async function installChunks(m) {
         note.textContent = ok ? 'Changes apply immediately and are saved.' :
                            err ? 'Settings are unavailable: ' + err : 'Start the game to change settings.';
         if (!ok) return;
+        const fl = ogGet('fpsLimit');
+        fpsSlider.value = String(fl > 0 ? Math.min(fl, hz) : hz);
+        showFps();
         inputs.forEach(el => {
           const v = ogGet(el.dataset.set);
           if (el.type === 'checkbox') el.checked = v !== 0; else el.value = String(v);
@@ -1427,6 +1516,22 @@ async function installChunks(m) {
         setOpen(!player.classList.contains('menu-open'));
       });
       window.ogSettingsReload = () => { if (player.classList.contains('menu-open')) load(); };
+      // the game's own graphics menu (og_ui_state bit 30) opens this panel together with it and closes it with it
+      let engineGfx = false;
+      setInterval(() => {
+        if (!g_runtimeUp) return;
+        let st = 0;
+        try { st = Module.ccall('og_ui_state', 'number', [], []); } catch (e) { return; }
+        // a game menu is on screen: the pointer is free (under the lock a click carries no position, the menu
+        // could not tell which item was clicked) and the cursor is shown
+        g_menuUp = (st & (1 << 1)) !== 0;
+        if (g_menuUp && document.pointerLockElement) { try { document.exitPointerLock(); } catch (e) {} }
+        const now = (st & (1 << 30)) !== 0;
+        if (now === engineGfx) return;
+        engineGfx = now;
+        if (now && document.pointerLockElement) { try { document.exitPointerLock(); } catch (e) {} }
+        if (now !== player.classList.contains('menu-open')) setOpen(now);
+      }, 200);
       inputs.forEach(el => el.addEventListener('change', () => {
         // the player chose: automatic settings leave the graphics alone from now on
         try { localStorage.setItem('gfxManual', '1'); } catch (e) {}
@@ -1434,6 +1539,22 @@ async function installChunks(m) {
         try { ogSet(el.dataset.set, v); } catch (e) {}
         el.blur(); // arrow keys go back to the game
       }));
+      // graphics presets: render resolution and textures are never touched
+      const PRESETS = {
+        ultralow: { shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
+        low:      { shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, reflections: 0, ssao: 0, skipFarAnim: 1 },
+        classic:  { shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, reflections: 0, ssao: 0 },
+        ultra:    { shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 0, reflections: 1, ssao: 1, skipFarAnim: 0 },
+      };
+      document.getElementById('gfx-presets').addEventListener('click', e => {
+        const b = e.target.closest('[data-preset]');
+        if (!b || panel.classList.contains('disabled')) return;
+        try { localStorage.setItem('gfxManual', '1'); } catch (err) {}
+        const p = PRESETS[b.dataset.preset];
+        for (const k in p) { try { ogSet(k, p[k]); } catch (err) {} }
+        load();
+        b.blur();
+      });
       panel.addEventListener('click', e => e.stopPropagation());
       // a click on the game closes the menu
       canvas.addEventListener('mousedown', () => setOpen(false));
@@ -1685,10 +1806,14 @@ async function installChunks(m) {
     }
 
     async function writeSave(name, bytes) {
-      const dir = await opfsGameDir(true);
-      const fh = await dir.getFileHandle(name, { create: true });
-      const w = await fh.createWritable();
-      await w.write(bytes); await w.close();
+      try {
+        const dir = await opfsGameDir(true);
+        const fh = await dir.getFileHandle(name, { create: true });
+        const w = await fh.createWritable();
+        await w.write(bytes); await w.close();
+      } catch (e) {
+        if (!g_memoryMode) throw e;   // memory mode: the save lives in the running game only
+      }
       // the running game sees it at once (the save/load menu lists it)
       if (gameFsMounted()) Module.FS.writeFile(GAME_ROOT + '/' + name, bytes);
     }
@@ -2091,6 +2216,27 @@ async function installChunks(m) {
                                         [Math.round(dx * k), Math.round(dy * k)]);
         }
       });
+      // inventory: the fingers go to the engine as they are (down / move / up), not as the mouse clicks the browser
+      // makes up after the finger is lifted: the engine selects a slot by a touch, uses it by the second tap
+      // and drops it when it is held. Cancelling pointerdown stops the made-up mouse events.
+      let invPtr = null;
+      const invSend = (type, e) => {
+        if (!g_runtimeUp) return;
+        const r = canvas.getBoundingClientRect();
+        try { Module.ccall('og_pointer', null, ['number', 'number', 'number'],
+                           [type, Math.round(e.clientX - r.left), Math.round(e.clientY - r.top)]); } catch (err) {}
+      };
+      canvas.addEventListener('pointerdown', e => {
+        if ((e.pointerType !== 'touch' && e.button !== 0) || invPtr !== null || lastLayout !== 'inv' ||
+            !document.body.classList.contains('touch-on')) return;
+        e.preventDefault();
+        invPtr = e.pointerId;
+        try { canvas.setPointerCapture(e.pointerId); } catch (err) {}
+        invSend(0, e);
+      });
+      canvas.addEventListener('pointermove', e => { if (e.pointerId === invPtr) invSend(2, e); });
+      canvas.addEventListener('pointerup', e => { if (e.pointerId === invPtr) { invPtr = null; invSend(1, e); } });
+      canvas.addEventListener('pointercancel', e => { if (e.pointerId === invPtr) { invPtr = null; invSend(3, e); } });
       // a double tap on the stick (no pull) switches sneaking (the game's X key)
       let lastStickTap = 0, sneakKnown = false;
       function stickTap(st) {
@@ -2594,6 +2740,7 @@ async function installChunks(m) {
 
     // player controls show on mouse activity and fade out after a pause
     let g_activityTimer = 0;
+    let g_menuUp = false;   // a game menu is on screen (og_ui_state bit 1)
     function onPlayerActivity() {
       if (document.pointerLockElement) return;
       player.classList.add('active');
@@ -2607,7 +2754,7 @@ async function installChunks(m) {
     canvas.addEventListener('click', function() {
       // not with the touch controls: under the lock every touch reports the position 0,0 (the stick and
       // the taps on the inventory stop working), and a tap turns into a click on the canvas
-      if (document.body.classList.contains('touch-on'))
+      if (document.body.classList.contains('touch-on') || g_menuUp)
         return;
       if (document.pointerLockElement !== canvas) {
         canvas.requestPointerLock().catch(() => {});
@@ -3319,7 +3466,7 @@ function serveLoop() {
         lsSet(LANG_APPLY, null);
         const installed = await readRootJson(INSTALL_MARK);
         // without the direct mode a game imported into OPFS is used as well
-        if (!applyLang && (installed || !DIRECT_FOLDER_MODE)) {
+        if (!applyLang && !g_memoryMode && (installed || !DIRECT_FOLDER_MODE)) {
           await g_runtimeReady;
           if (await mountInstalledGame()) {
             startGame();
@@ -3491,6 +3638,93 @@ function serveLoop() {
       };
     }
 
+    // ---------------------- memory mode (no browser storage) ----------------------
+    // The browser refuses the storage (private window, no OPFS, permission denied) or has no room for the game:
+    // the game is downloaded into memory and played from there. Nothing survives closing the tab (savegames can
+    // be downloaded from the settings), the next visit downloads the game again.
+    let g_memoryMode = /[?&]memory\b/.test(location.search);   // ?memory: forces the mode (for tests)
+
+    function opfsAvailable() {
+      return !!(navigator.storage && navigator.storage.getDirectory);
+    }
+    function isStorageFailure(err) {
+      if (!err || err.paused) return false;
+      return err.name === 'QuotaExceededError' || err.name === 'SecurityError' || err.name === 'NotAllowedError' ||
+             err.name === 'InvalidStateError' || /not enough browser storage/i.test(err.message || '');
+    }
+
+    async function installInMemory() {
+      g_memoryMode = true;
+      g_downloading = true;
+      g_offlineBusy = false;
+      retryBtn.style.display = 'none';
+      statusText.style.color = '';
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      setStatus('Browser storage is not available: loading the game into memory (savegames are lost when the tab is closed)...');
+      try {
+        const files = new Map();   // path (lower case) -> {path, buf}; a later pack replaces an earlier file
+        const take = res => { for (const f of res.mem || []) files.set(f.path.toLowerCase(), f); };
+        const report = makeProgressReporter();
+        if (g_langIndex) {
+          const sel = langSelection();
+          const L = id => g_langIndex.languages.find(l => l.id === id);
+          const text = L(sel.text), voice = L(sel.voice);
+          if (!text || !text.text || !voice || !voice.voice) throw new Error('no such language pack');
+          const steps = [g_langIndex.base, text.text, voice.voice];
+          const total = steps.reduce((a, i) => a + i.size, 0);
+          let before = 0;
+          for (const info of steps) {
+            const url = new URL(info.path, g_langBase).href;
+            take(await runInstallWorker({ type: 'chunks', urls: [url], stateName: '', memory: true }, (m) =>
+              report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m)));
+            before += info.size;
+          }
+        } else {
+          const urls = archiveUrls();
+          const url = urls[0];
+          if (/\/manifest\.json$/i.test(new URL(url).pathname))
+            take(await runInstallWorker({ type: 'chunks', urls, stateName: '', memory: true }, report));
+          else
+            take(await runInstallWorker({ type: 'memzip', url, memory: true }, report));
+        }
+        await g_runtimeReady;
+        await mountFromMemory(files);
+      } catch (err) {
+        installError(err, 'Error', true);
+      } finally {
+        g_downloading = false;
+      }
+    }
+
+    async function mountFromMemory(files) {
+      let any = false;
+      for (const k of files.keys()) if (k.startsWith('data/')) { any = true; break; }
+      if (!any) throw new Error('game not found after unpacking');
+      setStatus('Preparing game files...', undefined, { spin: true });
+      GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
+      GameFS.addEntry('', true);
+      GameFS.lazy = false;
+      for (const f of files.values()) {
+        const parts = f.path.split('/'); parts.pop();
+        let cur = '';
+        for (const part of parts) { cur = cur ? cur + '/' + part : part; GameFS.addEntry(cur, true); }
+        const e = GameFS.addEntry(f.path, false, f.buf.length);
+        e.mem = f.buf;
+        e.hIdx = -1;
+      }
+      files.clear();
+      Module.FS.mkdir(GAME_ROOT);
+      Module.FS.mount(GameFS, {}, GAME_ROOT);
+      showSourceButtons(false);
+      retryBtn.style.display = 'none';
+      progressContainer.style.display = 'none';
+      statusText.style.color = '';
+      setStatus('Starting the engine...', undefined, { spin: true });
+      g_gameReady = true;
+      startGame();
+    }
+
     function installError(err, what, retry) {
       if (err.paused) {
         statusText.style.color = '';
@@ -3500,7 +3734,9 @@ function serveLoop() {
         console.error(what, err);
         statusText.style.color = 'var(--danger)';
         let msg = err.message || String(err);
-        if (err.name === 'QuotaExceededError')
+        if (g_memoryMode && err.name === 'RangeError')
+          msg = 'not enough memory to keep the game in the browser (close other tabs or use a device with more memory)';
+        else if (err.name === 'QuotaExceededError')
           msg = 'not enough browser storage';
         else if (err.name === 'TypeError' && /fetch/i.test(msg))
           msg = 'cannot reach the archive server (' + msg + ')';
@@ -3534,6 +3770,7 @@ function serveLoop() {
       if (isolationBlocked()) return;
       if (await webgpuBlocked()) return;
       if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
+      if (g_memoryMode || !opfsAvailable()) return installInMemory();
       let urls, url;
       try {
         urls = archiveUrls();
@@ -3571,6 +3808,7 @@ function serveLoop() {
         const res = await runInstallWorker({ type: 'extract', zipName: DL_ZIP, deleteZip: true }, report);
         await finishInstall({ source: url, archiveBytes: dl.total }, res);
       } catch (err) {
+        if (isStorageFailure(err)) await installInMemory(); else
         installError(err, 'Error', true);
       } finally {
         g_downloading = false;
@@ -4172,6 +4410,7 @@ function serveLoop() {
       if (isolationBlocked()) return;
       if (await webgpuBlocked()) return;
       if (g_gameReady || g_installWorker || g_offlineBusy || g_downloading) return;
+      if (g_memoryMode || !opfsAvailable()) return installInMemory();
       const sel = langSelection();
       const L = id => g_langIndex.languages.find(l => l.id === id);
       const text = L(sel.text), voice = L(sel.voice);
@@ -4270,6 +4509,7 @@ function serveLoop() {
         await finishInstall({ source: 'language packs ' + text.id + '/' + voice.id, archiveBytes: total },
                             { files: count, bytes, download: total });
       } catch (err) {
+        if (isStorageFailure(err)) await installInMemory(); else
         installError(err, 'Error', true);
       } finally {
         g_downloading = false;

@@ -23,6 +23,10 @@
 
 using namespace Tempest;
 
+#if defined(__EMSCRIPTEN__)
+static bool webHasSaves();
+#endif
+
 static const float scriptDiv=8192.0f;
 
 struct GameMenu::ListContentDialog : Dialog {
@@ -279,10 +283,11 @@ struct GameMenu::SavNameDialog : Dialog {
   };
 
 GameMenu::GameMenu(MenuRoot &owner, KeyCodec& keyCodec, zenkit::DaedalusVm& vm, std::string_view menuSection, KeyCodec::Action kClose)
-  :owner(owner), keyCodec(keyCodec), vm(&vm), kClose(kClose) {
+  :owner(owner), keyCodec(keyCodec), vm(&vm), kClose(kClose), section(menuSection) {
   setCursorShape(CursorShape::Hidden);
   timer.timeout.bind(this,&GameMenu::onTick);
   timer.start(100);
+  tapTimer.timeout.bind(this,&GameMenu::onTapTimer);
 
   textBuf.reserve(64);
 
@@ -310,7 +315,21 @@ GameMenu::GameMenu(MenuRoot &owner, KeyCodec& keyCodec, zenkit::DaedalusVm& vm, 
     }
   setPosition(int(infoX*float(w())),int(infoY*float(h())));
 
+#if defined(__EMSCRIPTEN__)
+  int defSel = Gothic::inst().isInGameAndAlive() ? menu->default_ingame : menu->default_outgame;
+  if(!Gothic::inst().isInGameAndAlive()) {
+    // main menu: "Load game" if there are saves, otherwise "New game"
+    const char* want = webHasSaves() ? "MENUITEM_MAIN_SAVEGAME_LOAD" : "MENUITEM_MAIN_NEWGAME";
+    for(uint32_t i=0; i<zenkit::IMenu::item_count; ++i)
+      if(hItems[i].name==want) {
+        defSel = int(i);
+        break;
+        }
+    }
+  setSelection(defSel);
+#else
   setSelection(Gothic::inst().isInGameAndAlive() ? menu->default_ingame : menu->default_outgame);
+#endif
   updateValues();
   slider = Resources::loadTexture("MENU_SLIDER_POS.TGA");
 
@@ -635,6 +654,55 @@ void GameMenu::onKeyboard(KeyCodec::Action key) {
     }
   }
 
+void GameMenu::onTapTimer() {
+  tapTimer.stop();
+  const auto act = tapAction;
+  tapAction = KeyCodec::Idle;
+  if(act!=KeyCodec::Idle)
+    onKeyboard(act);   // may close or replace this menu
+  }
+
+bool GameMenu::onPointer(const Tempest::Point& pos) {
+  if(tapAction!=KeyCodec::Idle)
+    return true;   // the previous tap is not used yet
+  for(uint32_t i=0; i<zenkit::IMenu::item_count; ++i) {
+    auto& it = hItems[i];
+    auto& hd = it.handle;
+    if(hd==nullptr || !it.visible || it.name.empty() || !isSelectable(hd) || !isEnabled(hd))
+      continue;
+
+    const int32_t dimx = (hd->dim_x!=-1) ? hd->dim_x : 8192;
+    const int32_t dimy = (hd->dim_y!=-1) ? hd->dim_y : 750;
+    const int x  = int(float(w()*hd->pos_x)/scriptDiv);
+    const int y  = int(float(h()*hd->pos_y)/scriptDiv);
+    const int sx = int(float(w()*dimx    )/scriptDiv);
+    const int sy = int(float(h()*dimy    )/scriptDiv);
+    if(pos.x<x || pos.x>=x+sx || pos.y<y || pos.y>=y+sy)
+      continue;
+
+    if(curItem!=i) {
+      Gothic::inst().emitGlobalSound(Gothic::inst().loadSoundFx("MENU_BROWSE"));
+      setSelection(int(i), 1);
+      if(curItem!=i)
+        return false;
+      if(auto s = selectedItem())
+        updateSavThumb(*s);
+      update();
+      }
+    if(isHorSelectable(hd) && hd->type!=zenkit::MenuItemType::TEXT) {
+      // sliders and choice boxes: the right half of the row steps forward, the left one back
+      tapAction = pos.x<x+sx/2 ? KeyCodec::Left : KeyCodec::Right;
+      } else {
+      tapAction = KeyCodec::ActionGeneric;
+      }
+    // the item shows as selected for a moment, then it is used
+    tapTimer.start(150);
+    update();
+    return true;
+    }
+  return false;
+  }
+
 void GameMenu::onTick() {
   update();
 
@@ -770,9 +838,25 @@ bool GameMenu::isHorSelectable(const std::shared_ptr<zenkit::IMenuItem>& item) {
   return item != nullptr && (item->flags & zenkit::MenuItemFlag::HOR_SELECTABLE) && !isHidden(item);
   }
 
+#if defined(__EMSCRIPTEN__)
+static bool webHasSaves() {
+  for(int i=0; i<32; ++i) {
+    string_frm fname("save_slot_",i,".sav");
+    if(FileUtil::exists(TextCodec::toUtf16(fname.c_str())))
+      return true;
+    }
+  return false;
+  }
+#endif
+
 bool GameMenu::isEnabled(const std::shared_ptr<zenkit::IMenuItem>& item) {
   if(item==nullptr)
     return false;
+#if defined(__EMSCRIPTEN__)
+  // main menu: "Load game" is locked while there are no saves
+  if(item->on_sel_action_s[0]=="MENU_SAVEGAME_LOAD" && !webHasSaves())
+    return false;
+#endif
   if((item->flags & zenkit::MenuItemFlag::ONLY_INGAME) && !Gothic::inst().isInGameAndAlive())
     return false;
   if((item->flags & zenkit::MenuItemFlag::ONLY_OUTGAME) && Gothic::inst().isInGameAndAlive())

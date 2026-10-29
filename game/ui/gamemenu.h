@@ -32,10 +32,14 @@ class GameMenu : public Tempest::Widget {
     void setPlayer(const Npc& pl);
 
     void onKeyboard(KeyCodec::Action k);
+    // a tap / click at `pos` (in the menu's own coordinates): the item under it is selected and used.
+    // false: there is no usable item at that point
+    bool onPointer(const Tempest::Point& pos);
     void onTick();
     void processMusicTheme();
 
     KeyCodec::Action keyClose() const { return kClose; }
+    const std::string& sectionName() const { return section; }
 
   protected:
     void paintEvent (Tempest::PaintEvent& event) override;
@@ -68,6 +72,9 @@ class GameMenu : public Tempest::Widget {
     KeyCodec&                             keyCodec;
     zenkit::DaedalusVm*                   vm = nullptr;
     Tempest::Timer                        timer;
+    Tempest::Timer                        tapTimer;     // a tapped item is lit first, used a moment later
+    KeyCodec::Action                      tapAction = KeyCodec::Idle;
+    void                                  onTapTimer();
     const Tempest::Texture2d*             up   = nullptr;
     const Tempest::Texture2d*             down = nullptr;
 
@@ -87,6 +94,7 @@ class GameMenu : public Tempest::Widget {
     bool                                  asyncClosed=false;
 
     KeyCodec::Action                      kClose = KeyCodec::Escape;
+    std::string                           section;
 
     void                                  drawItem(Tempest::Painter& p, Item& it);
     void                                  drawSlider(Tempest::Painter& p, Item& it, int x, int y, int w, int h);

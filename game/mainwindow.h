@@ -57,6 +57,10 @@ class MainWindow : public Tempest::Window {
     void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
     std::string webQuickSlots() const { return inventory.quickJson(); }
     void  webQuickPanel(bool open, int first) { inventory.quickSetOpen(open, first); }
+    void  webPointer(int type, int x, int y) { inventory.webPointer(type, x, y); }
+    // the text language was changed (Resources::mountText*): the running game is saved to memory and loaded again
+    // 1: the game is reloading, 2: no game is running (menu and assets are updated), 0: not possible now
+    int   switchText();
 #endif
 
   private:

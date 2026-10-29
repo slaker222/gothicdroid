@@ -36,6 +36,7 @@ Item::Item(World &owner, Serialize &fin, Type type)
 
   uint32_t instanceSymbol=0;
   fin.read(instanceSymbol);
+  instanceSymbol = fin.remapSymbol(instanceSymbol);
 
   auto& vm = owner.script().getVm();
   auto* sym = vm.find_symbol_by_index(instanceSymbol);
@@ -50,10 +51,15 @@ Item::Item(World &owner, Serialize &fin, Type type)
   fin.read(reinterpret_cast<int&>(h->flags),h->weight,h->value,h->damage_type,h->damage_total,h->damage);
   fin.read(h->wear,h->protection,h->nutrition,h->cond_atr,h->cond_value,h->change_atr,h->change_value,h->magic);
   fin.read(h->on_equip,h->on_unequip,h->on_state);
+  fin.remapSymbolField(h->on_equip);
+  fin.remapSymbolField(h->on_unequip);
+  for(auto& s:h->on_state)
+    fin.remapSymbolField(s);
   fin.read(h->owner,h->owner_guild,h->disguise_guild,h->visual,h->visual_change);
   fin.read(h->effect,h->visual_skin,h->scheme_name,h->material);
   fin.read(h->munition,h->spell,h->range,h->mag_circle);
   fin.read(h->description,h->text,h->count);
+  fin.textRefresh(*h);
   fin.read(h->inv_zbias,h->inv_rot_x,h->inv_rot_y,h->inv_rot_z,h->inv_animate);
   fin.read(amount);
   fin.read(pos,equipped,itSlot);

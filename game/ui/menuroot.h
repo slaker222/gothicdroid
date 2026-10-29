@@ -22,8 +22,12 @@ class MenuRoot : public Tempest::Widget {
     void popMenu();
     void closeAll();
     bool isActive() const;
+    // the graphics options menu (MENU_OPT_GRAPHICS) is on screen
+    bool isGraphicsMenu() const;
     void setPlayer(const Npc& pl);
     void processMusicTheme();
+    // MENU.DAT is read again (the text language changed in a running game)
+    void reloadScripts();
 
     void showVersion(bool s);
     bool hasVersionLine() const;

@@ -446,6 +446,24 @@ void KeyCodec::setupSettings() {
     Gothic::settingsSetS("KEYS","keySneak",std::string("2d00")+std::string(s.substr(4)));
     }
   }
+  // the action key is the left mouse button and Left Shift (not Ctrl); slow walk is Caps Lock (not Shift)
+  {
+  auto s = Gothic::settingsGetS("KEYS","keyAction");
+  if(s.size()>=4 && s.compare(0,4,"1d00")==0)
+    Gothic::settingsSetS("KEYS","keyAction","0c022a00");
+  }
+  {
+  auto s = Gothic::settingsGetS("KEYS","keySlow");
+  if(s.size()>=4 && s.compare(0,4,"2a00")==0)
+    Gothic::settingsSetS("KEYS","keySlow","3a00");
+  }
+  // jump is Left Alt or the right mouse button (the second key of the pair replaces Right Alt)
+  {
+  auto s = Gothic::settingsGetS("KEYS","keySMove");
+  // the new value starts with 3800 too: without this check the change re-triggers itself forever
+  if(s.size()>=4 && s.compare(0,4,"3800")==0 && s!="38000d02")
+    Gothic::settingsSetS("KEYS","keySMove","38000d02");
+  }
 #endif
   keyEnd         = setup("keyEnd");
   keyHeal        = setup("keyHeal");

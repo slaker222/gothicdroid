@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <set>
+#include <map>
 #include <random>
 
 #include <Tempest/Matrix4x4>
@@ -71,6 +72,15 @@ class GameScript final {
     void         saveQuests(Serialize& fout);
     void         loadQuests(Serialize& fin);
     void         saveVar(Serialize& fout);
+    // names of all symbols in index order: lets a save be read by the scripts of another language
+    void         saveSymbolNames(Serialize& fout);
+    // names and descriptions of npcs and items come from the new scripts after a text language change:
+    // they are taken from a copy of the scripts that runs the instance functions with no engine behind it
+    void         refreshNpcText (zenkit::INpc&  npc);
+    void         refreshItemText(zenkit::IItem& item);
+    void         endTextRefresh();
+    // map "symbol index in the save -> index in these scripts"; nullptr when the tables are the same
+    std::shared_ptr<const std::vector<uint32_t>> loadSymbolMap(Serialize& fin);
     void         loadVar(Serialize& fin);
     void         savePerc(Serialize& fout);
     void         loadPerc(Serialize& fin);
@@ -455,6 +465,9 @@ class GameScript final {
 
     GameSession&                                                owner;
     zenkit::DaedalusVm                                          vm;
+    std::unique_ptr<zenkit::DaedalusVm>                         textVm;
+    std::map<uint32_t,std::shared_ptr<zenkit::INpc>>            textNpc;
+    std::map<uint32_t,std::shared_ptr<zenkit::IItem>>           textItem;
     int32_t                                                     vmLang = -1;
     std::mt19937                                                randGen;
     NpcProcessPolicy                                            aiProcessPolicy = NpcProcessPolicy::AiNormal;

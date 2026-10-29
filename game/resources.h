@@ -11,6 +11,7 @@
 #include <tuple>
 #include <string_view>
 #include <map>
+#include <set>
 
 #include "graphics/material.h"
 #include "sound/soundfx.h"
@@ -85,6 +86,16 @@ class Resources final {
     static void                      mountWork(const std::filesystem::path& path);
     // mounts one more archive over the loaded ones (replaced files win): the voice language changed in a running game
     static bool                      mountOver(const std::filesystem::path& path);
+    // the text language changed in a running game: loose files (<dir>/_work/...: scripts, dialogue lines)
+    // replace the mounted ones, the names of the files of the language's archives are remembered
+    static bool                      mountTextHost(const std::filesystem::path& dir);
+    static bool                      mountTextArchive(const std::filesystem::path& path);
+    // cached fonts and textures that the text language's archives replaced are loaded again (in place:
+    // the interface holds pointers to them)
+    static void                      reloadTextAssets();
+    // the archives of the text language the game was started with (the page knows them): what they hold
+    // is put back from the shared archives when another language replaces them
+    static void                      scanTextArchive(const std::filesystem::path& path);
     static void                      loadVdfs(const std::vector<std::u16string> &modvdfs, bool modFilter);
 
     static const Tempest::Sampler&   shadowSampler();
@@ -115,6 +126,7 @@ class Resources final {
     static Dx8::PatternList          loadDxMusic(std::string_view name);
     static DmSegment*                loadMusicSegment(char const* name);
     static const ProtoMesh*          decalMesh(const zenkit::VisualDecal& decal);
+    static const ProtoMesh*          blobShadowMesh();
 
     static const VobTree*            loadVobBundle(std::string_view name);
 
@@ -126,7 +138,6 @@ class Resources final {
 
     static Tempest::StorageBuffer    ssbo(const void* data, size_t size)         { return inst->dev.ssbo(data,size); }
     static Tempest::StorageBuffer    ssbo(Tempest::Uninitialized_t, size_t size) { return inst->dev.ssbo(Tempest::Uninitialized,size); }
-    static const ProtoMesh*          blobShadowMesh();
 
     template<class V, class I>
     static Tempest::AccelerationStructure
@@ -186,11 +197,14 @@ class Resources final {
 
     Tempest::Texture2d*   implLoadTexture(std::string_view cname, bool forceMips);
     Tempest::Texture2d    implLoadTextureUncached(std::string_view name, bool forceMips);
+    void                  implFinishTextMount();
+    void                  restoreOriginals(const std::set<std::string>& paths);
     Tempest::Texture2d    implLoadTextureUncached(std::string_view name, zenkit::Read& data, bool forceMips);
     ProtoMesh*            implLoadMesh(std::string_view name);
     std::unique_ptr<ProtoMesh> implLoadMeshMain(std::string name);
     std::unique_ptr<Animation> implLoadAnimation(std::string name);
     ProtoMesh*            implDecalMesh(const zenkit::VisualDecal& decal);
+    ProtoMesh*            implBlobShadowMesh();
     Tempest::Sound        implLoadSoundBuffer(std::string_view name);
     Dx8::PatternList      implLoadDxMusic(std::string_view name);
     DmSegment*            implLoadMusicSegment(char const* name);
@@ -204,7 +218,6 @@ class Resources final {
     Tempest::StorageImage fbImg;
 
     using BindK  = std::tuple<const Skeleton*,const ProtoMesh*>;
-    ProtoMesh*            implBlobShadowMesh();
     using FontK  = std::tuple<const std::string,FontType,float>;
 
     struct Hash {
@@ -251,9 +264,16 @@ class Resources final {
     uint8_t     recycledId = 0;
 
     TextureCache                                                      texCache;
+    std::set<std::string>                                             textOverride; // lower-case names in the text archives mounted at run time
+    std::set<std::string>                                             textActive;   // lower-case paths in the archives of the current text language
+    std::set<std::string>                                             textNew;      // ... of the language being mounted
+    std::set<std::string>                                             textArchiveNames; // lower-case file names of text archives (not a source of originals)
+    std::vector<std::unique_ptr<std::byte[]>>                         restoredData;
     std::map<Tempest::Color,std::unique_ptr<Tempest::Texture2d>,Less> pixCache;
     std::unordered_map<std::string,std::unique_ptr<ProtoMesh>>        aniMeshCache;
     std::unordered_map<DecalK,std::unique_ptr<ProtoMesh>,Hash>        decalMeshCache;
+    std::unique_ptr<Tempest::Texture2d>                               blobTex;
+    std::unique_ptr<ProtoMesh>                                        blobMesh;
     std::unordered_map<std::string,std::unique_ptr<Skeleton>>         skeletonCache;
     std::unordered_map<std::string,std::unique_ptr<Animation>>        animCache;
     std::unordered_map<BindK,std::unique_ptr<AttachBinder>,Hash>      bindCache;
@@ -263,5 +283,3 @@ class Resources final {
     std::recursive_mutex                                              syncFont;
     std::unordered_map<FontK,std::unique_ptr<GthFont>,Hash>           gothicFnt;
   };
-    std::unique_ptr<Tempest::Texture2d>                               blobTex;
-    std::unique_ptr<ProtoMesh>                                        blobMesh;

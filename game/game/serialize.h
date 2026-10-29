@@ -7,6 +7,8 @@
 #include <Tempest/Matrix4x4>
 
 #include <vector>
+#include <memory>
+#include <functional>
 #include <unordered_set>
 #include <cstdint>
 #include <type_traits>
@@ -66,6 +68,25 @@ class Serialize {
       }
 
     void setContext(World* ctx) { this->ctx=ctx; }
+
+    // Script symbols are saved by index. A save made with another language's scripts (other symbol
+    // table) is read through a map "index in the save -> index in the running scripts" (-1: no such symbol)
+    using SymbolMap = std::shared_ptr<const std::vector<uint32_t>>;
+    void             setSymbolMap(SymbolMap m) { symMap = std::move(m); }
+    const SymbolMap& symbolMap() const         { return symMap; }
+    // texts (names of npcs and items) are saved with the object: after a text language change they are
+    // taken from the new scripts when the object is read
+    void             setTextRefresh(std::function<void(zenkit::INpc&)> npc, std::function<void(zenkit::IItem&)> item) {
+      refreshNpc = std::move(npc); refreshItem = std::move(item);
+      }
+    void             setRefreshText(bool v) { wantRefreshText = v; }
+    bool             refreshText() const    { return wantRefreshText; }
+    void             textRefresh(zenkit::INpc&  npc)  const { if(refreshNpc)  refreshNpc(npc);   }
+    void             textRefresh(zenkit::IItem& item) const { if(refreshItem) refreshItem(item); }
+    uint32_t         remapSymbol(uint32_t sym) const;
+    // an int field holding a symbol index (0 and below: none)
+    void             remapSymbolField(int32_t& sym) const;
+    void             remapSymbolField(uint32_t& sym) const;
     std::string_view worldName() const;
 
     // raw
@@ -286,6 +307,10 @@ class Serialize {
     std::string              tmpStr;
     std::unordered_set<std::string> outFileList;
     World*                   ctx       = nullptr;
+    SymbolMap                symMap;
+    bool                     wantRefreshText = false;
+    std::function<void(zenkit::INpc&)>  refreshNpc;
+    std::function<void(zenkit::IItem&)> refreshItem;
 
     mz_zip_archive           impl      = {};
     std::string              entryName;

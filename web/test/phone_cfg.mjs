@@ -8,7 +8,7 @@ const CFGS = [
 ];
 export default async ({ page, sleep }) => {
   const get = k => page.evaluate(k => ogGet(k), k);
-  const keys = ['fpsUnlock', 'resScale', 'shadows', 'drawDist', 'worldDist', 'skipFarAnim', 'reflections', 'ssao'];
+  const keys = ['fpsLimit', 'resScale', 'shadows', 'drawDist', 'worldDist', 'skipFarAnim', 'reflections', 'ssao'];
   const show = async () => Object.fromEntries(await Promise.all(keys.map(async k => [k, await get(k)])));
   console.log('settings now', JSON.stringify(await show()));
   const orig = await show();

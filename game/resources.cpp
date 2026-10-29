@@ -1,5 +1,9 @@
 #include "resources.h"
 
+#include <fstream>
+#include <functional>
+#include <cstring>
+
 #include <Tempest/MemReader>
 #include <Tempest/Pixmap>
 #include <Tempest/Device>
@@ -137,6 +141,254 @@ bool Resources::mountOver(const std::filesystem::path& path) {
     Log::e("unable to mount archive: \"", path.string(), "\", reason: ", err.what());
     return false;
     }
+  }
+
+static std::string lowerCase(std::string_view s) {
+  std::string r(s);
+  for(auto& c:r)
+    c = char(std::tolower(static_cast<unsigned char>(c)));
+  return r;
+  }
+
+bool Resources::mountTextHost(const std::filesystem::path& dir) {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  try {
+    const auto work = dir/"_work";
+    if(!std::filesystem::exists(work))
+      return true;
+    inst->gothicAssets.mount_host(work, "/_work", zenkit::VfsOverwriteBehavior::ALL);
+    if(const auto* dat = inst->gothicAssets.find("GOTHIC.DAT")) {
+      auto rd = dat->open_read();
+      rd->seek(0, zenkit::Whence::END);
+      Log::i("text files mounted from \"", dir.string(), "\": GOTHIC.DAT is ", rd->tell(), " bytes");
+      }
+    return true;
+    }
+  catch(const std::exception& err) {
+    Log::e("unable to mount text files: \"", dir.string(), "\", reason: ", err.what());
+    return false;
+    }
+  }
+
+static void collectPaths(const zenkit::VfsNode& root, std::vector<std::pair<std::string,std::string>>& out) {
+  // (lower-case path, name) of every file under root
+  std::vector<std::pair<const zenkit::VfsNode*,std::string>> tree{{&root,std::string()}};
+  while(!tree.empty()) {
+    auto [n,prefix] = tree.back();
+    tree.pop_back();
+    for(auto& c:n->children()) {
+      if(c.type()==zenkit::VfsNodeType::DIRECTORY)
+        tree.emplace_back(&c,prefix+lowerCase(c.name())+"/"); else
+        out.emplace_back(prefix+lowerCase(c.name()),c.name());
+      }
+    }
+  }
+
+static std::string lowerBaseName(const std::filesystem::path& p) {
+  return lowerCase(p.filename().string());
+  }
+
+void Resources::scanTextArchive(const std::filesystem::path& path) {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  try {
+    zenkit::Vfs tmp;
+    tmp.mount_disk(path, zenkit::VfsOverwriteBehavior::ALL);
+    std::vector<std::pair<std::string,std::string>> files;
+    collectPaths(tmp.root(),files);
+    for(auto& f:files)
+      inst->textActive.insert(f.first);
+    inst->textArchiveNames.insert(lowerBaseName(path));
+    }
+  catch(const std::exception& err) {
+    Log::e("unable to scan archive: \"", path.string(), "\", reason: ", err.what());
+    }
+  }
+
+bool Resources::mountTextArchive(const std::filesystem::path& path) {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  try {
+    // what the archive holds is what the caches may have to forget
+    zenkit::Vfs tmp;
+    tmp.mount_disk(path, zenkit::VfsOverwriteBehavior::ALL);
+    std::vector<std::pair<std::string,std::string>> files;
+    collectPaths(tmp.root(),files);
+    for(auto& f:files) {
+      inst->textNew.insert(f.first);
+      inst->textOverride.insert(lowerCase(f.second));
+      }
+    inst->textArchiveNames.insert(lowerBaseName(path));
+    inst->gothicAssets.mount_disk(path, zenkit::VfsOverwriteBehavior::ALL);
+    return true;
+    }
+  catch(const std::exception& err) {
+    Log::e("unable to mount archive: \"", path.string(), "\", reason: ", err.what());
+    return false;
+    }
+  }
+
+void Resources::restoreOriginals(const std::set<std::string>& paths) {
+  struct Src {
+    std::filesystem::path archive;
+    int64_t               time = -1;
+    uint32_t              off  = 0, size = 0;
+    std::string           dir, name;
+    };
+  std::map<std::string,Src> best;
+
+  std::vector<Archive> archives;
+  detectVdf(archives,Gothic::inst().nestedPath({u"Data"},Dir::FT_Dir));
+  for(auto& ar:archives) {
+    if(ar.isMod)
+      continue;
+    const std::filesystem::path file = TextCodec::toUtf8(ar.name);
+    if(textArchiveNames.count(lowerBaseName(file))>0)
+      continue;
+    try {
+      std::ifstream in(file,std::ios::binary);
+      char hdr[296] = {};
+      in.read(hdr,sizeof(hdr));
+      if(!in)
+        continue;
+      uint32_t count=0, root=0;
+      std::memcpy(&count,hdr+272,4);
+      std::memcpy(&root, hdr+288,4);
+      if(count==0 || count>1000000)
+        continue;
+      struct Entry { char name[64]; uint32_t off, size, type, attr; };
+      std::vector<Entry> table(count);
+      in.seekg(root);
+      in.read(reinterpret_cast<char*>(table.data()),std::streamsize(count*sizeof(Entry)));
+      if(!in)
+        continue;
+      auto trim = [](const char* n){
+        std::string s(n,strnlen(n,64));
+        while(!s.empty() && (s.back()==' ' || s.back()=='\0'))
+          s.pop_back();
+        return s;
+        };
+      std::function<void(uint32_t,const std::string&,int)> walk = [&](uint32_t at, const std::string& dir, int depth) {
+        for(; at<count && depth<32; ++at) {
+          auto& e = table[at];
+          const std::string name = trim(e.name);
+          if(e.type & 0x80000000u) {
+            walk(e.off,dir+name+"/",depth+1);
+            } else {
+            const std::string key = lowerCase(dir+name);
+            if(paths.count(key)>0) {
+              auto& b = best[key];
+              if(ar.time>b.time) {
+                b.archive = file;
+                b.time    = ar.time;
+                b.off     = e.off;
+                b.size    = e.size;
+                b.dir     = dir;
+                b.name    = name;
+                }
+              }
+            }
+          if(e.type & 0x40000000u)
+            break;
+          }
+        };
+      walk(0,"",0);
+      }
+    catch(const std::exception& err) {
+      Log::e("unable to read archive: \"", file.string(), "\", reason: ", err.what());
+      }
+    }
+
+  size_t n = 0;
+  for(auto& i:best) {
+    auto& s = i.second;
+    try {
+      auto buf = std::make_unique<std::byte[]>(s.size);
+      std::ifstream in(s.archive,std::ios::binary);
+      in.seekg(s.off);
+      in.read(reinterpret_cast<char*>(buf.get()),s.size);
+      if(!in)
+        continue;
+      std::string parent = "/"+s.dir;
+      if(parent.size()>1)
+        parent.pop_back();
+      gothicAssets.mount(zenkit::VfsNode::file(s.name,zenkit::VfsFileDescriptor{buf.get(),s.size,false},std::time_t(s.time)),
+                         parent,zenkit::VfsOverwriteBehavior::ALL);
+      restoredData.push_back(std::move(buf));
+      textOverride.insert(lowerCase(s.name));
+      ++n;
+      }
+    catch(const std::exception& err) {
+      Log::e("unable to restore \"", i.first, "\": ", err.what());
+      }
+    }
+  Log::i("text language: ",n," of ",paths.size()," replaced files put back from the shared archives");
+  }
+
+void Resources::implFinishTextMount() {
+  // what the previous text language's archives held and the new one does not is put back
+  std::set<std::string> gone;
+  for(auto& p:textActive)
+    if(textNew.count(p)==0)
+      gone.insert(p);
+  restoreOriginals(gone);
+  textActive = std::move(textNew);
+  textNew.clear();
+  }
+
+void Resources::reloadTextAssets() {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  std::lock_guard<std::recursive_mutex> gf(inst->syncFont);
+  inst->implFinishTextMount();
+  auto replaced = [&](const std::string& name) {
+    auto n = lowerCase(name);
+    if(inst->textOverride.count(n)>0)
+      return true;
+    if(n.size()>4 && n.compare(n.size()-4,4,".tga")==0)
+      return inst->textOverride.count(n.substr(0,n.size()-4)+"-c.tex")>0;
+    return false;
+    };
+
+  size_t nTex = 0, nFont = 0;
+  for(auto& i:inst->texCache) {
+    if(i.second==nullptr || !replaced(i.first))
+      continue;
+    auto fresh = inst->implLoadTextureUncached(i.first,false);
+    if(!fresh.isEmpty()) {
+      *i.second = std::move(fresh);
+      ++nTex;
+      }
+    }
+
+  for(auto& i:inst->gothicFnt) {
+    auto&       key   = i.first;
+    std::string_view name = std::get<0>(key);
+    const FontType   type = std::get<1>(key);
+    const float      sc   = std::get<2>(key);
+    std::string_view file = name.substr(0,name.find('.'));
+    string_frm tex, fnt;
+    if(type==FontType::Hi) {
+      tex = string_frm(file,"_hi.tga");
+      fnt = string_frm(file,"_hi.fnt");
+      } else {
+      tex = string_frm(file,".tga");
+      fnt = string_frm(file,".fnt");
+      }
+    Tempest::Color color(1.f);
+    if(type==FontType::Disabled)
+      color = Tempest::Color(1.f,1.f,1.f,0.6f);
+    else if(type==FontType::Yellow)
+      color = Tempest::Color(1.f,1.f,0.1f,1.f);
+    else if(type==FontType::Red)
+      color = Tempest::Color(1.f,0.f,0.f,1.f);
+    const auto* entry = Resources::vdfsIndex().find(fnt);
+    if(entry==nullptr)
+      continue;
+    GthFont f(*entry->open_read(),tex,color);
+    f.setScale(sc);
+    *i.second = std::move(f);
+    ++nFont;
+    }
+  inst->textOverride.clear();
+  Log::i("text language: ",nTex," textures and ",nFont," fonts loaded again");
   }
 
 void Resources::loadVdfs(const std::vector<std::u16string>& modvdfs, bool modFilter) {
@@ -948,6 +1200,53 @@ DmSegment* Resources::loadMusicSegment(char const* name) {
   return inst->implLoadMusicSegment(name);
   }
 
+ProtoMesh* Resources::implBlobShadowMesh() {
+  if(blobMesh!=nullptr)
+    return blobMesh.get();
+
+  // soft dark circle: the shadow under a character
+  const int sz = 64;
+  Pixmap pm(sz,sz,TextureFormat::RGBA8);
+  auto* pix = reinterpret_cast<uint8_t*>(pm.data());
+  for(int y=0; y<sz; ++y)
+    for(int x=0; x<sz; ++x) {
+      const float dx = (float(x)+0.5f)/float(sz)*2.f-1.f;
+      const float dy = (float(y)+0.5f)/float(sz)*2.f-1.f;
+      const float r  = std::sqrt(dx*dx+dy*dy);
+      float k = std::min(std::max((1.f-r)/0.3f, 0.f), 1.f);
+      k = k*k*(3.f-2.f*k);
+      auto* p = pix + size_t(y*sz+x)*4;
+      p[0] = p[1] = p[2] = 0;
+      p[3] = uint8_t(k*0.56f*255.f);
+      }
+  blobTex.reset(new Texture2d(dev.texture(pm)));
+
+  Material mat;
+  mat.tex   = blobTex.get();
+  mat.alpha = Material::Transparent;
+
+  // lies in the XZ plane, both sides are drawn
+  Resources::Vertex vbo[8] = {
+    {{-1.f, 0.f, -1.f},{0, 1,0},{0,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f, -1.f},{0, 1,0},{1,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f,  1.f},{0, 1,0},{1,0}, 0xFFFFFFFF},
+    {{-1.f, 0.f,  1.f},{0, 1,0},{0,0}, 0xFFFFFFFF},
+    {{-1.f, 0.f, -1.f},{0,-1,0},{0,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f, -1.f},{0,-1,0},{1,1}, 0xFFFFFFFF},
+    {{ 1.f, 0.f,  1.f},{0,-1,0},{1,0}, 0xFFFFFFFF},
+    {{-1.f, 0.f,  1.f},{0,-1,0},{0,0}, 0xFFFFFFFF},
+    };
+  std::vector<Resources::Vertex> cvbo(vbo,vbo+8);
+  std::vector<uint32_t>          cibo = { 0,1,2, 0,2,3, 4,6,5, 4,7,6 };
+  blobMesh.reset(new ProtoMesh(mat, std::move(cvbo), std::move(cibo)));
+  return blobMesh.get();
+  }
+
+const ProtoMesh* Resources::blobShadowMesh() {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  return inst->implBlobShadowMesh();
+  }
+
 const ProtoMesh* Resources::decalMesh(const zenkit::VisualDecal& decal) {
   std::lock_guard<std::recursive_mutex> g(inst->sync);
   return inst->implDecalMesh(decal);
@@ -1175,50 +1474,3 @@ Tempest::VertexBuffer<Resources::Vertex> Resources::sphere(int passCount, float 
 
   return dev.vbo(r);
   }
-ProtoMesh* Resources::implBlobShadowMesh() {
-  if(blobMesh!=nullptr)
-    return blobMesh.get();
-
-  // soft dark circle: the shadow under a character
-  const int sz = 64;
-  Pixmap pm(sz,sz,TextureFormat::RGBA8);
-  auto* pix = reinterpret_cast<uint8_t*>(pm.data());
-  for(int y=0; y<sz; ++y)
-    for(int x=0; x<sz; ++x) {
-      const float dx = (float(x)+0.5f)/float(sz)*2.f-1.f;
-      const float dy = (float(y)+0.5f)/float(sz)*2.f-1.f;
-      const float r  = std::sqrt(dx*dx+dy*dy);
-      float k = std::min(std::max((1.f-r)/0.3f, 0.f), 1.f);
-      k = k*k*(3.f-2.f*k);
-      auto* p = pix + size_t(y*sz+x)*4;
-      p[0] = p[1] = p[2] = 0;
-      p[3] = uint8_t(k*0.56f*255.f);
-      }
-  blobTex.reset(new Texture2d(dev.texture(pm)));
-
-  Material mat;
-  mat.tex   = blobTex.get();
-  mat.alpha = Material::Transparent;
-
-  // lies in the XZ plane, both sides are drawn
-  Resources::Vertex vbo[8] = {
-    {{-1.f, 0.f, -1.f},{0, 1,0},{0,1}, 0xFFFFFFFF},
-    {{ 1.f, 0.f, -1.f},{0, 1,0},{1,1}, 0xFFFFFFFF},
-    {{ 1.f, 0.f,  1.f},{0, 1,0},{1,0}, 0xFFFFFFFF},
-    {{-1.f, 0.f,  1.f},{0, 1,0},{0,0}, 0xFFFFFFFF},
-    {{-1.f, 0.f, -1.f},{0,-1,0},{0,1}, 0xFFFFFFFF},
-    {{ 1.f, 0.f, -1.f},{0,-1,0},{1,1}, 0xFFFFFFFF},
-    {{ 1.f, 0.f,  1.f},{0,-1,0},{1,0}, 0xFFFFFFFF},
-    {{-1.f, 0.f,  1.f},{0,-1,0},{0,0}, 0xFFFFFFFF},
-    };
-  std::vector<Resources::Vertex> cvbo(vbo,vbo+8);
-  std::vector<uint32_t>          cibo = { 0,1,2, 0,2,3, 4,6,5, 4,7,6 };
-  blobMesh.reset(new ProtoMesh(mat, std::move(cvbo), std::move(cibo)));
-  return blobMesh.get();
-  }
-
-const ProtoMesh* Resources::blobShadowMesh() {
-  std::lock_guard<std::recursive_mutex> g(inst->sync);
-  return inst->implBlobShadowMesh();
-  }
-

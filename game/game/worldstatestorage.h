@@ -27,4 +27,8 @@ class WorldStateStorage final {
 
     std::string          name;
     std::vector<uint8_t> storage;
+    // set when the storage came from a save made with other scripts (see Serialize::setSymbolMap)
+    std::shared_ptr<const std::vector<uint32_t>> symMap;
+    // the names of npcs and items in it are of another text language: read them from the scripts again
+    bool                 refreshText = false;
   };

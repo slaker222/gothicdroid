@@ -21,7 +21,7 @@ import re
 import sys
 
 NAMES = {
-    'en': 'English', 'de': 'Deutsch', 'pl': 'Polski', 'ru': 'Русский',
+    'en': 'English', 'de': 'Deutsch', 'pl': 'Polski', 'ru': 'Russian',
     'fr': 'Français', 'it': 'Italiano', 'cs': 'Čeština', 'es': 'Español',
 }
 

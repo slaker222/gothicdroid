@@ -138,6 +138,8 @@ void Inventory::implLoad(Npc* owner, World& world, Serialize &s) {
   else if(3<=id && id<10)
     active=&numslot[id-3];
   s.read(curItem,stateItem);
+  s.remapSymbolField(curItem);
+  s.remapSymbolField(stateItem);
 
   if(owner!=nullptr)
     updateView(*owner);

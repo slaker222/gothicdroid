@@ -179,7 +179,7 @@ Gothic::Gothic() {
   defaults->set("ENGINE", "zWindEnabled",       1);
 #if defined(__EMSCRIPTEN__)
   defaults->set("INTERNAL", "webShadows",   2); // player settings menu: 0 off, 1 low, 2 high
-  defaults->set("INTERNAL", "webFpsUnlock", 0);
+  defaults->set("INTERNAL", "webFpsLimit", 0);
   defaults->set("INTERNAL", "webDrawDist",  0); // 0 no limit, 1 far .. 4 nearest
   defaults->set("INTERNAL", "webWorldDistM", 0); // meters, 0 no limit
   defaults->set("INTERNAL", "webSkipFarAnim", 0);

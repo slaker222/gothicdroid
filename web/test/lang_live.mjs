@@ -16,7 +16,6 @@ export default async ({ page, sleep, OUT }) => {
   });
 
   await page.select('#lang-voice', voice);
-  await page.click('#lang-apply');
   const bar = [];
   let t0 = Date.now(), final = '';
   while (Date.now() - t0 < 300000) {
