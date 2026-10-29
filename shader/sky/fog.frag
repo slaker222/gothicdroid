@@ -40,7 +40,7 @@ const vec3  fogTint    = vec3(1.0, 0.71, 0.47);
 const float fogGain    = 3.3;
 const float fogSkyTop  = 0.85;                // sky haze at the zenith / on the horizon
 const float fogSkyHor  = 0.92;
-const float fogSkyDim  = 0.72;                // haze brightness at the zenith relative to the horizon
+const float fogSkyDim  = 0.9;                 // haze brightness at the zenith relative to the horizon
 
 vec3 inverse(vec3 pos) {
   vec4 ret = scene.viewProjectInv*vec4(pos,1.0);
@@ -188,6 +188,7 @@ vec4 fog(vec2 uv, float z) {
 #endif
 
 #if !defined(GL_COMPUTE_SHADER)
+const float skyLift   = 0.6;
 const float shaftGain = 0.5;
 
 void main_frag() {
@@ -230,14 +231,25 @@ void main_frag() {
       a = mix(fogSkyTop, fogSkyHor, hor)*min(scene.fogAmount,1.0);
 
     // brightness of the haze is taken at the horizon in this direction: even above and below it
-    vec2  horUv  = uv;
+    // horizon behind the camera (looking steeply up/down): fade to the horizon straight ahead, no seams
+    vec3  farLum;
     {
+    const vec3 fwd  = normalize(project(scene.viewProjectInv, vec3(0.0,0.0,dFogMax))-pos0);
     const vec3 dirH = normalize(vec3(dir.x,0.0,dir.z)+vec3(1e-4,0.0,0.0));
-    const vec4 clip = scene.viewProject*vec4(pos0+dirH*1000000.0, 1.0);
-    if(clip.w>0.0)
-      horUv = clamp(clip.xy/clip.w*0.5+vec2(0.5), vec2(0.0), vec2(1.0));
+    const vec3 dirF = normalize(vec3(fwd.x,0.0,fwd.z)+vec3(1e-4,0.0,0.0));
+    const vec4 clipH = scene.viewProject*vec4(pos0+dirH*1000000.0, 1.0);
+    const vec4 clipF = scene.viewProject*vec4(pos0+dirF*1000000.0, 1.0);
+    const vec2 uvF   = clamp(clipF.xy/max(clipF.w,1.0)*0.5+vec2(0.5), vec2(0.0), vec2(1.0));
+    const vec2 uvH   = clamp(clipH.xy/max(clipH.w,1.0)*0.5+vec2(0.5), vec2(0.0), vec2(1.0));
+    const float k    = smoothstep(0.0, 0.25, clipH.w/1000000.0)*smoothstep(0.3, 0.85, length(dir.xz));
+    // the brightness is read at the screen edge when the horizon is off screen: that point is already
+    // above the horizon and darker, bring it back up so that looking up does not darken the sky
+    const float elF  = max(normalize(project(scene.viewProjectInv, vec3(uvF*2.0-1.0,dFogMax))-pos0).y, 0.0);
+    const float elH  = max(normalize(project(scene.viewProjectInv, vec3(uvH*2.0-1.0,dFogMax))-pos0).y, 0.0);
+    farLum = mix(textureLod(fogLut, vec3(uvF,1.0), 0).rgb*(1.0+skyLift*elF),
+                 textureLod(fogLut, vec3(uvH,1.0), 0).rgb*(1.0+skyLift*elH), k)
+             *scene.GSunIntensity*scene.exposure;
     }
-    vec3  farLum = textureLod(fogLut, vec3(horUv,1.0), 0).rgb*scene.GSunIntensity*scene.exposure;
     float luma  = dot(farLum, vec3(0.299,0.587,0.114));
     vec3  haze  = luma*fogTint*fogGain*skyDim;
 
