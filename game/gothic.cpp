@@ -962,7 +962,7 @@ void Gothic::setupSettings() {
   {
   // webFog: 0 = soft haze (default), 1 = off, 2 = dense haze
   const int fog = settingsGetI("INTERNAL","webFog");
-  fogAmount = fog==1 ? 0.f : (fog==2 ? 3.f : 1.6f);
+  fogAmount = fog==1 ? -1.f : (fog==2 ? 3.f : 1.6f);
   }
 #endif
 

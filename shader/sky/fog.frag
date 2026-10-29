@@ -237,6 +237,10 @@ void main_frag() {
       }
     lum = lum*(1.0-a) + haze*a;
     tr  = tr*(1.0-a);
+    } else if(scene.fogAmount<0 && !isSky) {
+    // web fog off: no fog on objects at all
+    lum = vec3(0.0);
+    tr  = 1.0;
     }
 #endif
 
