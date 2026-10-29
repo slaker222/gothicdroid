@@ -122,6 +122,7 @@ class SceneGlobals final {
       float                           probeGridBias = 3;
       float                           fogAmount     = 0;
       float                           fogScale      = 1;
+      float                           sunRays       = 0;
       };
 
     Tempest::UniformBuffer<UboGlobal> uboGlobalPf[Resources::MaxFramesInFlight][V_Count];

@@ -263,7 +263,7 @@ void main_frag() {
 
     // light shafts: radial blur of the open sky towards the sun; only when looking at it
     const float toSun = dot(dir, sunDir);
-    if(toSun>0.35) {
+    if(toSun>0.35 && scene.sunRays>0.5) {
       const vec4 sc = scene.viewProject*vec4(pos0+sunDir*1000000.0, 1.0);
       if(sc.w>0.0) {
         const vec2  sunUv = sc.xy/sc.w*0.5+vec2(0.5);

@@ -52,7 +52,7 @@ void main() {
 
   vec4 clr = texture(sunSprite, uv);
   vec3 lum;
-  if(push.isSun!=0) {
+  if(push.isSun==1) {
     // bright disc over a soft halo, drawn after the fog; the disc is opaque and burns out to white
     const float r    = length(uv*2.0 - 1.0);
     const float disc = 1.0 - smoothstep(0.10, 0.15, r);
@@ -61,6 +61,9 @@ void main() {
     const vec3  tint = textureLUT(tLUT, pos, push.sunDir).rgb;
     lum   = tint*(core*(disc*14.0) + vec3(1.0,0.85,0.6)*halo*2.0);
     clr.a = 1.0 - disc;
+    } else if(push.isSun==2) {
+    // low quality: the game's own sun picture, brightened to show through the haze
+    lum = clr.rgb*textureLUT(tLUT, pos, push.sunDir).rgb*10.0;
     } else {
     lum = textureEmmisive(clr.rgb);
     }

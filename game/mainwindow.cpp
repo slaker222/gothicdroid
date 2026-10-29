@@ -60,6 +60,7 @@ const WebSetting g_webSettings[] = {
   {"texQuality",  "INTERNAL", "webTexQuality",      false},
   {"waterQuality","INTERNAL", "webWaterQuality",    false},
   {"fog",         "INTERNAL", "webFog",             false},
+  {"sun",         "INTERNAL", "webSun",             false},
   };
 
 const WebSetting* findWebSetting(const char* name) {

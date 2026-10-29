@@ -155,6 +155,7 @@ void SceneGlobals::setSky(const Sky& s) {
   uboGlobalCpu.isNight       = s.isNight();
   uboGlobalCpu.fogAmount     = Gothic::inst().webFogAmount();
   uboGlobalCpu.fogScale      = Gothic::inst().webFogScale();
+  uboGlobalCpu.sunRays       = Gothic::inst().webSunMode()==0 ? 1.f : 0.f;
   uboGlobalCpu.exposure      = 1;
   }
 
