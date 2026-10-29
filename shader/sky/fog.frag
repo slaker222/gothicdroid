@@ -188,6 +188,8 @@ vec4 fog(vec2 uv, float z) {
 #endif
 
 #if !defined(GL_COMPUTE_SHADER)
+const float shaftGain = 0.5;
+
 void main_frag() {
   const ivec2 size = textureSize(depth,0);
   inPos = vec2(gl_FragCoord.xy)/vec2(size);
@@ -246,6 +248,29 @@ void main_frag() {
       }
     lum = lum*(1.0-a) + haze*a;
     tr  = tr*(1.0-a);
+
+    // light shafts: radial blur of the open sky towards the sun; only when looking at it
+    const float toSun = dot(dir, sunDir);
+    if(toSun>0.35) {
+      const vec4 sc = scene.viewProject*vec4(pos0+sunDir*1000000.0, 1.0);
+      if(sc.w>0.0) {
+        const vec2  sunUv = sc.xy/sc.w*0.5+vec2(0.5);
+        const int   N     = 28;
+        const float jit   = fract(52.9829189*fract(dot(gl_FragCoord.xy, vec2(0.06711056,0.00583715))));
+        float open = 0.0;
+        for(int i=0; i<N; ++i) {
+          const float t  = (float(i)+jit)/float(N);
+          const vec2  p  = mix(uv, sunUv, t*0.85);
+          if(any(lessThan(p,vec2(0.0))) || any(greaterThan(p,vec2(1.0))))
+            continue;
+          open += (texelFetch(depth, ivec2(p*vec2(size)), 0).r==1.0) ? 1.0 : 0.0;
+          }
+        open /= float(N);
+        const float cone  = pow(smoothstep(0.35, 1.0, toSun), 2.0);
+        const float reach = exp(-length((uv-sunUv)*vec2(float(size.x)/float(size.y),1.0))*1.7);
+        lum += luma*fogTint*fogGain*open*cone*reach*scene.fogAmount*shaftGain*(isSky ? 0.08 : 1.0);
+        }
+      }
     } else if(scene.fogAmount<0 && !isSky) {
     // web fog off: no fog on objects at all
     lum = vec3(0.0);
