@@ -968,7 +968,7 @@ void Gothic::setupSettings() {
   if(worldM>0 && worldM<150)
     fogAmount = -1.f; // too short a world for the haze: off
   fogScale = worldM>0 ? std::clamp(float(worldM)/1100.f, 0.02f, 1.f) : 1.f;
-  // webSun: 0 = disc + halo + light shafts (default), 1 = the game's sun sprite, 2 = off
+  // webSun: 0 = disc + halo + light shafts (default), 1 = the same without the shafts, 2 = off
   sunMode  = std::clamp(settingsGetI("INTERNAL","webSun"), 0, 2);
   }
 #endif

@@ -964,7 +964,7 @@ void Renderer::drawSunMoon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   }
 
 void Renderer::drawSunMoon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview, bool isSun) {
-  const int sunMode = Gothic::inst().webSunMode(); // 0 disc + shafts, 1 sun sprite, 2 off
+  const int sunMode = Gothic::inst().webSunMode(); // 0 disc + shafts, 1 disc only, 2 off
   if(isSun && sunMode==2)
     return;
   auto& scene = wview.sceneGlobals();
@@ -1006,7 +1006,7 @@ void Renderer::drawSunMoon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
 
   push.size          *= isSun ? sunSize : (moonSize*0.25f);
   push.GSunIntensity  = isSun ? (GSunIntensity*intencity) : (GMoonIntensity*intencity);
-  push.isSun          = isSun ? (sunMode==1 ? 2 : 1) : 0;
+  push.isSun          = isSun ? 1 : 0;
   push.sunDir         = d;
   push.viewProjectInv = scene.viewProjectLwcInv();
 

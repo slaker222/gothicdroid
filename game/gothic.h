@@ -216,7 +216,7 @@ class Gothic final {
     float                                 webFogAmount() const { return fogAmount; }
     // fog distances relative to the unlimited world (1), smaller for a shorter world draw distance
     float                                 webFogScale() const { return fogScale; }
-    // web sun setting: 0 = disc with halo and light shafts, 1 = the game's sun sprite, 2 = no sun
+    // web sun setting: 0 = disc with halo and light shafts, 1 = the same without the shafts, 2 = no sun
     int                                   webSunMode() const { return sunMode; }
 
   private:
