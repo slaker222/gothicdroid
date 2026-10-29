@@ -33,11 +33,11 @@ layout(binding = 3, std140) uniform UboScene {
   };
 
 // soft haze, see main_frag
-const float fogStart   = 150.0;               // meters without any haze: the foreground stays crisp
-const float fogRange   = 490.0;               // meters after the start to ~63% haze
+const float fogStart   = 60.0;                // meters without any haze: the foreground stays crisp
+const float fogRange   = 540.0;               // meters after the start to ~63% haze
 const float fogMaxDens = 0.90;                // far objects stay faintly visible
-const vec3  fogTint    = vec3(1.0, 0.65, 0.36);
-const float fogGain    = 2.85;
+const vec3  fogTint    = vec3(1.0, 0.71, 0.47);
+const float fogGain    = 3.3;
 const float fogSkyTop  = 0.85;                // sky haze at the zenith / on the horizon
 const float fogSkyHor  = 0.92;
 const float fogSkyDim  = 0.72;                // haze brightness at the zenith relative to the horizon
@@ -218,7 +218,7 @@ void main_frag() {
     // valleys below the viewer are thicker, ridges above it thinner
     const float dy     = (posz.y-pos0.y)*0.01;
     const float height = 1.0 + clamp(-dy/200.0,0.0,1.0)*0.4 - clamp(dy/300.0,0.0,1.0)*0.4;
-    float       dens   = pow(max(meters-fogStart,0.0)/fogRange, 1.6)*height*scene.fogAmount;
+    float       dens   = pow(max(meters-fogStart,0.0)/fogRange, 1.17)*height*scene.fogAmount;
     float       a      = fogMaxDens*(1.0 - exp(-dens));
     // same brightness for the sky and the terrain above the horizon: no seam along the ridges
     const float hor    = exp(-max(view.y-0.04,0.0)*3.0);
