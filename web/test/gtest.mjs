@@ -9,7 +9,7 @@
 // The page has to be served first: python3 web/serve.py 8322
 //
 // Options:
-//   --url=URL          page (default http://127.0.0.1:8322/)
+//   --url=URL          page (default http://127.0.0.1:8322/game.html)
 //   --nomenu           start a new game right away (dialog with Diego)
 //   --load=N           load save slot N from the main menu (instead of --nomenu)
 //   --uncapped         frames do not wait for the display (benchmarks)
@@ -46,7 +46,7 @@ const OUT = path.join(HERE, 'out');
 fs.mkdirSync(OUT, { recursive: true });
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
-let url = args.url || 'http://127.0.0.1:8322/';
+let url = args.url || 'http://127.0.0.1:8322/game.html';
 const q = ['archive=/game_web.zip'];
 if (args.nomenu) q.push('nomenu');
 if (args.uncapped) q.push('uncapped');

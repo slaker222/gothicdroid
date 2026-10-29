@@ -3,7 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OpenGothic Web</title>
+  <title>OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
+  <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
+  <meta property="og:description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <style>
     :root {
       --bg: #151515;
@@ -12,6 +16,8 @@
       --dim: #999;
       --accent: #fff;
       --danger: #e5484d;
+      --about-h: 0px;                       /* nothing above the language bar */
+      --chrome-h: calc(var(--about-h) + 70px); /* about + language bar + voice strip */
     }
 
     * {
@@ -28,16 +34,18 @@
       background: var(--bg);
       color: var(--text);
       font: 14px/1.4 -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-      overflow: hidden;
       display: flex;
       flex-direction: column;
       align-items: center;
-      justify-content: center;
+      justify-content: safe center;
+      scrollbar-width: thin;
     }
+    html { overflow: hidden; }
+    body { overflow-y: auto; }
 
     #player {
       position: relative;
-      width: min(100vw, calc(100vh * 16 / 9));
+      width: min(100vw, calc((100vh - var(--about-h)) * 16 / 9));
       aspect-ratio: 16 / 9;
       background: #000;
       overflow: hidden;
@@ -47,7 +55,7 @@
     #lang-bar {
       --lang-h: 40px;
       height: var(--lang-h);
-      width: min(100vw, calc((100vh - 70px) * 16 / 9));
+      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
       display: flex;
       align-items: center;
       gap: 10px;
@@ -68,8 +76,10 @@
       font: inherit;
     }
     #lang-bar .btn { padding: 3px 12px; }
+    #lang-bar .back-link { color: var(--text); text-decoration: none; padding: 3px 10px 3px 4px; border-radius: 4px; }
+    #lang-bar .back-link:hover { background: var(--line); }
     #lang-note { overflow: hidden; text-overflow: ellipsis; }
-    body.has-lang #player { width: min(100vw, calc((100vh - 70px) * 16 / 9)); }
+    body.has-lang #player { width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9)); }
     /* strip under the player: progress of a voice language download */
     #voice-bar { display: none; }
     body.has-lang #voice-bar {
@@ -77,12 +87,42 @@
       align-items: center;
       gap: 10px;
       height: 30px;
-      width: min(100vw, calc((100vh - 70px) * 16 / 9));
+      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
       padding: 0 4px;
       color: var(--dim);
       white-space: nowrap;
     }
     #voice-bar.idle { visibility: hidden; }
+    #legal {
+      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      margin: 8px 0 16px;
+      padding: 0 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--dim);
+      text-align: center;
+    }
+    /* narrow screens (phones): the language bar goes one setting per line */
+    @media (max-width: 700px) {
+      #lang-bar {
+        height: auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 6px 8px;
+        white-space: normal;
+      }
+      #lang-bar label { justify-content: space-between; }
+      #lang-bar select { flex: 1 1 auto; max-width: 62%; min-height: 32px; }
+      #lang-note { white-space: normal; }
+      body.has-lang #voice-bar { white-space: normal; padding: 0 8px; }
+    }
+    /* a phone held sideways: the player is narrower than the three selects, the bar takes the whole width */
+    @media (min-width: 701px) and (max-height: 500px) {
+      #lang-bar, body.has-lang #voice-bar { width: 100vw; }
+      #lang-bar { justify-content: center; font-size: 12px; gap: 8px; }
+      #lang-bar select { padding: 2px 4px; }
+    }
     #voice-track { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
     #voice-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
 
@@ -146,7 +186,7 @@
       align-items: center;
       justify-content: center;
       gap: 12px;
-      padding: 16px 16px 72px;
+      padding: 72px 16px;   /* the same above and below: the status sits in the middle of the player */
       text-align: center;
     }
 
@@ -158,6 +198,39 @@
       color: var(--dim);
       word-break: break-word;
     }
+
+    .status-detail {
+      min-height: 16px;
+      max-width: min(560px, 90%);
+      font-size: 12px;
+      color: var(--dim);
+      opacity: .75;
+      word-break: break-all;
+    }
+    .spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* the engine starts after the overlay is gone: the same spinner and a line of text over the menu picture */
+    #boot-status {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--text);
+      pointer-events: none;
+    }
+    #boot-status .spinner { display: block; }
 
     .progress-bar-container {
       width: min(320px, 70%);
@@ -262,6 +335,8 @@
     body.touch-on #touch-ui { display: block; }
     /* a finger that stays down while the layout changes must not be taken over by the browser (pointercancel) */
     body.touch-on #canvas { touch-action: none; }
+    /* a gamepad is in use: the touch controls step aside until the next touch */
+    body.gp-on #touch-ui { display: none !important; }
     /* touch mode: the player bar sits on top,
        compact, clear of the stick and the buttons; saves and delete only show
        in the game menu */
@@ -455,24 +530,27 @@
 </head>
 <body>
   <div id="lang-bar" hidden>
+    <a class="back-link" href="./" title="Back to the main page" aria-label="Back to the main page">&larr; Back</a>
     <label>Game <select id="game-select" onchange="gameChosen()">
       <option value="g1">Gothic 1</option>
       <option value="g2">Gothic 2</option>
     </select></label>
-    <label id="lang-text-label" hidden>Text language <select id="lang-text"></select></label>
-    <label id="lang-voice-label" hidden>Voice language <select id="lang-voice"></select></label>
-    <button class="btn" id="lang-apply" onclick="applyLanguages()" style="display:none">Apply</button>
+    <label id="lang-text-label" hidden>Text language <select id="lang-text" onchange="languagesChosen()"></select></label>
+    <label id="lang-voice-label" hidden>Voice language <select id="lang-voice" onchange="languagesChosen()"></select></label>
     <span id="lang-note"></span>
   </div>
   <div id="player">
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
     <div id="boot-bg"></div>
+    <div id="boot-status"><div class="spinner"></div><div id="boot-status-text"></div></div>
 
     <div id="ui-overlay">
       <div class="status-box" id="status-text">Loading...</div>
+      <div class="status-detail" id="status-detail"></div>
       <div class="progress-bar-container" id="progress-container">
         <div class="progress-bar" id="progress-bar"></div>
       </div>
+      <div class="spinner" id="status-spin"></div>
       <button class="btn" id="retry-btn" style="display:none;" onclick="downloadGame()">Download</button>
 
       <input type="file" id="folder-picker" class="file-input" webkitdirectory directory multiple onchange="onFolderSelected(event)">
@@ -512,6 +590,12 @@
           <option value="-1">Auto</option><option value="0">Native</option>
           <option value="2">High (2x)</option><option value="1.5">Medium (1.5x)</option>
           <option value="1">Low (1x)</option>
+        </select>
+      </label>
+      <label class="set-row" title="Detail of world textures, like the texture detail of the original Gothic: lower is less detailed and a little lighter for the GPU. Applies at once, both ways. Video memory use does not change">Texture quality
+        <select data-set="texQuality">
+          <option value="0">High</option><option value="1">Medium (1/2)</option>
+          <option value="2">Low (1/4)</option><option value="3">Lowest (1/8)</option>
         </select>
       </label>
       <label class="set-row">Shadows
@@ -567,6 +651,8 @@
   </div>
 
   <div id="voice-bar" class="idle"><div id="voice-track"><div id="voice-fill"></div></div><span id="voice-text"></span></div>
+
+  <p id="legal">Unofficial fan project. The author claims no rights to the game: Gothic and Gothic II, including all game assets, characters, names, music and trademarks, belong to Piranha Bytes and their respective rights holders (THQ Nordic / Embracer Group). Not affiliated with or endorsed by the rights holders.<br>Based on&nbsp;<a href="https://github.com/Try/OpenGothic" target="_blank" rel="noopener" style="color:inherit">OpenGothic</a>&nbsp;and the Tempest engine, Copyright &copy; 2018-2019 Try, MIT License; web port by the developer below. Also uses ZenKit, Bullet, Opus, miniz, TinySoundFont and dmusic under their own licenses.<br>Contact the developer:&nbsp;<a href="mailto:ivanpro8411@proton.me" style="color:inherit">ivanpro8411@proton.me</a></p>
 
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
        unpacks ZIP archives into the OPFS game directory. Kept as text and
@@ -1060,17 +1146,32 @@ async function installChunks(m) {
   const total = man.chunks.reduce((a, c) => a + c.size, 0);
   let have = man.chunks.reduce((a, c) => a + (done.has(c.name) ? c.size : 0), 0);
   let lastPost = 0;
+  const active = new Set();   // chunks being downloaded now
+  // the files in them: what the status line shows
+  function activeFiles() {
+    const names = [];
+    for (const ci of active)
+      for (const p of pieces[ci]) {
+        const path = man.files[p.file].path;
+        if (!names.includes(path)) names.push(path);
+      }
+    return names.length > 3 ? names.slice(0, 3).join(', ') + ' +' + (names.length - 3) + ' more' : names.join(', ');
+  }
   function count(n) {
     have += n;
     const now = performance.now();
     if (now - lastPost > 200) {
       lastPost = now;
-      progress({ phase: 'download', done: have, total });
+      progress({ phase: 'download', done: have, total, files: activeFiles() });
     }
   }
 
   async function installChunk(ci) {
     const c = man.chunks[ci];
+    active.add(ci);
+    try { return await installChunk1(ci, c); } finally { active.delete(ci); }
+  }
+  async function installChunk1(ci, c) {
     // next to the manifest, in the mirror folders of the pack, then the
     // chunk's own links (tools/mirrorhost_mirror.py)
     const urls = [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
@@ -1143,6 +1244,10 @@ async function installChunks(m) {
     const statusText = document.getElementById('status-text');
     const progressBar = document.getElementById('progress-bar');
     const progressContainer = document.getElementById('progress-container');
+    const statusDetail = document.getElementById('status-detail');
+    const statusSpin = document.getElementById('status-spin');
+    const bootStatus = document.getElementById('boot-status');
+    const bootStatusText = document.getElementById('boot-status-text');
     const uiOverlay = document.getElementById('ui-overlay');
     const player = document.getElementById('player');
     const canvas = document.getElementById('canvas');
@@ -1238,6 +1343,7 @@ async function installChunks(m) {
       // screen); a page that cannot start the game keeps it
       const bootBg = document.getElementById('boot-bg');
       const hideBootBg = () => {
+        bootStatus.style.display = 'none';
         bootBg.classList.add('gone');
         setTimeout(() => bootBg.remove(), 900);
       };
@@ -1661,9 +1767,10 @@ async function installChunks(m) {
         Up: ['ArrowUp', 'ArrowUp', 38], Down: ['ArrowDown', 'ArrowDown', 40],
         Left: ['ArrowLeft', 'ArrowLeft', 37], Right: ['ArrowRight', 'ArrowRight', 39],
         W: ['w', 'KeyW', 87], S: ['s', 'KeyS', 83], A: ['a', 'KeyA', 65], D: ['d', 'KeyD', 68],
+        Q: ['q', 'KeyQ', 81], E: ['e', 'KeyE', 69],
         '1': ['1', 'Digit1', 49], '2': ['2', 'Digit2', 50], '3': ['3', 'Digit3', 51], '4': ['4', 'Digit4', 52], '5': ['5', 'Digit5', 53],
         '6': ['6', 'Digit6', 54], '7': ['7', 'Digit7', 55], '8': ['8', 'Digit8', 56], '9': ['9', 'Digit9', 57], '0': ['0', 'Digit0', 48],
-        Shift: ['Shift', 'ShiftLeft', 16], Ctrl: ['Control', 'ControlLeft', 17], Space: [' ', 'Space', 32], Alt: ['Alt', 'AltLeft', 18],
+        Shift: ['Shift', 'ShiftLeft', 16], CapsLock: ['CapsLock', 'CapsLock', 20], Space: [' ', 'Space', 32], Alt: ['Alt', 'AltLeft', 18],
         End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], K: ['k', 'KeyK', 75], Tab: ['Tab', 'Tab', 9],
         N: ['n', 'KeyN', 78], B: ['b', 'KeyB', 66], M: ['m', 'KeyM', 77],
         Esc: ['Escape', 'Escape', 27], Enter: ['Enter', 'Enter', 13],
@@ -1671,7 +1778,7 @@ async function installChunks(m) {
       };
       const held = new Map(); // key -> press count
       // force: send a fresh key-down even if the key is already held (the
-      // stick holds W while a combo needs a new W press after Ctrl)
+      // stick holds W while a combo needs a new W press after Shift)
       function rawKey(k, down, repeat) {
         const [kk, code, kc] = KEYS[k];
         if (repeat && window.__touchDebug) console.log('[touch] repeat ' + k);
@@ -1704,10 +1811,10 @@ async function installChunks(m) {
       // positions are in cqmin from the screen edges, clear of the bar at the bottom
       const defs = [
         // world
-        ['action', 'Ctrl',  'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
+        ['action', 'Shift', 'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
-        ['block',  'Ctrl+S', '',     'right:28cqmin;bottom:24cqmin',           'world'],
+        ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
         ['inv',    'Tab',   'small', 'left:calc(50% + 31cqmin);bottom:2.5cqmin',                       'world'],
         ['stats',  'B',     'small', 'left:16cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
@@ -1740,7 +1847,7 @@ async function installChunks(m) {
         ['iDown',  'S',     '',      'left:17cqmin;bottom:6cqmin',             'inv'],
         ['iLeft',  'A',     '',      'left:4cqmin;bottom:18cqmin',             'inv'],
         ['iRight', 'D',     '',      'left:30cqmin;bottom:18cqmin',            'inv'],
-        ['use',    'Ctrl',  'big',   'right:4cqmin;bottom:10cqmin',            'inv'],
+        ['use',    'Shift', 'big',   'right:4cqmin;bottom:10cqmin',            'inv'],
         ['drop',   'Space', '',      'right:6cqmin;bottom:32cqmin',            'inv'],
         ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
         ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
@@ -1753,7 +1860,7 @@ async function installChunks(m) {
         toolsOpen = on;
         byId.tools.el.classList.toggle('active', on);
       }
-      // swipe directions of the strike button: the key Gothic reads after Ctrl
+      // swipe directions of the strike button: the key Gothic reads after Shift
       const STRIKE_KEY = { l: 'A', u: 'W', r: 'D' };
       function strikeFire(b, dir) {
         const st = b.strike;
@@ -1769,10 +1876,10 @@ async function installChunks(m) {
         el.style.cssText = pos;
         ui.appendChild(el);
         const b = { id, key: k, el, layouts: layouts.split(' '), label: '' };
-        // Gothic strikes and blocks with key combinations: Ctrl held, then a
+        // Gothic strikes and blocks with key combinations: Shift held, then a
         // direction (W strikes, S blocks). With a weapon out the action button
-        // strikes, so it presses Ctrl+W instead of Ctrl alone.
-        const keysOf = () => (b.id === 'action' && weaponOut) ? ['Ctrl', 'W'] : b.key.split('+');
+        // strikes, so it presses Shift+W instead of Shift alone.
+        const keysOf = () => (b.id === 'action' && weaponOut) ? ['Shift', 'W'] : b.key.split('+');
         const press = e => { e.preventDefault(); e.stopPropagation(); if (el.classList.contains('down')) return;
                              // buttons that act on the page or the engine instead of pressing a key
                              if (b.id === 'tools') { setTools(!toolsOpen); update(); return; }
@@ -1786,7 +1893,7 @@ async function installChunks(m) {
                              if (b.id === 'action' && strikeMode) {
                                // a tap strikes forward, a swipe left / up / right strikes that way
                                b.strike = { x: e.clientX, y: e.clientY, dir: null, key: null, timer: 0 };
-                               b.pressed = ['Ctrl']; key('Ctrl', true);
+                               b.pressed = ['Shift']; key('Shift', true);
                                return;
                              }
                              b.pressed = keysOf();
@@ -1797,7 +1904,7 @@ async function installChunks(m) {
                                  // let the game see the direction key before it goes up
                                  if (!b.strike.dir) strikeFire(b, 'u');
                                  const st = b.strike; b.strike = null; clearTimeout(st.timer);
-                                 setTimeout(() => { key(st.key, false); key('Ctrl', false); delete el.dataset.dir; }, 90);
+                                 setTimeout(() => { key(st.key, false); key('Shift', false); delete el.dataset.dir; }, 90);
                                  b.pressed = null;
                                  return;
                                }
@@ -1890,7 +1997,8 @@ async function installChunks(m) {
 
       // ---- movement stick (left part of the screen) and look (the rest)
       let stick = null; // {id, x, y}
-      const stickKeys = { W: false, S: false, A: false, D: false };
+      // left / right turn the hero (Q / E), forward / back are W / S
+      const stickKeys = { W: false, S: false, Q: false, E: false };
       function stickSet(k, on) { if (stickKeys[k] !== on) { stickKeys[k] = on; key(k, on); } }
       // the engine forgets the pressed keys when a dialog starts, a menu opens, the world loads ...:
       // while the stick is held its keys are sent again, like a keyboard repeats a held key
@@ -1898,7 +2006,7 @@ async function installChunks(m) {
         if (!stick) return;
         for (const k in stickKeys) if (stickKeys[k]) rawKey(k, true, true);
       }, 100);
-      // walk speed follows the stick: pulled a little - slow walk (Left Shift toggles it in the game),
+      // walk speed follows the stick: pulled a little - slow walk (Caps Lock toggles it in the game),
       // pulled further - the normal run; hysteresis keeps it from flickering at the border
       let wantSlow = false, lastShift = 0;
       function stickMove(dx, dy) {
@@ -1908,7 +2016,7 @@ async function installChunks(m) {
         stickEl.style.setProperty('--tx', dx * k + 'px');
         stickEl.style.setProperty('--ty', dy * k + 'px');
         stickSet('W', dy < -dead); stickSet('S', dy > dead);
-        stickSet('A', dx < -dead); stickSet('D', dx > dead);
+        stickSet('Q', dx < -dead); stickSet('E', dx > dead);
       }
       // resting place of the stick (shown in the world layout); a touch on the
       // left part of the screen moves it under the finger
@@ -2217,11 +2325,11 @@ async function installChunks(m) {
         const swim = !!(st & (1 << 8)), dive = !!(st & (1 << 9)), invMode = (st >> 20) & 7;
         const drawn = WEAPON_DRAWN[weapon];
         weaponOut = drawn;
-        // the game's walk mode is a toggle: press Shift when it is not what the stick asks for
+        // the game's walk mode is a toggle: press Caps Lock when it is not what the stick asks for
         if (layout === 'world' && engineSlow !== wantSlow && Date.now() - lastShift > 350) {
           lastShift = Date.now();
-          key('Shift', true, true);
-          setTimeout(() => key('Shift', false), 40);
+          key('CapsLock', true, true);
+          setTimeout(() => key('CapsLock', false), 40);
         }
         // the action button says what it will do now; with nothing in focus and
         // no weapon out there is nothing to do and it stays hidden
@@ -2275,6 +2383,195 @@ async function installChunks(m) {
       chk.addEventListener('click', e => e.stopPropagation());
       // the player changes size with the window, window mode and fullscreen
       new ResizeObserver(() => { if (!stick) stickHome(); }).observe(ui);
+      // ---- gamepad (standard mapping). It sends the same keys as the touch buttons and the keyboard, the
+      // layout comes from og_ui_state; the touch controls hide while a pad is in use and come back by a touch
+      // world: left stick walks (pulled a little - slow walk), right stick looks, A action (strike with a weapon
+      // out), RT strike to the side of the left stick, B jump, X weapon, Y block, LB/RB quick slots, LT inventory,
+      // L3 sneak, R3 camera, D-pad: up quests, down character, left map, right menu, Back quick save, Start quick load.
+      // menus, dialog and inventory: D-pad / left stick move, A confirm, B back, Start closes a menu
+      const gp = { pad: null, on: false, held: new Set(), rep: 0, repDir: '', slow: false, edge: [], look: [0, 0],
+                   st: 0, stAt: 0, layout: 'none', last: 0, slot: 0, strikeKey: null, stickKeys: { W: 0, S: 0, Q: 0, E: 0 },
+                   stickAt: 0, lastCaps: 0, block: [], aS: null, rS: null, id: '', dbg: [] };
+      const gpDown = (k, force) => { if (!gp.held.has(k)) { gp.held.add(k); key(k, true, force); } };
+      const gpUp = k => { if (gp.held.has(k)) { gp.held.delete(k); key(k, false); } };
+      const gpTap = k => { key(k, true, true); setTimeout(() => key(k, false), 60); };
+      function gpReleaseAll() {
+        for (const k of Array.from(gp.held)) gpUp(k);
+        for (const k in gp.stickKeys) gp.stickKeys[k] = 0;
+        gp.strikeKey = null; gp.repDir = '';
+      }
+      function gpSetActive(on) {
+        if (gp.on === on) return;
+        gp.on = on;
+        document.body.classList.toggle('gp-on', on);
+        if (on) { gpReleaseAll(); releaseAll(); }
+      }
+      window.addEventListener('gamepadconnected', e => { console.log('[gamepad] connected: ' + e.gamepad.id); });
+      window.addEventListener('gamepaddisconnected', () => { gpReleaseAll(); gpSetActive(false); gp.pad = null; });
+      // a touch gives the screen back to the touch controls
+      window.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') gpSetActive(false); }, true);
+      // quick slots (LB / RB): the next / previous weapon or spell that is set on the number keys 1..9,0, counted from the
+      // one in use; the list of the ten keys comes from the engine (og_quickslots, "a")
+      function gpSlot(dir) {
+        let a = [];
+        try { a = JSON.parse(Module.ccall('og_quickslots', 'string', [], [])).a || []; } catch (e) { return; }
+        const n = a.length;
+        if (!n) return;
+        let cur = a.findIndex(s => s[2]);
+        if (cur < 0) cur = gp.slot < n ? gp.slot : 0;
+        for (let i = 1; i <= n; i++) {
+          const j = ((cur + dir * i) % n + n) % n;
+          if (!a[j][1]) continue;
+          if (j === cur) return;
+          gp.slot = j;
+          gpTap(String(a[j][0]));
+          tq.first = j; tq.hold = performance.now() + 600;
+          return;
+        }
+      }
+      const GP_DEAD = 0.25;
+      function gpPoll() {
+        requestAnimationFrame(gpPoll);
+        const now = performance.now(), dt = Math.min(0.1, (now - gp.last) / 1000 || 0.016);
+        gp.last = now;
+        let pad = null;
+        const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+        for (const p of pads) if (p && p.connected && p.buttons.length >= 10) { pad = p; break; }
+        if (pad && gp.id !== pad.id) { gp.id = pad.id; console.log('[gamepad] using ' + pad.id + ', mapping "' + pad.mapping + '", ' + pad.buttons.length + ' buttons, ' + pad.axes.length + ' axes'); }
+        if (!pad) { if (gp.pad) { gpReleaseAll(); gpSetActive(false); gp.pad = null; } return; }
+        gp.pad = pad;
+        // a button held through a layout change (A that ended a dialog) does nothing until it is released
+        // pads of the "Android gamepad" kind (15 buttons, 8 axes, no standard mapping) number the buttons differently:
+        // A B . X Y . LB RB LT RT Select Start Mode L3 R3, the D-pad is the hat on axes 6 and 7
+        const android = pad.mapping !== 'standard' && pad.buttons.length === 15 && pad.axes.length === 8;
+        const ANDROID = [0, 1, 3, 4, 6, 7, 8, 9, 10, 11, 13, 14];
+        const raw = i => {
+          if (!android) return !!(pad.buttons[i] && pad.buttons[i].pressed);
+          if (i < ANDROID.length) return !!pad.buttons[ANDROID[i]].pressed;
+          const h = i === 12 ? -pad.axes[7] : i === 13 ? pad.axes[7] : i === 14 ? -pad.axes[6] : i === 15 ? pad.axes[6] : 0;
+          return h > 0.5;
+        };
+        for (let i = 0; i < 17; i++) if (!raw(i)) gp.block[i] = false;
+        const b = i => raw(i) && !gp.block[i];
+        const ax = i => pad.axes[i] || 0;
+        const edge = i => { const v = b(i), r = v && !gp.edge[i]; gp.edge[i] = v; return r; };
+        const lx = ax(0), ly = ax(1), rx = ax(2), ry = ax(3);
+        const lmag = Math.hypot(lx, ly), rmag = Math.hypot(rx, ry);
+        const anyBtn = pad.buttons.some(x => x.pressed) || (android && (Math.abs(pad.axes[6]) > 0.5 || Math.abs(pad.axes[7]) > 0.5));
+        pad.buttons.forEach((x, i) => { if (x.pressed !== !!gp.dbg[i]) { gp.dbg[i] = x.pressed; if (x.pressed) console.log('[gamepad] button ' + i); } });
+        if (anyBtn || lmag > 0.5 || rmag > 0.5) gpSetActive(true);
+        if (!g_runtimeUp) { for (let i = 0; i < 17; i++) gp.edge[i] = b(i); return; }
+        if (now - gp.stAt > 60) {
+          gp.stAt = now;
+          try { gp.st = Module.ccall('og_ui_state', 'number', [], []); } catch (e) { gp.st = 0; }
+        }
+        const st = gp.st, layout = layoutOf(st);
+        if (layout !== gp.layout) {
+          gpReleaseAll(); gp.layout = layout;
+          for (let i = 0; i < 17; i++) { gp.block[i] = raw(i); gp.edge[i] = gp.edge[100 + i] = false; }
+          gp.aS = gp.rS = null;
+        }
+        // buttons that act only on a fresh press are read once per frame, so none is lost on a layout change
+        const A = b(0), B = b(1), X = b(2), Y = b(3), LB = edge(4), RB = edge(5), LT = b(6), RT = b(7);
+        const BACK = edge(8), START = edge(9), L3 = edge(10), R3 = edge(11);
+        const dUp = b(12), dDown = b(13), dLeft = b(14), dRight = b(15);
+        // edge of a held button: [index] -> down / up transitions
+        const was = i => !!gp.edge[100 + i];
+        const keep = (i, v) => { gp.edge[100 + i] = v; };
+        const hold = (i, v, keys) => {              // while the button is down, the keys are held
+          const w = was(i); keep(i, v);
+          if (v && !w) keys.forEach((k, n) => gpDown(k, n > 0));
+          else if (!v && w) keys.slice().reverse().forEach(gpUp);
+        };
+        const tapOn = (i, v, fn) => { const w = was(i); keep(i, v); if (v && !w) fn(); };
+
+        if (layout === 'world') {
+          const weapon = (st >> 12) & 7, drawn = WEAPON_DRAWN[weapon];
+          // walking: any tilt past the dead zone is the normal walk (the pad has no slow walk)
+          const dead = GP_DEAD, ok = lmag > dead;
+          const want = { W: ok && ly < -dead, S: ok && ly > dead, Q: ok && lx < -dead, E: ok && lx > dead };
+          for (const k in want) {
+            if (want[k]) { if (!gp.held.has(k)) gpDown(k); else if (now - gp.stickAt > 100) rawKey(k, true, true); }
+            else gpUp(k);
+          }
+          if (now - gp.stickAt > 100) gp.stickAt = now;
+          // look: radial dead zone, quadratic response, units like a mouse move in css pixels
+          if (rmag > 0.15 && g_runtimeUp) {
+            const k = (Math.min(1, (rmag - 0.15) / 0.85) ** 2) / rmag * 1500 * dt;
+            gp.look[0] += rx * k; gp.look[1] += ry * k;
+            const dx = Math.trunc(gp.look[0]), dy = Math.trunc(gp.look[1]);
+            if (dx || dy) {
+              gp.look[0] -= dx; gp.look[1] -= dy;
+              Module.ccall('og_input_look', null, ['number', 'number'], [dx, dy]);
+            }
+          } else gp.look = [0, 0];
+          // A: the action (Shift). With a weapon out A and RT strike: Shift, then W (forward) or A / D when the
+          // stick is pushed left / right. A stick that is still centered when the button goes down gets 100 ms to move
+          const side = () => ok && Math.abs(lx) > Math.abs(ly) * 1.2 ? (lx < 0 ? 'A' : 'D') : (ok && ly < -dead ? 'W' : '');
+          const strike = (i, v, slot) => {
+            const w = was(i); keep(i, v);
+            const s = gp[slot];
+            if (v && !w) { gp[slot] = { t: now, key: null }; gpDown('Shift'); }
+            else if (!v && w && s) {
+              if (!s.key) { s.key = side() || 'W'; gpDown(s.key, true); }
+              gp[slot] = null;
+              setTimeout(() => { gpUp(s.key); gpUp('Shift'); }, 90);
+            } else if (v && s && !s.key) {
+              const d = side();
+              if (d || now - s.t >= 100) { s.key = d || 'W'; gpDown(s.key, true); }
+            }
+          };
+          if (drawn) { strike(0, A, 'aS'); strike(7, RT, 'rS'); }
+          else { hold(0, A, ['Shift']); keep(7, RT); }
+          hold(1, B, ['Alt']);
+          hold(2, X, ['Space']);
+          hold(6, LT, drawn && weapon <= 3 ? ['Shift', 'S'] : []);
+          tapOn(3, Y, () => gpTap('Tab'));
+          if (LB) gpSlot(-1);
+          if (RB) gpSlot(1);
+          if (L3 && (st & (1 << 23))) gpTap('X'); // only when the hero has learned to sneak (the touch stick does the same)
+          if (R3) gpTap('F');
+          tapOn(12, dUp, () => gpTap('N'));
+          tapOn(13, dDown, () => gpTap('B'));
+          tapOn(14, dLeft, () => gpTap('M'));
+          tapOn(15, dRight, () => gpTap('Esc'));
+          if (BACK) Module.ccall('og_quick', null, ['number'], [1]);
+          if (START) Module.ccall('og_quick', null, ['number'], [2]);
+          return;
+        }
+        // everywhere else: the stick and the D-pad move, with a key repeat
+        for (const k of ['W', 'S', 'Q', 'E']) gpUp(k);
+        if (gp.look[0] || gp.look[1]) gp.look = [0, 0];
+        let dir = '';
+        const ah = Math.abs(lx), av = Math.abs(ly);
+        if (dUp || (lmag > 0.55 && ly < 0 && av >= ah)) dir = 'u';
+        else if (dDown || (lmag > 0.55 && ly > 0 && av >= ah)) dir = 'd';
+        else if (dLeft || (lmag > 0.55 && lx < 0)) dir = 'l';
+        else if (dRight || (lmag > 0.55 && lx > 0)) dir = 'r';
+        if (layout === 'choice') { if (dir === 'l' || dir === 'r') dir = ''; }
+        else if (layout !== 'menu' && layout !== 'inv') dir = '';
+        if (dir !== gp.repDir) { gp.repDir = dir; gp.rep = now + 400; if (dir) gpNav(layout, dir); }
+        else if (dir && now >= gp.rep) { gp.rep = now + 120; gpNav(layout, dir); }
+        const closing = layout === 'talk' || layout === 'cutscene' || layout === 'chapter';
+        if (layout === 'inv') {
+          hold(0, A, ['Shift']);
+          tapOn(2, X, () => gpTap('Space'));
+          tapOn(1, B, () => gpTap('Tab'));
+          tapOn(3, Y, () => gpTap('Tab'));
+          tapOn(6, LT, () => gpTap('Tab'));
+        } else {
+          // a dialog line is skipped by B only; A selects an answer
+          tapOn(0, A, () => { if (layout !== 'talk') gpTap(closing ? 'Esc' : 'Enter'); });
+          tapOn(1, B, () => gpTap('Esc'));
+          if (layout === 'menu' && START) gpTap('Esc');
+        }
+      }
+      function gpNav(layout, d) {
+        const arrows = { u: 'Up', d: 'Down', l: 'Left', r: 'Right' };
+        const wasd = { u: 'W', d: 'S', l: 'A', r: 'D' };
+        gpTap(layout === 'inv' ? wasd[d] : arrows[d]);
+      }
+      requestAnimationFrame(gpPoll);
       setInterval(update, 60);
       apply();
     })();
@@ -2309,8 +2606,12 @@ async function installChunks(m) {
       }
     });
 
-    function setStatus(msg, pct) {
+    // opt: { detail: second line (file names), spin: a spinning wheel for a step without a percentage }
+    function setStatus(msg, pct, opt) {
       statusText.innerText = msg;
+      statusDetail.textContent = (opt && opt.detail) || '';
+      statusSpin.style.display = opt && opt.spin ? 'block' : 'none';
+      if (opt && opt.spin && pct === undefined) progressContainer.style.display = 'none';   // the wheel replaces the bar
       if (pct !== undefined) {
         progressContainer.style.display = 'block';
         progressBar.style.width = pct + '%';
@@ -3002,8 +3303,9 @@ function serveLoop() {
         g_langIndex = await loadLangIndex();
         await applyLinkLanguages();
         await initGameSelect();
-        if (g_langIndex) await adoptLiveVoice();
-        if (g_langIndex) await initLangBar();
+        // a failure of either must not hide the language selects or stop the game from starting
+        if (g_langIndex) { try { await adoptLiveVoice(); } catch (e) { console.warn('adoptLiveVoice error:', e); } }
+        if (g_langIndex) { try { await initLangBar(); } catch (e) { console.warn('initLangBar error:', e); } }
         // Apply on the language bar: install the chosen packs instead of mounting
         const applyLang = !!g_langIndex && lsGet(LANG_APPLY) === '1';
         lsSet(LANG_APPLY, null);
@@ -3052,7 +3354,7 @@ function serveLoop() {
       // (and persisted on close), the bridge only holds read-only game files
       const listing = all.filter(f => !isPersistedPath(f.path));
       const totalBytes = listing.reduce((a, f) => a + f.size, 0);
-      setStatus('Preparing...');
+      setStatus('Preparing game files...', undefined, { spin: true });
 
       // Build the registry (directories inferred from paths)
       GameFS.rootEntry = { path: '', isDir: true, size: 0, node: null };
@@ -3092,7 +3394,7 @@ function serveLoop() {
       retryBtn.style.display = 'none';
       progressContainer.style.display = 'none';
       statusText.style.color = '';
-      setStatus('Starting...');
+      setStatus('Starting the engine...', undefined, { spin: true });
       clearBtn.style.display = 'inline-flex';
       g_gameReady = true;
       return true;
@@ -3151,7 +3453,8 @@ function serveLoop() {
       return (h ? h + ':' + String(m).padStart(2, '0') : m) + ':' + String(s).padStart(2, '0');
     }
 
-    function makeProgressReporter() {
+    // fileName: the single archive being downloaded (a chunked pack names its files itself)
+    function makeProgressReporter(fileName) {
       let t0 = 0, b0 = 0, speed = 0;
       return (m) => {
         const pct = m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0;
@@ -3163,14 +3466,19 @@ function serveLoop() {
             speed = speed ? speed * 0.7 + s * 0.3 : s;
             t0 = now; b0 = m.done;
           }
-          let msg = 'Downloading: ' + mb(m.done) + ' / ' + (m.total ? mb(m.total) : '?') + ' MB';
+          // everything is downloaded: what the page does now is told by the next step, not by "0:00 left"
+          if (m.total && m.done >= m.total) {
+            setStatus('Download complete: ' + mb(m.total) + ' MB', 100, { detail: 'Writing the last files...', spin: true });
+            return;
+          }
+          let msg = 'Downloading ' + mb(m.done) + ' / ' + (m.total ? mb(m.total) : '?') + ' MB';
           if (speed > 0)
-            msg += ' · ' + (speed / 1048576).toFixed(1) + ' MB/s · ' + fmtTime((m.total - m.done) / speed);
-          setStatus(msg, pct);
+            msg += ' · ' + (speed / 1048576).toFixed(1) + ' MB/s · ' + fmtTime((m.total - m.done) / speed) + ' left';
+          setStatus(msg, pct, { detail: m.files || fileName || '' });
         } else if (m.phase === 'retry') {
           setStatus('Network error, retry ' + m.attempt + '/' + m.max);
         } else if (m.phase === 'extract') {
-          setStatus('Unpacking: ' + m.index + ' / ' + m.count + ' (' + pct + '%)', pct);
+          setStatus('Unpacking files: ' + m.index + ' / ' + m.count + ' (' + pct + '%)', pct, { detail: m.name || '' });
         }
       };
     }
@@ -3240,7 +3548,7 @@ function serveLoop() {
         await removeRootEntry(DL_ZIP);
         state = null;
       }
-      const report = makeProgressReporter();
+      const report = makeProgressReporter(decodeURIComponent(new URL(url).pathname.split('/').pop() || ''));
       try {
         // a link to manifest.json is a chunked pack (tools/pack_web.py): chunks
         // are unpacked while the next ones download
@@ -3251,7 +3559,7 @@ function serveLoop() {
         }
         const dl = await runInstallWorker({ type: 'download', url, zipName: DL_ZIP, stateName: DL_STATE,
                                             expectTotal: state ? state.total : 0 }, report);
-        setStatus('Checking...', 0);
+        setStatus('Checking the archive...', 0, { spin: true });
         const res = await runInstallWorker({ type: 'extract', zipName: DL_ZIP, deleteZip: true }, report);
         await finishInstall({ source: url, archiveBytes: dl.total }, res);
       } catch (err) {
@@ -3294,13 +3602,47 @@ function serveLoop() {
       }
     }
 
-    // the choice made on the bar; first start: Russian when the server has it
+    // language code -> ISO 3166 country codes where it is the language of the people
+    const LANG_OF_COUNTRY = {
+      ru: ['RU', 'BY', 'KZ', 'KG'],
+      de: ['DE', 'AT', 'LI'],
+      fr: ['FR', 'MC'],
+      it: ['IT', 'SM', 'VA'],
+      pl: ['PL'],
+      cs: ['CZ'],
+      es: ['ES', 'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'GT', 'CU', 'BO', 'DO', 'HN', 'PY', 'SV', 'NI', 'CR', 'PA', 'UY', 'PR'],
+      en: ['GB', 'US', 'AU', 'CA', 'NZ', 'IE'],
+    };
+    // the visitor's languages in order of preference: the browser / system languages
+    // (navigator.languages), then the language of the country of the locale's region
+    // (navigator.language, e.g. ru-BY -> ru), then English
+    function visitorLanguages() {
+      const tags = navigator.languages && navigator.languages.length ? navigator.languages : [navigator.language || 'en'];
+      const out = [];
+      const add = code => { if (code && !out.includes(code)) out.push(code); };
+      for (const tag of tags) add(tag.split('-')[0].toLowerCase());
+      const region = (navigator.language || '').split('-').slice(1).find(p => /^[a-z]{2}$/i.test(p));
+      if (region) {
+        for (const code of Object.keys(LANG_OF_COUNTRY))
+          if (LANG_OF_COUNTRY[code].includes(region.toUpperCase())) add(code);
+      }
+      add('en');
+      return out;
+    }
+
+    // the choice made on the bar; first start: the first of the visitor's languages that has a pack
+    // (no voice-over for them: the next one, English at the end)
     function langSelection() {
       let s = null;
       try { s = JSON.parse(lsGet(LANG_SEL)); } catch (e) {}
       const text = g_langIndex.languages.filter(l => l.text);
       const voice = g_langIndex.languages.filter(l => l.voice);
-      const pick = (list, id) => (list.find(l => l.id === id) || list.find(l => l.id === 'ru') || list[0] || {}).id;
+      const prefs = visitorLanguages();
+      const pick = (list, id) => {
+        const hit = list.find(l => l.id === id) ||
+                    prefs.map(c => list.find(l => l.id === c)).find(Boolean);
+        return (hit || list[0] || {}).id;
+      };
       return { text: pick(text, s && s.text), voice: pick(voice, s && s.voice) };
     }
 
@@ -3369,32 +3711,74 @@ function serveLoop() {
       };
       fill(document.getElementById('lang-text'), 'text', sel.text);
       fill(document.getElementById('lang-voice'), 'voice', sel.voice);
-      document.getElementById('lang-note').textContent = st ? '' : 'game installed without language packs';
       document.getElementById('lang-text-label').hidden = false;
       document.getElementById('lang-voice-label').hidden = false;
-      document.getElementById('lang-apply').style.display = '';
       document.getElementById('lang-bar').hidden = false;
       document.body.classList.add('has-lang');
     }
 
-    async function applyLanguages() {
-      const sel = { text: document.getElementById('lang-text').value, voice: document.getElementById('lang-voice').value };
-      const st = await readRootJson(LANG_STATE);
-      const note = document.getElementById('lang-note');
-      if (st && st.text === sel.text && st.voice === sel.voice) {
-        note.textContent = 'this choice is already installed';
-        return;
+    // The choice on the bar is applied at once; what cannot be done right now (a dialog, a cutscene or a
+    // video is running: the text change reloads the game) waits and is done when it can be.
+    let g_langWant = null;
+    let g_langPump = false;
+
+    function setLangBusy(on) {
+      document.getElementById('lang-text').disabled = on;
+      document.getElementById('lang-voice').disabled = on;
+    }
+
+    function languagesChosen() {
+      g_langWant = { text: document.getElementById('lang-text').value, voice: document.getElementById('lang-voice').value };
+      pumpLanguages();
+    }
+    setInterval(() => { if (g_langWant) pumpLanguages(); }, 1000);
+
+    async function pumpLanguages() {
+      if (g_langPump || g_liveBusy || !g_langWant) return;
+      g_langPump = true;
+      try {
+        const sel = g_langWant;
+        const st = await readRootJson(LANG_STATE);
+        const note = document.getElementById('lang-note');
+        let roomShort = false;
+        // the text language of a running game may differ from the installed files (changed live)
+        const curText = st && (st.liveText || st.text);
+        if (st && curText === sel.text && st.voice === sel.voice) {
+          g_langWant = null;
+          note.textContent = '';
+          return;
+        }
+        if (g_gameReady && st) {
+          const L = id => g_langIndex.languages.find(l => l.id === id);
+          const t = L(sel.text), v = L(sel.voice);
+          const textChanged = curText !== sel.text, voiceChanged = st.voice !== sel.voice;
+          if ((!textChanged || (t && t.text)) && (!voiceChanged || (v && v.voice))) {
+            // The new packs are written next to the old files, which the running game holds: that has to fit
+            // (SAVE_RESERVE stays free for savegames). If it does not, the game restarts and the previous
+            // language is removed before the next one is installed.
+            const need = (textChanged ? sumSizes(await packFiles(t.text)) : 0) + (voiceChanged ? sumSizes(await packFiles(v.voice)) : 0);
+            if (await storageFree() - SAVE_RESERVE >= need) {
+              // text and voice change in a running game without a restart: the text pack is mounted and
+              // the game is loaded again from memory, the voice pack is mounted over the old archives
+              const r = await swapLanguagesLive(textChanged ? t : null, voiceChanged ? v : null, sel);
+              if (r !== 'blocked') g_langWant = null;
+              return;
+            }
+            roomShort = true;
+          }
+        }
+        g_langWant = null;
+        if (g_gameReady && !confirm((roomShort ? 'There is not enough browser storage to keep two languages at once: the previous one is removed first. ' : '') +
+                                    'The game restarts to change the language. Unsaved progress is lost. Continue?')) {
+          await initLangBar();
+          return;
+        }
+        lsSet(LANG_SEL, JSON.stringify(sel));
+        lsSet(LANG_APPLY, '1');
+        location.reload();
+      } finally {
+        g_langPump = false;
       }
-      // only the voice changes in a running game: it is swapped without a restart
-      if (g_gameReady && st && st.text === sel.text) {
-        const v = g_langIndex.languages.find(l => l.id === sel.voice);
-        if (v && v.voice) { swapVoiceLive(v); return; }
-      }
-      if (g_gameReady && !confirm('The game restarts to change the language. Unsaved progress is lost. Continue?'))
-        return;
-      lsSet(LANG_SEL, JSON.stringify(sel));
-      lsSet(LANG_APPLY, '1');
-      location.reload();
     }
 
     // removeEntry that waits while the previous page (before a reload) still holds the file
@@ -3481,8 +3865,7 @@ function serveLoop() {
       if (g_liveBusy) return;
       g_liveBusy = true;
       const note = document.getElementById('lang-note');
-      const applyBtn = document.getElementById('lang-apply');
-      applyBtn.disabled = true;
+      setLangBusy(true);
       note.textContent = '';
       try {
         const url = new URL(voice.voice.path, g_langBase).href;
@@ -3539,9 +3922,140 @@ function serveLoop() {
         console.error('voice change failed:', err);
         voiceBar('Voice change failed: ' + String(err && err.message || err), 0);
       } finally {
-        applyBtn.disabled = false;
+        setLangBusy(false);
         g_liveBusy = false;
       }
+    }
+
+    // --------------------- text language in a running game ---------------------
+    // The text pack (scripts, dialogue lines, fonts, localized textures) is downloaded into its own OPFS
+    // folder, its files are handed to the engine from memory and mounted over the loaded ones; then the
+    // engine saves the game to memory and loads it again: the scripts are read when a game is loaded,
+    // symbol indices of the save are mapped to the new scripts by name. The next start installs the
+    // pack into the game folder (the choice is left as "apply" for it).
+    const LIVE_TEXT_DIR = 'gothic-text' + GAME_SUF + '-';
+    const LIVE_TEXT_STATE = 'gothic-text-live' + GAME_SUF + '-';
+    let g_textPrepared = false;
+    // dialog 2, document 5, video 6, cutscene 7, loading 10, chapter screen 25
+    const TEXT_SWITCH_BLOCKED = (1 << 2) | (1 << 5) | (1 << 6) | (1 << 7) | (1 << 10) | (1 << 25);
+
+    // a file held in memory under the game folder (not persisted): the engine reads it like any file
+    function addMemFile(path, bytes) {
+      const parts = path.split('/'); parts.pop();
+      let cur = '';
+      for (const p of parts) { cur = cur ? cur + '/' + p : p; GameFS.addEntry(cur, true); }
+      const e = GameFS.addEntry(path, false, bytes.length);
+      e.mem = bytes;
+      e.dirty = false;
+      e.hIdx = -1;
+      return e;
+    }
+    function dropMemFiles(base) {
+      const pref = GameFS.lower(base);
+      for (const k of [...GameFS.files.keys()])
+        if (k === pref || k.startsWith(pref + '/')) GameFS.files.delete(k);
+    }
+
+    // true when the new text is in the running game, 'blocked' when it cannot be done right now
+    async function swapTextLive(text) {
+      if (g_liveBusy) return 'blocked';
+      const note = document.getElementById('lang-note');
+      let ui = 0;
+      try { ui = Module.ccall('og_ui_state', 'number', [], []); } catch (e) {}
+      if (ui & TEXT_SWITCH_BLOCKED) {
+        note.textContent = 'text language: waiting for the dialog, cutscene or video to end';
+        return 'blocked';
+      }
+      g_liveBusy = true;
+      setLangBusy(true);
+      note.textContent = '';
+      const dirName = LIVE_TEXT_DIR + text.id;
+      const stateName = LIVE_TEXT_STATE + text.id + '.json';
+      const base = 'textlive' + (++g_liveSeq);
+      try {
+        const url = new URL(text.text.path, g_langBase).href;
+        const man = await (await fetch(url, { cache: 'no-store' })).json();
+        voiceBar('Text ' + text.name + ': connecting...', 0);
+        await runInstallWorker({ type: 'chunks', urls: [url], stateName, gameDirName: dirName }, (m) => {
+          if (m.phase === 'download')
+            voiceBar('Text ' + text.name + ': ' + mb(m.done) + ' / ' + mb(m.total) + ' MB',
+                     m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0);
+          else if (m.phase === 'retry')
+            voiceBar('Text ' + text.name + ': network error, retry ' + m.attempt + '/' + m.max, 0);
+        });
+
+        voiceBar('Text ' + text.name + ': applying...', 100);
+        const root = await navigator.storage.getDirectory();
+        const tdir = await root.getDirectoryHandle(dirName);
+        const archives = [];
+        let hasWork = false;
+        for (const f of man.files) {
+          if (!shouldImport(f.path)) continue;
+          const parts = f.path.split('/');
+          const name = parts.pop();
+          let d = tdir;
+          for (const seg of parts) d = await d.getDirectoryHandle(seg);
+          const bytes = new Uint8Array(await (await (await d.getFileHandle(name)).getFile()).arrayBuffer());
+          addMemFile(base + '/' + f.path, bytes);
+          if (/^_work\//i.test(f.path)) hasWork = true;
+          else if (/^data\/[^/]+\.vdf$/i.test(f.path))
+            // the time stamp of the archive (bytes 280..283 of a VDF): it decides, like at the start of the game,
+            // which archive wins a file that two of them hold (Fonts_Russian over Textures_Fonts_Apostroph)
+            archives.push({ path: f.path, ts: bytes.length >= 296 ? new DataView(bytes.buffer, bytes.byteOffset).getUint32(280, true) : 0 });
+        }
+        // the archives of the language the game started with: what they replaced is put back later
+        if (!g_textPrepared) {
+          const st0 = await readRootJson(LANG_STATE);
+          for (const p of (st0 && st0.files && st0.files.text) || [])
+            if (/^data\/[^/]+\.vdf$/i.test(p)) Module.ccall('og_text_mount', 'number', ['string', 'number'], [GAME_ROOT + '/' + p, 2]);
+          g_textPrepared = true;
+        }
+        let ok = true;
+        // the engine mounts every archive over the earlier ones: the oldest first, the newest last
+        archives.sort((a, b) => a.ts - b.ts || (a.path < b.path ? -1 : 1));
+        for (const a of archives)
+          ok = Module.ccall('og_text_mount', 'number', ['string', 'number'], [GAME_ROOT + '/' + base + '/' + a.path, 1]) === 1 && ok;
+        if (hasWork)
+          ok = Module.ccall('og_text_mount', 'number', ['string', 'number'], [GAME_ROOT + '/' + base, 0]) === 1 && ok;
+        // the engine keeps its own copy of what it mounted
+        dropMemFiles(base);
+        if (!ok) throw new Error('the engine could not mount the text files');
+        const r = Module.ccall('og_text_apply', 'number', [], []);
+        if (!r) throw new Error('the game cannot be reloaded now (dialog, cutscene or loading)');
+
+        // the game folder still holds the old files: the next start installs this language
+        const st = await readRootJson(LANG_STATE);
+        st.liveText = text.id;
+        await writeRootJson(LANG_STATE, st);
+        voiceBar('Text ' + text.name + ': ready', 100);
+        note.textContent = 'text changed to ' + text.name;
+        setTimeout(() => voiceBar(null), 4000);
+        return true;
+      } catch (err) {
+        console.error('text change failed:', err);
+        dropMemFiles(base);
+        voiceBar('Text change failed: ' + String(err && err.message || err), 0);
+        return false;
+      } finally {
+        removeRootEntry(dirName).catch(() => {});
+        removeRootEntry(stateName).catch(() => {});
+        setLangBusy(false);
+        g_liveBusy = false;
+      }
+    }
+
+    async function swapLanguagesLive(text, voice, sel) {
+      if (text) {
+        const r = await swapTextLive(text);
+        if (r !== true) return r === 'blocked' ? 'blocked' : 'failed';
+      }
+      if (voice) await swapVoiceLive(voice);
+      if (text) {
+        // the next start installs the text pack of this choice into the game folder
+        lsSet(LANG_SEL, JSON.stringify(sel));
+        lsSet(LANG_APPLY, '1');
+      }
+      return 'done';
     }
 
     async function removeGamePath(dir, path) {
@@ -3844,8 +4358,8 @@ function serveLoop() {
         doneBytes += f.size;
         idx++;
         if ((idx & 7) === 0 || idx === listing.length) {
-          setStatus('Downloading: ' + (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' MB',
-                    Math.round((doneBytes / Math.max(1, totalBytes)) * 100));
+          setStatus('Loading game files into memory: ' + (doneBytes / 1048576).toFixed(0) + ' / ' + (totalBytes / 1048576).toFixed(0) + ' MB',
+                    Math.round((doneBytes / Math.max(1, totalBytes)) * 100), { detail: f.path });
           await new Promise(r => setTimeout(r, 0));
         }
       }
@@ -3962,8 +4476,8 @@ function serveLoop() {
             const e = GameFS.files.get(GameFS.lower(f.rel));
             e.mem = new Uint8Array(await f.file.arrayBuffer());
             done += f.file.size;
-            setStatus('Downloading: ' + (done / 1048576).toFixed(0) + ' / ' + (total / 1048576).toFixed(0) + ' MB',
-                      Math.round(done / Math.max(1, total) * 100));
+            setStatus('Loading game files into memory: ' + (done / 1048576).toFixed(0) + ' / ' + (total / 1048576).toFixed(0) + ' MB',
+                      Math.round(done / Math.max(1, total) * 100), { detail: f.rel });
           }
         }
 
@@ -3978,7 +4492,7 @@ function serveLoop() {
         Module.FS.mkdir(GAME_ROOT);
         Module.FS.mount(GameFS, {}, GAME_ROOT);
         progressContainer.style.display = 'none';
-        setStatus('Starting...');
+        setStatus('Starting the engine...', undefined, { spin: true });
         g_gameReady = true;
         startGame();
       } catch (err) {
@@ -4225,6 +4739,7 @@ function serveLoop() {
     }
 
     let g_started = false;
+    const bootBg_isUp = () => !!document.getElementById('boot-bg');   // gone once the engine has drawn its first frames
     async function startGame() {
       if (isolationBlocked()) return;
       if (g_started) return;
@@ -4232,6 +4747,7 @@ function serveLoop() {
       uiOverlay.classList.add('hidden');
       player.classList.add('playing');
       canvas.focus();
+      if (bootBg_isUp()) { bootStatusText.textContent = 'Starting the engine...'; bootStatus.style.display = 'flex'; }
       console.log("Starting OpenGothic engine...");
       try {
         if (!Module.preinitializedWebGPUDevice)
@@ -4247,11 +4763,14 @@ function serveLoop() {
         const ret = Module.callMain(args);
         window.__callMainReturned = { ret: ret, t: Date.now() };
         console.log("[SHELL] callMain returned ret=" + ret);
+        bootStatusText.textContent = 'Loading the game world...';
       } catch (err) {
         window.__startErr = (err && err.stack) ? err.stack : String(err);
         console.error("Engine execution error:", err);
         uiOverlay.classList.remove('hidden');
         player.classList.remove('playing');
+        bootStatus.style.display = 'none';
+        statusSpin.style.display = 'none';
         statusText.style.color = 'var(--danger)';
         window.__ogFatal = true;
         if (err && err.html) statusText.innerHTML = err.html; else statusText.innerText = "Error: " + err;

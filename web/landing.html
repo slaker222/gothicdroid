@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
+  <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser">
+  <meta property="og:description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. A build of OpenGothic for the browser. Unofficial fan project.">
+  <style>
+    :root {
+      --bg: #151515;
+      --card: #1d1d1d;
+      --line: #3a3a3a;
+      --text: #ddd;
+      --dim: #999;
+      --accent: #fff;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { background: var(--bg); }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: var(--bg);
+      color: var(--text);
+      font: 15px/1.5 -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    }
+    header { text-align: center; padding: 40px 16px 8px; max-width: 760px; }
+    h1 { font-size: 30px; font-weight: 600; color: var(--accent); margin-bottom: 10px; }
+    header p { color: var(--dim); }
+    h2 { font-size: 14px; font-weight: 500; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin: 28px 16px 14px; text-align: center; }
+    .games {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      width: 100%;
+      max-width: 980px;
+      padding: 0 16px;
+    }
+    .game {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      overflow: hidden;
+      color: inherit;
+      text-decoration: none;
+      transition: border-color .15s, transform .15s;
+    }
+    .game:hover, .game:focus-visible { border-color: var(--accent); transform: translateY(-2px); outline: none; }
+    .game .pic {
+      aspect-ratio: 21 / 9;
+      background-size: cover;
+      background-position: center 35%;
+      background-color: #000;
+    }
+    .game .body { padding: 14px 16px 18px; }
+    .game h3 { font-size: 20px; font-weight: 600; color: var(--accent); margin-bottom: 4px; }
+    .game p { color: var(--dim); font-size: 14px; margin-bottom: 16px; }
+    .game .play {
+      display: inline-block;
+      padding: 8px 22px;
+      border: 1px solid var(--accent);
+      border-radius: 6px;
+      color: var(--accent);
+      font-weight: 500;
+    }
+    .game.soon { cursor: default; }
+    .game.soon:hover { border-color: var(--line); transform: none; }
+    .game.soon .play { border-color: var(--line); color: var(--dim); }
+    .game:not(.soon):hover .play, .game:not(.soon):focus-visible .play { background: var(--accent); color: #111; }
+    footer {
+      margin-top: auto;
+      padding: 40px 16px 24px;
+      max-width: 900px;
+      text-align: center;
+      font-size: 11px;
+      line-height: 1.5;
+      color: var(--dim);
+    }
+    footer a { color: inherit; }
+    /* wide screens: picture on the left, text on the right */
+    @media (min-width: 760px) {
+      .game { flex-direction: row; }
+      .game .pic { flex: 0 0 56%; aspect-ratio: 16 / 9; }
+      .game .body { flex: 1; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; padding: 20px 28px; }
+      .game h3 { font-size: 24px; }
+      .game p { font-size: 15px; }
+    }
+    @media (max-width: 700px) {
+      header { padding-top: 24px; }
+      h1 { font-size: 24px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>OpenGothic Web</h1>
+    <p>Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser.</p>
+  </header>
+
+  <main class="games">
+    <a class="game" href="game.html?game=1">
+      <div class="pic" style="background-image:url(img/g1.png);background-position:center 25%"></div>
+      <div class="body">
+        <h3>Gothic 1</h3>
+        <p>Action RPG from 2001. You are a prisoner thrown into the penal colony of the Valley of Mines, which is sealed off by a magical Barrier. Join one of the three Camps (the Old Camp, the New Camp or the Brotherhood of the Sect) and look for a way to break the Barrier.</p>
+        <span class="play">Play</span>
+      </div>
+    </a>
+    <a class="game" href="game.html?game=2">
+      <div class="pic" style="background-image:url(img/g2.png);background-position:center 80%"></div>
+      <div class="body">
+        <h3>Gothic 2</h3>
+        <p>The 2002 sequel. The hero wakes up after the Barrier has fallen, on the island of Khorinis, where orcs and dragons threaten the land. Explore the city, the farms and the Valley of Mines, join the Militia, the Mercenaries or the Mages, and prepare for the final battle.</p>
+        <span class="play">Play</span>
+      </div>
+    </a>
+    <div class="game soon">
+      <div class="pic" style="background-image:url(img/myrtana.jpg);background-position:center 12%"></div>
+      <div class="body">
+        <h3>The Chronicles of Myrtana: Archolos</h3>
+        <p>You play Marvin, a young man who flees a coming war and arrives with his brother on the island of Archolos, which is said to be a safe place. It turns out to be far from safe. Rich merchants, the enforcers of King Rhobar II and crowds of refugees share the island. The game offers a new open world, over 170 quests with several ways to finish them and more than 60 hours of play.</p>
+        <span class="play">Coming soon</span>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    Unofficial fan project. The author claims no rights to the game: Gothic and Gothic II, including all game assets, characters, names, music and trademarks, belong to Piranha Bytes and their respective rights holders (THQ Nordic / Embracer Group). Not affiliated with or endorsed by the rights holders.<br>
+    Based on&nbsp;<a href="https://github.com/Try/OpenGothic" target="_blank" rel="noopener">OpenGothic</a>&nbsp;and the Tempest engine, Copyright &copy; 2018-2019 Try, MIT License; web port by the developer below. The Chronicles of Myrtana: Archolos belongs to its authors. Also uses ZenKit, Bullet, Opus, miniz, TinySoundFont and dmusic under their own licenses.<br>
+    Contact the developer:&nbsp;<a href="mailto:ivanpro8411@proton.me">ivanpro8411@proton.me</a>
+  </footer>
+
+  <script>
+    // Old links to the game page (?game=2&text=ru, #g2/ru/en, ?archive=..., ?nomenu ...) lead to the game itself
+    if (location.search || location.hash.length > 1) location.replace('game.html' + location.search + location.hash);
+  </script>
+</body>
+</html>
