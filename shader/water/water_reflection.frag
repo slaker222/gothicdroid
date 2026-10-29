@@ -42,6 +42,10 @@ float intersectFrustum(const vec3 pos, const vec3 dir) {
   return ret;
   }
 
+// the sky LUT radiance is far dimmer than the sky seen on screen (fog adds the rest), so
+// unscaled reflections leave distant water black
+const float WaterReflectionGain = 10.0;
+
 vec3 sunBloom(vec3 refl) {
   const float sunSolidAngle  = 0.53*M_PI/180.0;
   const float minSunCosTheta = cos(sunSolidAngle);
@@ -163,8 +167,9 @@ void main() {
 
   const vec3  view    = normalize(start - camPos);
         vec3  refl    = reflect(view, normal);
-  if(refl.y<0 && !underWater) {
-    refl.y = 0;
+  if(refl.y<0.15 && !underWater) {
+    // the sky LUT is dark right at the horizon: far water would reflect a black band
+    refl.y = 0.15;
     refl   = normalize(refl);
     }
 
@@ -182,7 +187,7 @@ void main() {
   vec3 r = reflection(scr.xyz/scr.w,start,refl,depth,sky) * WaterAlbedo * f;
   // vec3  r = reflection(scr,start,refl,depth,sky);
 
-  outColor = vec4(r, 0.0);
+  outColor = vec4(r*WaterReflectionGain, 0.0);
   //outColor = vec4(sky, 0.0);
   //outColor = vec4(normal, 0.0);
   }
