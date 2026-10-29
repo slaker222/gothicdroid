@@ -136,6 +136,9 @@ vec3 ssr(vec3 orig, vec3 start, vec3 refl, const float depth, vec3 sky) {
 
 #if defined(SSR)
 vec3 reflection(vec3 orig, vec3 start, vec3 refl, const float depth, vec3 sky) {
+  // from below the surface screen-space rays only smear the swimmer over the water
+  if(scene.underWater!=0)
+    return sky;
   return ssr(orig,start,refl,depth,sky);
   }
 #else

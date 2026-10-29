@@ -152,7 +152,17 @@ Gothic::Gothic() {
   defaults->set("SKY_OUTDOOR", "zMoonAlpha", 255);
 
   defaults->set("RENDERER_D3D", "zFogRadial", 1); // sunshafts
+#if defined(__EMSCRIPTEN__)
+  // screen-space reflections smear objects over the water in the browser; the sky is still reflected
+  defaults->set("ENGINE",       "zEnvMappingEnabled", 0); // reflections
+#else
+#if defined(__EMSCRIPTEN__)
+  // screen-space reflections smear objects over the water in the browser; the sky is still reflected
+  defaults->set("ENGINE",       "zEnvMappingEnabled", 0); // reflections
+#else
   defaults->set("ENGINE",       "zEnvMappingEnabled", 1); // reflections
+#endif
+#endif
   defaults->set("ENGINE",       "zCloudShadowScale", gpu.type==Tempest::DeviceType::Discrete); // ssao
   defaults->set("INTERNAL",     "vidResIndex", 0); // full-res
 
