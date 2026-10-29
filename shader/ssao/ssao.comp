@@ -183,6 +183,10 @@ void calcOcclussion(const vec3 at0, const vec3 pos0, const float f0, uint seed, 
     }
   }
 
+// set by reconstructNormal: the neighbours lie across a depth edge (object against sky or far
+// background), so the normal points into the surface and every sample would "hit" it
+bool depthEdge = false;
+
 vec3 reconstructNormal(const vec3 at0, in vec2 uv){
   vec2 uv0 = uv; // center
 
@@ -201,6 +205,14 @@ vec3 reconstructNormal(const vec3 at0, in vec2 uv){
 
   const vec3 bestHor  = bestL ? atL : atR;
   const vec3 bestVert = bestT ? atT : atB;
+
+  {
+  const float d0 = linearDepth(at0.z,      scene.clipInfo);
+  const float dH = linearDepth(bestHor.z,  scene.clipInfo);
+  const float dV = linearDepth(bestVert.z, scene.clipInfo);
+  depthEdge = (bestHor.z>=1.0 || bestVert.z>=1.0) ||
+              abs(dH-d0) > 0.15*d0 || abs(dV-d0) > 0.15*d0;
+  }
 
   vec3 P0 = unproject(at0);
   vec3 P1 = unproject(bestHor);
@@ -251,7 +263,7 @@ void main() {
   float occlusion = 0, prev = 0;
   int  dbg  = 0;
   int  smp  = int(samplesPerStep);
-  bool eval = valid;
+  bool eval = valid && !depthEdge;
   for(int i=0; i<shMaxSteps; ++i) {
     if(eval && i<maxSteps) {
       dbg       = i+1;
@@ -270,7 +282,7 @@ void main() {
 
   if(valid) {
 #if 1
-    occlusion = resolveOcclusion();
+    occlusion = depthEdge ? 0.0 : resolveOcclusion();
 #endif
 
     imageStore(result, ivec2(gl_GlobalInvocationID.xy), vec4(1.0 - occlusion));
