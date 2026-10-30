@@ -4706,10 +4706,13 @@ void Npc::updateAnimationEvents(uint64_t dt) {
   if(dt>0 && std::sqrt(mdx*mdx+mdz*mdz)/float(dt)*1000.f>25.f)
     swimMoveMs = 0; else
     swimMoveMs += float(dt);
-  const float target = (isSwim() && !isDive() && isHuman() && swimMoveMs<400.f) ? 28.f : 0.f;
+  const float target = (isSwim() && !isDive() && isHuman() && swimMoveMs<150.f) ? 28.f : 0.f;
   if(swimLift!=target) {
-    const float step = float(dt)*0.15f;
-    swimLift = swimLift<target ? std::min(swimLift+step,target) : std::max(swimLift-step,target);
+    // eased: raised quickly, settles down slowly (about a second), no visible drop
+    const float tau = swimLift<target ? 180.f : 450.f;
+    swimLift += (target-swimLift)*(1.f-std::exp(-float(dt)/tau));
+    if(std::fabs(target-swimLift)<0.05f)
+      swimLift = target;
     durtyTranform |= TR_Pos;
     }
   }
