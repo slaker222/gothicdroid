@@ -1,4 +1,6 @@
 #include "world.h"
+
+#include <Tempest/Application>
 #include "og_hb.h"
 
 #include <functional>
@@ -406,6 +408,71 @@ void World::tick(uint64_t dt) {
   if(auto pl = player())
     wsound.tick(*pl);
   globFx->tick(dt);
+  if(!Gothic::inst().webBarrierZones().empty() && Gothic::inst().webBarrierMode()!=2 && wview->sky().barrierImage()!=nullptr)
+    tickBarrierZones();
+  else if(barrierWarning)
+    endBarrierWarning();
+  }
+
+// the barrier of Gothic 1 is a wall: nothing gets into a zone, what touches it is struck by lightning and thrown back
+// (about -20 HP). Close to a zone the player glows blue. The zones are marked by hand (Gothic::webBarrierMark)
+void World::tickBarrierZones() {
+  auto&          zones  = Gothic::inst().webBarrierZones();
+  const uint64_t now    = tickCount();
+  Npc*           pl     = player();
+  const float    touch  = 30;    // the body of a character, units (cm)
+  float          nearD  = 1e30f;
+
+  for(size_t i=0; i<wobj.npcCount(); ++i) {
+    auto& npc = wobj.npc(i);
+    if(npc.isDead())
+      continue;
+    const auto p = npc.position();
+    for(auto& z:zones) {
+      const float d = z.distance(p.x,p.z);
+      if(&npc==pl)
+        nearD = std::min(nearD,d);
+      if(d>=touch)
+        continue;
+
+      float qx, qz, ox, oz;
+      z.nearest(p.x,p.z,qx,qz,ox,oz);
+      if(d==0) // inside: back to the border at once
+        npc.setPosition(qx+ox*touch, p.y, qz+oz*touch);
+
+      auto& last = barrierHitAt[&npc];
+      if(last!=0 && now-last<1500)
+        break;
+      last = now;
+      npc.onBarrierHit(ox,oz);
+      if(&npc==pl) {
+        Gothic::inst().emitGlobalSoundWav("MFX_BARRIERE_SHOOT.WAV",0.8f*Gothic::inst().webBarrierVolume());
+        Gothic::inst().webBarrierHit(now);
+        if(auto vfx = Gothic::inst().loadVisualFx("BARRIERE_PC_SHOOT"))
+          npc.startEffect(npc,*vfx);
+        }
+      break;
+      }
+    }
+
+  // the effect has a life span: it is started again while the player is within 12 meters of a zone
+  if(pl!=nullptr) {
+    const bool near = nearD<1200;
+    barrierWarning = near;
+    if(auto vfx = Gothic::inst().loadVisualFx("BARRIERE_PC_WARNING")) {
+      if(near && !pl->hasEffect(*vfx))
+        pl->startEffect(*pl,*vfx);
+      else if(!near && pl->hasEffect(*vfx))
+        pl->stopEffect(*vfx);
+      }
+    }
+  }
+
+void World::endBarrierWarning() {
+  barrierWarning = false;
+  if(auto pl = player())
+    if(auto vfx = Gothic::inst().loadVisualFx("BARRIERE_PC_WARNING"))
+      pl->stopEffect(*vfx);
   }
 
 uint64_t World::tickCount() const {

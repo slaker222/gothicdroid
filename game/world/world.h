@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_map>
+
 #include <Tempest/VertexBuffer>
 #include <Tempest/IndexBuffer>
 #include <Tempest/Matrix4x4>
@@ -148,6 +150,8 @@ class World final {
     void                 drawVobBoxNpcNear(DbgPainter& p) const;
 
     AiOuputPipe*         openDlgOuput(Npc &player, Npc &npc);
+    void                 tickBarrierZones();
+    void                 endBarrierWarning();
     void                 aiOutputSound(Npc &player, std::string_view msg);
     bool                 isInDialog() const;
 
@@ -196,6 +200,8 @@ class World final {
   private:
     const zenkit::IFocus& searchPolicy(const Npc& pl, TargetCollect& collAlgo, TargetType& collType, WorldObjects::SearchFlg& opt) const;
     std::string                           wname;
+    std::unordered_map<const Npc*,uint64_t> barrierHitAt; // ms, the last strike of the barrier
+    bool                                  barrierWarning = false;
     GameSession&                          game;
 
     std::unique_ptr<WayMatrix>            wmatrix;

@@ -292,6 +292,8 @@ add_shader(sky_pathtrace.frag        sky/sky_pathtrace.frag)
 add_shader(sun.vert                  sky/sun.vert)
 add_shader(sun.frag                  sky/sun.frag)
 add_shader(barrier.frag              sky/barrier.frag)
+add_shader(barrier_zone.frag         sky/barrier_zone.frag)
+add_shader(barrier_bolts.frag        sky/barrier_bolts.frag)
 
 # copy/edit
 add_shader(triangle.vert             triangle.vert)

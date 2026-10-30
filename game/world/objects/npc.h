@@ -411,7 +411,9 @@ class Npc final {
     void      emitSoundSVM   (std::string_view sound);
 
     void      startEffect(Npc& to, const VisualFx& vfx);
+    void      onBarrierHit(float dx, float dz);
     void      stopEffect (const VisualFx& vfx);
+    bool      hasEffect  (const VisualFx& vfx) const;
     void      runEffect  (Effect&& e);
 
   private:

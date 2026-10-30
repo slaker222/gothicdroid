@@ -1985,6 +1985,25 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
     }
   }
 
+// the barrier of Gothic 1 strikes with lightning and throws back (dx,dz - the direction of the throw): about -20 HP, never kills
+void Npc::onBarrierHit(float dx, float dz) {
+  const int32_t hp  = attribute(ATR_HITPOINTS);
+  const int32_t dmg = std::min<int32_t>(20, std::max<int32_t>(hp-1,0));
+  if(dmg>0)
+    changeAttribute(ATR_HITPOINTS,-dmg,true);
+  if(isDown() || isLie() || interactive()!=nullptr || isSwim() || mvAlgo.isClimb())
+    return;
+
+  // thrown against where the character looks: falls on the back
+  const float a  = angleDir(-dx,-dz);
+  const float da = a-angle;
+  lastHitType = std::cos(da*M_PI/180.0)<0 ? 'A' : 'B';
+  visual.interrupt();
+  setAnimAngGet(lastHitType=='A' ? Anim::FallDeepA : Anim::FallDeepB);
+  mvAlgo.accessDamFly(dx,dz,0.5f); // a short throw
+  emitSoundSVM("SVM_%d_AARGH");
+  }
+
 void Npc::takeFallDamage(const Vec3& fallSpeed) {
   if(bodyStateMasked()==BS_FALL) {
     if(!isFallingDeep()) {
@@ -2975,6 +2994,10 @@ void Npc::startEffect(Npc& to, const VisualFx& vfx) {
   e.setActive(true);
   e.setTarget(&to);
   visual.startEffect(owner, std::move(e), 0, true);
+  }
+
+bool Npc::hasEffect(const VisualFx& vfx) const {
+  return visual.hasEffect(vfx);
   }
 
 void Npc::stopEffect(const VisualFx& vfx) {

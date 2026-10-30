@@ -97,6 +97,8 @@ class Renderer final {
     void drawSunMoon      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
     void drawSunMoon      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview, bool isSun);
     void drawBarrier      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
+    void drawBarrierZones (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
+    void drawBarrierBolts (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
 
     void drawSwRT         (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
 

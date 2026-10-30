@@ -50,15 +50,15 @@ float jag(float s, float seed) {
   }
 
 // thin white bolt with branches, from the zenith towards the horizon; view - direction of the pixel
-float strike(vec3 view) {
-  const float age = push.strike.y;
+float strike(vec3 view, vec4 st) {
+  const float age = st.y;
   if(age<0.0)
     return 0.0;
-  float dAz = atan(view.x, view.z)*(1.0/6.2831853) - push.strike.x;
+  float dAz = atan(view.x, view.z)*(1.0/6.2831853) - st.x;
   dAz -= floor(dAz + 0.5);
   const float theta = acos(clamp(view.y, -1.0, 1.0));
   const float side  = dAz*6.2831853*sin(theta);       // sideways distance, radians
-  const float seed  = push.strike.z;
+  const float seed  = st.z;
 
   float v = 0.0;
   for(int i=0; i<4; ++i) {
@@ -134,7 +134,7 @@ void main() {
   const float core = dot(l, vec3(0.33));
   const vec3 clr = l*vec3(0.60,0.65,1.00) + vec3(1.0,0.97,0.85)*core*core*core*1.6 + vec3(0.60,0.32,0.12)*0.10;
   // the barrier dims the sky behind it
-  const vec3 bolt = vec3(0.85,0.90,1.0)*(strike(view)*3.0);
+  const vec3 bolt = vec3(0.85,0.90,1.0)*(strike(view, push.strike)*3.0);
   const float vis = push.strike.w;
-  outColor = vec4((clr*near + bolt)*fade*vis*210000.0*scene.exposure, 1.0 - 0.4*near*fade*vis);
+  outColor = vec4((clr*near + bolt)*vis*fade*210000.0*scene.exposure, 1.0 - 0.4*near*fade*vis);
   }

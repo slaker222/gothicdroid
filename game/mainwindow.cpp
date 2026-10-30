@@ -63,6 +63,7 @@ const WebSetting g_webSettings[] = {
   {"sun",         "INTERNAL", "webSun",             false},
   {"barrier",     "INTERNAL", "webBarrier",         false},
   {"barrierVol",  "INTERNAL", "webBarrierVol",      false},
+  {"barrierZoneShow","INTERNAL","webBarrierZoneShow",false},
   };
 
 const WebSetting* findWebSetting(const char* name) {
@@ -197,6 +198,34 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   if(s->real)
     return int(Gothic::settingsGetF(s->sec, s->key));
   return Gothic::settingsGetI(s->sec, s->key);
+  }
+
+// lethal zones of the barrier, marked by the player: kind 1 - a corner at the player's position (the second one
+// closes a box), 2 - undo the last corner or zone, 3 - delete all. Returns the number of zones, -1 if unavailable
+extern "C" EMSCRIPTEN_KEEPALIVE int og_barrier_zone(int kind) {
+  if(!g_webSettingsReady || g_webMain==nullptr)
+    return -1;
+  auto& g = Gothic::inst();
+  auto  say = [&](const std::string& msg) {
+    g.onPrintScreen(msg,2,4, 2,Resources::font(Gothic::interfaceScale(g_webMain)));
+    };
+  if(kind==1) {
+    auto pl = g.player();
+    if(pl==nullptr)
+      return int(g.webBarrierZones().size());
+    const auto p = pl->position();
+    const int  r = g.webBarrierMark(p.x,p.z);
+    say(r<4 ? "Barrier zone: corner " + std::to_string(r) + " of 4" : "Barrier zone " + std::to_string(g.webBarrierZones().size()) + " saved");
+    }
+  else if(kind==2) {
+    g.webBarrierUndo();
+    say("Barrier zone: undone");
+    }
+  else if(kind==3) {
+    g.webBarrierClear();
+    say("Barrier zones: deleted");
+    }
+  return int(g.webBarrierZones().size());
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {

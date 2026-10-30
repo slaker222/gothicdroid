@@ -957,6 +957,68 @@ void Gothic::detectGothicVersion() {
     }
   }
 
+Gothic::BarrierZone Gothic::webBarrierMakeZone(const float* x, const float* z, int n) {
+  n = std::min(n,4);
+  float cx = 0, cz = 0;
+  for(int i=0; i<n; ++i) {
+    cx += x[i];
+    cz += z[i];
+    }
+  cx /= float(std::max(n,1));
+  cz /= float(std::max(n,1));
+  int idx[4] = {0,1,2,3};
+  std::sort(idx,idx+n,[&](int a, int b) { return std::atan2(z[a]-cz,x[a]-cx) < std::atan2(z[b]-cz,x[b]-cx); });
+  BarrierZone ret = {};
+  for(int i=0; i<4; ++i) {
+    const int k = idx[std::min(i,n-1)]; // a triangle repeats its last corner
+    ret.x[i] = x[k];
+    ret.z[i] = z[k];
+    }
+  return ret;
+  }
+
+int Gothic::webBarrierMark(float x, float z) {
+  if(barrierCorners==0 && !barrierZoneShow)
+    settingsSetI("INTERNAL","webBarrierZoneShow",1); // marking shows the zones
+  barrierCornerX[barrierCorners] = x;
+  barrierCornerZ[barrierCorners] = z;
+  ++barrierCorners;
+  if(barrierCorners<4)
+    return barrierCorners;
+  barrierCorners = 0;
+  barrierZones.push_back(webBarrierMakeZone(barrierCornerX,barrierCornerZ,4));
+  saveBarrierZones();
+  return 4;
+  }
+
+void Gothic::webBarrierUndo() {
+  if(barrierCorners>0) {
+    --barrierCorners;
+    return;
+    }
+  if(!barrierZones.empty())
+    barrierZones.pop_back();
+  saveBarrierZones();
+  }
+
+void Gothic::webBarrierClear() {
+  barrierCorners = 0;
+  barrierZones.clear();
+  saveBarrierZones();
+  }
+
+void Gothic::saveBarrierZones() {
+  std::string s;
+  char buf[96];
+  for(auto& z:barrierZones) {
+    std::snprintf(buf,sizeof(buf),"%s%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f",s.empty() ? "" : ";",
+                  z.x[0],z.z[0],z.x[1],z.z[1],z.x[2],z.z[2],z.x[3],z.z[3]);
+    s += buf;
+    }
+  settingsSetS("INTERNAL","webBarrierZones",s);
+  flushSettings();
+  }
+
 void Gothic::setupSettings() {
   if(game!=nullptr)
     game->setupSettings();
@@ -977,6 +1039,28 @@ void Gothic::setupSettings() {
   barrierMode = std::clamp(settingsGetI("INTERNAL","webBarrier"), 0, 2);
   const int vol = settingsGetI("INTERNAL","webBarrierVol");
   barrierVolume = vol<20 ? 1.f : float(std::min(vol,100))/100.f;
+  {
+  barrierZoneShow = settingsGetI("INTERNAL","webBarrierZoneShow")!=0;
+  barrierZones.clear();
+  std::string zones(settingsGetS("INTERNAL","webBarrierZones")); // "x0,z0,x1,z1;x0,z0,x1,z1"
+  size_t pos = 0;
+  while(pos<zones.size()) {
+    auto end = zones.find(';',pos);
+    if(end==std::string::npos)
+      end = zones.size();
+    const auto  item = zones.substr(pos,end-pos);
+    float       v[8] = {};
+    if(std::sscanf(item.c_str(),"%f,%f,%f,%f,%f,%f,%f,%f",v,v+1,v+2,v+3,v+4,v+5,v+6,v+7)==8) {
+      const float x[4] = {v[0],v[2],v[4],v[6]}, z[4] = {v[1],v[3],v[5],v[7]};
+      barrierZones.push_back(webBarrierMakeZone(x,z,4));
+      }
+    else if(std::sscanf(item.c_str(),"%f,%f,%f,%f",v,v+1,v+2,v+3)==4) { // an old zone by two corners
+      const float x[4] = {v[0],v[2],v[2],v[0]}, z[4] = {v[1],v[1],v[3],v[3]};
+      barrierZones.push_back(webBarrierMakeZone(x,z,4));
+      }
+    pos = end+1;
+    }
+  }
   }
 #endif
 

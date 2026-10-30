@@ -109,6 +109,8 @@ void Shaders::compileShaders() {
   sky                = postEffect("sky");
   skySep             = postEffect("sky_sep");
   fog                = fogShader ("fog");
+  barrierZone        = fogShader ("barrier_zone");
+  barrierBolts       = fogShader ("barrier_bolts");
   fog3dHQ            = fogShader ("fog3d_hq");
 
   {

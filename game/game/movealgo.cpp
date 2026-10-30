@@ -533,13 +533,13 @@ void MoveAlgo::clearSpeed() {
   fallCount   = 0;
   }
 
-void MoveAlgo::accessDamFly(float dx, float dz) {
+void MoveAlgo::accessDamFly(float dx, float dz, float speed) {
   if(flags==0) {
     float len = std::sqrt(dx*dx+dz*dz);
     auto  vec = Tempest::Vec3(dx,len*0.5f,dz);
     vec = vec/vec.length();
 
-    fallSpeed = vec*1.f;
+    fallSpeed = vec*speed;
     fallCount = 0;
     setInAir(true);
     }

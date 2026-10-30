@@ -3,6 +3,9 @@
 #include <string>
 #include <memory>
 #include <thread>
+#include <vector>
+#include <cmath>
+#include <algorithm>
 
 #include <Tempest/Signal>
 #include <Tempest/Dir>
@@ -222,6 +225,101 @@ class Gothic final {
     int                                   webBarrierMode()   const { return barrierMode; }
     float                                 webBarrierVolume() const { return barrierVolume; }
 
+    // lethal zones of the barrier (the game data has none): boxes by two corners, any height. [INTERNAL] webBarrierZones
+    // a convex quadrangle in the ground plane (counter-clockwise), any height
+    struct BarrierZone {
+      float x[4], z[4];
+      bool  contains(float px, float pz) const {
+        for(int i=0; i<4; ++i) {
+          const int j = (i+1)&3;
+          if((x[j]-x[i])*(pz-z[i]) - (z[j]-z[i])*(px-x[i]) < 0)
+            return false;
+          }
+        return true;
+        }
+      // distance to the zone in the ground plane, 0 inside
+      float distance(float px, float pz) const {
+        if(contains(px,pz))
+          return 0;
+        float best = 1e30f;
+        for(int i=0; i<4; ++i) {
+          const int   j  = (i+1)&3;
+          const float ex = x[j]-x[i], ez = z[j]-z[i];
+          const float l2 = ex*ex+ez*ez;
+          float       t  = l2>0 ? ((px-x[i])*ex+(pz-z[i])*ez)/l2 : 0;
+          t = t<0 ? 0 : (t>1 ? 1 : t);
+          const float dx = px-(x[i]+ex*t), dz = pz-(z[i]+ez*t);
+          best = std::min(best,dx*dx+dz*dz);
+          }
+        return std::sqrt(best);
+        }
+      // the nearest point of the border and the unit direction out of the zone there (from the point to the outside)
+      void  nearest(float px, float pz, float& qx, float& qz, float& ox, float& oz) const {
+        float best = 1e30f;
+        qx = px; qz = pz; ox = 0; oz = 1;
+        for(int i=0; i<4; ++i) {
+          const int   j  = (i+1)&3;
+          const float ex = x[j]-x[i], ez = z[j]-z[i];
+          const float l2 = ex*ex+ez*ez;
+          if(l2<1)
+            continue;
+          float t = ((px-x[i])*ex+(pz-z[i])*ez)/l2;
+          t = t<0 ? 0 : (t>1 ? 1 : t);
+          const float cx = x[i]+ex*t, cz = z[i]+ez*t;
+          const float d2 = (px-cx)*(px-cx)+(pz-cz)*(pz-cz);
+          if(d2>=best)
+            continue;
+          best = d2;
+          qx = cx; qz = cz;
+          const float l = std::sqrt(l2);
+          ox = ez/l;  // outward normal of a counter-clockwise polygon
+          oz = -ex/l;
+          if(d2>1) { // outside: from the border to the point
+            const float d = std::sqrt(d2);
+            ox = (px-cx)/d;
+            oz = (pz-cz)/d;
+            }
+          }
+        }
+      // direction out of the zone through the nearest side (unit length), for a point inside
+      void  outward(float px, float pz, float& ox, float& oz) const {
+        float best = 1e30f;
+        ox = 0; oz = 1;
+        for(int i=0; i<4; ++i) {
+          const int   j  = (i+1)&3;
+          const float ex = x[j]-x[i], ez = z[j]-z[i];
+          const float l  = std::sqrt(ex*ex+ez*ez);
+          if(l<1)
+            continue;
+          const float d = ((x[j]-x[i])*(pz-z[i]) - (z[j]-z[i])*(px-x[i]))/l; // distance to the side, positive inside
+          if(d<best) {
+            best = d;
+            ox   = ez/l;   // the outward normal of a counter-clockwise polygon
+            oz   = -ex/l;
+            }
+          }
+        }
+      };
+    // n = 3 or 4 points in any order to a zone (the points go around the centre)
+    static BarrierZone                    webBarrierMakeZone(const float* x, const float* z, int n);
+    const std::vector<BarrierZone>&       webBarrierZones() const { return barrierZones; }
+    // each call stores a corner (returns the number of corners so far), the fourth one closes the zone (returns 4)
+    int                                   webBarrierMark(float x, float z);
+    // game time (ms) of the last strike of the barrier on the player, 0 - none yet
+    // 0..1: how close the player is to a zone (the blue glow), set by the world every tick
+    float                                 webBarrierWarn() const { return barrierWarn; }
+    void                                  webBarrierWarn(float v) { barrierWarn = v; }
+    uint64_t                              webBarrierHitAt() const { return barrierHitAt; }
+    void                                  webBarrierHit(uint64_t tick) { barrierHitAt = tick; }
+    bool                                  webBarrierZonesShown() const { return barrierZoneShow; }
+    // corners of the zone being marked; returns their number
+    int                                   webBarrierPending(float* x, float* z) const {
+      for(int i=0; i<barrierCorners; ++i) { x[i] = barrierCornerX[i]; z[i] = barrierCornerZ[i]; }
+      return barrierCorners;
+      }
+    void                                  webBarrierUndo();
+    void                                  webBarrierClear();
+
   private:
     VersionInfo                             vinfo;
     Options                                 opts;
@@ -237,6 +335,13 @@ class Gothic final {
     int                                     sunMode        = 0;
     int                                     barrierMode    = 1;
     float                                   barrierVolume  = 1;
+    std::vector<BarrierZone>                barrierZones;
+    bool                                    barrierZoneShow = false;
+    uint64_t                                barrierHitAt   = 0;
+    float                                   barrierWarn    = 0;
+    int                                     barrierCorners = 0;
+    float                                   barrierCornerX[4] = {}, barrierCornerZ[4] = {};
+    void                                    saveBarrierZones();
     bool                                    showTime       = false;
     bool                                    vobBox         = false;
     Benchmark                               isBenchmark    = Benchmark::None;

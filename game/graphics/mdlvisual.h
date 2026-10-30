@@ -63,6 +63,7 @@ class MdlVisual final {
 
     void                           startEffect (World& owner, Effect&& pfx, int32_t slot, bool noSlot);
     void                           stopEffect  (const VisualFx& vfx);
+    bool                           hasEffect   (const VisualFx& vfx) const;
     void                           stopEffect  (int32_t slot);
     void                           setNpcEffect(World& owner, Npc& npc, std::string_view s, zenkit::NpcFlag flags);
     void                           setFatness  (float f);

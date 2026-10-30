@@ -349,6 +349,13 @@ void MdlVisual::startEffect(World& owner, Effect&& vfx, int32_t slot, bool noSlo
   syncAttaches();
   }
 
+bool MdlVisual::hasEffect(const VisualFx& vfx) const {
+  for(auto& i:effects)
+    if(i.view.is(vfx))
+      return true;
+  return false;
+  }
+
 void MdlVisual::stopEffect(const VisualFx& vfx) {
   for(size_t i=0;i<effects.size();++i) {
     if(effects[i].view.is(vfx)) {

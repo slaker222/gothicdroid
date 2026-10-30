@@ -11,6 +11,7 @@
 #include "ui/videowidget.h"
 #include "camera.h"
 #include "gothic.h"
+#include "world/objects/npc.h"
 #include "gapi/vulkan/vpipelinelogger.h"
 #include "utils/string_frm.h"
 
@@ -801,6 +802,8 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
       drawFog(cmd, *wview);
       }
     }
+  drawBarrierZones(cmd, *wview);
+  drawBarrierBolts(cmd, *wview);
   // after the fog: the haze is nearly opaque on the sky and would swallow the sun disc
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
   cmd.setDebugMarker("Sun&Moon");
@@ -1030,6 +1033,75 @@ void Renderer::drawSunMoon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   cmd.draw(nullptr, 0, 6);
   }
 
+// the lethal zones of the barrier as translucent red boxes, to see what was marked (Gothic::webBarrierMark)
+void Renderer::drawBarrierZones(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
+  auto& g = Gothic::inst();
+  if(!g.webBarrierZonesShown() || wview.sky().barrierImage()==nullptr)
+    return;
+  auto zones = g.webBarrierZones();
+  float px[4], pz[4];
+  int   n = g.webBarrierPending(px,pz);
+  if(n>=2) { // the zone being marked: the corners so far and the player as the next one
+    if(auto pl = g.player()) {
+      const auto p = pl->position();
+      px[n] = p.x;
+      pz[n] = p.z;
+      zones.push_back(Gothic::webBarrierMakeZone(px,pz,n+1));
+      }
+    }
+  if(zones.empty())
+    return;
+
+  auto& scene = wview.sceneGlobals();
+  struct Push {
+    Tempest::Vec4 a, b;
+    Tempest::Vec2 yRange;
+    } push;
+  // the column is as high as the player needs
+  float y = 0;
+  if(auto pl = g.player())
+    y = pl->position().y;
+  push.yRange = Vec2(y-5000.f, y+5000.f);
+
+  cmd.setBinding(0, zbuffer, Sampler::nearest());
+  cmd.setBinding(1, scene.uboGlobal[SceneGlobals::V_Main]);
+  cmd.setPipeline(shaders.barrierZone);
+  for(auto& z:zones) {
+    push.a = Vec4(z.x[0],z.z[0],z.x[1],z.z[1]);
+    push.b = Vec4(z.x[2],z.z[2],z.x[3],z.z[3]);
+    cmd.setPushData(push);
+    cmd.draw(nullptr, 0, 3);
+    }
+  }
+
+// the lightning of the barrier around the player right after a strike
+void Renderer::drawBarrierBolts(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
+  auto& g = Gothic::inst();
+  const uint64_t hitAt = g.webBarrierHitAt();
+  auto& scene = wview.sceneGlobals();
+  const uint64_t now  = scene.tickCount;
+  const uint64_t life = 1400;
+  if(hitAt==0 || now<hitAt || now-hitAt>=life || g.webBarrierMode()==2 || wview.sky().barrierImage()==nullptr)
+    return;
+  auto pl = g.player();
+  if(pl==nullptr)
+    return;
+
+  struct Push {
+    Tempest::Vec4 pos;
+    Tempest::Vec4 misc;
+    } push;
+  const auto p = pl->position();
+  push.pos  = Vec4(p.x, p.y, p.z, float(now-hitAt)/float(life));
+  push.misc = Vec4(float(hitAt%977)*0.113f, 0, 0, 0);
+
+  cmd.setBinding(0, zbuffer, Sampler::nearest());
+  cmd.setBinding(1, scene.uboGlobal[SceneGlobals::V_Main]);
+  cmd.setPipeline(shaders.barrierBolts);
+  cmd.setPushData(push);
+  cmd.draw(nullptr, 0, 3);
+  }
+
 void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
   auto* tex = wview.sky().barrierImage();
   const int mode = Gothic::inst().webBarrierMode(); // 0 classic, 1 always, 2 off
@@ -1069,18 +1141,21 @@ void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
     vis = 1.f - smoothstep(float(shown)*0.001f-4.f, float(shown)*0.001f, ph);
     if(t>=period)
       vis *= smoothstep(0.f, 3.f, ph);
-    if(vis<=0.f)
-      return;
+    vis = std::max(vis,0.f);
     }
-  const float vol = Gothic::inst().webBarrierVolume()*vis;
+  const bool  dome = vis>0.f;
+  const float vol  = Gothic::inst().webBarrierVolume()*vis;
 
-  if(now>=st.ambientNext) { // the hum of the barrier (recorded quietly, so louder than 1): the sound has no loop, start it again when it ends
+  if(!dome)
+    return;
+
+  if(dome && now>=st.ambientNext) { // the hum of the barrier (recorded quietly, so louder than 1): the sound has no loop, start it again when it ends
     constexpr const char* hum = "MFX_BARRIERE_AMBIENT.WAV";
     const uint64_t len = Resources::loadSoundBuffer(hum).timeLength();
     Gothic::inst().emitGlobalSoundWav(hum, 4.0f*vol);
     st.ambientNext = now + (len>500 ? len-100 : 5000);
     }
-  if(now>=st.next) {
+  if(dome && now>=st.next) {
     auto  rnd = [](uint64_t x) { x ^= x<<13; x ^= x>>7; x ^= x<<17; return float(x%100000)/100000.f; };
     Vec3  f(0,0,1);
     scene.viewProjectLwcInv().project(f);
@@ -1093,7 +1168,7 @@ void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
       Gothic::inst().emitGlobalSoundWav("MFX_BARRIERE_SHOOT.WAV", 0.8f*vol);
     }
   const float age = float(now-st.start)/float(duration);
-  push.strike = Vec4(st.azimuth, (st.start>0 || now==st.start) && age<1.f ? age : -1.f, st.seed, vis);
+  push.strike = Vec4(st.azimuth, dome && (st.start>0 || now==st.start) && age<1.f ? age : -1.f, st.seed, vis);
 
   cmd.setBinding(0, scene.uboGlobal[SceneGlobals::V_Main]);
   cmd.setBinding(1, *tex, Sampler::trillinear());
