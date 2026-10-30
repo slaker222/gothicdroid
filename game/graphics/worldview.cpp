@@ -212,6 +212,12 @@ MeshObjects::Mesh WorldView::addBlobShadowView() {
   return MeshObjects::Mesh();
   }
 
+MeshObjects::Mesh WorldView::addSplashView() {
+  if(auto mesh=Resources::splashMesh())
+    return MeshObjects::Mesh(objGroup,*mesh,0,0,0,false);
+  return MeshObjects::Mesh();
+  }
+
 LightGroup::Light WorldView::addLight(const zenkit::VLight& vob) {
   auto l = gLights.add(vob);
   l.setTimeOffset(owner.tickCount());

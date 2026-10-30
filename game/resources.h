@@ -127,6 +127,7 @@ class Resources final {
     static DmSegment*                loadMusicSegment(char const* name);
     static const ProtoMesh*          decalMesh(const zenkit::VisualDecal& decal);
     static const ProtoMesh*          blobShadowMesh();
+    static const ProtoMesh*          splashMesh(); // web water physics: the crown of a splash
 
     static const VobTree*            loadVobBundle(std::string_view name);
 
@@ -205,6 +206,7 @@ class Resources final {
     std::unique_ptr<Animation> implLoadAnimation(std::string name);
     ProtoMesh*            implDecalMesh(const zenkit::VisualDecal& decal);
     ProtoMesh*            implBlobShadowMesh();
+    ProtoMesh*            implSplashMesh();
     Tempest::Sound        implLoadSoundBuffer(std::string_view name);
     Dx8::PatternList      implLoadDxMusic(std::string_view name);
     DmSegment*            implLoadMusicSegment(char const* name);
@@ -273,6 +275,8 @@ class Resources final {
     std::unordered_map<std::string,std::unique_ptr<ProtoMesh>>        aniMeshCache;
     std::unordered_map<DecalK,std::unique_ptr<ProtoMesh>,Hash>        decalMeshCache;
     std::unique_ptr<Tempest::Texture2d>                               blobTex;
+    std::unique_ptr<ProtoMesh>                                        splashProto;
+    std::unique_ptr<Tempest::Texture2d>                               splashTex;
     std::unique_ptr<ProtoMesh>                                        blobMesh;
     std::unordered_map<std::string,std::unique_ptr<Skeleton>>         skeletonCache;
     std::unordered_map<std::string,std::unique_ptr<Animation>>        animCache;

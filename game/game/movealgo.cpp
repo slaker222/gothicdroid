@@ -4,9 +4,12 @@
 #include "world/objects/interactive.h"
 #include "world/world.h"
 #include "graphics/worldview.h"
+#include "graphics/pfx/particlefx.h"
 #include "gothic.h"
 #include "serialize.h"
 
+#include <Tempest/Log>
+#include <cstdio>
 #include <algorithm>
 #include <cmath>
 
@@ -712,26 +715,38 @@ void MoveAlgo::emitWaterSplash(float y, float impact) {
 
   npc.emitSoundEffect("CS_INTRO_WATERSPLASH.WAV",2500,false);
 
-  if(Gothic::inst().webWaterPhysics() && npc.isPlayer()) {
-    // landing in the water: a strong ring, two more follow it; a hard fall throws one more splash
-    // a jump / fall: a crown of splashes around the character and a heavy ring with foam, two weaker waves follow
-    const float amp = std::clamp(impact*3.5f, 2.0f, 4.5f);
-    if(auto* v = world.view())
-      v->addWaterRipple(pos,amp);
-    fxBurst    = 3;
-    fxBurstPos = pos;
-    fxBurstAmp = amp*0.65f;
-    fxTimer    = 0;
-    const int crown = impact>0.9f ? 8 : 5;
-    for(int i=0; i<crown; ++i) {
-      const float a = float(i)*6.2831853f/float(crown);
-      auto at2 = at;
-      at2.translate(std::cos(a)*55.f,10.f+float(i%2)*25.f,std::sin(a)*55.f);
-      Effect e2(PfxEmitter(world,"PFX_WATERSPLASH"),"");
-      e2.setObjMatrix(at2);
-      e2.setActive(true);
-      world.runEffect(std::move(e2));
-      }
+  if(Gothic::inst().webWaterPhysics() && npc.isPlayer())
+    spawnSplash(y,impact);
+  }
+
+// a jump / fall into the water: a heavy ring with foam (two weaker waves follow), the crown (wide, low) and the jet in
+// its middle (narrow, tall, a bit later)
+void MoveAlgo::spawnSplash(float y, float impact) {
+  auto& world = npc.world();
+  auto* v     = world.view();
+  if(v==nullptr || world.tickCount()<fxSplashTime+600)
+    return;
+  fxSplashTime = world.tickCount();
+
+  auto pos = npc.position();
+  pos.y = y;
+  const float amp = std::clamp(impact*3.5f, 2.0f, 4.5f);
+  v->addWaterRipple(pos,amp);
+  fxBurst    = 3;
+  fxBurstPos = pos;
+  fxBurstAmp = amp*0.65f;
+  fxTimer    = 0;
+
+  fxSplash.clear();
+  const float k = amp/3.0f;
+  for(int i=0; i<2; ++i) {
+    Splash sp;
+    sp.mesh   = v->addSplashView();
+    sp.pos    = pos;
+    sp.t0     = world.tickCount() + (i==0 ? 0 : 90);
+    sp.radius = i==0 ? 60.f*k : 26.f*k;
+    sp.height = i==0 ? 85.f*k : 170.f*k;
+    fxSplash.push_back(std::move(sp));
     }
   }
 
@@ -745,10 +760,61 @@ void MoveAlgo::tickWaterFx(uint64_t dt) {
 
   const auto pos  = npc.position();
   const bool wet  = (isInWater() || isSwim()) && !isInAir();
+  // a jump / fall into the water that did not go through emitWaterSplash
+  if(isInAir() || npc.isFalling()) {
+    fxAir     = true;
+    fxAirWait = 0;
+    fxMaxFall = std::max(fxMaxFall, dt>0 ? (fxLast.y-pos.y)/float(dt) : 0.f);
+    } else
+  if(fxAir) {
+    // the water state follows the landing by a frame or two
+    fxAirWait += float(dt);
+    if(wet) {
+      bool  has = false;
+      float y   = waterRay(pos,&has);
+      if(has)
+        spawnSplash(y,fxMaxFall);
+      }
+    if(wet || fxAirWait>700.f) {
+      fxAir     = false;
+      fxMaxFall = 0;
+      fxAirWait = 0;
+      }
+    }
   const float dx  = pos.x-fxLast.x, dz = pos.z-fxLast.z;
   const float spd = dt>0 ? std::sqrt(dx*dx+dz*dz)/float(dt)*1000.f : 0.f; // cm/s
   fxLast = pos;
   fxTimer += float(dt);
+
+  // the crown and the jet of a splash: they rise fast, spread and fall back into the water
+  for(size_t i=0; i<fxSplash.size();) {
+    auto& sp = fxSplash[i];
+    const uint64_t now = npc.world().tickCount();
+    const float t = now>=sp.t0 ? float(now-sp.t0)*0.001f : -1.f;
+    if(t>1.25f) {
+      fxSplash[i] = std::move(fxSplash.back());
+      fxSplash.pop_back();
+      continue;
+      }
+    if(t>=0.f) {
+      const float u  = t/1.25f;
+      const float up = u<0.22f ? std::sin(u/0.22f*1.5707963f) : 1.f-((u-0.22f)/0.78f)*((u-0.22f)/0.78f);
+      const float rr = sp.radius*(0.55f + 1.15f*std::sqrt(u));
+      const float hh = std::max(sp.height*up, 0.01f);
+      Tempest::Matrix4x4 m;
+      m.identity();
+      m.set(0,0,rr); m.set(1,1,hh); m.set(2,2,rr);
+      m.set(3,0,sp.pos.x); m.set(3,1,sp.pos.y); m.set(3,2,sp.pos.z);
+      sp.mesh.setObjMatrix(m);
+      } else {
+      Tempest::Matrix4x4 m;
+      m.identity();
+      m.set(0,0,0.01f); m.set(1,1,0.01f); m.set(2,2,0.01f);
+      m.set(3,0,sp.pos.x); m.set(3,1,sp.pos.y-1000.f); m.set(3,2,sp.pos.z);
+      sp.mesh.setObjMatrix(m);
+      }
+    ++i;
+    }
 
   if(fxBurst>0 && fxTimer>=300.f) {
     view->addWaterRipple(fxBurstPos,fxBurstAmp);

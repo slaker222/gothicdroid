@@ -339,8 +339,8 @@ vec4 underWaterColorDepth(vec3 normal) {
 vec3 swampSurface(vec3 base, vec3 refracted, float len, vec3 normal, vec3 refl) {
   const float time = float(scene.tickCount32)*0.001;
   const vec2  p    = shInp.pos.xz*(1.0/170.0);
-  const float n1   = swFbm(p       + vec2(time*0.010,  time*0.006));
-  const float n2   = swFbm(p*2.7   - vec2(time*0.016, -time*0.011) + 31.0);
+  const float n1   = swFbm(p       + vec2(time*0.003,  time*0.002));
+  const float n2   = swFbm(p*2.7   - vec2(time*0.005, -time*0.004) + 31.0);
   const float scum = smoothstep(0.52, 0.72, n1*0.7 + n2*0.5);          // lighter, yellow green films
   const float dark = smoothstep(0.55, 0.30, n2);                        // dark murky patches
 
@@ -431,9 +431,9 @@ void mainWater(vec4 t) {
   vec3 lx = dFdx(shInp.pos), ly = dFdy(shInp.pos);
   float minLength = max(length(lx),length(ly));
 
-  gWaveSpeed = mix(1.0, 0.3, gSwamp);
+  gWaveSpeed = mix(1.0, 0.07, gSwamp); // the swamp is nearly still
   // the amplitude of the swamp is the same for all its polygons (the materials differ in it)
-  Wave wx = wave(shInp.pos, minLength, waveIterationsHigh, mix(waveAmplitude(waveMaxAmplitude), waveAmplitude(0.0)*0.4, gSwamp));
+  Wave wx = wave(shInp.pos, minLength, waveIterationsHigh, mix(waveAmplitude(waveMaxAmplitude), waveAmplitude(0.0)*0.12, gSwamp));
 
   if(gl_FrontFacing) {
     // BROKEN: water mesh is two sided
@@ -442,7 +442,7 @@ void mainWater(vec4 t) {
   // the swamp is calm and dull: flatter surface, less of the glitter of the plain water
   if(gSwamp>0.5 && scene.underWater==0 && wx.normal.y<0.0)
     wx.normal = -wx.normal; // up, whatever the winding of the polygon
-  wx.normal = normalize(mix(wx.normal, vec3(0,wx.normal.y<0.0 ? -1.0 : 1.0,0), 0.25*gSwamp));
+  wx.normal = normalize(mix(wx.normal, vec3(0,wx.normal.y<0.0 ? -1.0 : 1.0,0), 0.7*gSwamp));
 
   // water physics: rings from the character (steps, swimming, landing), a damped wave front going outwards.
   // The swamp is thick: slower, wider and longer rings, they stir the mud up
@@ -462,7 +462,7 @@ void mainWater(vec4 t) {
     const float slope  = env*cos(x*0.11)*0.4;
     wx.normal.xz -= sign(wx.normal.y)*normalize(d + vec2(1e-3))*slope;
     // foam: only for a heavy hit, in the first moments, on the front and in the middle
-    gFoam += clamp(r.w-1.5, 0.0, 3.0)*exp(-r.z*1.6)*(exp(-x*x/(2.0*width*width)) + 0.7*exp(-dist*dist/(120.0*120.0)));
+    gFoam += clamp(r.w-1.5, 0.0, 3.0)*exp(-r.z*1.6)*(exp(-x*x/(2.0*width*width)) + 0.5*exp(-dist*dist/(70.0*70.0)));
     // the mud: a cloud inside the ring, lasts for seconds
     gStir += r.w*exp(-r.z*0.22)*smoothstep(radius + 80.0, radius - 120.0, dist)*(1.0 - smoothstep(2.5, 4.0, r.z));
     }
@@ -472,8 +472,8 @@ void mainWater(vec4 t) {
 
   outColor       = waterShading(t,wx.normal);
   if(gFoam>0.0) {
-    const float n = swFbm(shInp.pos.xz*(1.0/14.0) + vec2(float(scene.tickCount32)*0.0004));
-    outColor.rgb = mix(outColor.rgb, (scene.ambient + scene.sunColor*0.5)*scene.exposure*0.9, gFoam*smoothstep(0.35, 0.65, n)*0.85);
+    const float n = swFbm(shInp.pos.xz*(1.0/7.0) + vec2(float(scene.tickCount32)*0.0004));
+    outColor.rgb = mix(outColor.rgb, (scene.ambient + scene.sunColor*0.5)*scene.exposure*0.9, gFoam*smoothstep(0.38, 0.78, n)*0.4);
     }
   outDiffuse.rgb = vec3(gSwamp, t.gb); // the red channel: how swampy the water is, for the reflections (8 bits, smooth)
   outDiffuse.a   = encodeHintBits();

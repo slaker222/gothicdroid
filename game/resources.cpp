@@ -1200,6 +1200,73 @@ DmSegment* Resources::loadMusicSegment(char const* name) {
   return inst->implLoadMusicSegment(name);
   }
 
+// The crown of a splash: a ring of water with jagged spikes, a unit size (radius 1, height 1); the texture is streaks of
+// water and droplets, opaque at the bottom and thinning to the top. Scaled and animated by the player (MoveAlgo).
+ProtoMesh* Resources::implSplashMesh() {
+  if(splashProto!=nullptr)
+    return splashProto.get();
+
+  const int W = 512, H = 64;
+  Pixmap pm(W,H,TextureFormat::RGBA8);
+  auto* pix = reinterpret_cast<uint8_t*>(pm.data());
+  auto hash = [](int x, int y) {
+    uint32_t h = uint32_t(x)*374761393u + uint32_t(y)*668265263u;
+    h = (h^(h>>13))*1274126177u;
+    return float((h^(h>>16))&0xFFFF)/65535.f;
+    };
+  for(int y=0; y<H; ++y)
+    for(int x=0; x<W; ++x) {
+      const float v      = float(y)/float(H-1);        // 0 top .. 1 bottom
+      const float streak = 0.3f + 0.7f*hash(x/3, 3);   // thin vertical streaks of water
+      const float drops  = hash(x,y)>0.985f ? 1.f : 0.f; // droplets
+      float a = std::min(std::max(v*1.25f-0.1f,0.f),1.f)*streak;
+      a = std::max(a, drops*0.8f*(1.f-v*0.5f));
+      auto* p = pix + size_t(y*W+x)*4;
+      const float lt = 0.78f + 0.22f*streak;
+      p[0] = uint8_t(210.f*lt); p[1] = uint8_t(225.f*lt); p[2] = uint8_t(230.f*lt);
+      p[3] = uint8_t(std::min(a*0.75f,1.f)*255.f);
+      }
+  splashTex.reset(new Texture2d(dev.texture(pm)));
+
+  Material mat;
+  mat.tex   = splashTex.get();
+  mat.alpha = Material::Transparent;
+
+  const int N = 28;
+  std::vector<Resources::Vertex> vbo;
+  std::vector<uint32_t>          ibo;
+  auto add = [&](float r, float y, float u, float v, float nx, float nz) {
+    Resources::Vertex vx = {{r*nx, y, r*nz},{nx,0.3f,nz},{u,v},0xFFFFFFFF};
+    vbo.push_back(vx);
+    return uint32_t(vbo.size()-1);
+    };
+  for(int side=0; side<2; ++side) {
+    for(int i=0; i<N; ++i) {
+      const float a0 = float(i)*6.2831853f/float(N), a1 = float(i+1)*6.2831853f/float(N), am = (a0+a1)*0.5f;
+      const float tip = (i%2==0) ? 1.0f : 0.62f;               // jagged crown
+      const float u0 = float(i)/float(N), u1 = float(i+1)/float(N);
+      auto b0 = add(0.8f, 0.f,  u0, 1.f,  std::cos(a0), std::sin(a0));
+      auto b1 = add(0.8f, 0.f,  u1, 1.f,  std::cos(a1), std::sin(a1));
+      auto m0 = add(0.95f,0.45f,u0, 0.5f, std::cos(a0), std::sin(a0));
+      auto m1 = add(0.95f,0.45f,u1, 0.5f, std::cos(a1), std::sin(a1));
+      auto t  = add(1.05f,tip,  (u0+u1)*0.5f, 0.f, std::cos(am), std::sin(am));
+      uint32_t q[9] = {b0,b1,m1, b0,m1,m0, m0,m1,t};
+      if(side==0) {
+        for(int k=0; k<9; ++k) ibo.push_back(q[k]);
+        } else {
+        for(int k=0; k<9; k+=3) { ibo.push_back(q[k]); ibo.push_back(q[k+2]); ibo.push_back(q[k+1]); }
+        }
+      }
+    }
+  splashProto.reset(new ProtoMesh(mat, std::move(vbo), std::move(ibo)));
+  return splashProto.get();
+  }
+
+const ProtoMesh* Resources::splashMesh() {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  return inst->implSplashMesh();
+  }
+
 ProtoMesh* Resources::implBlobShadowMesh() {
   if(blobMesh!=nullptr)
     return blobMesh.get();

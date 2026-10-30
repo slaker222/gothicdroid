@@ -2,6 +2,7 @@
 
 #include <cstdint>
 #include <limits>
+#include <vector>
 
 #include <zenkit/Material.hh>
 
@@ -9,6 +10,7 @@
 
 #include "physics/dynamicworld.h"
 #include "graphics/mesh/animationsolver.h"
+#include "graphics/meshobjects.h"
 
 class Npc;
 class World;
@@ -129,6 +131,7 @@ class MoveAlgo final {
 
     void    emitWaterSplash(float y, float impact = 0);
     void    tickWaterFx(uint64_t dt);
+    void    spawnSplash(float y, float impact);
 
     void    rayMain  (const Tempest::Vec3& pos) const;
     float   dropRay  (const Tempest::Vec3& pos, bool& hasCol) const;
@@ -174,6 +177,18 @@ class MoveAlgo final {
     float                fxTimer    = 0;
     float                fxStep     = 0;
     float                fxHand     = 0;
+    struct Splash {
+      MeshObjects::Mesh  mesh;
+      Tempest::Vec3      pos;
+      uint64_t           t0     = 0;
+      float              radius = 0;
+      float              height = 0;
+      };
+    std::vector<Splash>  fxSplash;
+    uint64_t             fxSplashTime = 0;
+    float                fxMaxFall  = 0;
+    bool                 fxAir      = false;
+    float                fxAirWait  = 0;
     float                fxHandSide = 1;
     int                  fxBurst    = 0;
     bool                 fxWet      = false;
