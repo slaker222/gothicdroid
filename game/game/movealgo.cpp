@@ -714,18 +714,20 @@ void MoveAlgo::emitWaterSplash(float y, float impact) {
 
   if(Gothic::inst().webWaterPhysics() && npc.isPlayer()) {
     // landing in the water: a strong ring, two more follow it; a hard fall throws one more splash
-    const float amp = std::clamp(impact*2.5f, 1.2f, 3.0f);
-    if(auto* v = world.view()) {
+    // a jump / fall: a crown of splashes around the character and a heavy ring with foam, two weaker waves follow
+    const float amp = std::clamp(impact*3.5f, 2.0f, 4.5f);
+    if(auto* v = world.view())
       v->addWaterRipple(pos,amp);
-      }
-    fxBurst = 2;
+    fxBurst    = 3;
     fxBurstPos = pos;
-    fxBurstAmp = amp*0.7f;
-    fxTimer = 0;
-    if(impact>0.9f) {
-      Effect e2(PfxEmitter(world,"PFX_WATERSPLASH"),"");
+    fxBurstAmp = amp*0.65f;
+    fxTimer    = 0;
+    const int crown = impact>0.9f ? 8 : 5;
+    for(int i=0; i<crown; ++i) {
+      const float a = float(i)*6.2831853f/float(crown);
       auto at2 = at;
-      at2.translate(0,20,0);
+      at2.translate(std::cos(a)*55.f,10.f+float(i%2)*25.f,std::sin(a)*55.f);
+      Effect e2(PfxEmitter(world,"PFX_WATERSPLASH"),"");
       e2.setObjMatrix(at2);
       e2.setActive(true);
       world.runEffect(std::move(e2));
@@ -748,7 +750,7 @@ void MoveAlgo::tickWaterFx(uint64_t dt) {
   fxLast = pos;
   fxTimer += float(dt);
 
-  if(fxBurst>0 && fxTimer>=260.f) {
+  if(fxBurst>0 && fxTimer>=300.f) {
     view->addWaterRipple(fxBurstPos,fxBurstAmp);
     fxBurstAmp *= 0.6f;
     fxBurst--;
@@ -766,6 +768,22 @@ void MoveAlgo::tickWaterFx(uint64_t dt) {
   if(!wet) {
     fxWet = false;
     return;
+    }
+
+  if(isSwim() && spd<=30.f) {
+    // treading water: the hands stir the water on both sides, one after the other
+    fxHand += float(dt);
+    if(fxHand>=650.f) {
+      fxHand = 0;
+      fxHandSide = -fxHandSide;
+      bool  has = false;
+      float y   = waterRay(pos,&has);
+      const float r = npc.rotationRad();
+      if(has)
+        view->addWaterRipple(Tempest::Vec3(pos.x+std::cos(r)*50.f*fxHandSide,y,pos.z-std::sin(r)*50.f*fxHandSide),0.5f);
+      }
+    } else {
+    fxHand = 0;
     }
 
   const float period = isSwim() ? 520.f : 330.f;

@@ -76,6 +76,8 @@ layout(push_constant, std430) uniform Push {
 #endif
 
 #if defined(WATER)
+float gStir  = 0.0; // the mud stirred up by the rings (swamp)
+float gFoam  = 0.0; // white foam on a strong ring
 float gSwamp = 0.0; // 0 plain water, 1 swamp water: from the colour of the water texture (green-brown against blue-grey)
 #endif
 
@@ -351,6 +353,26 @@ vec3 swampSurface(vec3 base, vec3 refracted, float len, vec3 normal, vec3 refl) 
   surf *= mix(1.0, 0.6, dark);
   surf  = mix(surf, vec3(0.30,0.30,0.10)*lit*scene.exposure*1.2, scum*0.45);
 
+  // stirred up mud: brown and opaque
+  surf = mix(surf, vec3(0.30,0.20,0.09)*lit*scene.exposure*1.3, gStir*0.75);
+
+  // marsh gas bubbles: now and then a bubble comes up in a cell of the water and bursts into a small ring
+  const vec2  bp = shInp.pos.xz*(1.0/160.0);
+  const vec2  bc = floor(bp);
+  float bub = 0.0;
+  for(int j=-1; j<=1; ++j) for(int i=-1; i<=1; ++i) if(scene.waterFx>0.5) {
+    const vec2  cell = bc + vec2(i,j);
+    const float h0   = swHash(cell*1.37), h1 = swHash(cell*2.11 + 7.0), h2 = swHash(cell*0.73 + 3.0);
+    const float per  = 5.0 + h0*7.0;                       // seconds between the bubbles of the cell
+    const float ph   = fract(time/per + h1);
+    const float age  = ph*per;                              // seconds since the burst
+    const vec2  cp   = (cell + 0.2 + 0.6*vec2(h1,h2))*160.0;
+    const float dd   = length(shInp.pos.xz - cp);
+    const float rr   = 6.0 + age*38.0;
+    bub += step(0.55, h2)*exp(-(dd-rr)*(dd-rr)/30.0)*exp(-age*1.7)*step(age, 2.2);
+    }
+  surf += vec3(0.55,0.58,0.4)*lit*scene.exposure*clamp(bub,0.0,1.0)*0.5;
+
   // the opaque murk: how much of the bottom can be seen
   const float vis = exp(-len/180.0)*0.2;
   vec3 col = mix(surf, refracted*vec3(0.55,0.85,0.45), vis);
@@ -422,23 +444,37 @@ void mainWater(vec4 t) {
     wx.normal = -wx.normal; // up, whatever the winding of the polygon
   wx.normal = normalize(mix(wx.normal, vec3(0,wx.normal.y<0.0 ? -1.0 : 1.0,0), 0.25*gSwamp));
 
-  // water physics: rings from the character (steps, swimming, landing), a damped wave front going outwards
+  // water physics: rings from the character (steps, swimming, landing), a damped wave front going outwards.
+  // The swamp is thick: slower, wider and longer rings, they stir the mud up
+  const float sp = mix(1.0, 0.55, gSwamp);
   for(int i=0; i<8; ++i) {
     const vec4 r = scene.ripples[i];
     if(r.w<=0.0)
       continue;
     const vec2  d      = shInp.pos.xz - r.xy;
     const float dist   = length(d);
-    const float radius = 40.0 + r.z*110.0;        // cm, the front moves at 1.1 m/s
+    const float age    = r.z*sp;
+    const float radius = 40.0 + age*110.0 + r.w*age*25.0; // cm, a heavy hit spreads further
     const float x      = dist - radius;
-    const float width  = 45.0 + r.z*30.0;
-    const float env    = exp(-x*x/(2.0*width*width)) * exp(-r.z*0.9) * r.w / (1.0 + radius/350.0);
-    const float slope  = env*cos(x*0.11)*0.55;
+    const float width  = 45.0 + age*30.0;
+    const float fade   = exp(-age*0.9*mix(1.0, 0.6, gSwamp)) / (1.0 + radius/350.0);
+    const float env    = exp(-x*x/(2.0*width*width)) * fade * r.w;
+    const float slope  = env*cos(x*0.11)*0.4;
     wx.normal.xz -= sign(wx.normal.y)*normalize(d + vec2(1e-3))*slope;
+    // foam: only for a heavy hit, in the first moments, on the front and in the middle
+    gFoam += clamp(r.w-1.5, 0.0, 3.0)*exp(-r.z*1.6)*(exp(-x*x/(2.0*width*width)) + 0.7*exp(-dist*dist/(120.0*120.0)));
+    // the mud: a cloud inside the ring, lasts for seconds
+    gStir += r.w*exp(-r.z*0.22)*smoothstep(radius + 80.0, radius - 120.0, dist)*(1.0 - smoothstep(2.5, 4.0, r.z));
     }
+  gStir = clamp(gStir*0.5, 0.0, 1.0);
+  gFoam = clamp(gFoam, 0.0, 1.0);
   wx.normal = normalize(wx.normal);
 
   outColor       = waterShading(t,wx.normal);
+  if(gFoam>0.0) {
+    const float n = swFbm(shInp.pos.xz*(1.0/14.0) + vec2(float(scene.tickCount32)*0.0004));
+    outColor.rgb = mix(outColor.rgb, (scene.ambient + scene.sunColor*0.5)*scene.exposure*0.9, gFoam*smoothstep(0.35, 0.65, n)*0.85);
+    }
   outDiffuse.rgb = vec3(gSwamp, t.gb); // the red channel: how swampy the water is, for the reflections (8 bits, smooth)
   outDiffuse.a   = encodeHintBits();
   outNormal      = encodeNormal(wx.normal);

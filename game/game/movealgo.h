@@ -173,6 +173,8 @@ class MoveAlgo final {
     float                fxBurstAmp = 0;
     float                fxTimer    = 0;
     float                fxStep     = 0;
+    float                fxHand     = 0;
+    float                fxHandSide = 1;
     int                  fxBurst    = 0;
     bool                 fxWet      = false;
   };

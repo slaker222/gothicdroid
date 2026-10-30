@@ -42,7 +42,7 @@ struct SceneDesc {
   float fogScale;     // haze distances relative to the unlimited world
   float sunRays;      // light shafts from the sun: 1 = on
   float swampWater;   // web water quality ultra high: the swamp water (greener, slower) where the swamp mask says so
-  float swampPad0;
+  float waterFx;      // web water physics on: the swamp bubbles and mud
   float swampPad1;
   float swampPad2;
   vec4  swampRect;    // world xz -> swamp mask uv: (min x, min z, 1/size x, 1/size z)
