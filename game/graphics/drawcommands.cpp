@@ -217,7 +217,7 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
   if(m.alpha==Material::Water) {
     Material ms = m;
     ms.alpha = Material::Transparent;
-    ms.flatWater = true;
+    ms.flatWater = m.tileWater;
     pSimple  = Shaders::inst().materialPipeline(ms, type, Shaders::T_Main, bindless);
     }
 

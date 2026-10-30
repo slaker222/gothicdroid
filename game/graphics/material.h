@@ -32,6 +32,7 @@ class Material final {
     Tempest::Point            texAniMapDirPeriod;
     uint64_t                  texAniFPSInv     = 1;
     bool                      isGhost          = false;
+    bool                      tileWater        = false; // water: the texture repeats, see Material::simpleWater
     bool                      flatWater        = false; // see Material::simpleWater
     float                     waveMaxAmplitude = 0;
     float                     envMapping       = 0;

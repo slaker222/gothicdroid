@@ -352,7 +352,7 @@
     body.touch-on .ctl svg { width: 18px; height: 18px; }
     body.touch-on #controls .ctl-left { visibility: hidden; }
     body.touch-on.touch-menu #controls .ctl-left { visibility: visible; }
-    body.touch-on #settings-panel { top: 38px; bottom: auto; }
+    body.touch-on #settings-panel { top: 38px; bottom: auto; max-height: calc(100% - 46px); }
     #touch-look { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
     #touch-ui.no-look #touch-look { pointer-events: none; }
     .tbtn {
@@ -504,6 +504,11 @@
       background: rgba(10, 10, 10, 0.92);
       border: 1px solid var(--line);
       display: none;
+      max-height: calc(100% - 56px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
     }
     #player.menu-open #settings-panel { display: block; }
     #settings-panel .set-row {

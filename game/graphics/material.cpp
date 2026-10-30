@@ -26,6 +26,12 @@ Material::Material(const zenkit::Material& m, bool enableAlphaTest) {
   loadFrames(m);
 
   alpha = loadAlphaFunc(m.alpha_func,m.group,m.color.a,tex,enableAlphaTest);
+  if(alpha==Water) {
+    // only the tiling water textures are mapped by the world on low quality; the transitions (sea to swamp, waterfall
+    // foam...) are gradients that need the polygon's own texture coordinates
+    const auto& t = m.texture;
+    tileWater = (t=="OWODWAT_A0.TGA" || t=="SWAMP_A0.TGA" || t=="OWODSEA_A0.TGA");
+    }
   if(alpha==Water && m.name=="OWODWFALL_WATERFALL_01") {
     // NOTE: waterfall heuristics
     alpha = Solid;
