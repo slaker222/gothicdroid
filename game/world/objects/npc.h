@@ -554,6 +554,9 @@ class Npc final {
     uint8_t                        durtyTranform=0;
     Tempest::Vec3                  lastGroundNormal;
     MeshObjects::Mesh              blobShadow; // "ultra low" shadows
+    float                          swimLastX = 0, swimLastZ = 0;
+    float                          swimMoveMs = 0; // time since the last real movement on the water
+    float                          swimLift = 0; // swimming: the model is drawn above the physical position (it sits too deep in the water)
     void                           updateBlobShadow();
 
     DynamicWorld::NpcItem          physic;

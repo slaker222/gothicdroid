@@ -4578,7 +4578,7 @@ Matrix4x4 Npc::mkPositionMatrix() const {
 
   Matrix4x4 mt = Matrix4x4();
   mt.identity();
-  mt.translate(x,y,z);
+  mt.translate(x,y+swimLift,z);
   mt.rotateOY(180-angle);
   if(angY!=0)
     mt.rotateOX(-angY);
@@ -4697,6 +4697,23 @@ void Npc::updateAnimationEvents(uint64_t dt) {
 
   updateBlobShadow();
 
+  {
+  // swimming on the surface: the body is on the water, not in it
+  // (not while treading water in place: that pose stays where it was)
+  const float mdx = x-swimLastX, mdz = z-swimLastZ;
+  swimLastX = x;
+  swimLastZ = z;
+  if(dt>0 && std::sqrt(mdx*mdx+mdz*mdz)/float(dt)*1000.f>25.f)
+    swimMoveMs = 0; else
+    swimMoveMs += float(dt);
+  const float target = (isSwim() && !isDive() && isHuman() && swimMoveMs<400.f) ? 28.f : 0.f;
+  if(swimLift!=target) {
+    const float step = float(dt)*0.15f;
+    swimLift = swimLift<target ? std::min(swimLift+step,target) : std::max(swimLift-step,target);
+    durtyTranform |= TR_Pos;
+    }
+  }
+
   if(durtyTranform) {
     const auto ground = groundNormal();
     if(lastGroundNormal!=ground) {
@@ -4709,7 +4726,7 @@ void Npc::updateAnimationEvents(uint64_t dt) {
     if(durtyTranform==TR_Pos) {
       pos = visual.transform();
       pos.set(3,0,x);
-      pos.set(3,1,y);
+      pos.set(3,1,y+swimLift);
       pos.set(3,2,z);
       } else {
       pos = mkPositionMatrix();
