@@ -3,7 +3,12 @@
 #include "world/objects/npc.h"
 #include "world/objects/interactive.h"
 #include "world/world.h"
+#include "graphics/worldview.h"
+#include "gothic.h"
 #include "serialize.h"
+
+#include <algorithm>
+#include <cmath>
 
 const float   MoveAlgo::closeToPointThreshold = 40;
 const float   MoveAlgo::climbMove             = 55;
@@ -189,7 +194,8 @@ void MoveAlgo::tickGravity(uint64_t dt) {
       }
     } else {
     if(ground+chest<water && !npc.isDead()) {
-      const bool splash = isInAir();
+      const bool  splash = isInAir();
+      const float impact = -fallSpeed.y;
       clearSpeed();
       setInAir(false);
       if(!canFlyOverWater()) {
@@ -198,7 +204,7 @@ void MoveAlgo::tickGravity(uint64_t dt) {
         setInWater(true);
         setAsSwim(true);
         if(splash)
-          emitWaterSplash(water);
+          emitWaterSplash(water,impact);
         if(!npc.hasSwimAnimations())
           npc.takeDrownDamage();
         }
@@ -440,6 +446,8 @@ bool MoveAlgo::tickRun(uint64_t dt, MvFlags moveFlg) {
 
 void MoveAlgo::tick(uint64_t dt, MvFlags moveFlg) {
   implTick(dt,moveFlg);
+  if(npc.isPlayer())
+    tickWaterFx(dt);
 
   if(cache.sector!=nullptr && portal!=cache.sector) {
     formerPortal = portal;
@@ -687,7 +695,7 @@ bool MoveAlgo::checkLastBounce() const {
   return lastBounce+1000<ticks;
   }
 
-void MoveAlgo::emitWaterSplash(float y) {
+void MoveAlgo::emitWaterSplash(float y, float impact) {
   auto& world = npc.world();
 
   auto pos = npc.position();
@@ -703,6 +711,73 @@ void MoveAlgo::emitWaterSplash(float y) {
   world.runEffect(std::move(e));
 
   npc.emitSoundEffect("CS_INTRO_WATERSPLASH.WAV",2500,false);
+
+  if(Gothic::inst().webWaterPhysics() && npc.isPlayer()) {
+    // landing in the water: a strong ring, two more follow it; a hard fall throws one more splash
+    const float amp = std::clamp(impact*2.5f, 1.2f, 3.0f);
+    if(auto* v = world.view()) {
+      v->addWaterRipple(pos,amp);
+      }
+    fxBurst = 2;
+    fxBurstPos = pos;
+    fxBurstAmp = amp*0.7f;
+    fxTimer = 0;
+    if(impact>0.9f) {
+      Effect e2(PfxEmitter(world,"PFX_WATERSPLASH"),"");
+      auto at2 = at;
+      at2.translate(0,20,0);
+      e2.setObjMatrix(at2);
+      e2.setActive(true);
+      world.runEffect(std::move(e2));
+      }
+    }
+  }
+
+// web water physics: rings on the water around the player: a step into the water, wading, swimming
+void MoveAlgo::tickWaterFx(uint64_t dt) {
+  if(!Gothic::inst().webWaterPhysics())
+    return;
+  auto* view = npc.world().view();
+  if(view==nullptr)
+    return;
+
+  const auto pos  = npc.position();
+  const bool wet  = (isInWater() || isSwim()) && !isInAir();
+  const float dx  = pos.x-fxLast.x, dz = pos.z-fxLast.z;
+  const float spd = dt>0 ? std::sqrt(dx*dx+dz*dz)/float(dt)*1000.f : 0.f; // cm/s
+  fxLast = pos;
+  fxTimer += float(dt);
+
+  if(fxBurst>0 && fxTimer>=260.f) {
+    view->addWaterRipple(fxBurstPos,fxBurstAmp);
+    fxBurstAmp *= 0.6f;
+    fxBurst--;
+    fxTimer = 0;
+    }
+
+  if(wet && !fxWet) {
+    // walked into the water
+    fxWet = true;
+    bool  has = false;
+    float y   = waterRay(pos,&has);
+    if(has)
+      view->addWaterRipple(Tempest::Vec3(pos.x,y,pos.z),1.0f);
+    }
+  if(!wet) {
+    fxWet = false;
+    return;
+    }
+
+  const float period = isSwim() ? 520.f : 330.f;
+  if(spd>30.f && fxStep+float(dt)>=period) {
+    bool  has = false;
+    float y   = waterRay(pos,&has);
+    if(has)
+      view->addWaterRipple(Tempest::Vec3(pos.x,y,pos.z),std::clamp(spd/250.f,0.35f,1.0f));
+    fxStep = 0;
+    } else {
+    fxStep += float(dt);
+    }
   }
 
 int32_t MoveAlgo::diveTime() const {

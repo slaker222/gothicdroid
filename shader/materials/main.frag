@@ -422,6 +422,22 @@ void mainWater(vec4 t) {
     wx.normal = -wx.normal; // up, whatever the winding of the polygon
   wx.normal = normalize(mix(wx.normal, vec3(0,wx.normal.y<0.0 ? -1.0 : 1.0,0), 0.25*gSwamp));
 
+  // water physics: rings from the character (steps, swimming, landing), a damped wave front going outwards
+  for(int i=0; i<8; ++i) {
+    const vec4 r = scene.ripples[i];
+    if(r.w<=0.0)
+      continue;
+    const vec2  d      = shInp.pos.xz - r.xy;
+    const float dist   = length(d);
+    const float radius = 40.0 + r.z*110.0;        // cm, the front moves at 1.1 m/s
+    const float x      = dist - radius;
+    const float width  = 45.0 + r.z*30.0;
+    const float env    = exp(-x*x/(2.0*width*width)) * exp(-r.z*0.9) * r.w / (1.0 + radius/350.0);
+    const float slope  = env*cos(x*0.11)*0.55;
+    wx.normal.xz -= sign(wx.normal.y)*normalize(d + vec2(1e-3))*slope;
+    }
+  wx.normal = normalize(wx.normal);
+
   outColor       = waterShading(t,wx.normal);
   outDiffuse.rgb = vec3(gSwamp, t.gb); // the red channel: how swampy the water is, for the reflections (8 bits, smooth)
   outDiffuse.a   = encodeHintBits();

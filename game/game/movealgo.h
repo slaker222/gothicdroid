@@ -127,7 +127,8 @@ class MoveAlgo final {
     float   slideAngle()  const;
     float   slideAngle2() const;
 
-    void    emitWaterSplash(float y);
+    void    emitWaterSplash(float y, float impact = 0);
+    void    tickWaterFx(uint64_t dt);
 
     void    rayMain  (const Tempest::Vec3& pos) const;
     float   dropRay  (const Tempest::Vec3& pos, bool& hasCol) const;
@@ -165,4 +166,13 @@ class MoveAlgo final {
     static const float   eps;
     static const int32_t flyOverWaterHint;
     static const float   waterPadd;
+
+    // web water physics
+    Tempest::Vec3        fxLast;
+    Tempest::Vec3        fxBurstPos;
+    float                fxBurstAmp = 0;
+    float                fxTimer    = 0;
+    float                fxStep     = 0;
+    int                  fxBurst    = 0;
+    bool                 fxWet      = false;
   };

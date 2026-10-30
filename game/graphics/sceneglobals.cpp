@@ -175,8 +175,22 @@ void SceneGlobals::setUnderWater(bool w) {
   uboGlobalCpu.underWater = w ? 1 : 0;
   }
 
+void SceneGlobals::addRipple(const Tempest::Vec3& pos, float strength) {
+  auto& r    = ripples[rippleNext%8];
+  rippleNext = (rippleNext+1)%8;
+  r.x = pos.x;
+  r.z = pos.z;
+  r.strength = strength;
+  r.t0 = tickCount;
+  }
+
 void SceneGlobals::setTime(uint64_t time) {
   tickCount                = time;
+  for(int i=0; i<8; ++i) {
+    const auto& r   = ripples[i];
+    const float age = r.t0<=time ? float(time-r.t0)*0.001f : 1e9f;
+    uboGlobalCpu.ripples[i] = age<4.f ? Tempest::Vec4(r.x,r.z,age,r.strength) : Tempest::Vec4(0,0,0,0);
+    }
   uboGlobalCpu.waveAnim    = 2.f*float(M_PI)*float(tickCount%3000)/3000.f;
   uboGlobalCpu.tickCount32 = uint32_t(tickCount);
 

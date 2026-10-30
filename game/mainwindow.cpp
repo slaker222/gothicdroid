@@ -59,6 +59,7 @@ const WebSetting g_webSettings[] = {
   {"ssao",        "ENGINE",   "zCloudShadowScale",  false},
   {"texQuality",  "INTERNAL", "webTexQuality",      false},
   {"waterQuality","INTERNAL", "webWaterQuality",    false},
+  {"waterPhysics","INTERNAL", "webWaterPhysics",    false},
   {"fog",         "INTERNAL", "webFog",             false},
   {"sun",         "INTERNAL", "webSun",             false},
   {"barrier",     "INTERNAL", "webBarrier",         false},

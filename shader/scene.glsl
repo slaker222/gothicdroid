@@ -46,6 +46,7 @@ struct SceneDesc {
   float swampPad1;
   float swampPad2;
   vec4  swampRect;    // world xz -> swamp mask uv: (min x, min z, 1/size x, 1/size z)
+  vec4  ripples[8];   // water physics: (x, z, age in seconds, strength), strength 0 = unused
   };
 
 struct LightSource {

@@ -59,6 +59,8 @@ class SceneGlobals final {
     const Tempest::Matrix4x4  viewProjectLwcInv() const;
 
     uint64_t                          tickCount = 0;
+
+    void                              addRipple(const Tempest::Vec3& pos, float strength);
     const Tempest::Texture2d*         shadowMap[2] = {};
 
     Tempest::Matrix4x4                view, proj;
@@ -128,7 +130,15 @@ class SceneGlobals final {
       float                           swampWater    = 0;
       float                           swampPad[3]   = {};
       Tempest::Vec4                   swampRect     = {0,0,0,0};
+      Tempest::Vec4                   ripples[8]    = {}; // web water physics: (x, z, age in seconds, strength), strength 0 = unused
       };
+
+    struct Ripple {
+      float    x = 0, z = 0, strength = 0;
+      uint64_t t0 = 0;
+      };
+    Ripple                            ripples[8];
+    uint32_t                          rippleNext = 0;
 
     Tempest::UniformBuffer<UboGlobal> uboGlobalPf[Resources::MaxFramesInFlight][V_Count];
     Tempest::StorageBuffer            uboGlobal[V_Count];
