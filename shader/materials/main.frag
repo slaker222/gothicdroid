@@ -181,7 +181,7 @@ vec4 diffuseTex() {
       texAnim.y  = float(fract)/float(texAniMapDirPeriod.y);
       }
   }
-#if defined(WATER_SIMPLE)
+#if defined(WATER_SIMPLE) && !defined(WATER_TINT)
   // the texture is tiled in the world: big pools are not stretched by their polygons
   const vec2 uv = shInp.pos.xz*(1.0/500.0) + texAnim;
 #else
@@ -198,6 +198,10 @@ vec4 diffuseTex() {
 #endif
 
   vec4 tex = texture(sampler2D(textureMain[tId], samplerMain),uv);
+#if defined(WATER_TINT)
+  // a water transition (sea to swamp...): only its alpha matters, the colour is that of the plain water around it
+  tex.rgb = vec3(0.20,0.30,0.36);
+#endif
 
 #if !defined(SIMPLE_MAT)
   tex.a *= alphaWeight;

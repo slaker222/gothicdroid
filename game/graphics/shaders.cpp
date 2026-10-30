@@ -378,7 +378,7 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
 
   const auto alpha   = (mat.isGhost ? Material::Ghost : mat.alpha);
   const bool trivial = (!mat.hasUvAnimation() && alpha==Material::Solid && t==DrawCommands::Landscape);
-  const bool flatWater = (mat.flatWater && alpha==Material::Transparent);
+  const int  flatWater = (alpha==Material::Transparent ? int(mat.flatWater) : 0);
 
   for(auto& i:materials) {
     if(i.alpha==alpha && i.type==t && i.pipelineType==pt && i.bindless==bl && i.trivial==trivial && i.flatWater==flatWater)
@@ -488,7 +488,7 @@ const RenderPipeline* Shaders::materialPipeline(const Material& mat, DrawCommand
       break;
     case Material::Transparent:
       typeVsM = "_f";
-      typeFsM = flatWater ? "_fw" : "_f";
+      typeFsM = flatWater==1 ? "_fw" : (flatWater==2 ? "_ft" : "_f");
       break;
     case Material::Multiply:
     case Material::Multiply2:
