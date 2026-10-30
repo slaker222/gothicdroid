@@ -75,6 +75,37 @@ layout(push_constant, std430) uniform Push {
   } push;
 #endif
 
+#if defined(WATER)
+float gSwamp = 0.0; // 0 plain water, 1 swamp water: from the colour of the water texture (green-brown against blue-grey)
+#endif
+
+#if defined(WATER)
+float swHash(vec2 p) {
+  p = fract(p*vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x*p.y);
+  }
+
+float swNoise(vec2 p) {
+  const vec2 i = floor(p);
+  const vec2 f = fract(p);
+  const vec2 u = f*f*(3.0 - 2.0*f);
+  return mix(mix(swHash(i),               swHash(i + vec2(1,0)), u.x),
+             mix(swHash(i + vec2(0,1)),   swHash(i + vec2(1,1)), u.x), u.y);
+  }
+
+float swFbm(vec2 p) {
+  float v = 0.0, a = 0.5;
+  for(int i=0; i<4; ++i) {
+    v += a*swNoise(p);
+    p  = p*2.03 + vec2(17.1, 9.7);
+    a *= 0.5;
+    }
+  return v;
+  }
+
+#endif
+
 #if defined(WATER) || defined(GHOST)
 float unproject(float depth) {
   mat4 projInv = scene.projectInv;
@@ -108,7 +139,8 @@ float encodeHintBits() {
 #endif
 
 #if defined(WATER)
-  const int water = (gl_FrontFacing) ? 0 : (1 << 3);
+  // the water mesh is two sided with mixed winding: the swamp does not depend on it, or its polygons would show
+  const int water = (gl_FrontFacing && gSwamp<0.5) ? 0 : (1 << 3);
 #elif defined(LVL_OBJECT)
   // const int water = (bucket.envMapping>0.01 ? 1 : 0) << 3;
   const int water = (0) << 3;
@@ -198,6 +230,10 @@ vec4 diffuseTex() {
 #endif
 
   vec4 tex = texture(sampler2D(textureMain[tId], samplerMain),uv);
+#if defined(WATER)
+  // the swamp mask (see Landscape): smooth in the world, independent from the polygons
+  gSwamp = scene.swampWater*textureLod(swampMask, (shInp.pos.xz - scene.swampRect.xy)*scene.swampRect.zw, 0.0).r;
+#endif
 
 #if !defined(SIMPLE_MAT)
   tex.a *= alphaWeight;
@@ -297,9 +333,35 @@ vec4 underWaterColorDepth(vec3 normal) {
   return vec4(back,length(fragPos1.xyz - shInp.pos.xyz));
   }
 
+// the surface of the swamp: dull olive water with slowly drifting scum and dark patches, the bottom shows dimly
+vec3 swampSurface(vec3 base, vec3 refracted, float len, vec3 normal, vec3 refl) {
+  const float time = float(scene.tickCount32)*0.001;
+  const vec2  p    = shInp.pos.xz*(1.0/170.0);
+  const float n1   = swFbm(p       + vec2(time*0.010,  time*0.006));
+  const float n2   = swFbm(p*2.7   - vec2(time*0.016, -time*0.011) + 31.0);
+  const float scum = smoothstep(0.52, 0.72, n1*0.7 + n2*0.5);          // lighter, yellow green films
+  const float dark = smoothstep(0.55, 0.30, n2);                        // dark murky patches
+
+  const vec3 lit  = scene.ambient + scene.sunColor*(0.45*max(scene.sunDir.y,0.0));
+  vec3 surf = textureAlbedo(base)*lit*scene.exposure;
+  surf *= mix(1.0, 0.55, dark);
+  surf  = mix(surf, vec3(0.30,0.34,0.11)*lit*scene.exposure, scum*0.55);
+
+  // the opaque murk: how much of the bottom can be seen
+  const float vis = exp(-len/180.0)*0.35;
+  vec3 col = mix(surf, refracted*vec3(0.55,0.85,0.45), vis);
+
+  // a broad dull glint of the sun
+  const float glint = pow(clamp(dot(refl, scene.sunDir), 0.0, 1.0), 30.0);
+  col += scene.sunColor*glint*0.12*scene.exposure*(1.0 - scum*0.8);
+  return col;
+  }
+
 vec3 waterScatter(vec3 back, vec3 normal, float len) {
   float depth         = len / 5000.0; // 50 meters
-  vec3  transmittance = exp(-depth * vec3(4,2,1)*1.25);
+  // swamp: murky, absorbs red and blue first, so it turns green
+  vec3  absorb        = mix(vec3(4,2,1), vec3(9,2.5,7)*3.0, gSwamp);
+  vec3  transmittance = exp(-depth * absorb*1.25);
   // note: less sun light and less obsevable light
   transmittance = transmittance*transmittance;
 
@@ -328,7 +390,8 @@ vec4 waterShading(vec4 t, const vec3 normal) {
     }
 
   const vec4 back  = underWaterColorDepth(normal);
-  const vec3 color = waterScatter(back.rgb, normal, back.a) * (1.0-f);
+  vec3 color = waterScatter(back.rgb, normal, back.a) * (1.0-f);
+  color = mix(color, swampSurface(t.rgb, color, back.a, normal, refl), gSwamp);
   // color = waterColor(color,normal) * WaterAlbedo ;
   return vec4(color,1);
   }
@@ -339,15 +402,21 @@ void mainWater(vec4 t) {
   vec3 lx = dFdx(shInp.pos), ly = dFdy(shInp.pos);
   float minLength = max(length(lx),length(ly));
 
-  Wave wx = wave(shInp.pos, minLength, waveIterationsHigh, waveAmplitude(waveMaxAmplitude));
+  gWaveSpeed = mix(1.0, 0.3, gSwamp);
+  // the amplitude of the swamp is the same for all its polygons (the materials differ in it)
+  Wave wx = wave(shInp.pos, minLength, waveIterationsHigh, mix(waveAmplitude(waveMaxAmplitude), waveAmplitude(0.0)*0.4, gSwamp));
 
   if(gl_FrontFacing) {
     // BROKEN: water mesh is two sided
     wx.normal = -wx.normal;
     }
+  // the swamp is calm and dull: flatter surface, less of the glitter of the plain water
+  if(gSwamp>0.5 && scene.underWater==0 && wx.normal.y<0.0)
+    wx.normal = -wx.normal; // up, whatever the winding of the polygon
+  wx.normal = normalize(mix(wx.normal, vec3(0,wx.normal.y<0.0 ? -1.0 : 1.0,0), 0.25*gSwamp));
 
   outColor       = waterShading(t,wx.normal);
-  outDiffuse.rgb = t.rgb;
+  outDiffuse.rgb = vec3(gSwamp, t.gb); // the red channel: how swampy the water is, for the reflections (8 bits, smooth)
   outDiffuse.a   = encodeHintBits();
   outNormal      = encodeNormal(wx.normal);
   }

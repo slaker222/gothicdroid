@@ -193,6 +193,8 @@ void DrawCommands::setBindings(Tempest::Encoder<CommandBuffer>& cmd, const DrawC
   if(v==SceneGlobals::V_Main && cx.isSceneInfoRequired()) {
     cmd.setBinding(L_SceneClr, *scene.sceneColor, Sampler::bilinear(ClampMode::MirroredRepeat));
     cmd.setBinding(L_GDepth,   *scene.sceneDepth, Sampler::nearest (ClampMode::MirroredRepeat));
+    if(cx.alpha==Material::Water)
+      cmd.setBinding(L_SwampMask, *scene.swampMask, Sampler::bilinear(ClampMode::ClampToEdge));
     }
 
   if(v==SceneGlobals::V_Vsm) {

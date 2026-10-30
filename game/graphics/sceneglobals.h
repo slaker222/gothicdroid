@@ -68,6 +68,8 @@ class SceneGlobals final {
 
     const Tempest::Texture2d*         sceneColor   = &Resources::fallbackBlack();
     const Tempest::Texture2d*         sceneDepth   = &Resources::fallbackBlack();
+    Tempest::Vec4                     swampRect    = {0,0,0,0};
+    const Tempest::Texture2d*         swampMask    = &Resources::fallbackBlack(); // web ultra high water: where the swamp is
     const Tempest::Texture2d*         zbuffer      = &Resources::fallbackBlack();
 
     const Tempest::Texture2d*         gbufDiffuse  = &Resources::fallbackBlack();
@@ -123,6 +125,9 @@ class SceneGlobals final {
       float                           fogAmount     = 0;
       float                           fogScale      = 1;
       float                           sunRays       = 0;
+      float                           swampWater    = 0;
+      float                           swampPad[3]   = {};
+      Tempest::Vec4                   swampRect     = {0,0,0,0};
       };
 
     Tempest::UniformBuffer<UboGlobal> uboGlobalPf[Resources::MaxFramesInFlight][V_Count];

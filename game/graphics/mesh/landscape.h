@@ -15,6 +15,10 @@ class Landscape final {
 
     const Tempest::StorageBuffer& bvh()   const { return bvhNodes; }
 
+    // web water quality ultra high: where the swamp is (1) and the sea (0), a smooth map over the world xz
+    const Tempest::Texture2d*     swampMask() const { return hasSwamp ? &swampTex : nullptr; }
+    Tempest::Vec4                 swampRect() const { return swampMap; }
+
   private:
     using Item = VisualObjects::Item;
 
@@ -27,4 +31,9 @@ class Landscape final {
     Tempest::StorageBuffer meshletDesc;
 
     Tempest::StorageBuffer bvhNodes;
+
+    void                   buildSwampMask(const PackedMesh& packed);
+    Tempest::Texture2d     swampTex;
+    Tempest::Vec4          swampMap = {0,0,0,0};
+    bool                   hasSwamp = false;
   };

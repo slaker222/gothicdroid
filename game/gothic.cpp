@@ -1024,6 +1024,7 @@ void Gothic::setupSettings() {
     game->setupSettings();
 #if defined(__EMSCRIPTEN__)
   blobShadow = settingsGetI("INTERNAL","webShadows")==3;
+  swampWater = settingsGetI("INTERNAL","webWaterQuality")==2;
   {
   // webFog: 0 = soft haze (default), 1 = off, 2 = dense haze
   const int fog = settingsGetI("INTERNAL","webFog");

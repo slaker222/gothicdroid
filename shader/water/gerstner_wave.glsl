@@ -28,8 +28,10 @@ float waveAmplitude() {
 #endif
   }
 
+float gWaveSpeed = 1.0; // the swamp water is slower
+
 float gerWave(inout Wave w, vec2 d, float amplitude, vec2 pos, float speed, float frequency) {
-  float x = dot(d, pos) * frequency + scene.tickCount32*0.001*speed;
+  float x = dot(d, pos) * frequency + scene.tickCount32*0.001*speed*gWaveSpeed;
   float a = amplitude;
 
   w.binormal += vec3(

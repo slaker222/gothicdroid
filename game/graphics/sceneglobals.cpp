@@ -156,6 +156,8 @@ void SceneGlobals::setSky(const Sky& s) {
   uboGlobalCpu.fogAmount     = Gothic::inst().webFogAmount();
   uboGlobalCpu.fogScale      = Gothic::inst().webFogScale();
   uboGlobalCpu.sunRays       = Gothic::inst().webSunMode()==0 ? 1.f : 0.f;
+  uboGlobalCpu.swampWater    = Gothic::inst().webSwampWater() ? 1.f : 0.f;
+  uboGlobalCpu.swampRect     = swampRect;
   uboGlobalCpu.exposure      = 1;
   }
 

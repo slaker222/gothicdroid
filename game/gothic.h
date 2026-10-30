@@ -215,6 +215,8 @@ class Gothic final {
 
     // web shadows "ultra low": a translucent circle under every npc instead of shadow maps
     bool                                  blobShadows() const { return blobShadow; }
+    // web water quality ultra high: the swamp water shading
+    bool                                  webSwampWater() const { return swampWater; }
     // web fog setting: <0 = off, >0 = soft haze (1.6) / dense haze (3); 0 = the engine fog (other platforms)
     float                                 webFogAmount() const { return fogAmount; }
     // fog distances relative to the unlimited world (1), smaller for a shorter world draw distance
@@ -330,6 +332,7 @@ class Gothic final {
     bool                                    desktop        = false;
     bool                                    showFpsCounter = false;
     bool                                    blobShadow     = false;
+    bool                                    swampWater     = false;
     float                                   fogAmount      = 0;
     float                                   fogScale       = 1;
     int                                     sunMode        = 0;

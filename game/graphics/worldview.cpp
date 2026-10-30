@@ -13,6 +13,10 @@ WorldView::WorldView(const World& world, const PackedMesh& wmesh)
     : owner(world),aabb(wmesh.bbox()),gSky(sGlobal,world),gLights(sGlobal),visuals(sGlobal,wmesh.bbox()),
     objGroup(visuals),pfxGroup(*this,sGlobal,visuals),land(visuals,wmesh) {
   pfxGroup.resetTicks();
+  if(auto* mask = land.swampMask()) {
+    sGlobal.swampMask = mask;
+    sGlobal.swampRect = land.swampRect();
+    }
   }
 
 WorldView::~WorldView() {
