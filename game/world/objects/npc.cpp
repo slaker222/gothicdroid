@@ -1985,12 +1985,12 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
     }
   }
 
-// the barrier of Gothic 1 strikes with lightning and throws back (dx,dz - the direction of the throw): about -20 HP, never kills
+// the barrier of Gothic 1 strikes with lightning and throws back (dx,dz - the direction of the throw): a quarter of max HP (at least 20); kills when there is less HP left, and always in water
 void Npc::onBarrierHit(float dx, float dz) {
-  const int32_t hp  = attribute(ATR_HITPOINTS);
-  const int32_t dmg = std::min<int32_t>(20, std::max<int32_t>(hp-1,0));
-  if(dmg>0)
-    changeAttribute(ATR_HITPOINTS,-dmg,true);
+  // water conducts the lightning: swimming or diving, the strike always kills
+  const bool    wet = isSwim() || isDive();
+  const int32_t dmg = wet ? std::max<int32_t>(attribute(ATR_HITPOINTS),1) : std::max<int32_t>(20, attribute(ATR_HITPOINTSMAX)/4);
+  changeAttribute(ATR_HITPOINTS,-dmg,true);
   if(isDown() || isLie() || interactive()!=nullptr || isSwim() || mvAlgo.isClimb())
     return;
 
@@ -2000,7 +2000,7 @@ void Npc::onBarrierHit(float dx, float dz) {
   lastHitType = std::cos(da*M_PI/180.0)<0 ? 'A' : 'B';
   visual.interrupt();
   setAnimAngGet(lastHitType=='A' ? Anim::FallDeepA : Anim::FallDeepB);
-  mvAlgo.accessDamFly(dx,dz,0.5f); // a short throw
+  mvAlgo.accessDamFly(dx,dz,0.5f,true); // a short throw, guaranteed even in a jump
   emitSoundSVM("SVM_%d_AARGH");
   }
 

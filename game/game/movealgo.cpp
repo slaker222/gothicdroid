@@ -533,8 +533,13 @@ void MoveAlgo::clearSpeed() {
   fallCount   = 0;
   }
 
-void MoveAlgo::accessDamFly(float dx, float dz, float speed) {
-  if(flags==0) {
+void MoveAlgo::accessDamFly(float dx, float dz, float speed, bool force) {
+  if(force) {
+    // a jump or a fall does not save: the throw always happens
+    setAsJumpup(false);
+    setAsFalling(false);
+    }
+  if(flags==0 || force) {
     float len = std::sqrt(dx*dx+dz*dz);
     auto  vec = Tempest::Vec3(dx,len*0.5f,dz);
     vec = vec/vec.length();

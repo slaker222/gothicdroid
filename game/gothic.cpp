@@ -1011,7 +1011,7 @@ void Gothic::saveBarrierZones() {
   std::string s;
   char buf[96];
   for(auto& z:barrierZones) {
-    std::snprintf(buf,sizeof(buf),"%s%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f",s.empty() ? "" : ";",
+    std::snprintf(buf,sizeof(buf),"%s%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f,%.0f",s.empty() ? "" : "|",
                   z.x[0],z.z[0],z.x[1],z.z[1],z.x[2],z.z[2],z.x[3],z.z[3]);
     s += buf;
     }
@@ -1042,10 +1042,15 @@ void Gothic::setupSettings() {
   {
   barrierZoneShow = settingsGetI("INTERNAL","webBarrierZoneShow")!=0;
   barrierZones.clear();
-  std::string zones(settingsGetS("INTERNAL","webBarrierZones")); // "x0,z0,x1,z1;x0,z0,x1,z1"
+  // the zones marked by hand for everybody; a player who marked their own (or cleared them) keeps the saved list
+  static const char* defaultZones =
+    "7772,37852,8613,37588,9350,37644,8429,38852|55575,-31262,57467,-29318,62059,-21695,60660,-23664|"
+    "62098,-21690,62806,-14743,61483,-7657,60870,-7889|58197,-3970,60844,-7853,39987,42545,39426,42922|"
+    "29062,29166,47084,23501,33130,40483,31881,40720|5338,38269,7314,38048,7713,38138,5764,39458";
+  std::string zones(iniFile->has("INTERNAL","webBarrierZones") ? settingsGetS("INTERNAL","webBarrierZones") : defaultZones); // "x0,z0,x1,z1|x0,z0,x1,z1" (';' starts a comment in an ini)
   size_t pos = 0;
   while(pos<zones.size()) {
-    auto end = zones.find(';',pos);
+    auto end = zones.find_first_of("|;",pos);
     if(end==std::string::npos)
       end = zones.size();
     const auto  item = zones.substr(pos,end-pos);

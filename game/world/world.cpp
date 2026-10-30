@@ -455,9 +455,9 @@ void World::tickBarrierZones() {
       }
     }
 
-  // the effect has a life span: it is started again while the player is within 12 meters of a zone
+  // the effect has a life span: it is started again while the player is within 6 meters of a zone
   if(pl!=nullptr) {
-    const bool near = nearD<1200;
+    const bool near = nearD<600;
     barrierWarning = near;
     if(auto vfx = Gothic::inst().loadVisualFx("BARRIERE_PC_WARNING")) {
       if(near && !pl->hasEffect(*vfx))
