@@ -33,7 +33,7 @@ class Material final {
     uint64_t                  texAniFPSInv     = 1;
     bool                      isGhost          = false;
     bool                      tileWater        = false; // water: the texture repeats, see Material::simpleWater
-    uint8_t                   flatWater        = 0;     // 1 water texture mapped by the world, 2 transition: fixed tint, own alpha // see Material::simpleWater
+    uint8_t                   flatWater        = 0;     // 1 water texture mapped by the world, 2 transition (a colour gradient): own UV, no shadows // see Material::simpleWater
     float                     waveMaxAmplitude = 0;
     float                     envMapping       = 0;
 
