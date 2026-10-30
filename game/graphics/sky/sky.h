@@ -28,6 +28,8 @@ class Sky final {
     const Tempest::Texture2d& sunImage()  const { return *sunImg;  }
     const Tempest::Texture2d& moonImage() const { return *moonImg; }
 
+    const Tempest::Texture2d* barrierImage() const { return barrierImg; }
+
     const State&              cloudsDay()   const { return clouds[0]; }
     const State&              cloudsNight() const { return clouds[1]; }
     Tempest::Vec2             cloudsOffset(int layer) const;
@@ -45,6 +47,8 @@ class Sky final {
 
     const Tempest::Texture2d*     sunImg   = &Resources::fallbackBlack();
     const Tempest::Texture2d*     moonImg  = &Resources::fallbackBlack();
+
+    const Tempest::Texture2d*     barrierImg = nullptr; // Gothic 1 only
 
     float                         GSunIntensity  = 0;
     float                         GMoonIntensity = 0;

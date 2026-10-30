@@ -144,6 +144,13 @@ void Shaders::compileShaders() {
   sh           = GothicShader::get("sun.frag.sprv");
   auto fsLight = device.shader(sh.data,sh.len);
   sun          = device.pipeline(Triangles, state, vsLight, fsLight);
+
+  sh           = GothicShader::get("triangle.vert.sprv");
+  vsLight      = device.shader(sh.data,sh.len);
+  sh           = GothicShader::get("barrier.frag.sprv");
+  fsLight      = device.shader(sh.data,sh.len);
+  state.setCullFaceMode(RenderState::CullMode::NoCull);
+  barrier      = device.pipeline(Triangles, state, vsLight, fsLight);
   }
 
   {

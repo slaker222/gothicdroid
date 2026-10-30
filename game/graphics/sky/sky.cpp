@@ -6,6 +6,7 @@
 #include <Tempest/Fence>
 
 #include <cctype>
+#include <strings.h>
 
 #include "utils/string_frm.h"
 #include "world/world.h"
@@ -68,6 +69,11 @@ Sky::Sky(const SceneGlobals& scene, const World& world)
     */
   sunImg       = Resources::loadTexture(Gothic::settingsGetS("SKY_OUTDOOR","zSunName"));
   moonImg      = Resources::loadTexture(Gothic::settingsGetS("SKY_OUTDOOR","zMoonName"));
+  if(Gothic::inst().version().game==1 && strcasecmp(std::string(name).c_str(),"WORLD")==0) {
+    auto t = Resources::loadTexture("BARRIERE.TGA");
+    if(t!=&Resources::fallbackTexture())
+      barrierImg = t;
+    }
   if(sunImg==nullptr)
     sunImg = &Resources::fallbackBlack();
   if(moonImg==nullptr)

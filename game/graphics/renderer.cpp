@@ -805,6 +805,8 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
   cmd.setDebugMarker("Sun&Moon");
   drawSunMoon(cmd, *wview);
+  cmd.setDebugMarker("Barrier");
+  drawBarrier(cmd, *wview);
   auto tTrans = perfNow() - t5;
 
   auto t6 = perfNow();
@@ -1026,6 +1028,27 @@ void Renderer::drawSunMoon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   cmd.setPushData(push);
   cmd.setPipeline(shaders.sun);
   cmd.draw(nullptr, 0, 6);
+  }
+
+void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
+  auto* tex = wview.sky().barrierImage();
+  if(tex==nullptr)
+    return;
+  auto& scene = wview.sceneGlobals();
+  auto  bbox  = wview.bbox();
+
+  struct Push {
+    Tempest::Vec3 center;
+    float         radius = 0;
+    } push;
+  push.center = Vec3((bbox.first.x+bbox.second.x)*0.5f, bbox.first.y, (bbox.first.z+bbox.second.z)*0.5f);
+  push.radius = std::max(bbox.second.x-bbox.first.x, bbox.second.z-bbox.first.z)*0.5f;
+
+  cmd.setBinding(0, scene.uboGlobal[SceneGlobals::V_Main]);
+  cmd.setBinding(1, *tex, Sampler::trillinear());
+  cmd.setPushData(push);
+  cmd.setPipeline(shaders.barrier);
+  cmd.draw(nullptr, 0, 3);
   }
 
 void Renderer::drawSwRT(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
