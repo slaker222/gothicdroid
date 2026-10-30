@@ -14,7 +14,7 @@ layout(binding = 1) uniform sampler2D tBarrier;
 layout(push_constant, std430) uniform UboPush {
   vec3  center;   // dome centre, world space
   float radius;
-  vec4  strike;   // x: azimuth (turns), y: age 0..1 (<0 - none), z: seed
+  vec4  strike;   // x: azimuth (turns), y: age 0..1 (<0 - none), z: seed, w: visibility 0..1
   } push;
 
 layout(location = 0) out vec4 outColor;
@@ -135,5 +135,6 @@ void main() {
   const vec3 clr = l*vec3(0.60,0.65,1.00) + vec3(1.0,0.97,0.85)*core*core*core*1.6 + vec3(0.60,0.32,0.12)*0.10;
   // the barrier dims the sky behind it
   const vec3 bolt = vec3(0.85,0.90,1.0)*(strike(view)*3.0);
-  outColor = vec4((clr*near + bolt)*fade*210000.0*scene.exposure, 1.0 - 0.4*near*fade);
+  const float vis = push.strike.w;
+  outColor = vec4((clr*near + bolt)*fade*vis*210000.0*scene.exposure, 1.0 - 0.4*near*fade*vis);
   }

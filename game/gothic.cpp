@@ -457,8 +457,11 @@ void Gothic::emitGlobalSound(const Tempest::Sound &sfx) {
   sndStorage.push_back(std::move(s));
   }
 
-void Gothic::emitGlobalSoundWav(std::string_view wav) {
+void Gothic::emitGlobalSoundWav(std::string_view wav, float volume) {
   auto s = sndDev.load(Resources::loadSoundBuffer(wav));
+  if(s.isEmpty())
+    return;
+  s.setVolume(volume);
   s.play();
 
   for(size_t i=0;i<sndStorage.size();){
@@ -970,6 +973,10 @@ void Gothic::setupSettings() {
   fogScale = worldM>0 ? std::clamp(float(worldM)/1100.f, 0.02f, 1.f) : 1.f;
   // webSun: 0 = disc + halo + light shafts (default), 1 = the same without the shafts, 2 = off
   sunMode  = std::clamp(settingsGetI("INTERNAL","webSun"), 0, 2);
+  // webBarrier: 0 = classic (default), 1 = always, 2 = off; webBarrierVol: percent of the sound volume, 20..100 (not set = 100)
+  barrierMode = std::clamp(settingsGetI("INTERNAL","webBarrier"), 0, 2);
+  const int vol = settingsGetI("INTERNAL","webBarrierVol");
+  barrierVolume = vol<20 ? 1.f : float(std::min(vol,100))/100.f;
   }
 #endif
 

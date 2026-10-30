@@ -61,6 +61,8 @@ const WebSetting g_webSettings[] = {
   {"waterQuality","INTERNAL", "webWaterQuality",    false},
   {"fog",         "INTERNAL", "webFog",             false},
   {"sun",         "INTERNAL", "webSun",             false},
+  {"barrier",     "INTERNAL", "webBarrier",         false},
+  {"barrierVol",  "INTERNAL", "webBarrierVol",      false},
   };
 
 const WebSetting* findWebSetting(const char* name) {

@@ -37,6 +37,9 @@ class Renderer final {
       uint64_t next    = 0;     // ms, when the next one begins
       float    azimuth = 0;     // turns
       float    seed    = 0;
+      uint64_t origin  = 0;     // ms, game time when the classic mode started counting
+      bool     started = false;
+      uint64_t ambientNext = 0; // ms, when the humming sound has to be started again
       } barrierStrike;
 
     enum Quality : uint8_t {

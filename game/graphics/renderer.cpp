@@ -1032,7 +1032,8 @@ void Renderer::drawSunMoon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
 
 void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
   auto* tex = wview.sky().barrierImage();
-  if(tex==nullptr)
+  const int mode = Gothic::inst().webBarrierMode(); // 0 classic, 1 always, 2 off
+  if(tex==nullptr || mode==2)
     return;
   auto& scene = wview.sceneGlobals();
   auto  bbox  = wview.bbox();
@@ -1052,6 +1053,32 @@ void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   if(now<st.start || now>st.next+60000) { // time went backwards (load) or far ahead
     st.start = 0;
     st.next  = now + 3000;
+    st.ambientNext = 0;
+    }
+  if(!st.started || now<st.origin) { // the first look at the barrier
+    st.started = true;
+    st.origin  = now;
+    }
+
+  // classic: the barrier is there for 45 s when the game starts and for 45 s every 36 minutes, it dissolves slowly
+  float vis = 1.f;
+  if(mode==0) {
+    const uint64_t period = 36*60*1000, shown = 45*1000;
+    const uint64_t t      = now-st.origin;
+    const float    ph     = float(t%period)*0.001f;
+    vis = 1.f - smoothstep(float(shown)*0.001f-4.f, float(shown)*0.001f, ph);
+    if(t>=period)
+      vis *= smoothstep(0.f, 3.f, ph);
+    if(vis<=0.f)
+      return;
+    }
+  const float vol = Gothic::inst().webBarrierVolume()*vis;
+
+  if(now>=st.ambientNext) { // the hum of the barrier (recorded quietly, so louder than 1): the sound has no loop, start it again when it ends
+    constexpr const char* hum = "MFX_BARRIERE_AMBIENT.WAV";
+    const uint64_t len = Resources::loadSoundBuffer(hum).timeLength();
+    Gothic::inst().emitGlobalSoundWav(hum, 4.0f*vol);
+    st.ambientNext = now + (len>500 ? len-100 : 5000);
     }
   if(now>=st.next) {
     auto  rnd = [](uint64_t x) { x ^= x<<13; x ^= x>>7; x ^= x<<17; return float(x%100000)/100000.f; };
@@ -1062,9 +1089,11 @@ void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
     st.next    = now + 5000 + uint64_t(rnd(now*2654435761u+1)*3000.f);
     st.azimuth = yaw + (rnd(now*40503u+7)-0.5f)*0.2f;
     st.seed    = rnd(now*977u+3)*50.f;
+    if(vis>0.2f)
+      Gothic::inst().emitGlobalSoundWav("MFX_BARRIERE_SHOOT.WAV", 0.8f*vol);
     }
   const float age = float(now-st.start)/float(duration);
-  push.strike = Vec4(st.azimuth, (st.start>0 || now==st.start) && age<1.f ? age : -1.f, st.seed, 0);
+  push.strike = Vec4(st.azimuth, (st.start>0 || now==st.start) && age<1.f ? age : -1.f, st.seed, vis);
 
   cmd.setBinding(0, scene.uboGlobal[SceneGlobals::V_Main]);
   cmd.setBinding(1, *tex, Sampler::trillinear());
