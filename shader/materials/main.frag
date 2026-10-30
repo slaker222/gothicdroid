@@ -343,24 +343,31 @@ vec3 swampSurface(vec3 base, vec3 refracted, float len, vec3 normal, vec3 refl) 
   const float dark = smoothstep(0.55, 0.30, n2);                        // dark murky patches
 
   const vec3 lit  = scene.ambient + scene.sunColor*(0.45*max(scene.sunDir.y,0.0));
-  vec3 surf = textureAlbedo(base)*lit*scene.exposure;
-  surf *= mix(1.0, 0.55, dark);
-  surf  = mix(surf, vec3(0.30,0.34,0.11)*lit*scene.exposure, scum*0.55);
+  // the texture of the swamp, pulled towards the olive green of the original water and brightened
+  vec3 alb  = textureAlbedo(base);
+  const float l = dot(alb, vec3(0.3,0.5,0.2));
+  alb = mix(vec3(l), alb, 1.2)*vec3(1.0,1.05,0.55);
+  vec3 surf = alb*lit*scene.exposure*1.25;
+  surf *= mix(1.0, 0.6, dark);
+  surf  = mix(surf, vec3(0.30,0.30,0.10)*lit*scene.exposure*1.2, scum*0.45);
 
   // the opaque murk: how much of the bottom can be seen
-  const float vis = exp(-len/180.0)*0.35;
+  const float vis = exp(-len/180.0)*0.2;
   vec3 col = mix(surf, refracted*vec3(0.55,0.85,0.45), vis);
 
   // a broad dull glint of the sun
   const float glint = pow(clamp(dot(refl, scene.sunDir), 0.0, 1.0), 30.0);
   col += scene.sunColor*glint*0.12*scene.exposure*(1.0 - scum*0.8);
+  // wet sheen: the ripples catch the sky at grazing angles
+  const float graz = pow(1.0 - clamp(abs(normal.y)*abs(refl.y)*0.0 + abs(refl.y), 0.0, 1.0), 3.0);
+  col += (scene.ambient*2.0 + scene.sunColor*0.1)*graz*0.35*scene.exposure;
   return col;
   }
 
 vec3 waterScatter(vec3 back, vec3 normal, float len) {
   float depth         = len / 5000.0; // 50 meters
   // swamp: murky, absorbs red and blue first, so it turns green
-  vec3  absorb        = mix(vec3(4,2,1), vec3(9,2.5,7)*3.0, gSwamp);
+  vec3  absorb        = mix(vec3(4,2,1), vec3(14,2.0,12)*3.0, gSwamp);
   vec3  transmittance = exp(-depth * absorb*1.25);
   // note: less sun light and less obsevable light
   transmittance = transmittance*transmittance;

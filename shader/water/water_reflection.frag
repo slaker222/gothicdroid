@@ -178,7 +178,7 @@ void main() {
 
   // the swamp (the red channel of the diffuse of water) is dull: weaker reflections
   const float swamp = diff.r;
-  const float f = fresnel(refl,normal,ior)*(1.0 - 0.92*swamp);
+  const float f = fresnel(refl,normal,ior)*(1.0 - 0.6*swamp);
   if(f<=0.0001)
     discard;
 
