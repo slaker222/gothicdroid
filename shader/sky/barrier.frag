@@ -14,6 +14,7 @@ layout(binding = 1) uniform sampler2D tBarrier;
 layout(push_constant, std430) uniform UboPush {
   vec3  center;   // dome centre, world space
   float radius;
+  vec4  strike;   // x: azimuth (turns), y: age 0..1 (<0 - none), z: seed
   } push;
 
 layout(location = 0) out vec4 outColor;
@@ -35,6 +36,46 @@ vec3 lightning(vec2 uv, float split) {
   return vec3(textureLod(tBarrier, uv + vec2( split, 0), 0.7).r,
               textureLod(tBarrier, uv,                   0.7).g,
               textureLod(tBarrier, uv - vec2( split, 0), 0.7).b);
+  }
+
+float vnoise(float x) {
+  const float i = floor(x);
+  const float f = fract(x);
+  return mix(hash11(i), hash11(i + 1.0), f*f*(3.0 - 2.0*f)) - 0.5;
+  }
+
+// sideways offset of a jagged bolt at the distance s along it
+float jag(float s, float seed) {
+  return vnoise(s*5.0 + seed)*0.10 + vnoise(s*13.0 + seed*1.7)*0.045 + vnoise(s*31.0 + seed*2.3)*0.018;
+  }
+
+// thin white bolt with branches, from the zenith towards the horizon; view - direction of the pixel
+float strike(vec3 view) {
+  const float age = push.strike.y;
+  if(age<0.0)
+    return 0.0;
+  float dAz = atan(view.x, view.z)*(1.0/6.2831853) - push.strike.x;
+  dAz -= floor(dAz + 0.5);
+  const float theta = acos(clamp(view.y, -1.0, 1.0));
+  const float side  = dAz*6.2831853*sin(theta);       // sideways distance, radians
+  const float seed  = push.strike.z;
+
+  float v = 0.0;
+  for(int i=0; i<4; ++i) {
+    // i==0 the main bolt, the rest are branches leaving it
+    const float sb  = i==0 ? 0.25 : 0.45 + 0.25*float(i);
+    const float dir = (hash11(seed + float(i)*7.1) - 0.5)*1.6;
+    float x = jag(theta, seed);
+    if(i>0)
+      x += (theta - sb)*dir + jag(theta, seed + float(i)*3.3)*0.8;
+    const float w    = i==0 ? 0.0045 : 0.0030;
+    const float mask = smoothstep(sb, sb + 0.05, theta)*(1.0 - smoothstep(i==0 ? 1.45 : sb + 0.35, i==0 ? 1.55 : sb + 0.5, theta));
+    const float d    = (side - x)/w;
+    v += mask*(exp(-d*d) + 0.22*exp(-d*d*0.02))*(i==0 ? 1.0 : 0.6);
+    }
+  // two quick strikes, then it fades
+  const float env = max(exp(-age*7.0), 0.9*exp(-(age - 0.2)*(age - 0.2)*500.0));
+  return v*env;
   }
 
 void main() {
@@ -93,5 +134,6 @@ void main() {
   const float core = dot(l, vec3(0.33));
   const vec3 clr = l*vec3(0.60,0.65,1.00) + vec3(1.0,0.97,0.85)*core*core*core*1.6 + vec3(0.60,0.32,0.12)*0.10;
   // the barrier dims the sky behind it
-  outColor = vec4(clr*near*fade*210000.0*scene.exposure, 1.0 - 0.4*near*fade);
+  const vec3 bolt = vec3(0.85,0.90,1.0)*(strike(view)*3.0);
+  outColor = vec4((clr*near + bolt)*fade*210000.0*scene.exposure, 1.0 - 0.4*near*fade);
   }

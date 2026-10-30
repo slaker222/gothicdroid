@@ -32,6 +32,13 @@ class Renderer final {
     Tempest::Attachment screenshoot(uint8_t frameId);
 
   private:
+    struct BarrierStrike {
+      uint64_t start   = 0;     // ms
+      uint64_t next    = 0;     // ms, when the next one begins
+      float    azimuth = 0;     // turns
+      float    seed    = 0;
+      } barrierStrike;
+
     enum Quality : uint8_t {
       None,
       VolumetricLQ,

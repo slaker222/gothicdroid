@@ -1040,9 +1040,31 @@ void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   struct Push {
     Tempest::Vec3 center;
     float         radius = 0;
+    Tempest::Vec4 strike;
     } push;
   push.center = Vec3((bbox.first.x+bbox.second.x)*0.5f, bbox.first.y, (bbox.first.z+bbox.second.z)*0.5f);
   push.radius = std::max(bbox.second.x-bbox.first.x, bbox.second.z-bbox.first.z)*0.5f;
+
+  // a white bolt every 5-8 seconds, in the direction the camera looks
+  const uint64_t now      = scene.tickCount;
+  const uint64_t duration = 700;
+  auto& st = barrierStrike;
+  if(now<st.start || now>st.next+60000) { // time went backwards (load) or far ahead
+    st.start = 0;
+    st.next  = now + 3000;
+    }
+  if(now>=st.next) {
+    auto  rnd = [](uint64_t x) { x ^= x<<13; x ^= x>>7; x ^= x<<17; return float(x%100000)/100000.f; };
+    Vec3  f(0,0,1);
+    scene.viewProjectLwcInv().project(f);
+    const float yaw = std::atan2(f.x,f.z)/(2.f*float(M_PI));
+    st.start   = now;
+    st.next    = now + 5000 + uint64_t(rnd(now*2654435761u+1)*3000.f);
+    st.azimuth = yaw + (rnd(now*40503u+7)-0.5f)*0.2f;
+    st.seed    = rnd(now*977u+3)*50.f;
+    }
+  const float age = float(now-st.start)/float(duration);
+  push.strike = Vec4(st.azimuth, (st.start>0 || now==st.start) && age<1.f ? age : -1.f, st.seed, 0);
 
   cmd.setBinding(0, scene.uboGlobal[SceneGlobals::V_Main]);
   cmd.setBinding(1, *tex, Sampler::trillinear());
