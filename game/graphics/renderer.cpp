@@ -257,7 +257,13 @@ void Renderer::setupSettings() {
   else if(Gothic::options().doRayQuery && Resources::device().properties().descriptors.nonUniformIndexing &&
            settings.shadowResolution>0)
     shadow.directLightPso = &shaders.directLightRq;
+#if defined(__ANDROID__)
+  // shadows off: the shadow maps are only cleared, every tap of the shadow filter gives exactly 1.0 (all lit); the shader without
+  // the maps gives the same light and skips ~8 gathers per pixel
+  else if(settings.shadowResolution>0 && settings.shadowsEnabled)
+#else
   else if(settings.shadowResolution>0)
+#endif
     shadow.directLightPso = &shaders.directLightSh;
   else
     shadow.directLightPso = &shaders.directLight;
