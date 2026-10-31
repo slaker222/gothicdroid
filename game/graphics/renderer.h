@@ -102,6 +102,7 @@ class Renderer final {
 
     void drawSwRT         (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
 
+    const Tempest::RenderPipeline* directAmbientPso() const;
     void stashSceneAux    (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
 
     void drawProbesDbg    (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);

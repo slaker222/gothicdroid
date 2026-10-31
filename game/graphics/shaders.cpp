@@ -90,6 +90,13 @@ void Shaders::compileShaders() {
   if(Gothic::options().doRayQuery && device.properties().descriptors.nonUniformIndexing)
     directLightRq  = postEffect("direct_light_rq", RenderState::ZTestMode::NoEqual);
 
+#if defined(__ANDROID__)
+  directAmbient         = postEffect("direct_ambient",         RenderState::ZTestMode::NoEqual);
+  directAmbientSh       = postEffect("direct_ambient_sh",      RenderState::ZTestMode::NoEqual);
+  directAmbientSsao     = postEffect("direct_ambient_ssao",    RenderState::ZTestMode::NoEqual);
+  directAmbientShSsao   = postEffect("direct_ambient_sh_ssao", RenderState::ZTestMode::NoEqual);
+#endif
+
   ambientLight       = ambientLightShader("ambient_light", true);
   ambientLightSsao   = ambientLightShader("ambient_light_ssao", true);
   ambientLightSimple = ambientLightShader("ambient_light_simple", false);
@@ -330,7 +337,7 @@ void Shaders::compileShaders() {
 
   {
     RenderState state;
-    state.setCullFaceMode(RenderState::CullMode::Front);
+    state.setCullFaceMode(RenderState::CullMode::NoCull);
     state.setZTestMode   (RenderState::ZTestMode::LEqual);
 
     auto sh = GothicShader::get("item.vert.sprv");

@@ -1950,6 +1950,22 @@ void Renderer::drawShadowMap(Encoder<CommandBuffer>& cmd, uint8_t fId, WorldView
     }
   }
 
+const Tempest::RenderPipeline* Renderer::directAmbientPso() const {
+#if defined(__ANDROID__)
+  // the sun and the ambient light in one pass: the g-buffer is read once, not twice (the sums differ in the rounding only)
+  if(opengothic_debug_skip_lights() || opengothic_debug_simple_render())
+    return nullptr;
+  if(settings.giEnabled && settings.zCloudShadowScale)
+    return nullptr;
+  const bool ssaoOn = settings.zCloudShadowScale;
+  if(shadow.directLightPso==&shaders.directLight)
+    return ssaoOn ? &shaders.directAmbientSsao   : &shaders.directAmbient;
+  if(shadow.directLightPso==&shaders.directLightSh)
+    return ssaoOn ? &shaders.directAmbientShSsao : &shaders.directAmbientSh;
+#endif
+  return nullptr;
+  }
+
 void Renderer::drawShadowResolve(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
   static bool light = true;
   if(!light || opengothic_debug_skip_lights())
@@ -1993,6 +2009,16 @@ void Renderer::drawShadowResolve(Encoder<CommandBuffer>& cmd, const WorldView& w
         continue;
       cmd.setBinding(4+r, shadowMap[r], Resources::shadowSampler());
       }
+    }
+
+  const auto* merged = directAmbientPso();
+  if(merged!=nullptr) {
+    cmd.setBinding(6, sky.irradianceLut);
+    if(settings.zCloudShadowScale)
+      cmd.setBinding(7, ssao.ssaoBlur, Sampler::nearest(ClampMode::ClampToEdge));
+    cmd.setPipeline(*merged);
+    cmd.draw(nullptr, 0, 3);
+    return;
     }
 
   cmd.setPipeline(*shadow.directLightPso);
@@ -2421,6 +2447,8 @@ void Renderer::drawAmbient(Encoder<CommandBuffer>& cmd, const WorldView& view) {
   static bool enable = true;
   if(!enable)
     return;
+  if(directAmbientPso()!=nullptr)
+    return; // done together with the sun, see drawShadowResolve
 
   if(settings.giEnabled && settings.zCloudShadowScale) {
     cmd.setDebugMarker("AmbientLight");

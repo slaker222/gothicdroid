@@ -241,6 +241,10 @@ add_shader(bink.frag                 bink/bink.frag)
 
 add_shader(direct_light.frag         lighting/direct_light.frag)
 add_shader(direct_light_sh.frag      lighting/direct_light.frag -DSHADOW_MAP)
+add_shader(direct_ambient.frag        lighting/direct_light.frag -DAMBIENT)
+add_shader(direct_ambient_sh.frag     lighting/direct_light.frag -DAMBIENT -DSHADOW_MAP)
+add_shader(direct_ambient_ssao.frag   lighting/direct_light.frag -DAMBIENT -DSSAO)
+add_shader(direct_ambient_sh_ssao.frag lighting/direct_light.frag -DAMBIENT -DSHADOW_MAP -DSSAO)
 add_shader(direct_light_rq.frag      lighting/direct_light.frag -DSHADOW_MAP -DRAY_QUERY -DRAY_QUERY_AT)
 add_shader(direct_light_vsm.frag     virtual_shadow/vsm_direct_light.frag)
 

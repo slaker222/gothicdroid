@@ -1,6 +1,7 @@
 #version 460
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_GOOGLE_include_directive : enable
+#extension GL_EXT_samplerless_texture_functions : enable
 
 #define LWC 1
 
@@ -28,6 +29,14 @@ layout(binding = 3) uniform sampler2D  depth;
 #if defined(SHADOW_MAP)
 layout(binding = 4) uniform sampler2D textureSm0;
 layout(binding = 5) uniform sampler2D textureSm1;
+#endif
+
+#if defined(AMBIENT)
+layout(binding = 6) uniform texture2D  irradiance;
+#if defined(SSAO)
+layout(binding = 7) uniform sampler2D  ssao;
+#endif
+#include "lighting/ambient_common.glsl"
 #endif
 
 bool planetOcclusion(float viewPos, vec3 sunDir) {
@@ -151,7 +160,11 @@ void main(void) {
 
   const vec3 luminance   = linear * Fd_Lambert * illuminance;
 
+#if defined(AMBIENT)
+  outColor = vec4(luminance * scene.exposure + ambientColor(linear, normal), 0.0);
+#else
   outColor = vec4(luminance * scene.exposure, 0.0);
+#endif
 
   // outColor = vec4(vec3(lcolor), diff.a); // debug
   // if(diff.a>0)

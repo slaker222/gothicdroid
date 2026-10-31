@@ -30,6 +30,7 @@ class Shaders {
 
     Tempest::RenderPipeline  lights, lightsRq, lightsVsm;
     Tempest::RenderPipeline  directLight,  directLightSh, directLightRq;
+    Tempest::RenderPipeline  directAmbient, directAmbientSh, directAmbientSsao, directAmbientShSsao; // android: both in one pass
     Tempest::RenderPipeline  ambientLight, ambientLightSsao, ambientLightSimple;
 
     Tempest::ComputePipeline copyBuf;
