@@ -23,7 +23,7 @@
 
 using namespace Tempest;
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
 static bool webHasSaves();
 #endif
 
@@ -315,7 +315,7 @@ GameMenu::GameMenu(MenuRoot &owner, KeyCodec& keyCodec, zenkit::DaedalusVm& vm, 
     }
   setPosition(int(infoX*float(w())),int(infoY*float(h())));
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   int defSel = Gothic::inst().isInGameAndAlive() ? menu->default_ingame : menu->default_outgame;
   if(!Gothic::inst().isInGameAndAlive()) {
     // main menu: "Load game" if there are saves, otherwise "New game"
@@ -838,7 +838,7 @@ bool GameMenu::isHorSelectable(const std::shared_ptr<zenkit::IMenuItem>& item) {
   return item != nullptr && (item->flags & zenkit::MenuItemFlag::HOR_SELECTABLE) && !isHidden(item);
   }
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
 static bool webHasSaves() {
   for(int i=0; i<32; ++i) {
     string_frm fname("save_slot_",i,".sav");
@@ -852,7 +852,7 @@ static bool webHasSaves() {
 bool GameMenu::isEnabled(const std::shared_ptr<zenkit::IMenuItem>& item) {
   if(item==nullptr)
     return false;
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   // main menu: "Load game" is locked while there are no saves
   if(item->on_sel_action_s[0]=="MENU_SAVEGAME_LOAD" && !webHasSaves())
     return false;
@@ -905,7 +905,7 @@ void GameMenu::execSingle(Item &it, int slideDx, KeyCodec::Action hint) {
 
   if(item->type==zenkit::MenuItemType::INPUT && slideDx==0) {
     ctrlInput = &it;
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
     // Dialog::exec() is a nested event loop: on the single-threaded web build it never
     // returns control to the browser and the page freezes. Show the dialog and continue
     // from onTick() once it has been closed.

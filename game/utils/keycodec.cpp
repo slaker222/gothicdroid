@@ -436,7 +436,7 @@ int32_t KeyCodec::keyToCode(Tempest::Event::MouseButton t) {
   }
 
 void KeyCodec::setupSettings() {
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   // the stock Gothic 1 layout sneaks on A (and numpad *), but A also turns the hero left, and the
   // touch button has no numpad: the web port moves sneaking to X (the layout of the alternative keys)
   {
@@ -446,6 +446,18 @@ void KeyCodec::setupSettings() {
     Gothic::settingsSetS("KEYS","keySneak",std::string("2d00")+std::string(s.substr(4)));
     }
   }
+  // the touch stick presses W / S (forward, back) and Q / E (turn): a layout without them (the stock one turns on
+  // Insert and A) leaves the stick unable to turn. The key is added in place of the second one of the pair
+  for(auto [name,code] : {std::pair<const char*,const char*>{"keyUp","1100"}, {"keyDown","1f00"}, {"keyLeft","1000"}, {"keyRight","1200"}}) {
+    const std::string s(Gothic::settingsGetS("KEYS",name));
+    bool has = false;
+    for(size_t i=0; i+4<=s.size(); i+=4)
+      has = has || s.compare(i,4,code)==0;
+    if(has)
+      continue;
+    Tempest::Log::i(name," ",s," -> +",code);
+    Gothic::settingsSetS("KEYS",name,(s.size()>=8 ? s.substr(0,4) : s)+code);
+    }
   // the action key is the left mouse button and Left Shift (not Ctrl); slow walk is Caps Lock (not Shift)
   {
   auto s = Gothic::settingsGetS("KEYS","keyAction");

@@ -51,20 +51,22 @@ class MainWindow : public Tempest::Window {
 
     float uiScale() const;
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
     // web touch controls (web/shell.html): what the player is doing, camera look
     int   webUiState() const;
     void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
     std::string webQuickSlots() const { return inventory.quickJson(); }
     void  webQuickPanel(bool open, int first) { inventory.quickSetOpen(open, first); }
     void  webPointer(int type, int x, int y) { inventory.webPointer(type, x, y); }
+#endif
+#if defined(__EMSCRIPTEN__)
     // the text language was changed (Resources::mountText*): the running game is saved to memory and loaded again
     // 1: the game is reloading, 2: no game is running (menu and assets are updated), 0: not possible now
     int   switchText();
 #endif
 
   private:
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
     Tempest::Point webLookDelta;
 #endif
     void paintEvent     (Tempest::PaintEvent& event) override;

@@ -33,10 +33,20 @@
 #include "gapi/vulkan/vpipelinelogger.h"
 #endif
 
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#include <cstring>
+#include <atomic>
+#if defined(__ANDROID__)
+#include <mutex>
+#include <vector>
+#include <string>
+#endif
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
-#include <cstring>
 #include <Tempest/WebGapi>
+#else
+#define EMSCRIPTEN_KEEPALIVE
+#endif
 
 // Settings menu of the web player (web/shell.html). The page calls these
 // between frames; values live in Gothic.ini like the in-game options.
@@ -44,8 +54,11 @@ namespace {
 bool g_webSettingsReady = false;
 MainWindow* g_webMain   = nullptr;
 bool g_webTimingDirty   = true;
+std::atomic<unsigned> g_frames{0};   // frames the engine has drawn: the page's FPS counter (the app has no canvas to count)
 
+#if defined(__EMSCRIPTEN__)
 extern "C" void tempest_web_set_tex_skip(int levels);
+#endif
 
 struct WebSetting { const char* name; const char* sec; const char* key; bool real; };
 const WebSetting g_webSettings[] = {
@@ -68,6 +81,12 @@ const WebSetting g_webSettings[] = {
   {"barrierZoneShow","INTERNAL","webBarrierZoneShow",false},
   };
 
+#if defined(__ANDROID__)
+// the app's page calls from its own thread: the changes are applied by the game thread between frames
+std::mutex                                 g_pendMutex;
+std::vector<std::pair<std::string,int>>    g_pending;
+#endif
+
 const WebSetting* findWebSetting(const char* name) {
   for(auto& s:g_webSettings)
     if(std::strcmp(s.name, name)==0)
@@ -76,6 +95,7 @@ const WebSetting* findWebSetting(const char* name) {
   }
 }
 
+#if defined(OG_WEB_UI)
 // touch controls: state for the button layout, see MainWindow::webUiState
 extern "C" EMSCRIPTEN_KEEPALIVE int og_ui_state() {
   return g_webMain!=nullptr ? g_webMain->webUiState() : 0;
@@ -149,6 +169,7 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* og_quickslots() {
   return out.c_str();
   }
 
+#if defined(__EMSCRIPTEN__)
 // the page switched the voice language in a running game: the archive of the new language is
 // mounted over the old one (dialogue lines are read from the archives when they are spoken)
 extern "C" EMSCRIPTEN_KEEPALIVE int og_voice_mount(const char* path) {
@@ -171,6 +192,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_text_apply() {
   return g_webMain!=nullptr ? g_webMain->switchText() : 0;
   }
 
+#endif // __EMSCRIPTEN__
+
 extern "C" EMSCRIPTEN_KEEPALIVE void og_quickpanel(int open, int first) {
   if(g_webMain!=nullptr)
     g_webMain->webQuickPanel(open!=0, first);
@@ -189,6 +212,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
     g_webMain->webLook(dx, dy);
   }
 
+#endif // __EMSCRIPTEN__
+
+extern "C" EMSCRIPTEN_KEEPALIVE int og_frames() {
+  return int(g_frames.load());
+  }
+
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   if(g_webSettingsReady && std::strcmp(name, "marvin")==0)
     return Gothic::inst().isMarvinEnabled() ? 1 : 0;
@@ -197,6 +226,14 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   auto s = findWebSetting(name);
   if(s==nullptr || !g_webSettingsReady)
     return -1;
+#if defined(__ANDROID__)
+  {
+  std::lock_guard<std::mutex> lk(g_pendMutex);
+  for(size_t i=g_pending.size(); i>0; --i)
+    if(g_pending[i-1].first==name)
+      return g_pending[i-1].second;
+  }
+#endif
   if(s->real)
     return int(Gothic::settingsGetF(s->sec, s->key));
   return Gothic::settingsGetI(s->sec, s->key);
@@ -241,11 +278,19 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
   auto s = findWebSetting(name);
   if(s==nullptr || !g_webSettingsReady)
     return 0;
+#if defined(__ANDROID__)
+  {
+  std::lock_guard<std::mutex> lk(g_pendMutex);
+  g_pending.emplace_back(name, val);
+  }
+  return 1;
+#else
   if(s->real)
     Gothic::settingsSetF(s->sec, s->key, float(val)); else
     Gothic::settingsSetI(s->sec, s->key, val);
   Gothic::flushSettings();
   return 1;
+#endif
   }
 #endif
 
@@ -263,7 +308,7 @@ MainWindow::MainWindow(Device& device)
     player(dialogs,inventory) {
   Gothic::inst().onSettingsChanged.bind(this,&MainWindow::onSettings);
   onSettings();
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   g_webSettingsReady = true;
   g_webMain          = this;
 #endif
@@ -341,7 +386,7 @@ MainWindow::MainWindow(Device& device)
   }
 
 MainWindow::~MainWindow() {
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   g_webSettingsReady = false;
   g_webMain          = nullptr;
 #endif
@@ -354,7 +399,7 @@ MainWindow::~MainWindow() {
   takeWidget(&document);
   takeWidget(&video);
   takeWidget(&rootMenu);
-#if defined(__MOBILE_PLATFORM__)
+#if defined(__MOBILE_PLATFORM__) && !defined(OG_WEB_UI) // the page over the game has the controls
   takeWidget(&mobileUi);
 #endif
   removeAllWidgets();
@@ -374,7 +419,7 @@ void MainWindow::setupUi() {
   addWidget(&chapter);
   addWidget(&video);
   addWidget(&rootMenu);
-#if defined(__MOBILE_PLATFORM__)
+#if defined(__MOBILE_PLATFORM__) && !defined(OG_WEB_UI) // the page over the game has the controls
   addWidget(&mobileUi);
 #endif
 
@@ -607,7 +652,7 @@ void MainWindow::tickMouse(uint64_t dt) {
   auto camera = Gothic::inst().camera();
   if(dialogs.hasContent() || Gothic::inst().isPause() || camera==nullptr || camera->isCutscene()) {
     dMouse = Point();
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
     webLookDelta = Point();
 #endif
     return;
@@ -616,7 +661,7 @@ void MainWindow::tickMouse(uint64_t dt) {
   const bool enableMouse = Gothic::inst().settingsGetI("GAME","enableMouse");
   if(enableMouse==0)
     dMouse = Point();
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   // touch look works like the mouse, also with the mouse disabled
   dMouse += webLookDelta;
   webLookDelta = Point();
@@ -652,14 +697,14 @@ void MainWindow::tickMouse(uint64_t dt) {
   dMouse = Point();
   }
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
 // bits: 0 world, 1 menu, 2 dialog, 3 dialog choices, 4 inventory, 5 document,
 // 6 video, 7 cutscene, 8 swimming, 9 diving, 10 loading, 11 using a mob;
 // 12..14 weapon (WeaponState); 16..18 focus: 1 npc, 2 npc down, 3 item, 4 mob;
 // 19 the focused npc is hostile; 20..22 inventory mode (InventoryMenu::State);
 // 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats);
 // 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it);
-// 29 sneaking is on; 30 the graphics options menu is open
+// 29 sneaking is on; 30 the graphics options menu is open; 31 the ranged weapon in hand has ammunition
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
@@ -717,6 +762,8 @@ int MainWindow::webUiState() const {
       s |= 1<<29;
     if(pl->talentSkill(TALENT_SNEAK)>0)
       s |= 1<<23;
+    if(pl->hasAmmunition())
+      s = int(unsigned(s) | (1u<<31));
     // the map key opens a map the player carries (ItWrWorldmap, ItWr_Map_...)
     if(auto w = gothic.world()) {
       for(auto it = pl->inventory().iterator(Inventory::T_Inventory); it.isValid(); ++it) {
@@ -749,16 +796,18 @@ void MainWindow::onSettings() {
   if(opengothic_debug_fps_unlimited()!=0)
     maxFpsInv = 0;
 #endif
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   // web FPS limit (slider of the page): frames per second, 0 = display refresh
   // rate (frames follow vsync); the game's own FPS_Limit is not used
   {
     const int lim = Gothic::inst().settingsGetI("INTERNAL", "webFpsLimit");
     maxFpsInv = lim>0 ? uint64_t((1000.0/double(std::max(lim,25)))+0.5) : 0;
   }
+#if defined(__EMSCRIPTEN__)
   g_webTimingDirty = true;
   // texture quality: 0 full .. 3 lowest, the number of top mip levels left out of new textures
   tempest_web_set_tex_skip(Gothic::inst().settingsGetI("INTERNAL", "webTexQuality"));
+#endif
   // the world draw distance is the camera's far plane
   if(auto camera = Gothic::inst().camera())
     camera->setViewport(swapchain.w(), swapchain.h());
@@ -1290,7 +1339,7 @@ uint64_t MainWindow::tick() {
 
   dialogs.tick(dt);
   inventory.tick(dt);
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   inventory.quickUpdate();
 #endif
   Gothic::inst().tick(dt);
@@ -1631,6 +1680,25 @@ void MainWindow::render(){
       }
 #endif
 
+#if defined(__ANDROID__)
+    {
+    std::vector<std::pair<std::string,int>> todo;
+    {
+    std::lock_guard<std::mutex> lk(g_pendMutex);
+    todo.swap(g_pending);
+    }
+    for(auto& p:todo) {
+      if(auto s = findWebSetting(p.first.c_str())) {
+        if(s->real)
+          Gothic::settingsSetF(s->sec, s->key, float(p.second)); else
+          Gothic::settingsSetI(s->sec, s->key, p.second);
+        }
+      }
+    if(!todo.empty())
+      Gothic::flushSettings();
+    }
+#endif
+
     static bool once=true;
     if(once) {
       Gothic::inst().emitGlobalSoundWav("GAMESTART.WAV");
@@ -1671,6 +1739,9 @@ void MainWindow::render(){
     // the previous frame of this slot is done: its gpu timestamps can be read without a stall
     commands[cmdId].collectGpuTimers();
     Resources::resetRecycled(cmdId);
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    g_frames.fetch_add(1);
+#endif
 
     if(video.isActive()) {
       video.paint(device,cmdId);

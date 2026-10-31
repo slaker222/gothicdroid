@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
+  <link rel="icon" type="image/png" href="img/icon.png">
   <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
@@ -546,6 +547,16 @@
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
     #player:fullscreen #fs-btn .icon-enter { display: none; }
     #player:fullscreen #fs-btn .icon-exit { display: block; }
+
+    /* Android app: this page lies over the game's SurfaceView (web/make_android_ui.sh copies it to the app's assets) */
+    html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: 100vh; }
+    html.native #player { position: fixed; inset: 0; width: 100vw; height: 100vh; aspect-ratio: auto; background: transparent; }
+    html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
+    html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
+    html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #saves-dl-btn, html.native #saves-ul-btn,
+    html.native #clear-btn, html.native label[title^="On-screen touch"] { display: none !important; }
+    /* settings of the page that the app does not have (the canvas pixel ratio, the web texture mips) */
+    html.native #settings-panel label:has(#pixel-cap), html.native #settings-panel label:has([data-set="texQuality"]) { display: none; }
   </style>
 </head>
 <body>
@@ -1340,6 +1351,13 @@ async function installChunks(m) {
   <script type="text/javascript">
     'use strict';
 
+    // inside the Android app (AndroidBridge is the app's Kotlin object): only the controls, the engine is native
+    const NATIVE = typeof AndroidBridge !== 'undefined';
+    if (NATIVE) {
+      document.documentElement.classList.add('native');
+      try { localStorage.setItem('touchInput', '1'); localStorage.setItem('gfxManual', '1'); } catch (e) {}
+    }
+
     const statusText = document.getElementById('status-text');
     const progressBar = document.getElementById('progress-bar');
     const progressContainer = document.getElementById('progress-container');
@@ -1464,8 +1482,13 @@ async function installChunks(m) {
           return orig.apply(this, arguments);
         };
       }
+      let nativeFrames = -1;
       function tick() {
         const now = performance.now();
+        if (NATIVE) { // the engine counts its frames itself
+          const c = Module.ccall('og_frames', 'number', [], []);
+          frames = nativeFrames < 0 ? 0 : c - nativeFrames; nativeFrames = c; stats.count = c; stats.last = now;
+        }
         box.textContent = Math.round(frames * 1000 / (now - last)) + ' FPS';
         frames = 0; last = now;
       }
@@ -1474,7 +1497,7 @@ async function installChunks(m) {
         try { localStorage.setItem('showFps', chk.checked ? '1' : '0'); } catch (e) {}
         clearInterval(timer);
         if (chk.checked) {
-          frames = 0; last = performance.now();
+          frames = 0; last = performance.now(); nativeFrames = -1;
           timer = setInterval(tick, 500);
         }
       }
@@ -1976,7 +1999,7 @@ async function installChunks(m) {
         '1': ['1', 'Digit1', 49], '2': ['2', 'Digit2', 50], '3': ['3', 'Digit3', 51], '4': ['4', 'Digit4', 52], '5': ['5', 'Digit5', 53],
         '6': ['6', 'Digit6', 54], '7': ['7', 'Digit7', 55], '8': ['8', 'Digit8', 56], '9': ['9', 'Digit9', 57], '0': ['0', 'Digit0', 48],
         Shift: ['Shift', 'ShiftLeft', 16], CapsLock: ['CapsLock', 'CapsLock', 20], Space: [' ', 'Space', 32], Alt: ['Alt', 'AltLeft', 18],
-        End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], K: ['k', 'KeyK', 75], Tab: ['Tab', 'Tab', 9],
+        Z: ['z', 'KeyZ', 90], End: ['End', 'End', 35], X: ['x', 'KeyX', 88], F: ['f', 'KeyF', 70], K: ['k', 'KeyK', 75], Tab: ['Tab', 'Tab', 9],
         N: ['n', 'KeyN', 78], B: ['b', 'KeyB', 66], M: ['m', 'KeyM', 77],
         Esc: ['Escape', 'Escape', 27], Enter: ['Enter', 'Enter', 13],
         F2: ['F2', 'F2', 113], F8: ['F8', 'F8', 119], O: ['o', 'KeyO', 79],
@@ -2064,7 +2087,7 @@ async function installChunks(m) {
       ];
       let weaponOut = false, bowOut = false, strikeMode = false, toolsOpen = false, marvinOn = false;
       // bow: the aim button holds Shift until pressed again; the shot button (W) works once the bow is drawn
-      let aimOn = false, aimAt = 0;
+      let aimOn = false, aimAt = 0, hasAmmo = false;
       const aimReady = () => aimOn && Date.now() - aimAt > 800;
       function aimSet(on) {
         if (aimOn === on) return;
@@ -2074,7 +2097,7 @@ async function installChunks(m) {
         update();
         if (on) setTimeout(update, 850);
       }
-      function aimToggle() { aimSet(!aimOn); }
+      function aimToggle() { if (!aimOn && !hasAmmo) return; aimSet(!aimOn); }
       function setTools(on) {
         toolsOpen = on;
         byId.tools.el.classList.toggle('active', on);
@@ -2174,6 +2197,8 @@ async function installChunks(m) {
         weaponOff: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/><path d="M3.5 20.5L20.5 3.5" stroke="rgba(0,0,0,.65)" stroke-width="5"/><path d="M3.5 20.5L20.5 3.5" stroke-width="2"/>',
         drop:   '<path d="M6 3h12M8 3v6h8V3M12 12v8M8.5 16.5L12 20l3.5-3.5"/>',
         jump:   '<path d="M12 20V5M6 11l6-6 6 6"/>',
+        // take ten: the arrow into a tray, "10" under it
+        take10: '<path d="M12 2.5v9M8 7.8l4 4 4-4M6 14.5h12"/><text x="12" y="22.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="sans-serif">10</text>',
         dive:   '<path d="M12 4v15M6 13l6 6 6-6M3 4h18"/>',
         up:     '<path d="M12 20V5M6 11l6-6 6 6M3 20h18"/>',
         block:  '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>',
@@ -2201,7 +2226,7 @@ async function installChunks(m) {
         left1:  '<path d="M15 6l-6 6 6 6"/>', right1: '<path d="M9 6l6 6-6 6"/>',
       };
       const NAMES = { action: 'Action', talk: 'Talk', take: 'Take', use: 'Use', loot: 'Loot', attack: 'Attack',
-        aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', dive: 'Dive', up: 'Surface', block: 'Block',
+        aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', take10: 'Take 10', dive: 'Dive', up: 'Surface', block: 'Block',
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
         camera: 'Camera: first / third person (F)', tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
@@ -2508,7 +2533,7 @@ async function installChunks(m) {
           el.className = 'tq-slot' + (sl.on ? ' on' : '') + (sl.e ? ' empty' : '');
           el.style.left = (ox + sl.x * k) + 'px'; el.style.top = (oy + sl.y * k) + 'px';
           el.style.width = (sl.b * k) + 'px'; el.style.height = (sl.b * k) + 'px';
-          el.innerHTML = '<span>' + sl.k + '</span>';
+          el.innerHTML = '<span>' + sl.k + '</span>' + (sl.n === undefined ? '' : '<i>' + sl.n + '</i>'); // arrows / scrolls left
           ui.appendChild(el);
           tq.els.push(el);
         });
@@ -2576,8 +2601,8 @@ async function installChunks(m) {
         const drawn = WEAPON_DRAWN[weapon];
         weaponOut = drawn;
         bowOut = drawn && weapon >= 4 && weapon <= 5;
-        if (!bowOut && aimOn) aimSet(false);
-        void 0; // bow / crossbow: the action key alone aims, letting go shoots
+        hasAmmo = !!(st & (1 << 31)); // the ranged weapon in hand has arrows (bolts)
+        if (aimOn && (!bowOut || !hasAmmo)) aimSet(false);
         // the game's walk mode is a toggle: press Caps Lock when it is not what the stick asks for
         if (layout === 'world' && engineSlow !== wantSlow && Date.now() - lastShift > 350) {
           lastShift = Date.now();
@@ -2604,7 +2629,7 @@ async function installChunks(m) {
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
           b.el.classList.toggle('hidden', !show);
           // action, jump and use pick their icon below from the situation
-          if (show && b.id !== 'action' && b.id !== 'jump' && b.id !== 'use') setLabel(b, ICON_OF[b.id]);
+          if (show && b.id !== 'action' && b.id !== 'jump' && b.id !== 'use' && b.id !== 'drop') setLabel(b, ICON_OF[b.id]);
         }
         if (layout === 'world') {
           const a = act;
@@ -2613,6 +2638,12 @@ async function installChunks(m) {
           // the weapon button lights up while a weapon is out
           setLabel(byId.weapon, drawn ? 'weaponOff' : 'weapon');
           setLabel(byId.jump, dive ? 'up' : swim ? 'dive' : 'jump');
+        }
+        if (layout === 'inv') {
+          // a chest, a body, a trade: ten at a time (the game's Z key); in the own inventory: drop
+          const ten = invMode >= 2 && invMode <= 4;
+          byId.drop.key = ten ? 'Z' : 'Space';
+          setLabel(byId.drop, ten ? 'take10' : 'drop');
         }
         if (layout === 'inv')
           setLabel(byId.use, invMode === 2 || invMode === 4 ? 'take' : invMode === 3 ? 'trade' : 'use');
@@ -2926,6 +2957,8 @@ async function installChunks(m) {
       return /2/.test(v || '') ? 'g2' : 'g1';
     })();
     document.getElementById('boot-bg').style.backgroundImage = 'url(img/' + GAME_ID + '.png)';   // img/g1.png, img/g2.png
+    // the tab shows the icon of the game (from the exe of the Windows version)
+    document.querySelector('link[rel="icon"]').href = 'img/icon_' + GAME_ID + '.png';
     const GAME_SUF = GAME_ID === 'g2' ? '-g2' : '';   // added to the names of everything that belongs to one game
     const GAME_ROOT = GAME_ID === 'g2' ? '/gothic2' : '/gothic';
     const OPFS_ROOT_DIR = GAME_ID === 'g2' ? 'gothic2' : 'gothic';
@@ -5126,6 +5159,26 @@ function serveLoop() {
       }
     }
 
+    // Android app: the engine runs natively under this page; calls into it go through the app's bridge
+    function nativeBoot() {
+      const dpr = window.devicePixelRatio || 1;
+      // ccall of the browser build -> the app (window pixels of the engine are device pixels)
+      Module.ccall = function(name, ret, types, args) {
+        if (name === 'og_pointer') args = [args[0], Math.round(args[1] * dpr), Math.round(args[2] * dpr)];
+        else if (name === 'og_input_look') args = [Math.round(args[0] * dpr), Math.round(args[1] * dpr)];
+        const r = AndroidBridge.call(name, JSON.stringify(args));
+        return ret === 'number' ? Number(r) : (ret === 'string' ? r : undefined);
+      };
+      for (const t of ['keydown', 'keyup']) window.addEventListener(t, e => {
+        if (e.isTrusted) return;
+        AndroidBridge.key(t === 'keydown' ? 0 : 1, e.code);
+      });
+      g_runtimeUp = true;
+      g_resolveRuntime();
+      player.classList.add('playing');
+      uiOverlay.classList.add('hidden');
+    }
+    if (NATIVE) nativeBoot(); else
     bootstrap();
   </script>
   {{{ SCRIPT }}}

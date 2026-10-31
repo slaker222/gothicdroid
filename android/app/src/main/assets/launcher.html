@@ -1,0 +1,895 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OpenGothic</title>
+  <style>
+    :root {
+      --bg: #151515;
+      --line: #3a3a3a;
+      --text: #ddd;
+      --dim: #999;
+      --accent: #fff;
+      --danger: #e5484d;
+      --about-h: 0px;                       /* nothing above the language bar */
+      --chrome-h: calc(var(--about-h) + 70px); /* about + language bar + voice strip */
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font: 14px/1.4 -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: safe center;
+      scrollbar-width: thin;
+    }
+    html { overflow: hidden; }
+    body { overflow-y: auto; }
+
+    #player {
+      position: relative;
+      width: min(100vw, calc((100vh - var(--about-h)) * 16 / 9));
+      aspect-ratio: 16 / 9;
+      background: #000;
+      overflow: hidden;
+    }
+
+    /* language bar above the player (only when the server has lang/languages.json) */
+    #lang-bar {
+      --lang-h: 40px;
+      height: var(--lang-h);
+      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 4px;
+      white-space: nowrap;
+      overflow: hidden;
+      color: var(--dim);
+    }
+    #lang-bar[hidden] { display: none; }
+    #lang-bar label { display: flex; align-items: center; gap: 6px; }
+    #lang-bar label[hidden] { display: none; }
+    #lang-bar select {
+      background: var(--bg);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 4px;
+      padding: 3px 6px;
+      font: inherit;
+    }
+    #lang-bar .btn { padding: 3px 12px; }
+    #lang-bar .back-link { color: var(--text); text-decoration: none; padding: 3px 10px 3px 4px; border-radius: 4px; }
+    #lang-bar .back-link:hover { background: var(--line); }
+    #lang-note { overflow: hidden; text-overflow: ellipsis; }
+    body.has-lang #player { width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9)); }
+    /* strip under the player: progress of a voice language download */
+    #voice-bar { display: none; }
+    body.has-lang #voice-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 30px;
+      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      padding: 0 4px;
+      color: var(--dim);
+      white-space: nowrap;
+    }
+    #voice-bar.idle { visibility: hidden; }
+    #legal {
+      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      margin: 8px 0 16px;
+      padding: 0 8px;
+      font-size: 11px;
+      line-height: 1.4;
+      color: var(--dim);
+      text-align: center;
+    }
+    /* narrow screens (phones): the language bar goes one setting per line */
+    @media (max-width: 700px) {
+      #lang-bar {
+        height: auto;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 6px 8px;
+        white-space: normal;
+      }
+      #lang-bar label { justify-content: space-between; }
+      #lang-bar select { flex: 1 1 auto; max-width: 62%; min-height: 32px; }
+      #lang-note { white-space: normal; }
+      body.has-lang #voice-bar { white-space: normal; padding: 0 8px; }
+    }
+    /* a phone held sideways: the player is narrower than the three selects, the bar takes the whole width */
+    @media (min-width: 701px) and (max-height: 500px) {
+      #lang-bar, body.has-lang #voice-bar { width: 100vw; }
+      #lang-bar { justify-content: center; font-size: 12px; gap: 8px; }
+      #lang-bar select { padding: 2px 4px; }
+    }
+    #voice-track { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+    #voice-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
+
+    #player:fullscreen {
+      width: 100%;
+      height: 100%;
+      aspect-ratio: auto;
+    }
+
+    /* window mode: the player takes the whole browser page, nothing else is shown */
+    body.window-mode { overflow: hidden; }
+    body.window-mode #player {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      width: 100vw;
+      height: 100vh;
+      aspect-ratio: auto;
+    }
+    body.window-mode > :not(#player):not(script) { display: none !important; }
+    #win-btn .icon-exit { display: none; }
+    body.window-mode #win-btn .icon-enter { display: none; }
+    body.window-mode #win-btn .icon-exit { display: block; }
+
+    /* the picture only grows sideways: never taller than 16:9 (portrait
+       phones, window mode and fullscreen get bars above and below) */
+    #player { container-type: size; }
+    #canvas {
+      position: absolute;
+      left: 0;
+      top: 50%;
+      width: 100%;
+      height: min(100%, calc(100cqw * 9 / 16));
+      transform: translateY(-50%);
+      outline: none;
+      border: none;
+      background: #000;
+      display: block;
+    }
+
+    /* the main-menu picture of the chosen game (web/img/g1.png, g2.png) instead of black while the game is
+       installed and loads; stretched like the menu of the game itself, dimmed to keep the status text readable;
+       it fades out when the engine has drawn its first frames (ogFrameStats) */
+    #boot-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      pointer-events: none;
+      background: #000 center / 100% 100% no-repeat;
+      transition: opacity 0.7s ease;
+    }
+    #boot-bg::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.42); }
+    #boot-bg.gone { opacity: 0; }
+
+    #ui-overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 72px 16px;   /* the same above and below: the status sits in the middle of the player */
+      text-align: center;
+    }
+
+    #ui-overlay.hidden { display: none; }
+    #ui-overlay.drag-over { outline: 1px dashed var(--accent); outline-offset: -8px; }
+
+    .status-box {
+      min-height: 20px;
+      color: var(--dim);
+      word-break: break-word;
+    }
+
+    .status-detail {
+      min-height: 16px;
+      max-width: min(560px, 90%);
+      font-size: 12px;
+      color: var(--dim);
+      opacity: .75;
+      word-break: break-all;
+    }
+    .spinner {
+      width: 26px;
+      height: 26px;
+      border: 3px solid var(--line);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin .8s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    /* the engine starts after the overlay is gone: the same spinner and a line of text over the menu picture */
+    #boot-status {
+      position: absolute;
+      inset: 0;
+      z-index: 3;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--text);
+      pointer-events: none;
+    }
+    #boot-status .spinner { display: block; }
+
+    .progress-bar-container {
+      width: min(320px, 70%);
+      height: 2px;
+      background: var(--line);
+      display: none;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: var(--accent);
+    }
+
+    .source-row {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 52px;
+      display: none;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      font: inherit;
+      color: var(--text);
+      background: transparent;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      cursor: pointer;
+    }
+
+    .btn:hover { border-color: var(--accent); color: var(--accent); }
+
+    .file-input { display: none; }
+
+    #controls {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 20;
+      height: 44px;
+      padding: 0 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+
+    #player.active #controls,
+    #player:not(.playing) #controls { opacity: 1; }
+
+    .ctl {
+      display: flex;
+      align-items: center;
+      height: 32px;
+      padding: 0 8px;
+      font: 13px inherit;
+      color: var(--text);
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    .ctl:hover { color: var(--accent); }
+    .ctl-right, .ctl-left { display: flex; align-items: center; }
+    .fps-opt { gap: 6px; user-select: none; }
+    .fps-opt input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+    #fps-counter {
+      position: absolute;
+      top: 8px;
+      left: 8px;
+      z-index: 15;
+      padding: 2px 8px;
+      font: 13px monospace;
+      color: #5dff8a;
+      background: rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+      display: none;
+    }
+    .ctl svg { width: 22px; height: 22px; fill: currentColor; }
+    #fs-btn .icon-exit { display: none; }
+    #player.menu-open #controls { opacity: 1; }
+    /* touch controls ("Mobile input"): buttons send the game's keys */
+    #touch-ui {
+      position: absolute;
+      inset: 0;
+      container-type: size; /* sizes follow the player, not the browser window */
+      z-index: 12;
+      display: none;
+      pointer-events: none;
+      touch-action: none;
+      user-select: none;
+      -webkit-user-select: none;
+      -webkit-touch-callout: none;
+    }
+    body.touch-on #touch-ui { display: block; }
+    /* a finger that stays down while the layout changes must not be taken over by the browser (pointercancel) */
+    body.touch-on #canvas { touch-action: none; }
+    /* a gamepad is in use: the touch controls step aside until the next touch */
+    body.gp-on #touch-ui { display: none !important; }
+    /* touch mode: the player bar sits on top,
+       compact, clear of the stick and the buttons; saves and delete only show
+       in the game menu */
+    body.touch-on #controls {
+      top: 0;
+      bottom: auto;
+      height: 34px;
+      padding: 0 4px;
+      opacity: 1;
+      background: linear-gradient(rgba(0, 0, 0, 0.55), transparent);
+    }
+    body.touch-on .ctl { height: 28px; padding: 0 5px; font-size: 11px; }
+    body.touch-on .ctl svg { width: 18px; height: 18px; }
+    body.touch-on #controls .ctl-left { visibility: hidden; }
+    body.touch-on.touch-menu #controls .ctl-left { visibility: visible; }
+    body.touch-on #settings-panel { top: 38px; bottom: auto; max-height: calc(100% - 46px); }
+    #touch-look { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+    #touch-ui.no-look #touch-look { pointer-events: none; }
+    .tbtn {
+      position: absolute;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: var(--s, 13cqmin);
+      height: var(--s, 13cqmin);
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.35);
+      color: #fff;
+      font: 600 clamp(10px, 2.6cqmin, 16px)/1.1 -apple-system, 'Segoe UI', Roboto, sans-serif;
+      text-align: center;
+      text-shadow: 0 1px 2px #000;
+      pointer-events: auto;
+      touch-action: none;
+    }
+    .tbtn.big { --s: 19cqmin; font-size: clamp(12px, 3.2cqmin, 19px); background: rgba(120, 20, 10, 0.45); }
+    .tbtn.huge { --s: 22.8cqmin; }
+    .tbtn.small { --s: 10cqmin; font-size: clamp(9px, 2.2cqmin, 13px); }
+    .tbtn.down { background: rgba(255, 255, 255, 0.35); }
+    .tbtn.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); }
+    .tbtn svg { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 2;
+                stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
+    .tbtn.cheat { border-color: #f2c200; color: #ffe066; }
+    .tbtn.hidden { display: none; }
+    /* strike button: the arrows show the directions, the one struck lights up */
+    .tbtn.strike svg { width: 86%; height: 86%; }
+    .tbtn svg .ar { opacity: 0.45; }
+    .tbtn[data-dir="l"] svg .ar.l, .tbtn[data-dir="u"] svg .ar.u, .tbtn[data-dir="r"] svg .ar.r
+      { opacity: 1; stroke-width: 3.2; }
+    /* quick panel: the weapons and spells of the number keys at the bottom (the icons are the game's own
+       3D item pictures, drawn by the engine under these frames) */
+    .tq-slot {
+      position: absolute; box-sizing: border-box;
+      border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2cqmin;
+      background: rgba(0, 0, 0, 0.3); pointer-events: none;
+    }
+    #tq-hit { position: absolute; pointer-events: auto; touch-action: none; }
+    /* the inventory button: one more block of the quick row, always in its place */
+    .tbtn.sq { border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
+    .tbtn.sq.down { background: rgba(255, 255, 255, 0.3); }
+    .tq-slot.empty { border-color: rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.18); }
+    .tq-slot.on { border: 2px solid #ffd54a; background: rgba(255, 213, 74, 0.18); }
+    .tq-slot.down { background: rgba(255, 255, 255, 0.3); }
+    .tq-slot i { position: absolute; right: 3px; bottom: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif; font-style: normal;
+                 color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+    .tq-slot span { position: absolute; left: 3px; top: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif;
+                    color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
+    /* the quest journal for the touch layout: under the inventory and character buttons */
+    #tj {
+      position: absolute;
+      left: 4cqmin;
+      top: calc(36px + 12.5cqmin);
+      width: 46cqmin;
+      background: rgba(0, 0, 0, 0.6);
+      border: 1px solid rgba(255, 255, 255, 0.4);
+      border-radius: 1.6cqmin;
+      color: #fff;
+      font: 500 clamp(11px, 3cqmin, 15px)/1.25 -apple-system, 'Segoe UI', Roboto, sans-serif;
+      pointer-events: auto;
+      touch-action: pan-y;
+      overflow: hidden;
+    }
+    #tj.hidden, #tj-open.hidden { display: none; }
+    #tj .tj-head { display: flex; align-items: center; height: 7.5cqmin; padding-left: 2cqmin; }
+    #tj .tj-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #tj button { all: unset; display: flex; align-items: center; justify-content: center; width: 7.5cqmin; height: 7.5cqmin; color: #fff; cursor: pointer; }
+    #tj button.hidden { display: none; }
+    #tj button svg { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    #tj .tj-body { max-height: 24cqmin; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border-top: 1px solid rgba(255, 255, 255, 0.25); }
+    #tj .tj-row { height: 8cqmin; line-height: 8cqmin; padding: 0 2cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+                  border-top: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; }
+    #tj .tj-row:first-child { border-top: 0; }
+    #tj .tj-row:active { background: rgba(255, 255, 255, 0.18); }
+    #tj .tj-entry { padding: 1.2cqmin 2cqmin; white-space: pre-wrap; }
+    #tj .tj-sep { height: 0; border-top: 1px dashed rgba(255, 255, 255, 0.4); margin: 0 2cqmin; }
+    /* closed: a wide, low arrow under the character button brings it back */
+    #tj-open {
+      position: absolute; left: 14cqmin; top: calc(36px + 12cqmin);
+      width: 14cqmin; height: 5cqmin;
+      display: flex; align-items: center; justify-content: center;
+      border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
+      background: rgba(0, 0, 0, 0.35); color: #fff; pointer-events: auto; touch-action: none;
+    }
+    #tj-open svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+    #touch-stick {
+      position: absolute;
+      width: 26cqmin; height: 26cqmin;
+      margin: -13cqmin 0 0 -13cqmin;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 255, 255, 0.35);
+      background: rgba(0, 0, 0, 0.2);
+      pointer-events: none;
+      display: none;
+    }
+    #touch-stick::after {
+      content: '';
+      position: absolute;
+      left: 50%; top: 50%;
+      width: 11cqmin; height: 11cqmin;
+      margin: -5.5cqmin 0 0 -5.5cqmin;
+      border-radius: 50%;
+      background: rgba(255, 255, 255, 0.4);
+      transform: translate(var(--tx, 0px), var(--ty, 0px));
+    }
+    #touch-stick .stick-icon {
+      position: absolute; left: 50%; top: 50%;
+      width: 8cqmin; height: 8cqmin; margin: -4cqmin 0 0 -4cqmin;
+      color: #fff; display: none; pointer-events: none;
+    }
+    #touch-stick .stick-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2;
+                                   stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
+    /* sneaking learned: its icon sits on the stick (double tap switches it), gone while the stick is pulled */
+    #touch-stick.sneak-known:not(.on) .stick-icon { display: block; }
+    #touch-stick.sneaking .stick-icon { color: #ffd54a; }
+    #touch-stick.on, #touch-stick.home { display: block; }
+    #touch-stick.home:not(.on) { opacity: 0.6; }
+
+    #gfx-toast {
+      position: absolute;
+      top: 12px;
+      right: 12px;
+      z-index: 30;
+      max-width: min(360px, calc(100% - 24px));
+      padding: 10px 14px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--text);
+      background: rgba(10, 10, 10, 0.9);
+      border: 1px solid var(--line);
+      opacity: 0;
+      transform: translateY(-6px);
+      transition: opacity 0.6s, transform 0.6s;
+      pointer-events: none;
+    }
+    #gfx-toast.show { opacity: 1; transform: none; }
+    #settings-btn[aria-expanded="true"] { color: var(--accent); }
+    #settings-panel {
+      position: absolute;
+      right: 8px;
+      bottom: 48px;
+      z-index: 25;
+      width: 260px;
+      max-width: calc(100% - 16px);
+      padding: 10px 12px;
+      background: rgba(10, 10, 10, 0.92);
+      border: 1px solid var(--line);
+      display: none;
+      max-height: calc(100% - 56px);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      touch-action: pan-y;
+      -webkit-overflow-scrolling: touch;
+    }
+    #player.menu-open #settings-panel { display: block; }
+    #settings-panel .set-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 30px;
+      font-size: 13px;
+    }
+    #settings-panel select {
+      font: inherit;
+      color: var(--text);
+      background: #222;
+      border: 1px solid var(--line);
+      padding: 2px 4px;
+    }
+    #settings-panel .presets { display: flex; gap: 4px; margin-bottom: 6px; }
+    #settings-panel .presets button {
+      flex: 1; font: inherit; font-size: 12px; padding: 4px 2px; color: var(--text);
+      background: #222; border: 1px solid var(--line); cursor: pointer;
+    }
+    #settings-panel .presets button:hover { border-color: var(--accent); }
+    #settings-panel .presets button.active { border-color: #ffd400; box-shadow: 0 0 0 1px #ffd400 inset; }
+    #settings-panel .fps-slider { display: flex; align-items: center; gap: 6px; }
+    #settings-panel .fps-slider input { width: 100px; accent-color: var(--accent); cursor: pointer; }
+    #settings-panel .fps-slider output { min-width: 24px; text-align: right; }
+    #settings-panel .barrier-ctl { display: flex; align-items: center; gap: 6px; }
+    #settings-panel .barrier-ctl button { font: inherit; font-size: 12px; padding: 2px 5px; color: var(--text); background: #222; border: 1px solid var(--line); cursor: pointer; }
+    #settings-panel .barrier-ctl button:hover { border-color: var(--accent); }
+    #settings-panel .barrier-ctl output { min-width: 14px; text-align: right; }
+    #settings-panel .barrier-ctl input { width: 64px; accent-color: var(--accent); cursor: pointer; }
+    #settings-panel input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+    #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
+    #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
+    #player:fullscreen #fs-btn .icon-enter { display: none; }
+    #player:fullscreen #fs-btn .icon-exit { display: block; }
+
+    /* Android app: this page lies over the game's SurfaceView (web/make_android_ui.sh copies it to the app's assets) */
+    html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: 100vh; }
+    html.native #player { position: fixed; inset: 0; width: 100vw; height: 100vh; aspect-ratio: auto; background: transparent; }
+    html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
+    html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
+    html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #saves-dl-btn, html.native #saves-ul-btn,
+    html.native #clear-btn, html.native label[title^="On-screen touch"] { display: none !important; }
+    /* settings of the page that the app does not have (the canvas pixel ratio, the web texture mips) */
+    html.native #settings-panel label:has(#pixel-cap), html.native #settings-panel label:has([data-set="texQuality"]) { display: none; }
+  </style>
+  <style>
+    /* the main menu of the app: the page of the site, the settings menu always open */
+    html, body { display: block; overflow-y: auto; height: auto; min-height: 100%; background: var(--bg); }
+    #wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 22px; font-weight: 600; color: var(--accent); }
+    h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--dim); margin-top: 2px; }
+    .card { background: #1b1b1b; border: 1px solid var(--line); padding: 12px 14px; }
+    .card h2 { font-size: 13px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .games { display: flex; flex-direction: column; gap: 16px; }
+    .game { display: flex; flex-direction: column; background: #1d1d1d; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .game.sel { border-color: var(--accent); }
+    .game .pic { aspect-ratio: 21 / 9; background-size: cover; background-color: #000; position: relative; }
+    .game .pic .badge { position: absolute; left: 8px; bottom: 8px; font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--dim); }
+    .game .pic .badge.ok { color: #4caf50; }
+    .game .body { padding: 12px 14px 14px; }
+    .game h3 { font-size: 20px; font-weight: 600; color: var(--accent); }
+    .game .path { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); margin: 4px 0 12px; word-break: break-all; min-height: 17px; }
+    .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
+    .game button:active { border-color: var(--accent); }
+    .game button.play { flex: 1; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    .game button.play:disabled { opacity: .35; }
+    .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
+    .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
+    .game button.icon svg { margin: 0; }
+    .game button:disabled { opacity: .4; }
+    .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    #dev-btn { font: inherit; font-size: 13px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+    #dev-btn:active { border-color: var(--accent); }
+    .langs { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; }
+    .langs span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--text); }
+    .game .pic .badge { left: auto; right: 8px; }
+    #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: flex-end; z-index: 50; }
+    #sheet.open { display: flex; }
+    #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow-y: auto; }
+    #sheet h2 { font-size: 17px; color: var(--accent); }
+    #sheet .sr { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; }
+    #sheet select, #sheet input[type=text] { font: inherit; font-size: 15px; color: var(--text); background: #222; border: 1px solid var(--line); padding: 8px; }
+    #sheet input[type=text] { flex: 1; min-width: 0; }
+    #sheet .total { font-size: 15px; color: var(--accent); }
+    #sheet .bar { height: 8px; background: #2a2a2a; display: none; }
+    #sheet .bar div { height: 100%; width: 0; background: var(--accent); }
+    #sheet .msg { font-size: 13px; color: var(--dim); white-space: pre-wrap; }
+    #sheet .msg.err { color: var(--danger); }
+    #sheet .go { font: inherit; font-size: 16px; padding: 12px; color: #000; background: var(--accent); border: 0; cursor: pointer; }
+    #sheet .go:disabled { opacity: .4; }
+    #sheet .sec { font: inherit; font-size: 14px; padding: 10px; color: var(--text); background: #222; border: 1px solid var(--line); cursor: pointer; }
+    .hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
+    #settings-panel { position: static; display: block; width: auto; max-width: none; max-height: none; background: transparent; border: 0; padding: 0; overflow: visible; }
+    #settings-panel .set-row { font-size: 15px; padding: 7px 0; }
+    #settings-panel select { font-size: 15px; padding: 4px; }
+    #settings-panel .presets button { font-size: 14px; padding: 8px 2px; }
+    #settings-panel .fps-slider input { width: 150px; }
+    .row2 { display: flex; gap: 8px; }
+    .row2 button { flex: 1; font: inherit; font-size: 13px; color: var(--text); background: #222; border: 1px solid var(--line); padding: 8px; cursor: pointer; }
+    #log { display: none; font: 11px/1.4 ui-monospace, monospace; color: #80e090; background: #0a0a0a; border: 1px solid var(--line); padding: 8px; white-space: pre-wrap; max-height: 320px; overflow: auto; margin-top: 8px; user-select: text; -webkit-user-select: text; }
+    /* the settings of the web page the app does not have */
+    #settings-panel label:has(#pixel-cap), #settings-panel label:has([data-set="texQuality"]),
+    #settings-panel .set-row:has(#barrier-zones) { display: none; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div class="top"><h1>OpenGothic<small>Android</small></h1><button id="dev-btn">Gothic Dev</button></div>
+    <div class="games" id="games"></div>
+    <div class="hint" id="scan-note"></div>
+    <div class="card" id="settings-card"><h2 id="settings-title">Settings</h2><div id="settings-panel" class="disabled">
+      <div class="presets" id="gfx-presets">
+        <button type="button" data-preset="ultralow" title="Everything at the minimum, shortest draw distance">Ultra low</button>
+        <button type="button" data-preset="low" title="Fewer effects, short draw distance">Low</button>
+        <button type="button" data-preset="classic" title="Like the original: circle shadows, 80 m objects, 200 m world, simple water, no reflections or occlusion">Classic</button>
+        <button type="button" data-preset="ultra" title="Everything at the maximum and on">Ultra</button>
+      </div>
+      <label class="set-row" title="Frame rate limit, from 25 up to the display refresh rate (the right end: frames follow the monitor, no limit)">FPS limit
+        <span class="fps-slider"><input type="range" id="fps-limit" min="25" max="60" step="1" value="60"><output id="fps-limit-val">60</output></span>
+      </label>
+      <label class="set-row">Render resolution
+        <select data-set="resScale">
+          <option value="0">100%</option><option value="1">75%</option>
+          <option value="2">50%</option><option value="3">40%</option>
+          <option value="4">30%</option><option value="5">25%</option>
+          <option value="6">20%</option><option value="7">15%</option>
+        </select>
+      </label>
+      <label class="set-row" title="Pixels of the picture per screen pixel. Phones have 2.5-3.5: a lower value is much faster on them, especially in landscape. Auto keeps the picture to about one megapixel">Screen sharpness
+        <select id="pixel-cap">
+          <option value="-1">Auto</option><option value="0">Native</option>
+          <option value="2">High (2x)</option><option value="1.5">Medium (1.5x)</option>
+          <option value="1">Low (1x)</option>
+        </select>
+      </label>
+      <label class="set-row" title="Detail of world textures, like the texture detail of the original Gothic: lower is less detailed and a little lighter for the GPU. Applies at once, both ways. Video memory use does not change">Texture quality
+        <select data-set="texQuality">
+          <option value="0">High</option><option value="1">Medium (1/2)</option>
+          <option value="2">Low (1/4)</option><option value="3">Lowest (1/8)</option>
+        </select>
+      </label>
+      <label class="set-row">Shadows
+        <select data-set="shadows">
+          <option value="2">High</option><option value="1">Low</option><option value="3">Ultra low (circles)</option><option value="0">Off</option>
+        </select>
+      </label>
+      <label class="set-row">Object draw distance
+        <select data-set="drawDist">
+          <option value="0">Unlimited</option><option value="1">Far (150 m)</option>
+          <option value="2">Medium (80 m)</option><option value="3">Near (40 m)</option>
+          <option value="4">Nearest (20 m)</option>
+        </select>
+      </label>
+      <label class="set-row">World draw distance
+        <select data-set="worldDist">
+          <option value="0">Unlimited</option><option value="500">500 m</option>
+          <option value="300">300 m</option><option value="200">200 m</option>
+          <option value="150">150 m</option><option value="100">100 m</option>
+          <option value="80">80 m</option><option value="60">60 m</option>
+          <option value="40">40 m</option><option value="30">30 m</option>
+        </select>
+      </label>
+      <label class="set-row" title="NPCs beyond the object draw distance are not animated (their bones freeze until they come closer)">Skip hidden NPC animation <input type="checkbox" data-set="skipFarAnim"></label>
+      <label class="set-row" title="Low: water is a plain animated texture like in the original Gothic, no waves, transparency or reflections; much lighter for the GPU. Ultra high: High, and the swamp has its own water (greener, murkier, slower) with a smooth transition from the plain water. Applies the next time a world is loaded (new game, loading a save, changing the area)">Water quality
+        <select data-set="waterQuality">
+          <option value="0">High</option><option value="1">Low</option><option value="2">Ultra high</option>
+        </select>
+      </label>
+      <label class="set-row" title="Rings spread over the water around the character: steps, wading, swimming, and a splash with waves when falling into it. Not for the Low water quality">Water physics <input type="checkbox" data-set="waterPhysics"></label>
+      <label class="set-row" title="Blood splashes from NPCs and the hero when hit">Blood <input type="checkbox" data-set="blood"></label>
+      <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
+      <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
+      <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: no fog on objects. Always off when the world draw distance is below 150 m">Fog
+        <select data-set="fog">
+          <option value="0">On</option><option value="2">Dense</option><option value="1">Off</option>
+        </select>
+      </label>
+      <label class="set-row" title="High: bright sun disc with a glow and light shafts. Low: the same sun without the light shafts. Off: no sun">Sun
+        <select data-set="sun">
+          <option value="0">High</option><option value="1">Low</option><option value="2">Off</option>
+        </select>
+      </label>
+      <label class="set-row" title="Classic: the barrier shows for 45 seconds when the game starts, dissolves, and comes back for 45 seconds every 36 minutes. Constant: always there. Off: no barrier. The slider is the volume of its hum and thunder (Gothic 1 only)">Barrier
+        <span class="barrier-ctl">
+          <select data-set="barrier">
+            <option value="0">Classic</option><option value="1">Constant</option><option value="2">Off</option>
+          </select>
+          <input type="range" data-set="barrierVol" min="20" max="100" step="5" value="100" title="Barrier volume">
+        </span>
+      </label>
+      <div class="set-row" title="The barrier kills what touches it, but the game has no data where. Stand at a corner of a place the barrier should kill in and press Corner (or the backslash key), go to the opposite corner and press again: a zone is saved. Undo removes the last one">Barrier zones
+        <span class="barrier-ctl" id="barrier-zones">
+          <button type="button" data-zone="1">Corner</button><button type="button" data-zone="2">Undo</button><button type="button" data-zone="3">Clear</button><output id="barrier-zone-count">0</output>
+        </span>
+      </div>
+      <label class="set-row" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
+      <div class="set-note" id="settings-note">Start the game to change settings.</div>
+    </div></div>
+    <div class="card"><h2>Log</h2>
+      <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
+      <div id="log"></div>
+    </div>
+  </div>
+  <div id="sheet"><div class="box" id="sheet-box"></div></div>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const PICS = { 1: 'img/g1.png', 2: 'img/g2.png' };
+    const ICON_HOME = '<svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>';
+    const ICON_FOLDER = '<svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>';
+    let games = [];
+    function refresh(scanned) {
+      try { games = JSON.parse(scanned ? Launcher.rescan() : Launcher.games()); } catch (e) { games = []; }
+      const sel = Launcher.selected();
+      const root = $('games');
+      root.innerHTML = '';
+      for (const g of games) {
+        const el = document.createElement('div');
+        el.className = 'game' + (g.id === sel ? ' sel' : '');
+        const found = !!g.path;
+        el.innerHTML =
+          '<div class="pic" style="background-image:url(' + PICS[g.id] + ');background-position:center ' + (g.id === 1 ? '25%' : '80%') + '">' +
+            '<span class="badge' + (found ? ' ok' : '') + '">' + (found ? 'Installed' : 'Not found') + '</span><div class="langs"></div></div>' +
+          '<div class="body"><h3></h3><div class="path"></div><div class="btns">' +
+            '<button class="play"></button>' +
+            '<button class="folder" title="Choose the game folder">' + ICON_FOLDER + ' Folder</button>' +
+            '<button class="dl" title="Download from the PC (Gothic_Dev) on the local network">Download</button>' +
+            '<button class="icon home" title="Add to the home screen" aria-label="Add to the home screen">' + ICON_HOME + '</button>' +
+          '</div></div>';
+        el.querySelector('h3').textContent = 'Gothic ' + g.id;
+        el.querySelector('.path').textContent = found ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : 'Choose the folder with Data/*.vdf, or the phone is searched again with the button below';
+        const play = el.querySelector('.play');
+        play.textContent = 'Play';
+        play.disabled = !found;
+        play.addEventListener('click', () => Launcher.start(g.id));
+        el.querySelector('.folder').addEventListener('click', () => Launcher.pick(g.id));
+        el.querySelector('.dl').addEventListener('click', () => openDownload(g.id));
+        // the languages of the game, bottom left of the picture
+        try {
+          const lg = Launcher.langs(g.id);
+          if (lg) { const l = JSON.parse(lg); el.querySelector('.langs').innerHTML = '<span>Text: ' + l.text.toUpperCase() + '</span><span>Voice: ' + l.voice.toUpperCase() + '</span>'; }
+        } catch (e) {}
+        el.querySelector('.home').disabled = !found;
+        el.querySelector('.home').addEventListener('click', () => Launcher.pin(g.id));
+        // a tap on the picture: the settings below are of this game
+        el.querySelector('.pic').addEventListener('click', () => { Launcher.select(g.id); refresh(); });
+        root.appendChild(el);
+      }
+      const g = games.find(x => x.id === sel) || games[0];
+      $('settings-title').textContent = 'Settings: Gothic ' + g.id;
+      $('scan-note').innerHTML = '<button id="rescan" style="font:inherit;font-size:13px;color:var(--text);background:#222;border:1px solid var(--line);padding:8px 12px;cursor:pointer">Search the phone for games</button>';
+      $('rescan').addEventListener('click', () => { $('rescan').textContent = 'Searching...'; setTimeout(() => refresh(true), 50); });
+      load();
+    }
+    // ---- downloading a game from the PC (the packs of Gothic_Dev, the same ones the browser installs)
+    const sheet = $('sheet'), box = $('sheet-box');
+    sheet.addEventListener('click', e => { if (e.target === sheet && !(dlTimer)) sheet.classList.remove('open'); });
+    let dlTimer = 0;
+    const mb = n => n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : Math.round(n / 1048576) + ' MB';
+    $('dev-btn').addEventListener('click', () => {
+      box.innerHTML = '<h2>Gothic Dev: server of the PC</h2><div class="msg">The games are downloaded from the PC in the same network: run <b>python3 web/serve.py 8322 --lan</b> there (without --https) and enter its address.</div>' +
+        '<div class="sr"><input type="text" id="srv" autocapitalize="off" autocorrect="off" spellcheck="false"></div><button class="go" id="srv-save">Save</button><button class="sec" id="srv-close">Close</button>';
+      $('srv').value = Launcher.server();
+      $('srv-save').addEventListener('click', () => { Launcher.setServer($('srv').value); sheet.classList.remove('open'); });
+      $('srv-close').addEventListener('click', () => sheet.classList.remove('open'));
+      sheet.classList.add('open');
+    });
+    let dlGame = 0, dlIndex = null;
+    function openDownload(id) {
+      dlGame = id; dlIndex = null;
+      const st = JSON.parse(Launcher.dlState());
+      box.innerHTML = '<h2>Download Gothic ' + id + '</h2><div class="msg" id="dl-msg">Connecting to ' + Launcher.server() + ' ...</div>';
+      sheet.classList.add('open');
+      if (st.running) { showProgress(); return; }
+      Launcher.fetchIndex(id);
+    }
+    window.onIndex = (id, r) => {
+      if (id !== dlGame || !sheet.classList.contains('open')) return;
+      if (r.error) {
+        box.innerHTML = '<h2>Download Gothic ' + id + '</h2><div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the server address (button Gothic Dev) and that the PC is in the same network.</div><button class="sec" id="x">Close</button>';
+        $('x').addEventListener('click', () => sheet.classList.remove('open'));
+        return;
+      }
+      dlIndex = r;
+      const opt = (l, voice) => '<option value="' + l.id + '">' + l.name + '</option>';
+      const prev = (() => { try { return JSON.parse(Launcher.langs(id)); } catch (e) { return null; } })();
+      box.innerHTML = '<h2>Download Gothic ' + id + '</h2>' +
+        '<div class="sr">Text language <select id="l-text">' + r.langs.map(l => opt(l)).join('') + '</select></div>' +
+        '<div class="sr">Voice language <select id="l-voice">' + r.langs.filter(l => l.hasVoice).map(l => opt(l)).join('') + '</select></div>' +
+        '<div class="total" id="total"></div><div class="msg">The game is installed in the folder of the app and used from the next start.</div>' +
+        '<div class="bar" id="bar"><div></div></div><div class="msg" id="dl-msg"></div>' +
+        '<button class="go" id="go">Download</button><button class="sec" id="x">Close</button>';
+      if (prev) { $('l-text').value = prev.text; $('l-voice').value = prev.voice; }
+      else { $('l-text').value = (r.langs.find(l => l.id === 'ru') || r.langs[0]).id; $('l-voice').value = (r.langs.find(l => l.id === 'ru' && l.hasVoice) || r.langs.find(l => l.hasVoice)).id; }
+      const total = () => {
+        const t = r.langs.find(l => l.id === $('l-text').value), v = r.langs.find(l => l.id === $('l-voice').value);
+        const n = r.base + t.text + v.voice;
+        $('total').textContent = 'Download size: ' + mb(n) + '  (game ' + mb(r.base) + ', text ' + mb(t.text) + ', voice ' + mb(v.voice) + ')';
+      };
+      $('l-text').addEventListener('change', total); $('l-voice').addEventListener('change', total); total();
+      $('x').addEventListener('click', () => sheet.classList.remove('open'));
+      $('go').addEventListener('click', () => {
+        if (!Launcher.download(id, $('l-text').value, $('l-voice').value)) return;
+        showProgress();
+      });
+    };
+    function showProgress() {
+      if (!$('bar')) {
+        box.innerHTML = '<h2>Download Gothic ' + dlGame + '</h2><div class="total" id="total"></div><div class="bar" id="bar"><div></div></div><div class="msg" id="dl-msg"></div><button class="sec" id="x">Cancel</button>';
+      }
+      $('bar').style.display = 'block';
+      $('go') && ($('go').style.display = 'none');
+      $('x').textContent = 'Cancel';
+      $('x').onclick = () => Launcher.cancelDownload();
+      clearInterval(dlTimer);
+      const tick = () => {
+        const st = JSON.parse(Launcher.dlState());
+        const pct = st.total ? Math.min(100, st.done * 100 / st.total) : 0;
+        $('bar').firstElementChild.style.width = pct + '%';
+        $('total').textContent = mb(st.done) + ' of ' + mb(st.total) + '  (' + Math.round(pct) + '%)';
+        $('dl-msg').className = 'msg' + (st.error ? ' err' : '');
+        $('dl-msg').textContent = st.error ? st.error : st.finished ? 'Done' : 'Downloading: ' + st.phase;
+        if (!st.running) {
+          clearInterval(dlTimer); dlTimer = 0;
+          $('x').textContent = 'Close'; $('x').onclick = () => { sheet.classList.remove('open'); refresh(); };
+        }
+      };
+      dlTimer = setInterval(tick, 500); tick();
+    }
+
+    // settings: the same elements as on the site's page, read and written to the game's Gothic.ini by the app
+    const panel = $('settings-panel');
+    const inputs = panel.querySelectorAll('[data-set]');
+    const fpsSlider = $('fps-limit'), fpsOut = $('fps-limit-val');
+    fpsSlider.max = '120';
+    function showFps() { fpsOut.textContent = +fpsSlider.value >= +fpsSlider.max ? 'max' : fpsSlider.value; }
+    function load() {
+      panel.classList.remove('disabled');
+      $('settings-note').textContent = 'Saved in the game folder (Gothic.ini); applied when the game starts.';
+      const fl = Launcher.get('fpsLimit');
+      fpsSlider.value = String(fl > 0 ? Math.min(fl, +fpsSlider.max) : +fpsSlider.max);
+      showFps();
+      inputs.forEach(el => {
+        const v = Launcher.get(el.dataset.set);
+        if (el.type === 'checkbox') el.checked = v !== 0;
+        else if (el.dataset.set === 'barrierVol') el.value = String(v < 20 ? 100 : v);
+        else el.value = String(v);
+      });
+      // a preset is lit while all of its values are set (the values may come from another place: the game's own menu, a copied file)
+      document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => {
+        const p = PRESETS[b.dataset.preset];
+        b.classList.toggle('active', Object.keys(p).every(k => Launcher.get(k) === p[k]));
+      });
+    }
+    fpsSlider.addEventListener('input', showFps);
+    fpsSlider.addEventListener('change', () => Launcher.set('fpsLimit', +fpsSlider.value >= +fpsSlider.max ? 0 : +fpsSlider.value));
+    inputs.forEach(el => el.addEventListener('change', () => {
+      Launcher.set(el.dataset.set, el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10));
+      load();
+    }));
+    const PRESETS = {
+        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 1, texQuality: 1 },
+        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 0, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 0, texQuality: 0 },
+        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
+      };
+    $('gfx-presets').addEventListener('click', e => {
+      const b = e.target.closest('[data-preset]');
+      if (!b) return;
+      const p = PRESETS[b.dataset.preset];
+      for (const k in p) Launcher.set(k, p[k]);
+      load();
+    });
+    $('log-show').addEventListener('click', () => {
+      const l = $('log');
+      if (l.style.display === 'block') { l.style.display = 'none'; return; }
+      l.textContent = Launcher.log(); l.style.display = 'block';
+    });
+    $('log-copy').addEventListener('click', () => Launcher.copyLog());
+    window.onResumed = () => refresh();
+    refresh();
+  </script>
+</body>
+</html>

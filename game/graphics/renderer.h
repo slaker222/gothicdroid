@@ -116,11 +116,7 @@ class Renderer final {
     void toggleRtsm();
 
     struct Settings {
-#if defined(__ANDROID__)
-      // android: debug.cfg shadows=
-      uint32_t       shadowResolution   = 512;
-      bool           shadowsEnabled     = true;
-#elif defined(__EMSCRIPTEN__)
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
       // web: chosen in the player's settings menu ([INTERNAL] webShadows)
       uint32_t       shadowResolution   = 2048;
       bool           shadowsEnabled     = true;

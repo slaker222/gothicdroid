@@ -91,7 +91,7 @@ InventoryMenu::InventoryMenu(const KeyCodec& key)
   setFocusPolicy(NoFocus);
   setCursorShape(CursorShape::Hidden);
   takeTimer.timeout.bind(this,&InventoryMenu::onTakeStuff);
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   holdTimer.timeout.bind(this,&InventoryMenu::onHoldTick);
 #endif
   }
@@ -100,7 +100,7 @@ InventoryMenu::~InventoryMenu() {
   }
 
 void InventoryMenu::close() {
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   tapPg = -1;
   hold  = TouchHold();
 #endif
@@ -115,7 +115,7 @@ void InventoryMenu::close() {
   }
 
 void InventoryMenu::open(Npc &pl) {
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   tapPg = -1;
   hold  = TouchHold();
 #endif
@@ -142,7 +142,7 @@ void InventoryMenu::open(Npc &pl) {
   }
 
 void InventoryMenu::trade(Npc &pl, Npc &tr) {
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   tapPg = -1;
   hold  = TouchHold();
 #endif
@@ -180,7 +180,7 @@ bool InventoryMenu::ransack(Npc &pl, Npc &tr) {
   }
 
 void InventoryMenu::open(Npc &pl, Interactive &ch) {
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   tapPg = -1;
   hold  = TouchHold();
 #endif
@@ -478,7 +478,7 @@ InventoryMenu::PageLocal &InventoryMenu::activePageSel() {
   return pageLocal[1];
   }
   
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
 static const uint64_t holdDropMs = 1300;   // a held slot is dropped after this
 static const uint64_t holdShowMs = 150;    // the frame starts to fill after this (a tap does not flicker)
 
@@ -787,7 +787,7 @@ void InventoryMenu::drawSlot(Painter &p, DrawPass pass, const Inventory::Iterato
                    vint);
       }
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
     if(hold.on && id==hold.idx && hold.pg==(&page==pageOth.get() ? 0 : 1)) {
       // the frame of the held slot fills up clockwise; full: the item is dropped
       const float fill = holdFill();
@@ -907,13 +907,13 @@ void InventoryMenu::drawInfo(Painter &p) {
 
 void InventoryMenu::draw(Tempest::Encoder<CommandBuffer>& cmd, float sx, float sy) {
   renderer.draw(cmd,sx,sy);
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   if(quickVisible())
     quickRenderer.draw(cmd,sx,sy);
 #endif
   }
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
 // the quick panel: the weapons and spells (runes, scrolls) the player put on the number keys 1..0 (melee 1,
 // ranged 2, magic 3..0), a tap presses the key. The slots have their place in window pixels; the page puts its buttons on top of the same rectangles
 // (og_quickslots), the icons are drawn here
@@ -930,6 +930,14 @@ void InventoryMenu::quickUpdate() {
       s.item = it;
       s.cls  = it!=nullptr ? it->clsId() : 0;
       s.on   = on && it!=nullptr;
+      if(it!=nullptr) {
+        if(key==2) {
+          const int32_t munition = it->handle().munition;
+          s.n = munition>=0 ? int(pl->itemCount(size_t(munition))) : 0; // arrows or bolts
+          }
+        else if(key>2 && it->isSpell())
+          s.n = int(it->count());                                         // scrolls (runes are not used up)
+        }
       all.push_back(s);
       };
     add(1, pl->currentMeleeWeapon(),  ws==WeaponState::Fist || ws==WeaponState::W1H || ws==WeaponState::W2H);
@@ -966,6 +974,7 @@ void InventoryMenu::quickUpdate() {
       s.item  = e.item;
       s.cls   = e.cls;
       s.on    = e.on;
+      s.n     = e.n;
       }
     s.x = x;
     s.y = y;
@@ -975,7 +984,7 @@ void InventoryMenu::quickUpdate() {
 
   std::vector<size_t> sig;
   for(auto& s:slots)
-    sig.push_back(s.item!=nullptr ? s.cls*16u + size_t(s.key+1) : 0);
+    sig.push_back(s.item!=nullptr ? s.cls*16u + size_t(s.key+1) : 0); // the count is not here: the icons do not change with it
   const bool changed = (sig!=quickSig || ww!=quickW || hh!=quickH);
   quickSlots = std::move(slots);
   if(!changed)
@@ -1000,7 +1009,8 @@ std::string InventoryMenu::quickJson() const {
     r += "{\"k\":" + std::to_string(s.key) +
          ",\"e\":" + (s.item!=nullptr ? "0" : "1") +
          ",\"x\":" + std::to_string(s.x) + ",\"y\":" + std::to_string(s.y) +
-         ",\"b\":" + std::to_string(s.s) + ",\"on\":" + (s.on ? "1" : "0") + "}";
+         ",\"b\":" + std::to_string(s.s) + ",\"on\":" + (s.on ? "1" : "0") +
+         (s.n>=0 ? ",\"n\":" + std::to_string(s.n) : std::string()) + "}";
     }
   r += "]}";
   return r;

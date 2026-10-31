@@ -251,7 +251,11 @@ void main_frag() {
              *scene.GSunIntensity*scene.exposure;
     }
     float luma  = dot(farLum, vec3(0.299,0.587,0.114));
-    vec3  haze  = luma*fogTint*fogGain*skyDim;
+    // low sun: the sky is already warm, the fixed orange tint on top turns everything yellow
+    const float lowSun = 1.0 - smoothstep(0.0, 0.4, sunDir.y);
+    const vec3  tint   = mix(fogTint, vec3(1.0), lowSun*0.7);
+    const float gain   = mix(fogGain, 2.0, lowSun);
+    vec3  haze  = luma*tint*gain*skyDim;
 
     // the engine's own (bluish) atmosphere would wash the red out of far roofs: haze only on objects
     if(!isSky) {
@@ -280,7 +284,7 @@ void main_frag() {
         open /= float(N);
         const float cone  = pow(smoothstep(0.35, 1.0, toSun), 2.0);
         const float reach = exp(-length((uv-sunUv)*vec2(float(size.x)/float(size.y),1.0))*1.7);
-        lum += luma*fogTint*fogGain*open*cone*reach*scene.fogAmount*shaftGain*(isSky ? 0.08 : 1.0);
+        lum += luma*tint*gain*open*cone*reach*scene.fogAmount*shaftGain*(1.0-0.6*lowSun)*(isSky ? 0.08 : 1.0);
         }
       }
     } else if(scene.fogAmount<0 && !isSky) {

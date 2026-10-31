@@ -4,7 +4,15 @@ import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import android.annotation.SuppressLint
+import android.graphics.Color
 import android.view.*
+import android.webkit.JavascriptInterface
+import android.webkit.WebChromeClient
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import android.widget.FrameLayout
+import org.json.JSONArray
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
@@ -39,7 +47,21 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeIsGameRunning(): Boolean
     private external fun nativeGetLastLog(): String
 
+    private external fun nativeSettingGet(name: String): Int
+    private external fun nativeSettingSet(name: String, value: Int): Int
+    private external fun nativeBarrierZone(kind: Int): Int
+    private external fun nativeUiState(): Int
+    private external fun nativeFrames(): Int
+    private external fun nativeQuick(kind: Int)
+    private external fun nativeQuests(): String
+    private external fun nativeQuickSlots(): String
+    private external fun nativeQuickPanel(open: Int, first: Int)
+    private external fun nativePointer(type: Int, x: Int, y: Int)
+    private external fun nativeLook(dx: Int, dy: Int)
+    private external fun nativeWebKey(action: Int, code: String)
+
     private lateinit var surfaceView: SurfaceView
+    private var webView: WebView? = null
     private var surfaceHolder: SurfaceHolder? = null
     private var gameDir: String = "/sdcard/Gothic2"
 
@@ -106,7 +128,57 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             true
         }
 
-        setContentView(surfaceView)
+        val root = FrameLayout(this)
+        root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
+        root.addView(createUiView(), FrameLayout.LayoutParams(-1, -1))
+        setContentView(root)
+    }
+
+    // The interface is the browser version's page (assets/ui.html, built from web/shell.html) over the game:
+    // its calls into the engine (Module.ccall in the browser) come here
+    inner class UiBridge {
+        @JavascriptInterface
+        fun call(name: String, argsJson: String): String {
+            val a = JSONArray(argsJson)
+            return when (name) {
+                "og_setting_get" -> nativeSettingGet(a.getString(0)).toString()
+                "og_setting_set" -> nativeSettingSet(a.getString(0), a.getInt(1)).toString()
+                "og_barrier_zone" -> nativeBarrierZone(a.getInt(0)).toString()
+                "og_ui_state" -> nativeUiState().toString()
+                "og_frames" -> nativeFrames().toString()
+                "og_quick" -> { nativeQuick(a.getInt(0)); "0" }
+                "og_quests" -> nativeQuests()
+                "og_quickslots" -> nativeQuickSlots()
+                "og_quickpanel" -> { nativeQuickPanel(a.getInt(0), a.getInt(1)); "0" }
+                "og_pointer" -> { nativePointer(a.getInt(0), a.getInt(1), a.getInt(2)); "0" }
+                "og_input_look" -> { nativeLook(a.getInt(0), a.getInt(1)); "0" }
+                else -> "-1"
+            }
+        }
+
+        @JavascriptInterface
+        fun key(action: Int, code: String) = nativeWebKey(action, code)
+    }
+
+    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
+    private fun createUiView(): View {
+        val wv = WebView(this)
+        wv.setBackgroundColor(Color.TRANSPARENT)
+        wv.settings.javaScriptEnabled = true
+        wv.settings.domStorageEnabled = true
+        wv.settings.mediaPlaybackRequiresUserGesture = false
+        wv.overScrollMode = View.OVER_SCROLL_NEVER
+        wv.webChromeClient = object : WebChromeClient() {
+            override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                Log.i(TAG, "ui: ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                return true
+            }
+        }
+        wv.webViewClient = WebViewClient()
+        wv.addJavascriptInterface(UiBridge(), "AndroidBridge")
+        wv.loadUrl("file:///android_asset/ui.html")
+        webView = wv
+        return wv
     }
 
     override fun onResume() {

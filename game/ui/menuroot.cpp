@@ -149,7 +149,7 @@ void MenuRoot::mouseDownEvent(MouseEvent& event) {
       popMenu();
       return;
       }
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
     // the item under the finger / cursor is used; a tap beside the items does nothing
     current->onPointer(event.pos() - current->pos());
 #else

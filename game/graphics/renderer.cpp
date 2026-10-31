@@ -195,19 +195,8 @@ void Renderer::setupSettings() {
   settings.zCloudShadowScale  = Gothic::settingsGetI("ENGINE","zCloudShadowScale") !=0;
   settings.zFogRadial         = Gothic::settingsGetI("RENDERER_D3D","zFogRadial")!=0;
 
-#if defined(__ANDROID__)
-  // debug.cfg (launcher): off by default, heavy on a phone
-  settings.zCloudShadowScale  = opengothic_debug_ssao()!=0;
-  settings.zFogRadial         = false;
-  settings.zEnvMappingEnabled = opengothic_debug_reflections()!=0;
-  {
-  const int sh = opengothic_debug_shadows();
-  settings.shadowsEnabled   = sh>0;
-  settings.shadowResolution = sh>=3 ? 2048 : (sh==2 ? 1024 : 512);
-  }
-#endif
 
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   // web settings menu: 0 = off (the shadow maps are only cleared: all lit), 1 = 1024, 2 = 2048,
   // 3 = ultra low: as off, with a circle under every npc
   {
@@ -235,7 +224,7 @@ void Renderer::setupSettings() {
 
   auto prevVidResIndex = settings.vidResIndex;
   settings.vidResIndex = Gothic::inst().settingsGetF("INTERNAL","vidResIndex");
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   // web: the resolution comes from the settings menu only (debug.cfg's
   // render_scale=100 default would force full resolution back)
   int rscale = 0;
@@ -604,7 +593,7 @@ void Renderer::draw(Encoder<CommandBuffer>& cmd, uint8_t cmdId, size_t imgId,
   cmd.setDebugMarker("UI");
   uiLayer.draw(cmd);
 
-#if defined(__EMSCRIPTEN__)
+#if defined(OG_WEB_UI)
   const bool quick = inventory.quickVisible();
 #else
   const bool quick = false;

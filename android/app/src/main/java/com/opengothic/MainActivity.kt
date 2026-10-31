@@ -16,9 +16,14 @@ import android.os.Environment
 import android.provider.Settings
 import android.util.Log
 import android.util.TypedValue
-import android.view.Gravity
+import android.annotation.SuppressLint
 import android.view.View
-import android.widget.*
+import android.widget.Toast
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
+import org.json.JSONArray
+import org.json.JSONObject
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
@@ -47,8 +52,7 @@ class MainActivity : AppCompatActivity() {
     private external fun nativeGetLastLog(): String
     private external fun nativeIsGameRunning(): Boolean
 
-    private lateinit var statusTextView: TextView
-    private lateinit var logConsoleTextView: TextView
+    private var webView: WebView? = null
     private var detectedGameDir: String = "/sdcard/Gothic2"
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,11 +60,22 @@ class MainActivity : AppCompatActivity() {
         Log.i(TAG, "MainActivity (Launcher) onCreate")
 
         checkAndRequestStoragePermissions()
+        val shortcutGame = intent.getIntExtra("game", 0)
+        if (shortcutGame != 0) { scanned = scan(); rememberScan() }
+        else Thread {
+            // the scan walks the storage: the menu is shown first and updated when it is done
+            scanned = scan()
+            rememberScan()
+            runOnUiThread { webView?.evaluateJavascript("window.onResumed && onResumed()", null) }
+        }.start()
         detectedGameDir = findGameDirectory()
 
-        setContentView(buildLauncherLayout())
-        updateStatus()
-        updateLogView()
+        setContentView(createUiView())
+        // a home screen icon of a game: start it at once
+        if (shortcutGame != 0) {
+            intent.removeExtra("game")
+            if (gamePath(shortcutGame) != null) launchGame(shortcutGame)
+        }
         // adb: am start -n com.opengothic/.MainActivity --ez autostart true (scripts/android_*.sh)
         if (intent.getBooleanExtra("autostart", false)) {
             intent.removeExtra("autostart")
@@ -70,8 +85,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
-        updateStatus()
-        updateLogView()
+        webView?.evaluateJavascript("window.onResumed && onResumed()", null)
     }
 
     private fun checkAndRequestStoragePermissions() {
@@ -108,72 +122,141 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    // an installed game: a folder with Data/*.vdf
-    private data class GameEntry(val path: String, val title: String)
+    // ---- the games on the phone. A game is a folder with Data/*.vdf; which one it is (1 or 2) follows from
+    // the files the engine itself tells them apart by (OU.DAT: Gothic 2, OU.BIN: Gothic 1), then the addon archives
+    // and the exe, then the name of the folder
+    private data class Game(val id: Int, val title: String)
+    private val gameList = listOf(Game(1, "Gothic"), Game(2, "Gothic II"))
 
-    private fun hasVdf(dir: File): Boolean {
-        val data = File(dir, "Data")
-        return data.isDirectory && (data.listFiles { _, name -> name.endsWith(".vdf", ignoreCase = true) }?.isNotEmpty() == true)
+    private fun child(dir: File, name: String): File? {
+        File(dir, name).let { if (it.exists()) return it }
+        return dir.listFiles()?.firstOrNull { it.name.equals(name, ignoreCase = true) }
     }
 
-    // the games found next to each other on the storage, the first of each kind
-    private fun findGames(): List<GameEntry> {
-        val roots = listOf("/storage/emulated/0", "/sdcard")
-        val known = listOf(
-            "Gothic2"     to "Gothic II: Ночь Ворона",
-            "GothicSmall" to "Gothic (малая версия)",
-            "Gothic1"     to "Gothic",
-            "Gothic"      to "Gothic"
-        )
-        val out = ArrayList<GameEntry>()
-        val seen = HashSet<String>()
-        for ((name, title) in known) {
-            for (root in roots) {
-                val dir = File(root, name)
-                if (!hasVdf(dir)) continue
-                val real = try { dir.canonicalPath } catch (e: Exception) { dir.path }
-                if (seen.add(real)) {
-                    out.add(GameEntry(dir.path, title))
-                    break
-                }
-            }
-        }
-        val own = getExternalFilesDir(null)?.absolutePath?.let { File(it, "Gothic2") }
-        if (own != null && hasVdf(own) && seen.add(own.path))
-            out.add(GameEntry(own.path, "Gothic II (папка приложения)"))
-        return out
+    private fun path(dir: File, vararg parts: String): File? {
+        var d: File = dir
+        for (p in parts) d = child(d, p) ?: return null
+        return d
     }
 
-    private fun findGameDirectory(): String {
-        val games = findGames()
-        val saved = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE).getString("game_dir", null)
-        if (saved != null && games.any { it.path == saved }) {
-            Log.i(TAG, "Selected game directory: $saved")
-            return saved
-        }
-        if (games.isNotEmpty()) {
-            Log.i(TAG, "Found game directory: ${games[0].path}")
-            return games[0].path
-        }
-        return "/sdcard/Gothic2"
+    private fun vdfs(dir: File): List<File> {
+        val data = child(dir, "Data") ?: return emptyList()
+        return data.listFiles { f -> f.name.endsWith(".vdf", ignoreCase = true) }?.toList() ?: emptyList()
     }
 
-    private fun updateStatus() {
-        detectedGameDir = findGameDirectory()
-        val dir = File(detectedGameDir)
-        val dataDir = File(dir, "Data")
-        val vdfFiles = if (dataDir.exists()) dataDir.listFiles { _, name -> name.endsWith(".vdf", ignoreCase = true) } else null
+    private fun hasVdf(dir: File) = dir.isDirectory && vdfs(dir).isNotEmpty()
 
-        if (dir.exists() && vdfFiles != null && vdfFiles.isNotEmpty()) {
-            statusTextView.setTextColor(Color.parseColor("#4CAF50"))
-            statusTextView.text = "✓ Путь: $detectedGameDir\n✓ Ресурсы найдены: ${vdfFiles.size} VDF архивов в Data/"
-        } else if (dir.exists()) {
-            statusTextView.setTextColor(Color.parseColor("#FFC107"))
-            statusTextView.text = "⚠ Путь: $detectedGameDir найден, но папка Data/ не содержит .vdf архивов"
-        } else {
-            statusTextView.setTextColor(Color.parseColor("#FF5252"))
-            statusTextView.text = "✗ Папка не найдена: $detectedGameDir\nСкопируйте Gothic II в $detectedGameDir"
+    // 1, 2, or 0 when the folder gives no hint. The same marks as the engine's own detection (Gothic::detectGothicVersion):
+    // the keys only the Gothic 2 Gothic.ini has, OU.DAT; OU.BIN is in Gothic 1 and in some translated Gothic 2 (it is not enough)
+    private fun versionOf(dir: File): Int {
+        var g1 = 0
+        var g2 = 0
+        val cut = arrayOf("_work", "Data", "Scripts", "content", "CUTSCENE")
+        if (path(dir, *cut, "OU.BIN") != null) g1++
+        if (path(dir, *cut, "OU.DAT") != null) g2++
+        val ini = path(dir, "system", "Gothic.ini")
+        if (ini != null) {
+            val t = try { ini.readText(Charsets.ISO_8859_1) } catch (e: Exception) { "" }
+            for (k in arrayOf("KEYSDEFAULT1", "PATCHVERSION", "useGothic1Controls"))
+                if (t.contains(k, ignoreCase = true)) g2++
         }
+        if (path(dir, "system", "Gothic2.exe") != null || path(dir, "Gothic2.exe") != null) g2 += 2
+        if (vdfs(dir).any { it.name.contains("addon", ignoreCase = true) }) g2 += 2
+        if (path(dir, "system", "GothicMod.exe") != null || path(dir, "system", "Gothic.exe") != null) g1++
+        if (g1 != g2) return if (g1 > g2) 1 else 2
+        val n = dir.name.lowercase()
+        if (Regex("(2|ii|raven|ворон|g2)").containsMatchIn(n)) return 2
+        if (n.contains("gothic") || n.contains("готик") || Regex("(1|g1)").containsMatchIn(n)) return 1
+        return 0
+    }
+
+    private val skipDirs = setOf("android", "dcim", "pictures", "movies", "music", "alarms", "notifications", "podcasts",
+        "ringtones", "audiobooks", "documents", "recordings", "screenshots", "telegram", "whatsapp", "data", "_work", "miles", "saves")
+
+    // every storage volume: the internal one, sd cards, usb drives
+    private fun roots(): List<File> {
+        val out = LinkedHashSet<File>()
+        out.add(Environment.getExternalStorageDirectory())
+        File("/storage").listFiles()?.forEach { if (it.name != "self" && it.name != "emulated" && it.isDirectory) out.add(it) }
+        getExternalFilesDirs(null).forEach { d ->
+            // /storage/XXXX/Android/data/<pkg>/files -> the root of the volume
+            val p = d?.absolutePath ?: return@forEach
+            val i = p.indexOf("/Android/")
+            if (i > 0) out.add(File(p.substring(0, i)))
+        }
+        return out.toList()
+    }
+
+    // folders to the depth of 4 under the roots, the ones named like a game first
+    private fun scan(): Map<Int, String> {
+        val found = LinkedHashMap<Int, String>()
+        fun consider(dir: File) {
+            val v = versionOf(dir)
+            if (v != 0 && v !in found) found[v] = dir.path
+        }
+        // the app's own folder: games put there by the downloader
+        getExternalFilesDir(null)?.let { base ->
+            for (g in gameList) File(base, "Gothic${g.id}").let { if (hasVdf(it)) consider(it) }
+        }
+        val queue = ArrayDeque<Pair<File, Int>>()
+        for (r in roots()) queue.add(r to 0)
+        var visited = 0
+        while (queue.isNotEmpty() && visited < 6000) {
+            val (dir, depth) = queue.removeFirst()
+            visited++
+            if (hasVdf(dir)) { consider(dir); continue }
+            if (depth >= 4) continue
+            val kids = dir.listFiles { f -> f.isDirectory && !f.name.startsWith(".") && f.name.lowercase() !in skipDirs } ?: continue
+            // the likely ones first
+            kids.sortedByDescending { Regex("gothic|готик|g1|g2|games|игры|download", RegexOption.IGNORE_CASE).containsMatchIn(it.name) }
+                .forEach { queue.add(it to depth + 1) }
+        }
+        return found
+    }
+
+    private fun prefs() = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
+
+    private var scanned: Map<Int, String> = emptyMap()
+    private var dl: PackDownloader? = null
+
+    // the folder of a game: the one the player chose, or the one found on the phone
+    private fun gamePath(id: Int): String? {
+        prefs().getString("path_$id", null)?.let { if (hasVdf(File(it))) return it }
+        return scanned[id]
+    }
+
+    // a folder that was found is kept: the next start uses it without searching, until it is gone
+    private fun rememberScan() {
+        val e = prefs().edit()
+        for ((id, p) in scanned) {
+            val old = prefs().getString("path_$id", null)
+            if (old == null || !hasVdf(File(old))) e.putString("path_$id", p)
+        }
+        e.apply()
+    }
+
+    private fun selectedGame(): Int = prefs().getInt("sel", 1)
+
+    private fun findGameDirectory(): String = gamePath(selectedGame()) ?: "/sdcard/Gothic${selectedGame()}"
+
+    // a folder chosen with the system picker -> its path
+    private fun pathOfTree(uri: Uri): String? {
+        val id = android.provider.DocumentsContract.getTreeDocumentId(uri)
+        val vol = id.substringBefore(':')
+        val rel = id.substringAfter(':', "")
+        val base = if (vol == "primary") Environment.getExternalStorageDirectory().path else "/storage/$vol"
+        return if (rel.isEmpty()) base else "$base/$rel"
+    }
+
+    private var pickFor = 1
+    private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
+        val p = uri?.let { pathOfTree(it) }
+        when {
+            p == null -> {}
+            !hasVdf(File(p)) -> Toast.makeText(this, "No game files (Data/*.vdf) in $p", Toast.LENGTH_LONG).show()
+            else -> prefs().edit().putString("path_$pickFor", p).apply()
+        }
+        webView?.evaluateJavascript("window.onResumed && onResumed()", null)
     }
 
     // big logs hang the ui thread in a TextView: only the end of the file is shown
@@ -223,11 +306,6 @@ class MainActivity : AppCompatActivity() {
         return if (sb.isNotBlank()) sb.toString() else "Лог пуст. Запустите игру для сбора логов."
     }
 
-    private fun updateLogView() {
-        val logText = readCompleteLog()
-        logConsoleTextView.text = logText
-    }
-
     private fun copyLogToClipboard() {
         val logText = readCompleteLog()
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -236,488 +314,233 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Лог скопирован в буфер обмена! (${logText.length} симв.)", Toast.LENGTH_SHORT).show()
     }
 
-    private fun updateDebugCfg(scalePercent: Int, simpleRender: Boolean) {
-        try {
-            val dir = File(detectedGameDir)
-            if (!dir.exists()) dir.mkdirs()
-            val prefs = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
-            val values = linkedMapOf(
-                "render_scale" to scalePercent.toString(),
-                "simple_render" to (if (simpleRender) "1" else "0"),
-                "draw_dist" to prefs.getInt("draw_dist", 0).toString(),
-                "world_dist" to prefs.getInt("world_dist", 0).toString(),
-                "shadows" to prefs.getInt("shadows", 1).toString(),
-                "ssao" to (if (prefs.getBoolean("ssao", false)) "1" else "0"),
-                "reflections" to (if (prefs.getBoolean("reflections", false)) "1" else "0"),
-                "show_fps" to (if (prefs.getBoolean("show_fps", true)) "1" else "0"),
-                "fps_unlimited" to (if (prefs.getBoolean("fps_unlimited", false)) "1" else "0")
-            )
-            val cfgFile = File(dir, "debug.cfg")
-            val lines = if (cfgFile.exists()) cfgFile.readLines().toMutableList() else mutableListOf()
-            val done = HashSet<String>()
-            for (i in lines.indices) {
-                val key = lines[i].substringBefore('=', "")
-                val v = values[key] ?: continue
-                lines[i] = "$key=$v"
-                done.add(key)
-            }
-            for ((k, v) in values) if (k !in done) lines.add("$k=$v")
-            cfgFile.writeText(lines.joinToString("\n") + "\n")
-        } catch (e: Exception) {
-            Log.e(TAG, "updateDebugCfg error: ${e.message}")
-        }
-    }
-
-    private fun launchGame() {
-        val prefs = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
-        val p = prefs.getInt("render_scale", 100)
-        val s = prefs.getBoolean("simple_render", false)
-        updateDebugCfg(p, s)
-
+    private fun launchGame(id: Int = selectedGame()) {
+        prefs().edit().putInt("sel", id).apply()
+        detectedGameDir = findGameDirectory()
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
         }
         startActivity(intent)
     }
 
-    private fun buildLauncherLayout(): View {
-        val dp = { v: Int -> (v * resources.displayMetrics.density).toInt() }
+    // ---- the settings of the web page (web/shell.html): the same names and the same Gothic.ini keys as the engine
+    // (og_setting_get / og_setting_set in game/mainwindow.cpp), here written to the game folder before the engine runs
+    private data class Setting(val sec: String, val key: String, val def: Int, val real: Boolean = false)
 
-        val rootScrollView = ScrollView(this).apply {
-            layoutParams = FrameLayout.LayoutParams(
-                FrameLayout.LayoutParams.MATCH_PARENT,
-                FrameLayout.LayoutParams.MATCH_PARENT
-            )
-            setBackgroundColor(Color.parseColor("#121417"))
-            isFillViewport = true
-        }
+    private val settings = mapOf(
+        "fpsLimit" to Setting("INTERNAL", "webFpsLimit", 0),
+        "resScale" to Setting("INTERNAL", "vidResIndex", 0, true),
+        "shadows" to Setting("INTERNAL", "webShadows", 1),
+        "drawDist" to Setting("INTERNAL", "webDrawDist", 0),
+        "worldDist" to Setting("INTERNAL", "webWorldDistM", 0),
+        "skipFarAnim" to Setting("INTERNAL", "webSkipFarAnim", 0),
+        "reflections" to Setting("ENGINE", "zEnvMappingEnabled", 0),
+        "ssao" to Setting("ENGINE", "zCloudShadowScale", 0),
+        "texQuality" to Setting("INTERNAL", "webTexQuality", 0),
+        "waterQuality" to Setting("INTERNAL", "webWaterQuality", 0),
+        "waterPhysics" to Setting("INTERNAL", "webWaterPhysics", 0),
+        "blood" to Setting("INTERNAL", "webBlood", 0),
+        "fog" to Setting("INTERNAL", "webFog", 0),
+        "sun" to Setting("INTERNAL", "webSun", 0),
+        "barrier" to Setting("INTERNAL", "webBarrier", 0),
+        "barrierVol" to Setting("INTERNAL", "webBarrierVol", 100),
+        "barrierZoneShow" to Setting("INTERNAL", "webBarrierZoneShow", 0)
+    )
 
-        val mainLayout = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setPadding(dp(20), dp(24), dp(20), dp(24))
-        }
+    private fun iniFile() = File(detectedGameDir, "Gothic.ini")
 
-        val appVersion = try {
-            packageManager.getPackageInfo(packageName, 0).versionName ?: "0.01"
+    private fun iniGet(s: Setting): Int {
+        var sec = ""
+        try {
+            for (raw in iniFile().readLines()) {
+                val line = raw.trim()
+                if (line.startsWith("[") && line.endsWith("]")) { sec = line.substring(1, line.length - 1); continue }
+                if (sec != s.sec) continue
+                val k = line.substringBefore('=', "").trim()
+                if (k == s.key) return line.substringAfter('=').trim().toDoubleOrNull()?.toInt() ?: s.def
+            }
+        } catch (e: Exception) {}
+        return s.def
+    }
+
+    private fun iniSet(s: Setting, v: Int) {
+        try {
+            val f = iniFile()
+            val lines = if (f.exists()) f.readLines().toMutableList() else mutableListOf()
+            val text = if (s.real) String.format(java.util.Locale.US, "%f", v.toFloat()) else v.toString()
+            var sec = ""
+            var secAt = -1
+            for (i in lines.indices) {
+                val line = lines[i].trim()
+                if (line.startsWith("[") && line.endsWith("]")) {
+                    sec = line.substring(1, line.length - 1)
+                    if (sec == s.sec) secAt = i
+                    continue
+                }
+                if (sec == s.sec && line.substringBefore('=', "").trim() == s.key) { lines[i] = "${s.key}=$text"; f.writeText(lines.joinToString("\n") + "\n"); return }
+            }
+            if (secAt < 0) { lines.add("[${s.sec}]"); lines.add("${s.key}=$text") }
+            else lines.add(secAt + 1, "${s.key}=$text")
+            f.writeText(lines.joinToString("\n") + "\n")
         } catch (e: Exception) {
-            "0.01"
+            Log.e(TAG, "ini write error: ${e.message}")
+        }
+    }
+
+    inner class LauncherBridge {
+        // [{id, title, path|null, vdf, version}] for both games; the scan runs again on `rescan`
+        @JavascriptInterface
+        fun games(): String {
+            val a = JSONArray()
+            for (g in gameList) {
+                val p = gamePath(g.id)
+                val o = JSONObject().put("id", g.id).put("title", g.title).put("path", p ?: JSONObject.NULL)
+                if (p != null) o.put("vdf", vdfs(File(p)).size).put("manual", prefs().getString("path_${g.id}", null) == p)
+                a.put(o)
+            }
+            return a.toString()
         }
 
-        // --- TITLE ---
-        val titleText = TextView(this).apply {
-            text = "OPENGOTHIC ($appVersion)"
-            textSize = 28f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            setTextColor(Color.parseColor("#E0C068")) // Gothic Gold
-            gravity = Gravity.CENTER_HORIZONTAL
-        }
-        mainLayout.addView(titleText)
+        @JavascriptInterface
+        fun rescan(): String { scanned = scan(); return games() }
 
-        val subtitleText = TextView(this).apply {
-            text = "Android Edition • Ночь Ворона"
-            textSize = 14f
-            setTextColor(Color.parseColor("#9AA0A6"))
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, 0, 0, dp(16))
-        }
-        mainLayout.addView(subtitleText)
+        @JavascriptInterface
+        fun pick(id: Int) { pickFor = id; runOnUiThread { picker.launch(null) } }
 
-        // --- GAME CHOICE ---
-        val games = findGames()
-        if (games.size > 1) {
-            val gameCard = LinearLayout(this).apply {
-                orientation = LinearLayout.VERTICAL
-                background = GradientDrawable().apply {
-                    setColor(Color.parseColor("#1C2025"))
-                    cornerRadius = dp(10).toFloat()
-                    setStroke(dp(1), Color.parseColor("#2E353D"))
+        @JavascriptInterface
+        fun forget(id: Int) { prefs().edit().remove("path_$id").apply() }
+
+        // the game whose settings the page shows
+        @JavascriptInterface
+        fun selected(): Int = selectedGame()
+
+        @JavascriptInterface
+        fun select(id: Int) { prefs().edit().putInt("sel", id).apply(); detectedGameDir = findGameDirectory() }
+
+        @JavascriptInterface
+        fun get(name: String): Int { detectedGameDir = findGameDirectory(); return settings[name]?.let { iniGet(it) } ?: -1 }
+
+        @JavascriptInterface
+        fun set(name: String, v: Int): Int { val s = settings[name] ?: return 0; detectedGameDir = findGameDirectory(); iniSet(s, v); return 1 }
+
+        @JavascriptInterface
+        fun log(): String = readCompleteLog()
+
+        @JavascriptInterface
+        fun copyLog() { runOnUiThread { copyLogToClipboard() } }
+
+        @JavascriptInterface
+        fun start(id: Int) { runOnUiThread { launchGame(id) } }
+
+        // ---- the server of the PC (Gothic_Dev) and the download
+        @JavascriptInterface
+        fun server(): String = prefs().getString("server", "http://192.168.0.100:8322/") ?: ""
+
+        @JavascriptInterface
+        fun setServer(url: String) { prefs().edit().putString("server", url.trim()).apply() }
+
+        // the languages and the sizes of a game on the server: onIndex(id, {error|base, langs:[{id,name,text,voice,hasVoice}]})
+        @JavascriptInterface
+        fun fetchIndex(id: Int) {
+            Thread {
+                val o = JSONObject()
+                try {
+                    val i = PackDownloader(server()).index(id)
+                    o.put("base", i.baseSize)
+                    val a = JSONArray()
+                    for (l in i.langs) a.put(JSONObject().put("id", l.id).put("name", l.name).put("text", l.textSize).put("voice", l.voiceSize).put("hasVoice", l.hasVoice))
+                    o.put("langs", a)
+                } catch (e: Exception) {
+                    o.put("error", e.message ?: e.toString())
                 }
-                setPadding(dp(16), dp(12), dp(16), dp(12))
-            }
-            gameCard.addView(TextView(this).apply {
-                textSize = 14f
-                setTypeface(Typeface.DEFAULT_BOLD)
-                setTextColor(Color.parseColor("#E0C068"))
-                text = "Игра"
-                setPadding(0, 0, 0, dp(4))
-            })
-            val group = RadioGroup(this).apply { orientation = RadioGroup.VERTICAL }
-            val ids = HashMap<Int, String>()
-            for (g in games) {
-                val rb = RadioButton(this).apply {
-                    id = View.generateViewId()
-                    text = g.title + "\n" + g.path
-                    textSize = 13f
-                    setTextColor(Color.WHITE)
-                    isChecked = (g.path == detectedGameDir)
+                runOnUiThread { webView?.evaluateJavascript("window.onIndex && onIndex($id, ${o})", null) }
+            }.start()
+        }
+
+        @JavascriptInterface
+        fun download(id: Int, text: String, voice: String): Boolean {
+            if (dl?.running == true) return false
+            val d = PackDownloader(server())
+            dl = d
+            val target = File(getExternalFilesDir(null), "Gothic$id")
+            runOnUiThread { window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+            Thread {
+                d.install(id, text, voice, target)
+                runOnUiThread { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
+                if (d.finished) {
+                    // the game is in the folder of the app now: the next start uses it
+                    prefs().edit().putString("path_$id", target.path).apply()
+                    scanned = scanned + (id to target.path)
                 }
-                ids[rb.id] = g.path
-                group.addView(rb)
-            }
-            group.setOnCheckedChangeListener { _, checkedId ->
-                val path = ids[checkedId] ?: return@setOnCheckedChangeListener
-                getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE).edit().putString("game_dir", path).apply()
-                detectedGameDir = path
-                val pr = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
-                updateDebugCfg(pr.getInt("render_scale", 100), pr.getBoolean("simple_render", false))
-                updateStatus()
-                updateLogView()
-            }
-            gameCard.addView(group)
-            mainLayout.addView(gameCard)
-            mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) })
+                runOnUiThread { webView?.evaluateJavascript("window.onResumed && onResumed()", null) }
+            }.start()
+            return true
         }
 
-        // --- STATUS CARD ---
-        val statusCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1C2025"))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), Color.parseColor("#2E353D"))
-            }
-            setPadding(dp(16), dp(14), dp(16), dp(14))
+        @JavascriptInterface
+        fun dlState(): String {
+            val d = dl ?: return JSONObject().put("running", false).toString()
+            return JSONObject().put("running", d.running).put("finished", d.finished).put("error", d.error)
+                .put("phase", d.phase).put("done", d.done.get()).put("total", d.total).toString()
         }
 
-        statusTextView = TextView(this).apply {
-            textSize = 13f
-            typeface = Typeface.MONOSPACE
-            setTextColor(Color.WHITE)
-            text = "Проверка директории игры..."
-        }
-        statusCard.addView(statusTextView)
-        mainLayout.addView(statusCard)
+        @JavascriptInterface
+        fun cancelDownload() { dl?.cancel() }
 
-        // Space
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(14)) })
-
-        // --- RESOLUTION SCALE SLIDER CARD ---
-        val scaleCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1C2025"))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), Color.parseColor("#2E353D"))
-            }
-            setPadding(dp(16), dp(12), dp(16), dp(12))
+        // the languages installed in the folder of a game: {text, voice} or "" (a game put there by hand)
+        @JavascriptInterface
+        fun langs(id: Int): String {
+            val p = gamePath(id) ?: return ""
+            return try { File(p, ".og_langs.json").readText().let { JSONObject(it) }.let { JSONObject().put("text", it.getString("text")).put("voice", it.getString("voice")).toString() } } catch (e: Exception) { "" }
         }
 
-        val prefs = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
-        var currentScalePercent = prefs.getInt("render_scale", 100)
+        @JavascriptInterface
+        fun pin(id: Int): Boolean = pinShortcut(id)
+    }
 
-        val scaleLabel = TextView(this).apply {
-            textSize = 14f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            setTextColor(Color.parseColor("#E0C068"))
-            text = "Разрешение рендеринга: $currentScalePercent%"
+    // an icon of the game on the home screen: it starts the game without the menu
+    private fun pinShortcut(id: Int): Boolean {
+        val sm = getSystemService(android.content.pm.ShortcutManager::class.java)
+        if (sm == null || !sm.isRequestPinShortcutSupported) {
+            Toast.makeText(this, "The launcher does not support pinned shortcuts", Toast.LENGTH_LONG).show()
+            return false
         }
-        scaleCard.addView(scaleLabel)
-
-        val scaleDesc = TextView(this).apply {
-            textSize = 11f
-            setTextColor(Color.parseColor("#9AA0A6"))
-            text = "100% (Native 2400x1080) • 75% • 50% • 40% • 30% • 25% • 20% (Макс. FPS)"
-            setPadding(0, dp(2), 0, dp(6))
+        val bmp = try {
+            assets.open("img/icon_g$id.png").use { android.graphics.BitmapFactory.decodeStream(it) }
+        } catch (e: Exception) { null }
+        val icon = if (bmp != null) {
+            // the icon of the exe of the game, on a dark tile (adaptive icons crop the edges)
+            val size = 432
+            val tile = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(tile)
+            c.drawColor(Color.parseColor("#1b1b1b"))
+            val box = size * 0.5f
+            val p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
+            c.drawBitmap(bmp, null, android.graphics.RectF((size - box) / 2, (size - box) / 2, (size + box) / 2, (size + box) / 2), p)
+            android.graphics.drawable.Icon.createWithAdaptiveBitmap(tile)
+        } else android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.sym_def_app_icon)
+        val intent = Intent(this, MainActivity::class.java).apply {
+            action = Intent.ACTION_MAIN
+            putExtra("game", id)
         }
-        scaleCard.addView(scaleDesc)
+        val info = android.content.pm.ShortcutInfo.Builder(this, "game$id")
+            .setShortLabel(gameList.first { it.id == id }.title)
+            .setIcon(icon)
+            .setIntent(intent)
+            .build()
+        return sm.requestPinShortcut(info, null)
+    }
 
-        // discrete steps, left to right
-        val scaleValues = intArrayOf(20, 25, 30, 40, 50, 75, 100)
-        var initialStep = scaleValues.indexOf(currentScalePercent)
-        if (initialStep < 0) initialStep = scaleValues.size - 1
-
-        val scaleSeekBar = SeekBar(this).apply {
-            max = scaleValues.size - 1
-            progress = initialStep
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    val p = scaleValues[progress.coerceIn(0, scaleValues.size - 1)]
-                    currentScalePercent = p
-                    scaleLabel.text = "Разрешение рендеринга: $p%"
-                    prefs.edit().putInt("render_scale", p).apply()
-                    val s = prefs.getBoolean("simple_render", false)
-                    updateDebugCfg(p, s)
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
-        }
-        scaleCard.addView(scaleSeekBar)
-        mainLayout.addView(scaleCard)
-
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
-
-        // --- DISTANCE LIMITS ---
-        val distCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1C2025"))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), Color.parseColor("#2E353D"))
-            }
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-        val distNames = arrayOf("без ограничения", "150 м", "80 м", "40 м", "20 м")
-        val worldValues = intArrayOf(0, 400, 250, 150, 100)
-        val worldNames = arrayOf("без ограничения", "400 м", "250 м", "150 м", "100 м")
-
-        fun addSteps(title: String, key: String, values: IntArray, names: Array<String>, hint: String) {
-            val cur = prefs.getInt(key, 0)
-            val label = TextView(this).apply {
-                textSize = 14f
-                setTypeface(Typeface.DEFAULT_BOLD)
-                setTextColor(Color.parseColor("#E0C068"))
-            }
-            val idx0 = values.indexOf(cur).let { if (it < 0) 0 else it }
-            label.text = "$title: ${names[idx0]}"
-            distCard.addView(label)
-            distCard.addView(TextView(this).apply {
-                textSize = 11f
-                setTextColor(Color.parseColor("#9AA0A6"))
-                text = hint
-                setPadding(0, dp(2), 0, dp(4))
-            })
-            distCard.addView(SeekBar(this).apply {
-                max = values.size - 1
-                progress = idx0
-                setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                    override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                        label.text = "$title: ${names[progress]}"
-                        prefs.edit().putInt(key, values[progress]).apply()
-                        updateDebugCfg(prefs.getInt("render_scale", 100), prefs.getBoolean("simple_render", false))
-                    }
-                    override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                    override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-                })
-            })
-        }
-        addSteps("Дальность объектов", "draw_dist", intArrayOf(0, 1, 2, 3, 4), distNames,
-            "Объекты и NPC дальше не рисуются и не анимируются (больше FPS)")
-        distCard.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(8)) })
-        addSteps("Дальность мира", "world_dist", worldValues, worldNames,
-            "Всё, включая ландшафт, дальше этого не рисуется")
-        mainLayout.addView(distCard)
-
-        // Space
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
-
-        // --- RENDER MODE SELECTOR ---
-        val modeCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1C2025"))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), Color.parseColor("#2E353D"))
-            }
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-
-        var currentSimpleRender = prefs.getBoolean("simple_render", false)
-        val modeLabel = TextView(this).apply {
-            textSize = 14f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            setTextColor(Color.parseColor("#E0C068"))
-            text = "Режим графики: " + (if (currentSimpleRender) "Простой (GothicEngine)" else "Стандартный (OpenGothic)")
-        }
-        modeCard.addView(modeLabel)
-
-        val modeDesc = TextView(this).apply {
-            textSize = 11f
-            setTextColor(Color.parseColor("#9AA0A6"))
-            text = "Простой рендер: прямое освещение, отключение тяжелых SSAO/GWater/PointLights (макс. FPS)"
-            setPadding(0, dp(2), 0, dp(8))
-        }
-        modeCard.addView(modeDesc)
-
-        val modeSwitch = android.widget.Switch(this).apply {
-            text = "Включить простой рендер (GothicEngine)"
-            setTextColor(Color.parseColor("#D0D5DD"))
-            textSize = 13f
-            isChecked = currentSimpleRender
-            setOnCheckedChangeListener { _, isChecked ->
-                currentSimpleRender = isChecked
-                modeLabel.text = "Режим графики: " + (if (isChecked) "Простой (GothicEngine)" else "Стандартный (OpenGothic)")
-                prefs.edit().putBoolean("simple_render", isChecked).apply()
-                val p = prefs.getInt("render_scale", 100)
-                updateDebugCfg(p, isChecked)
-            }
-        }
-        modeCard.addView(modeSwitch)
-        mainLayout.addView(modeCard)
-
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
-
-        // --- QUALITY / FPS ---
-        val qualCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#1C2025"))
-                cornerRadius = dp(10).toFloat()
-                setStroke(dp(1), Color.parseColor("#2E353D"))
-            }
-            setPadding(dp(16), dp(12), dp(16), dp(12))
-        }
-        qualCard.addView(TextView(this).apply {
-            textSize = 14f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            setTextColor(Color.parseColor("#E0C068"))
-            text = "Качество и FPS"
-        })
-        qualCard.addView(TextView(this).apply {
-            textSize = 11f
-            setTextColor(Color.parseColor("#9AA0A6"))
-            text = "Тени, SSAO и отражения работают только в стандартном режиме графики"
-            setPadding(0, dp(2), 0, dp(6))
-        })
-
-        // shadows: off / 512 / 1024 / 2048
-        val shadowNames = arrayOf("Выкл", "512 (по умолчанию)", "1024", "2048")
-        val shadowLabel = TextView(this).apply {
-            textSize = 13f
-            setTextColor(Color.parseColor("#D0D5DD"))
-        }
-        val sh0 = prefs.getInt("shadows", 1).coerceIn(0, 3)
-        shadowLabel.text = "Тени: ${shadowNames[sh0]}"
-        qualCard.addView(shadowLabel)
-        qualCard.addView(SeekBar(this).apply {
-            max = 3
-            progress = sh0
-            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                override fun onProgressChanged(seekBar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    shadowLabel.text = "Тени: ${shadowNames[progress]}"
-                    prefs.edit().putInt("shadows", progress).apply()
-                    updateDebugCfg(prefs.getInt("render_scale", 100), prefs.getBoolean("simple_render", false))
-                }
-                override fun onStartTrackingTouch(seekBar: SeekBar?) {}
-                override fun onStopTrackingTouch(seekBar: SeekBar?) {}
-            })
-        })
-
-        fun addSwitch(title: String, key: String, def: Boolean) {
-            qualCard.addView(android.widget.Switch(this).apply {
-                text = title
-                setTextColor(Color.parseColor("#D0D5DD"))
-                textSize = 13f
-                isChecked = prefs.getBoolean(key, def)
-                setPadding(0, dp(6), 0, dp(2))
-                setOnCheckedChangeListener { _, checked ->
-                    prefs.edit().putBoolean(key, checked).apply()
-                    updateDebugCfg(prefs.getInt("render_scale", 100), prefs.getBoolean("simple_render", false))
-                }
-            })
-        }
-        addSwitch("Ambient occlusion (SSAO)", "ssao", false)
-        addSwitch("Отражения воды", "reflections", false)
-        addSwitch("Показывать FPS", "show_fps", true)
-        addSwitch("Снять лимит FPS игры", "fps_unlimited", false)
-        mainLayout.addView(qualCard)
-
-        // Space
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(16)) })
-
-        // --- RUN BUTTON ---
-        val runButton = Button(this).apply {
-            text = "▶  ЗАПУСТИТЬ ИГРУ"
-            textSize = 17f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            setTextColor(Color.parseColor("#121417"))
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#E0C068")) // Gold button
-                cornerRadius = dp(8).toFloat()
-            }
-            setPadding(dp(16), dp(14), dp(16), dp(14))
-            setOnClickListener { launchGame() }
-        }
-        mainLayout.addView(runButton)
-
-        // Space
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(12)) })
-
-        // --- BUTTONS ROW (COPY LOG & REFRESH) ---
-        val buttonsRow = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-        }
-
-        val copyLogButton = Button(this).apply {
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginEnd = dp(6)
-            }
-            text = "📋 СКОПИРОВАТЬ ЛОГ"
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#2A313A"))
-                cornerRadius = dp(8).toFloat()
-                setStroke(dp(1), Color.parseColor("#444E5B"))
-            }
-            setOnClickListener { copyLogToClipboard() }
-        }
-        buttonsRow.addView(copyLogButton)
-
-        val refreshButton = Button(this).apply {
-            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
-                marginStart = dp(6)
-            }
-            text = "🔄 ОБНОВИТЬ"
-            textSize = 13f
-            setTextColor(Color.WHITE)
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#2A313A"))
-                cornerRadius = dp(8).toFloat()
-                setStroke(dp(1), Color.parseColor("#444E5B"))
-            }
-            setOnClickListener {
-                updateStatus()
-                updateLogView()
-                Toast.makeText(this@MainActivity, "Статус и лог обновлены", Toast.LENGTH_SHORT).show()
-            }
-        }
-        buttonsRow.addView(refreshButton)
-        mainLayout.addView(buttonsRow)
-
-        // Space
-        mainLayout.addView(View(this).apply { layoutParams = LinearLayout.LayoutParams(1, dp(18)) })
-
-        // --- LOG CONSOLE HEADER ---
-        val logHeader = TextView(this).apply {
-            text = "Лог игры / Отчёт об ошибках:"
-            textSize = 14f
-            setTypeface(Typeface.DEFAULT_BOLD)
-            setTextColor(Color.parseColor("#C4C7C5"))
-            setPadding(0, 0, 0, dp(6))
-        }
-        mainLayout.addView(logHeader)
-
-        // --- LOG CONSOLE BOX ---
-        val logCard = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            background = GradientDrawable().apply {
-                setColor(Color.parseColor("#0A0C0E"))
-                cornerRadius = dp(8).toFloat()
-                setStroke(dp(1), Color.parseColor("#1F242A"))
-            }
-            setPadding(dp(12), dp(10), dp(12), dp(10))
-        }
-
-        logConsoleTextView = TextView(this).apply {
-            textSize = 11f
-            typeface = Typeface.MONOSPACE
-            setTextColor(Color.parseColor("#80E090")) // Green console text
-            setTextIsSelectable(true)
-            text = "Инициализация..."
-        }
-        logCard.addView(logConsoleTextView)
-        mainLayout.addView(logCard)
-
-        rootScrollView.addView(mainLayout)
-        return rootScrollView
+    @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
+    private fun createUiView(): View {
+        val wv = WebView(this)
+        wv.setBackgroundColor(Color.parseColor("#151515"))
+        wv.settings.javaScriptEnabled = true
+        wv.settings.domStorageEnabled = true
+        wv.addJavascriptInterface(LauncherBridge(), "Launcher")
+        wv.webViewClient = WebViewClient()
+        wv.loadUrl("file:///android_asset/launcher.html")
+        webView = wv
+        return wv
     }
 }

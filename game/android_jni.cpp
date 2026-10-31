@@ -18,6 +18,19 @@
 
 extern int opengothic_main(int argc, const char** argv);
 
+// settings of the web page, shared with the browser build (game/mainwindow.cpp)
+extern "C" int og_setting_get(const char* name);
+extern "C" int og_setting_set(const char* name, int val);
+extern "C" int og_barrier_zone(int kind);
+extern "C" int og_ui_state();
+extern "C" int og_frames();
+extern "C" void og_quick(int kind);
+extern "C" const char* og_quests();
+extern "C" const char* og_quickslots();
+extern "C" void og_quickpanel(int open, int first);
+extern "C" void og_pointer(int type, int x, int y);
+extern "C" void og_input_look(int dx, int dy);
+
 static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
@@ -232,6 +245,58 @@ Java_com_opengothic_MainActivity_nativeIsGameRunning(JNIEnv*, jobject) {
 JNIEXPORT jboolean JNICALL
 Java_com_opengothic_GameActivity_nativeIsGameRunning(JNIEnv*, jobject) {
   return static_cast<jboolean>(s_gameRunning.load());
+}
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeSettingGet(JNIEnv* env, jobject, jstring jName) {
+  const char* n = env->GetStringUTFChars(jName, nullptr);
+  const int   v = og_setting_get(n);
+  env->ReleaseStringUTFChars(jName, n);
+  return v;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeSettingSet(JNIEnv* env, jobject, jstring jName, jint val) {
+  const char* n = env->GetStringUTFChars(jName, nullptr);
+  const int   v = og_setting_set(n, val);
+  env->ReleaseStringUTFChars(jName, n);
+  return v;
+}
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeBarrierZone(JNIEnv*, jobject, jint kind) {
+  return og_barrier_zone(kind);
+}
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeFrames(JNIEnv*, jobject) { return og_frames(); }
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeUiState(JNIEnv*, jobject) { return og_ui_state(); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeQuick(JNIEnv*, jobject, jint kind) { og_quick(kind); }
+
+JNIEXPORT jstring JNICALL
+Java_com_opengothic_GameActivity_nativeQuests(JNIEnv* env, jobject) { return env->NewStringUTF(og_quests()); }
+
+JNIEXPORT jstring JNICALL
+Java_com_opengothic_GameActivity_nativeQuickSlots(JNIEnv* env, jobject) { return env->NewStringUTF(og_quickslots()); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeQuickPanel(JNIEnv*, jobject, jint open, jint first) { og_quickpanel(open, first); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativePointer(JNIEnv*, jobject, jint type, jint x, jint y) { og_pointer(type, x, y); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeLook(JNIEnv*, jobject, jint dx, jint dy) { og_input_look(dx, dy); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeWebKey(JNIEnv* env, jobject, jint action, jstring jCode) {
+  const char* c = env->GetStringUTFChars(jCode, nullptr);
+  Tempest::AndroidApi::pushWebKey(action, c);
+  env->ReleaseStringUTFChars(jCode, c);
 }
 
 } // extern "C"

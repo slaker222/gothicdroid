@@ -160,7 +160,7 @@ float Camera::zNear() const {
 
 float Camera::zFar() const {
   static float far = 100000.0f;
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   // web world draw distance: the far plane cuts the world per pixel (a smooth
   // edge, the sky shows the horizon haze beyond it) and frustum culling drops
   // everything behind it

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>OpenGothic</title>
+  <style>{{STYLE}}</style>
+  <style>
+    /* the main menu of the app: the page of the site, the settings menu always open */
+    html, body { display: block; overflow-y: auto; height: auto; min-height: 100%; background: var(--bg); }
+    #wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+    h1 { font-size: 22px; font-weight: 600; color: var(--accent); }
+    h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--dim); margin-top: 2px; }
+    .card { background: #1b1b1b; border: 1px solid var(--line); padding: 12px 14px; }
+    .card h2 { font-size: 13px; font-weight: 600; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 8px; }
+    .games { display: flex; flex-direction: column; gap: 16px; }
+    .game { display: flex; flex-direction: column; background: #1d1d1d; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .game.sel { border-color: var(--accent); }
+    .game .pic { aspect-ratio: 21 / 9; background-size: cover; background-color: #000; position: relative; }
+    .game .pic .badge { position: absolute; left: 8px; bottom: 8px; font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--dim); }
+    .game .pic .badge.ok { color: #4caf50; }
+    .game .body { padding: 12px 14px 14px; }
+    .game h3 { font-size: 20px; font-weight: 600; color: var(--accent); }
+    .game .path { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); margin: 4px 0 12px; word-break: break-all; min-height: 17px; }
+    .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
+    .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
+    .game button:active { border-color: var(--accent); }
+    .game button.play { flex: 1; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    .game button.play:disabled { opacity: .35; }
+    .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
+    .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
+    .game button.icon svg { margin: 0; }
+    .game button:disabled { opacity: .4; }
+    .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    #dev-btn { font: inherit; font-size: 13px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
+    #dev-btn:active { border-color: var(--accent); }
+    .langs { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; }
+    .langs span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--text); }
+    .game .pic .badge { left: auto; right: 8px; }
+    #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: flex-end; z-index: 50; }
+    #sheet.open { display: flex; }
+    #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow-y: auto; }
+    #sheet h2 { font-size: 17px; color: var(--accent); }
+    #sheet .sr { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; }
+    #sheet select, #sheet input[type=text] { font: inherit; font-size: 15px; color: var(--text); background: #222; border: 1px solid var(--line); padding: 8px; }
+    #sheet input[type=text] { flex: 1; min-width: 0; }
+    #sheet .total { font-size: 15px; color: var(--accent); }
+    #sheet .bar { height: 8px; background: #2a2a2a; display: none; }
+    #sheet .bar div { height: 100%; width: 0; background: var(--accent); }
+    #sheet .msg { font-size: 13px; color: var(--dim); white-space: pre-wrap; }
+    #sheet .msg.err { color: var(--danger); }
+    #sheet .go { font: inherit; font-size: 16px; padding: 12px; color: #000; background: var(--accent); border: 0; cursor: pointer; }
+    #sheet .go:disabled { opacity: .4; }
+    #sheet .sec { font: inherit; font-size: 14px; padding: 10px; color: var(--text); background: #222; border: 1px solid var(--line); cursor: pointer; }
+    .hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
+    #settings-panel { position: static; display: block; width: auto; max-width: none; max-height: none; background: transparent; border: 0; padding: 0; overflow: visible; }
+    #settings-panel .set-row { font-size: 15px; padding: 7px 0; }
+    #settings-panel select { font-size: 15px; padding: 4px; }
+    #settings-panel .presets button { font-size: 14px; padding: 8px 2px; }
+    #settings-panel .fps-slider input { width: 150px; }
+    .row2 { display: flex; gap: 8px; }
+    .row2 button { flex: 1; font: inherit; font-size: 13px; color: var(--text); background: #222; border: 1px solid var(--line); padding: 8px; cursor: pointer; }
+    #log { display: none; font: 11px/1.4 ui-monospace, monospace; color: #80e090; background: #0a0a0a; border: 1px solid var(--line); padding: 8px; white-space: pre-wrap; max-height: 320px; overflow: auto; margin-top: 8px; user-select: text; -webkit-user-select: text; }
+    /* the settings of the web page the app does not have */
+    #settings-panel label:has(#pixel-cap), #settings-panel label:has([data-set="texQuality"]),
+    #settings-panel .set-row:has(#barrier-zones) { display: none; }
+  </style>
+</head>
+<body>
+  <div id="wrap">
+    <div class="top"><h1>OpenGothic<small>Android</small></h1><button id="dev-btn">Gothic Dev</button></div>
+    <div class="games" id="games"></div>
+    <div class="hint" id="scan-note"></div>
+    <div class="card" id="settings-card"><h2 id="settings-title">Settings</h2>{{PANEL}}</div>
+    <div class="card"><h2>Log</h2>
+      <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
+      <div id="log"></div>
+    </div>
+  </div>
+  <div id="sheet"><div class="box" id="sheet-box"></div></div>
+  <script>
+    'use strict';
+    const $ = id => document.getElementById(id);
+    const PICS = { 1: 'img/g1.png', 2: 'img/g2.png' };
+    const ICON_HOME = '<svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>';
+    const ICON_FOLDER = '<svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>';
+    let games = [];
+    function refresh(scanned) {
+      try { games = JSON.parse(scanned ? Launcher.rescan() : Launcher.games()); } catch (e) { games = []; }
+      const sel = Launcher.selected();
+      const root = $('games');
+      root.innerHTML = '';
+      for (const g of games) {
+        const el = document.createElement('div');
+        el.className = 'game' + (g.id === sel ? ' sel' : '');
+        const found = !!g.path;
+        el.innerHTML =
+          '<div class="pic" style="background-image:url(' + PICS[g.id] + ');background-position:center ' + (g.id === 1 ? '25%' : '80%') + '">' +
+            '<span class="badge' + (found ? ' ok' : '') + '">' + (found ? 'Installed' : 'Not found') + '</span><div class="langs"></div></div>' +
+          '<div class="body"><h3></h3><div class="path"></div><div class="btns">' +
+            '<button class="play"></button>' +
+            '<button class="folder" title="Choose the game folder">' + ICON_FOLDER + ' Folder</button>' +
+            '<button class="dl" title="Download from the PC (Gothic_Dev) on the local network">Download</button>' +
+            '<button class="icon home" title="Add to the home screen" aria-label="Add to the home screen">' + ICON_HOME + '</button>' +
+          '</div></div>';
+        el.querySelector('h3').textContent = 'Gothic ' + g.id;
+        el.querySelector('.path').textContent = found ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : 'Choose the folder with Data/*.vdf, or the phone is searched again with the button below';
+        const play = el.querySelector('.play');
+        play.textContent = 'Play';
+        play.disabled = !found;
+        play.addEventListener('click', () => Launcher.start(g.id));
+        el.querySelector('.folder').addEventListener('click', () => Launcher.pick(g.id));
+        el.querySelector('.dl').addEventListener('click', () => openDownload(g.id));
+        // the languages of the game, bottom left of the picture
+        try {
+          const lg = Launcher.langs(g.id);
+          if (lg) { const l = JSON.parse(lg); el.querySelector('.langs').innerHTML = '<span>Text: ' + l.text.toUpperCase() + '</span><span>Voice: ' + l.voice.toUpperCase() + '</span>'; }
+        } catch (e) {}
+        el.querySelector('.home').disabled = !found;
+        el.querySelector('.home').addEventListener('click', () => Launcher.pin(g.id));
+        // a tap on the picture: the settings below are of this game
+        el.querySelector('.pic').addEventListener('click', () => { Launcher.select(g.id); refresh(); });
+        root.appendChild(el);
+      }
+      const g = games.find(x => x.id === sel) || games[0];
+      $('settings-title').textContent = 'Settings: Gothic ' + g.id;
+      $('scan-note').innerHTML = '<button id="rescan" style="font:inherit;font-size:13px;color:var(--text);background:#222;border:1px solid var(--line);padding:8px 12px;cursor:pointer">Search the phone for games</button>';
+      $('rescan').addEventListener('click', () => { $('rescan').textContent = 'Searching...'; setTimeout(() => refresh(true), 50); });
+      load();
+    }
+    // ---- downloading a game from the PC (the packs of Gothic_Dev, the same ones the browser installs)
+    const sheet = $('sheet'), box = $('sheet-box');
+    sheet.addEventListener('click', e => { if (e.target === sheet && !(dlTimer)) sheet.classList.remove('open'); });
+    let dlTimer = 0;
+    const mb = n => n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : Math.round(n / 1048576) + ' MB';
+    $('dev-btn').addEventListener('click', () => {
+      box.innerHTML = '<h2>Gothic Dev: server of the PC</h2><div class="msg">The games are downloaded from the PC in the same network: run <b>python3 web/serve.py 8322 --lan</b> there (without --https) and enter its address.</div>' +
+        '<div class="sr"><input type="text" id="srv" autocapitalize="off" autocorrect="off" spellcheck="false"></div><button class="go" id="srv-save">Save</button><button class="sec" id="srv-close">Close</button>';
+      $('srv').value = Launcher.server();
+      $('srv-save').addEventListener('click', () => { Launcher.setServer($('srv').value); sheet.classList.remove('open'); });
+      $('srv-close').addEventListener('click', () => sheet.classList.remove('open'));
+      sheet.classList.add('open');
+    });
+    let dlGame = 0, dlIndex = null;
+    function openDownload(id) {
+      dlGame = id; dlIndex = null;
+      const st = JSON.parse(Launcher.dlState());
+      box.innerHTML = '<h2>Download Gothic ' + id + '</h2><div class="msg" id="dl-msg">Connecting to ' + Launcher.server() + ' ...</div>';
+      sheet.classList.add('open');
+      if (st.running) { showProgress(); return; }
+      Launcher.fetchIndex(id);
+    }
+    window.onIndex = (id, r) => {
+      if (id !== dlGame || !sheet.classList.contains('open')) return;
+      if (r.error) {
+        box.innerHTML = '<h2>Download Gothic ' + id + '</h2><div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the server address (button Gothic Dev) and that the PC is in the same network.</div><button class="sec" id="x">Close</button>';
+        $('x').addEventListener('click', () => sheet.classList.remove('open'));
+        return;
+      }
+      dlIndex = r;
+      const opt = (l, voice) => '<option value="' + l.id + '">' + l.name + '</option>';
+      const prev = (() => { try { return JSON.parse(Launcher.langs(id)); } catch (e) { return null; } })();
+      box.innerHTML = '<h2>Download Gothic ' + id + '</h2>' +
+        '<div class="sr">Text language <select id="l-text">' + r.langs.map(l => opt(l)).join('') + '</select></div>' +
+        '<div class="sr">Voice language <select id="l-voice">' + r.langs.filter(l => l.hasVoice).map(l => opt(l)).join('') + '</select></div>' +
+        '<div class="total" id="total"></div><div class="msg">The game is installed in the folder of the app and used from the next start.</div>' +
+        '<div class="bar" id="bar"><div></div></div><div class="msg" id="dl-msg"></div>' +
+        '<button class="go" id="go">Download</button><button class="sec" id="x">Close</button>';
+      if (prev) { $('l-text').value = prev.text; $('l-voice').value = prev.voice; }
+      else { $('l-text').value = (r.langs.find(l => l.id === 'ru') || r.langs[0]).id; $('l-voice').value = (r.langs.find(l => l.id === 'ru' && l.hasVoice) || r.langs.find(l => l.hasVoice)).id; }
+      const total = () => {
+        const t = r.langs.find(l => l.id === $('l-text').value), v = r.langs.find(l => l.id === $('l-voice').value);
+        const n = r.base + t.text + v.voice;
+        $('total').textContent = 'Download size: ' + mb(n) + '  (game ' + mb(r.base) + ', text ' + mb(t.text) + ', voice ' + mb(v.voice) + ')';
+      };
+      $('l-text').addEventListener('change', total); $('l-voice').addEventListener('change', total); total();
+      $('x').addEventListener('click', () => sheet.classList.remove('open'));
+      $('go').addEventListener('click', () => {
+        if (!Launcher.download(id, $('l-text').value, $('l-voice').value)) return;
+        showProgress();
+      });
+    };
+    function showProgress() {
+      if (!$('bar')) {
+        box.innerHTML = '<h2>Download Gothic ' + dlGame + '</h2><div class="total" id="total"></div><div class="bar" id="bar"><div></div></div><div class="msg" id="dl-msg"></div><button class="sec" id="x">Cancel</button>';
+      }
+      $('bar').style.display = 'block';
+      $('go') && ($('go').style.display = 'none');
+      $('x').textContent = 'Cancel';
+      $('x').onclick = () => Launcher.cancelDownload();
+      clearInterval(dlTimer);
+      const tick = () => {
+        const st = JSON.parse(Launcher.dlState());
+        const pct = st.total ? Math.min(100, st.done * 100 / st.total) : 0;
+        $('bar').firstElementChild.style.width = pct + '%';
+        $('total').textContent = mb(st.done) + ' of ' + mb(st.total) + '  (' + Math.round(pct) + '%)';
+        $('dl-msg').className = 'msg' + (st.error ? ' err' : '');
+        $('dl-msg').textContent = st.error ? st.error : st.finished ? 'Done' : 'Downloading: ' + st.phase;
+        if (!st.running) {
+          clearInterval(dlTimer); dlTimer = 0;
+          $('x').textContent = 'Close'; $('x').onclick = () => { sheet.classList.remove('open'); refresh(); };
+        }
+      };
+      dlTimer = setInterval(tick, 500); tick();
+    }
+
+    // settings: the same elements as on the site's page, read and written to the game's Gothic.ini by the app
+    const panel = $('settings-panel');
+    const inputs = panel.querySelectorAll('[data-set]');
+    const fpsSlider = $('fps-limit'), fpsOut = $('fps-limit-val');
+    fpsSlider.max = '120';
+    function showFps() { fpsOut.textContent = +fpsSlider.value >= +fpsSlider.max ? 'max' : fpsSlider.value; }
+    function load() {
+      panel.classList.remove('disabled');
+      $('settings-note').textContent = 'Saved in the game folder (Gothic.ini); applied when the game starts.';
+      const fl = Launcher.get('fpsLimit');
+      fpsSlider.value = String(fl > 0 ? Math.min(fl, +fpsSlider.max) : +fpsSlider.max);
+      showFps();
+      inputs.forEach(el => {
+        const v = Launcher.get(el.dataset.set);
+        if (el.type === 'checkbox') el.checked = v !== 0;
+        else if (el.dataset.set === 'barrierVol') el.value = String(v < 20 ? 100 : v);
+        else el.value = String(v);
+      });
+      // a preset is lit while all of its values are set (the values may come from another place: the game's own menu, a copied file)
+      document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => {
+        const p = PRESETS[b.dataset.preset];
+        b.classList.toggle('active', Object.keys(p).every(k => Launcher.get(k) === p[k]));
+      });
+    }
+    fpsSlider.addEventListener('input', showFps);
+    fpsSlider.addEventListener('change', () => Launcher.set('fpsLimit', +fpsSlider.value >= +fpsSlider.max ? 0 : +fpsSlider.value));
+    inputs.forEach(el => el.addEventListener('change', () => {
+      Launcher.set(el.dataset.set, el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10));
+      load();
+    }));
+    {{PRESETS}}
+    $('gfx-presets').addEventListener('click', e => {
+      const b = e.target.closest('[data-preset]');
+      if (!b) return;
+      const p = PRESETS[b.dataset.preset];
+      for (const k in p) Launcher.set(k, p[k]);
+      load();
+    });
+    $('log-show').addEventListener('click', () => {
+      const l = $('log');
+      if (l.style.display === 'block') { l.style.display = 'none'; return; }
+      l.textContent = Launcher.log(); l.style.display = 'block';
+    });
+    $('log-copy').addEventListener('click', () => Launcher.copyLog());
+    window.onResumed = () => refresh();
+    refresh();
+  </script>
+</body>
+</html>

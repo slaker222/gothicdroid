@@ -177,8 +177,14 @@ Gothic::Gothic() {
   //defaults->set("ENGINE", "zEnvMappingEnabled", 0);
   //defaults->set("ENGINE", "zCloudShadowScale",  0);
   defaults->set("ENGINE", "zWindEnabled",       1);
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__ANDROID__)
+  defaults->set("INTERNAL", "webShadows",   1); // a phone: low shadows, no ssao, no reflections
+  defaults->set("ENGINE",   "zCloudShadowScale", 0);
+  defaults->set("ENGINE",   "zEnvMappingEnabled", 0);
+#else
   defaults->set("INTERNAL", "webShadows",   2); // player settings menu: 0 off, 1 low, 2 high
+#endif
   defaults->set("INTERNAL", "webFpsLimit", 0);
   defaults->set("INTERNAL", "webDrawDist",  0); // 0 no limit, 1 far .. 4 nearest
   defaults->set("INTERNAL", "webWorldDistM", 0); // meters, 0 no limit
@@ -1022,7 +1028,7 @@ void Gothic::saveBarrierZones() {
 void Gothic::setupSettings() {
   if(game!=nullptr)
     game->setupSettings();
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   blobShadow = settingsGetI("INTERNAL","webShadows")==3;
   swampWater = settingsGetI("INTERNAL","webWaterQuality")==2;
   blood = settingsGetI("INTERNAL","webBlood")!=0;
