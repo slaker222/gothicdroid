@@ -1,3 +1,4 @@
+#include <cmath>
 #include "inventorymenu.h"
 
 #include <Tempest/Painter>
@@ -950,36 +951,46 @@ void InventoryMenu::quickUpdate() {
   for(size_t i=0; i<all.size(); ++i) {
     if(i>0)
       quickAll += ',';
-    quickAll += "[" + std::to_string(all[i].key) + "," + (all[i].item!=nullptr ? "1" : "0") + "," + (all[i].on ? "1" : "0") + "]";
+    quickAll += "[" + std::to_string(all[i].key) + "," + (all[i].item!=nullptr ? "1" : "0") + "," + (all[i].on ? "1" : "0") + "," + std::to_string(all[i].n) + "]";
     }
   quickAll += "]";
 
   // four slots in a row at the bottom, in the middle: clear of the stick and the buttons. The used
-  // items are a ring: the page turns it round by `quickFirst`; the slots stay when they have no item
+  // items are a ring: the page turns it round by `quickPos` (fractions of a slot while it scrolls, the
+  // row shows one more slot then); the slots stay when they have no item
   const int ww = w(), hh = h();
   const int sz = std::max(24, int(float(hh)*0.12f));
   const int gp = sz/6;
   const int cols = 4;
   quickCols  = cols;
   quickTotal = int(all.size());
-  quickFirst = quickTotal>0 ? ((quickFirst%quickTotal)+quickTotal)%quickTotal : 0;
-  std::vector<QuickSlot> slots(cols);
-  int x = (ww - (cols*sz + (cols-1)*gp))/2;
-  const int y = hh - sz - int(float(hh)*0.035f);
-  for(int i=0; i<cols; ++i) {
+  float pos = 0;
+  if(quickTotal>0) {
+    pos = std::fmod(quickPos, float(quickTotal));
+    if(pos<0)
+      pos += float(quickTotal);
+    }
+  const int   base = int(pos);
+  const float frac = pos-float(base);
+  quickFirst = quickTotal>0 ? (base + (frac>=0.5f ? 1 : 0)) % quickTotal : 0;
+  const int pitch = sz+gp;
+  const int x0 = (ww - (cols*sz + (cols-1)*gp))/2;
+  const int y  = hh - sz - int(float(hh)*0.035f);
+  quickX0 = x0; quickY = y; quickSz = sz; quickPitch = pitch;
+  std::vector<QuickSlot> slots(cols+1);
+  for(int i=0; i<=cols; ++i) {
     auto& s = slots[size_t(i)];
-    if(i<quickTotal) {
-      auto& e = all[size_t((quickFirst+i)%quickTotal)];
+    if(quickTotal>0) {
+      auto& e = all[size_t((base+i)%quickTotal)];
       s.key   = e.key;
       s.item  = e.item;
       s.cls   = e.cls;
       s.on    = e.on;
       s.n     = e.n;
       }
-    s.x = x;
+    s.x = x0 + int(float(i-0)*float(pitch) - frac*float(pitch) + 0.5f);
     s.y = y;
     s.s = sz;
-    x  += sz+gp;
     }
 
   std::vector<size_t> sig;
@@ -987,8 +998,14 @@ void InventoryMenu::quickUpdate() {
     sig.push_back(s.item!=nullptr ? s.cls*16u + size_t(s.key+1) : 0); // the count is not here: the icons do not change with it
   const bool changed = (sig!=quickSig || ww!=quickW || hh!=quickH);
   quickSlots = std::move(slots);
-  if(!changed)
+  quickRenderer.setClip(x0, y, cols*sz + (cols-1)*gp, sz);
+  if(!changed) {
+    size_t k = 0;   // the same icons: they only move
+    for(auto& s:quickSlots)
+      if(s.item!=nullptr)
+        quickRenderer.setItemX(k++, s.x);
     return;
+    }
   quickSig = std::move(sig);
   quickW   = ww;
   quickH   = hh;
@@ -999,20 +1016,11 @@ void InventoryMenu::quickUpdate() {
   }
 
 std::string InventoryMenu::quickJson() const {
-  std::string r = "{\"w\":" + std::to_string(w()) + ",\"h\":" + std::to_string(h()) +
-                  ",\"f\":" + std::to_string(quickFirst) + ",\"c\":" + std::to_string(quickCols) +
-                  ",\"t\":" + std::to_string(quickTotal) + ",\"a\":" + quickAll + ",\"s\":[";
-  for(size_t i=0; i<quickSlots.size(); ++i) {
-    auto& s = quickSlots[i];
-    if(i>0)
-      r += ',';
-    r += "{\"k\":" + std::to_string(s.key) +
-         ",\"e\":" + (s.item!=nullptr ? "0" : "1") +
-         ",\"x\":" + std::to_string(s.x) + ",\"y\":" + std::to_string(s.y) +
-         ",\"b\":" + std::to_string(s.s) + ",\"on\":" + (s.on ? "1" : "0") +
-         (s.n>=0 ? ",\"n\":" + std::to_string(s.n) : std::string()) + "}";
-    }
-  r += "]}";
-  return r;
+  // the page draws the frames itself (it scrolls them every frame): the place of the row and the ten keys "a"
+  return "{\"w\":" + std::to_string(w()) + ",\"h\":" + std::to_string(h()) +
+         ",\"f\":" + std::to_string(quickFirst) + ",\"c\":" + std::to_string(quickCols) +
+         ",\"t\":" + std::to_string(quickTotal) + ",\"x\":" + std::to_string(quickX0) +
+         ",\"y\":" + std::to_string(quickY) + ",\"b\":" + std::to_string(quickSz) +
+         ",\"p\":" + std::to_string(quickPitch) + ",\"a\":" + quickAll + "}";
   }
 #endif

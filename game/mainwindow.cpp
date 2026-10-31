@@ -303,6 +303,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_barrier_zone(int kind) {
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
+  if(std::strcmp(name, "touchUi")==0) {
+    // the page's touch controls are on / off: how a click in a menu works
+    MenuRoot::setTouchPointer(val!=0);
+    return 1;
+    }
   if(g_webSettingsReady && std::strcmp(name, "marvin")==0) {
     // the cheat code "marvin" of the main menu, for the page's tool bar
     Gothic::inst().setMarvinEnabled(val!=0);

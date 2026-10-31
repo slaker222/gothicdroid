@@ -403,6 +403,7 @@
       border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2cqmin;
       background: rgba(0, 0, 0, 0.3); pointer-events: none;
     }
+    #tq-clip { position: absolute; overflow: hidden; pointer-events: none; }
     #tq-hit { position: absolute; pointer-events: auto; touch-action: none; }
     /* the inventory button: one more block of the quick row, always in its place */
     .tbtn.sq { border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
@@ -2491,12 +2492,60 @@ async function installChunks(m) {
       const tqHit = document.createElement('div');
       tqHit.id = 'tq-hit';
       ui.appendChild(tqHit);
-      const tq = { sig: '', polled: 0, sent: -1, sentFirst: -999, els: [], first: 0, total: 0, cols: 4, drag: false, hold: 0, step: 50, keys: [], row: null };
+      const tq = { sig: '', polled: 0, sent: -1, sentPos: -1e9, els: [], first: 0, pos: 0, total: 0, cols: 4, drag: false, hold: 0, step: 50, a: [], row: null, geo: null, anim: 0 };
+      // the frames of the row live in a box that cuts what is outside of the row; the ring scrolls smoothly:
+      // tq.pos (in slots) follows tq.first (where the ring is going) and the finger while it is down
+      const tqClip = document.createElement('div');
+      tqClip.id = 'tq-clip';
+      ui.appendChild(tqClip);
+      tq.els = [tqClip];
+      const tqMod = (i) => tq.total > 0 ? ((i % tq.total) + tq.total) % tq.total : 0;
+      function tqRender() {
+        const g = tq.geo;
+        if (!g || !tq.total || !tq.a.length) { tqClip.textContent = ''; return; }
+        const base = Math.floor(tq.pos), frac = tq.pos - base, n = g.cols + 1;
+        while (tqClip.children.length > n) tqClip.lastChild.remove();
+        while (tqClip.children.length < n) {
+          const el = document.createElement('div');
+          el.innerHTML = '<span></span><i></i>';
+          tqClip.appendChild(el);
+        }
+        for (let i = 0; i < n; i++) {
+          const el = tqClip.children[i], a = tq.a[tqMod(base + i)];
+          const cls = 'tq-slot' + (a[2] ? ' on' : '') + (a[1] ? '' : ' empty') + (el.classList.contains('down') ? ' down' : '');
+          if (el.className !== cls) el.className = cls;
+          el.style.left = ((i - frac) * g.pitch) + 'px';
+          el.style.width = el.style.height = g.size + 'px';
+          el.firstChild.textContent = a[0];
+          el.lastChild.textContent = a[3] >= 0 ? a[3] : '';
+        }
+        // the engine draws the icons at the same place
+        const want = tq.sent;
+        const mp = Math.round(tq.pos * 1000);
+        if (g_runtimeUp && want === 1 && mp !== tq.sentPos) {
+          try { Module.ccall('og_quickpanel', null, ['number', 'number'], [1, mp]); tq.sentPos = mp; } catch (e) {}
+        }
+      }
+      function tqAnimate() {
+        tq.anim = 0;
+        if (tq.drag) return;
+        const d = tq.first - tq.pos;
+        if (Math.abs(d) < 0.002) { tq.pos = tq.first; tqRender(); return; }
+        const now = performance.now(), dt = Math.min(0.05, (now - (tq.animT || now)) / 1000);
+        tq.animT = now;
+        tq.pos += d * (1 - Math.exp(-dt * 16));
+        tqRender();
+        tq.anim = requestAnimationFrame(tqAnimate);
+      }
+      function tqGo(first) {
+        tq.first = first;
+        if (!tq.anim) { tq.animT = performance.now(); tq.anim = requestAnimationFrame(tqAnimate); }
+      }
       {
         let dn = null;
         tqHit.addEventListener('pointerdown', e => {
           e.preventDefault(); e.stopPropagation();
-          dn = { x: e.clientX, first: tq.first, moved: false };
+          dn = { x: e.clientX, first: tq.pos, moved: false };
           tq.drag = true;
           try { tqHit.setPointerCapture(e.pointerId); } catch (err) {}
         });
@@ -2506,19 +2555,23 @@ async function installChunks(m) {
           if (Math.abs(dx) > 8) dn.moved = true;
           if (!dn.moved) return;
           // the row follows the finger: dragged to the left shows the next slots
-          const f = dn.first - Math.round(dx / tq.step);
-          if (f !== tq.first) { tq.first = f; tq.hold = performance.now() + 600; update(); }
+          // the row follows the finger exactly; when it is let go it settles on a slot
+          tq.pos = dn.first - dx / tq.step;
+          tq.first = Math.round(tq.pos);
+          tq.hold = performance.now() + 600;
+          tqRender();
         });
         const end = e => {
           if (!dn) return;
           const d = dn; dn = null; tq.drag = false;
-          if (d.moved || e.type === 'pointercancel' || !tq.row) return;
+          if (d.moved) { tqGo(Math.round(tq.pos)); return; }
+          if (e.type === 'pointercancel' || !tq.row || !tq.total) return;
           // a tap: the slot under the finger
           const r = tqHit.getBoundingClientRect();
-          const i = Math.floor((e.clientX - r.left) / (tq.row.pitch));
-          const sl = tq.keys[i];
-          if (!sl || sl.e) return;
-          const kn = String(sl.k), el = tq.els[i];
+          const i = Math.floor((e.clientX - r.left) / (tq.row.pitch) + (tq.pos - Math.floor(tq.pos)));
+          const sl = tq.a[tqMod(Math.floor(tq.pos) + i)];
+          if (!sl || !sl[1]) return;
+          const kn = String(sl[0]), el = tqClip.children[i];
           if (el) el.classList.add('down');
           key(kn, true, true);
           setTimeout(() => { key(kn, false); if (el) el.classList.remove('down'); }, 70);
@@ -2538,39 +2591,34 @@ async function installChunks(m) {
         tq.sig = sig;
         let d = { w: 0, s: [] };
         try { d = JSON.parse(raw); } catch (e) { return; }
-        tq.els.forEach(e => e.remove());
-        tq.els = [];
         tq.total = d.t || 0; tq.cols = d.c || 4;
-        if (!tq.drag && performance.now() > tq.hold) tq.first = d.f || 0;
-        tq.keys = d.s;
-        if (!d.w || !d.s.length) return;
+        tq.a = d.a || [];
+        if (!tq.drag && !tq.anim && performance.now() > tq.hold) { tq.first = tq.pos = d.f || 0; }
+        if (!d.w || !tq.total) { tq.geo = null; tqRender(); return; }
         const k = cr.width / d.w, ox = cr.left - ur.left, oy = cr.top - ur.top;
-        d.s.forEach(sl => {
-          const el = document.createElement('div');
-          el.className = 'tq-slot' + (sl.on ? ' on' : '') + (sl.e ? ' empty' : '');
-          el.style.left = (ox + sl.x * k) + 'px'; el.style.top = (oy + sl.y * k) + 'px';
-          el.style.width = (sl.b * k) + 'px'; el.style.height = (sl.b * k) + 'px';
-          el.innerHTML = '<span>' + sl.k + '</span>' + (sl.n === undefined ? '' : '<i>' + sl.n + '</i>'); // arrows / scrolls left
-          ui.appendChild(el);
-          tq.els.push(el);
-        });
-        const first = d.s[0], last = d.s[d.s.length - 1];
-        const gap = last.b * k / 6;
-        const pitch = (d.s.length > 1 ? (d.s[1].x - d.s[0].x) : first.b) * k;
+        const size = d.b * k, pitch = d.p * k;
+        const gap = size / 6;
         tq.step = pitch;
         tq.row = { pitch };
+        tq.geo = { cols: tq.cols, size, pitch };
+        // the box of the row cuts the frames that scroll out of it
+        tqClip.style.left = (ox + d.x * k) + 'px';
+        tqClip.style.top = (oy + d.y * k) + 'px';
+        tqClip.style.width = (pitch * tq.cols - gap) + 'px';
+        tqClip.style.height = size + 'px';
+        tqRender();
         // the hit area of the whole row
-        tqHit.style.left = (ox + first.x * k) + 'px';
-        tqHit.style.top = (oy + first.y * k) + 'px';
-        tqHit.style.width = (pitch * d.s.length) + 'px';
-        tqHit.style.height = (first.b * k) + 'px';
+        tqHit.style.left = (ox + d.x * k) + 'px';
+        tqHit.style.top = (oy + d.y * k) + 'px';
+        tqHit.style.width = (pitch * tq.cols) + 'px';
+        tqHit.style.height = size + 'px';
         // the inventory button: a block of the row, right of the last slot
-        const inv = byId.inv.el, isz = first.b * k;
+        const inv = byId.inv.el, isz = size;
         inv.classList.add('sq');
         inv.style.width = inv.style.height = isz + 'px';
-        inv.style.left = (ox + (last.x + last.b) * k + gap) + 'px';
+        inv.style.left = (ox + d.x * k + pitch * (tq.cols - 1) + size + gap) + 'px';
         inv.style.bottom = 'auto';
-        inv.style.top = (oy + first.y * k) + 'px';
+        inv.style.top = (oy + d.y * k) + 'px';
       }
 
       let lastLayout = '';
@@ -2597,8 +2645,8 @@ async function installChunks(m) {
         tq.els.forEach(e => e.style.display = isWorld ? '' : 'none');
         tqHit.style.display = isWorld ? '' : 'none';
         const want = isWorld ? 1 : 0;
-        if ((want !== tq.sent || tq.first !== tq.sentFirst) && g_runtimeUp) {
-          try { Module.ccall('og_quickpanel', null, ['number', 'number'], [want, tq.first]); tq.sent = want; tq.sentFirst = tq.first; } catch (e) {}
+        if (want !== tq.sent && g_runtimeUp) {
+          try { Module.ccall('og_quickpanel', null, ['number', 'number'], [want, Math.round(tq.pos * 1000)]); tq.sent = want; tq.sentPos = Math.round(tq.pos * 1000); } catch (e) {}
         }
         const jShow = layout === 'world' && jr.list.length > 0;
         jEl.classList.toggle('hidden', !(jShow && jr.open));
@@ -2666,9 +2714,19 @@ async function installChunks(m) {
           setLabel(byId.use, invMode === 2 || invMode === 4 ? 'take' : invMode === 3 ? 'trade' : 'use');
       }
 
+      // the engine: a tap in a menu chooses the item under the finger only with the touch controls; without them a click is Enter
+      function touchToEngine() {
+        if (g_runtimeUp) ogSet('touchUi', chk.checked ? 1 : 0); else g_runtimeReady.then(touchToEngine);
+      }
       function apply() {
         document.body.classList.toggle('touch-on', chk.checked);
-        if (!chk.checked) releaseAll();
+        if (!chk.checked) {
+          releaseAll();
+          // update() does nothing with the controls off: the engine would go on drawing the quick panel's icons
+          if (g_runtimeUp) { try { Module.ccall('og_quickpanel', null, ['number', 'number'], [0, Math.round(tq.pos * 1000)]); } catch (e) {} }
+          tq.sent = 0;
+        }
+        touchToEngine();
         lastLayout = '';
         update();
       }
@@ -2728,7 +2786,7 @@ async function installChunks(m) {
           if (j === cur) return;
           gp.slot = j;
           gpTap(String(a[j][0]));
-          tq.first = j; tq.hold = performance.now() + 600;
+          tqGo(tq.first + ((j - tqMod(tq.first) + tq.total + Math.floor(tq.total / 2)) % tq.total - Math.floor(tq.total / 2))); tq.hold = performance.now() + 600;
           return;
         }
       }

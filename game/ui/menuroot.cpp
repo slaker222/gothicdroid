@@ -1,3 +1,4 @@
+#include <atomic>
 #include "menuroot.h"
 
 #include <Tempest/Log>
@@ -143,6 +144,17 @@ bool MenuRoot::hasVersionLine() const {
   return showVersionHint;
   }
 
+#if defined(OG_WEB_UI)
+static std::atomic<bool> g_touchPointer{false};
+#endif
+void MenuRoot::setTouchPointer(bool on) {
+#if defined(OG_WEB_UI)
+  g_touchPointer = on;
+#else
+  (void)on;
+#endif
+  }
+
 void MenuRoot::mouseDownEvent(MouseEvent& event) {
   if(current!=nullptr) {
     if(event.button==Event::ButtonRight) {
@@ -150,8 +162,11 @@ void MenuRoot::mouseDownEvent(MouseEvent& event) {
       return;
       }
 #if defined(OG_WEB_UI)
-    // the item under the finger / cursor is used; a tap beside the items does nothing
-    current->onPointer(event.pos() - current->pos());
+    // touch controls: the item under the finger is used, a tap beside the items does nothing;
+    // without them a click is Enter on the selected item
+    if(g_touchPointer)
+      current->onPointer(event.pos() - current->pos()); else
+      current->onKeyboard(KeyCodec::ActionGeneric);
 #else
     current->onKeyboard(KeyCodec::ActionGeneric);
 #endif

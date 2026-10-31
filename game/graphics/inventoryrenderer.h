@@ -18,6 +18,9 @@ class InventoryRenderer {
 
     void reset(bool full=false);
     void drawItem(int x, int y, int w, int h, const Item &item);
+    // moves a drawn item (the quick row scrolls); the clip rectangle (window pixels) cuts what is outside, w=0: none
+    void setItemX(size_t idx, int x) { if(idx<items.size()) items[idx].x = x; }
+    void setClip(int x, int y, int w, int h) { clipX=x; clipY=y; clipW=w; clipH=h; }
 
   private:
     struct PerFrame {
@@ -34,5 +37,6 @@ class InventoryRenderer {
     VisualObjects    visual;
     MeshObjects      itmGroup;
     std::vector<Itm> items;
+    int              clipX=0, clipY=0, clipW=0, clipH=0;
   };
 

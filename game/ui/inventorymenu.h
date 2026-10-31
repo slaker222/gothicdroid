@@ -55,7 +55,8 @@ class InventoryMenu : public Tempest::Widget {
     // web touch controls: the quick panel under the world view - the melee and ranged weapon and the
     // spells of the number keys 1..0, drawn with the same 3D item icons as the inventory
     bool  quickVisible() const { return quickOpen && !quickSlots.empty() && quickTotal>0; }
-    void  quickSetOpen(bool on, int first) { quickOpen = on; quickFirst = first; }
+    // pos: the ring's position in thousandths of a slot (the page scrolls it smoothly)
+    void  quickSetOpen(bool on, int pos) { quickOpen = on; quickPos = float(pos)/1000.f; }
     void  quickUpdate();
     std::string quickJson() const;
     // a finger on the inventory (the page forwards the touches): 0 down, 1 up, 2 move, 3 cancelled; x, y in
@@ -115,6 +116,8 @@ class InventoryMenu : public Tempest::Widget {
     bool                      quickOpen = false;
     int                       quickW = 0, quickH = 0;
     int                       quickFirst = 0, quickCols = 1, quickTotal = 0;
+    float                     quickPos = 0;
+    int                       quickX0 = 0, quickY = 0, quickSz = 0, quickPitch = 0;
     std::string               quickAll = "[]"; // all ten keys: [[key, has an item, in use], ...]
 
     struct TouchHold { bool on=false, wasSel=false; int pg=0; size_t idx=0; uint64_t t0=0; };
