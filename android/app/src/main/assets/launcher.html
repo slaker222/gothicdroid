@@ -612,8 +612,9 @@
     html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
     html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
     html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #saves-dl-btn, html.native #saves-ul-btn,
-    html.native #clear-btn, html.native label[title^="On-screen touch"],
-    html.native #controls { display: none !important; } /* the top bar (gear, gradient): settings are in the game's menu and the side menu */
+    html.native #clear-btn, html.native label[title^="On-screen touch"] { display: none !important; }
+    /* the top bar: only the gear stays, in its place, without the dark strip */
+    html.native body.touch-on #controls, html.native #controls { background: none !important; }
     /* settings of the page that the app does not have (the canvas pixel ratio, the web texture mips) */
     html.native #settings-panel label:has(#pixel-cap), html.native #settings-panel label:has([data-set="texQuality"]) { display: none; }
   </style>
