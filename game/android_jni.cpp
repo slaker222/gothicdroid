@@ -26,6 +26,8 @@ extern "C" int og_ui_state();
 extern "C" int og_frames();
 extern "C" void og_quick(int kind);
 extern "C" const char* og_quests();
+extern "C" const char* og_video_take();
+extern "C" void og_video_done();
 extern "C" const char* og_quickslots();
 extern "C" void og_quickpanel(int open, int first);
 extern "C" void og_pointer(int type, int x, int y);
@@ -310,6 +312,12 @@ Java_com_opengothic_GameActivity_nativeWebKey(JNIEnv* env, jobject, jint action,
   Tempest::AndroidApi::pushWebKey(action, c);
   env->ReleaseStringUTFChars(jCode, c);
 }
+
+JNIEXPORT jstring JNICALL
+Java_com_opengothic_GameActivity_nativeVideoTake(JNIEnv* env, jobject) { return env->NewStringUTF(og_video_take()); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeVideoDone(JNIEnv*, jobject) { og_video_done(); }
 
 } // extern "C"
 

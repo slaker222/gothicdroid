@@ -56,6 +56,8 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeFrames(): Int
     private external fun nativeQuick(kind: Int)
     private external fun nativeQuests(): String
+    private external fun nativeVideoTake(): String
+    private external fun nativeVideoDone()
     private external fun nativeQuickSlots(): String
     private external fun nativeQuickPanel(open: Int, first: Int)
     private external fun nativePointer(type: Int, x: Int, y: Int)
@@ -151,6 +153,8 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 "og_frames" -> nativeFrames().toString()
                 "og_quick" -> { nativeQuick(a.getInt(0)); "0" }
                 "og_quests" -> nativeQuests()
+                "og_video_take" -> nativeVideoTake()
+                "og_video_done" -> { nativeVideoDone(); "0" }
                 "og_quickslots" -> nativeQuickSlots()
                 "og_quickpanel" -> { nativeQuickPanel(a.getInt(0), a.getInt(1)); "0" }
                 "og_pointer" -> { nativePointer(a.getInt(0), a.getInt(1), a.getInt(2)); "0" }
@@ -169,6 +173,12 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         wv.setBackgroundColor(Color.TRANSPARENT)
         wv.settings.javaScriptEnabled = true
         wv.settings.domStorageEnabled = true
+        // cutscenes: the engine writes an mp4 to the game folder, the page plays it from there
+        wv.settings.allowFileAccess = true
+        @Suppress("DEPRECATION") run {
+            wv.settings.allowFileAccessFromFileURLs = true
+            wv.settings.allowUniversalAccessFromFileURLs = true
+        }
         wv.settings.mediaPlaybackRequiresUserGesture = false
         wv.overScrollMode = View.OVER_SCROLL_NEVER
         wv.webChromeClient = object : WebChromeClient() {

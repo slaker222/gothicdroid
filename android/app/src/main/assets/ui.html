@@ -5177,6 +5177,28 @@ function serveLoop() {
         if (e.isTrusted) return;
         AndroidBridge.key(t === 'keydown' ? 0 : 1, e.code);
       });
+      // cutscenes: the engine hands over an mp4 (AV1), this page plays it in a <video> over the game
+      let vid = null;
+      const vidStop = () => { if (vid) { vid.pause(); vid.remove(); vid = null; } };
+      const vidEnd = () => { vidStop(); AndroidBridge.call('og_video_done', '[]'); };
+      setInterval(() => {
+        const cmd = AndroidBridge.call('og_video_take', '[]');
+        if (!cmd) return;
+        vidStop();
+        if (cmd === '!') return;
+        const bar = cmd.indexOf('|');
+        const v = document.createElement('video');
+        v.src = 'file://' + cmd.slice(bar + 1);
+        v.volume = Math.max(0, Math.min(1, parseFloat(cmd.slice(0, bar)) || 0));
+        v.playsInline = true;
+        v.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:99999';
+        v.onended = vidEnd;
+        v.onclick = vidEnd;
+        v.onerror = () => { console.error('[video] cannot play', v.error && v.error.message); vidEnd(); };
+        document.body.appendChild(v);
+        vid = v;
+        v.play().catch(e => { console.error('[video] play', e); vidEnd(); });
+      }, 100);
       g_runtimeUp = true;
       g_resolveRuntime();
       player.classList.add('playing');

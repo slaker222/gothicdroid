@@ -14,6 +14,14 @@
 #include <emscripten.h>
 #endif
 
+#if defined(__ANDROID__)
+#include <atomic>
+#include <mutex>
+#include <string>
+#include <cstdio>
+#include <unistd.h>
+#endif
+
 #include "bink/video.h"
 #include "graphics/shaders.h"
 #include "gamemusic.h"
@@ -61,6 +69,45 @@ EM_JS(void, ogVideoStop, (), {
   Module.__ogVideoUrl  = null;
   Module.__ogVideoDone = true;
   });
+#endif
+
+#if defined(__ANDROID__)
+// MP4 cutscenes in the app: the page over the game (assets/ui.html, a WebView) plays them in a <video>.
+// The engine hands over the file with og_video_take (the page asks for it by polling, like for og_ui_state),
+// the page reports the end with og_video_done.
+static std::mutex        g_vidMutex;
+static std::string       g_vidCmd;          // "volume|path" to start, "!" to stop, empty: nothing
+static std::atomic<bool> g_vidDone{false};
+
+static void ogVideoPlay(const std::string& path, float volume) {
+  char buf[32];
+  std::snprintf(buf,sizeof(buf),"%.2f|",double(volume));
+  std::lock_guard<std::mutex> lk(g_vidMutex);
+  g_vidCmd = buf + path;
+  g_vidDone.store(false);
+  }
+
+static int ogVideoDone() {
+  return g_vidDone.load() ? 1 : 0;
+  }
+
+static void ogVideoStop() {
+  std::lock_guard<std::mutex> lk(g_vidMutex);
+  g_vidCmd = "!";
+  g_vidDone.store(true);
+  }
+
+extern "C" const char* og_video_take() {
+  static std::string ret;
+  std::lock_guard<std::mutex> lk(g_vidMutex);
+  ret.swap(g_vidCmd);
+  g_vidCmd.clear();
+  return ret.c_str();
+  }
+
+extern "C" void og_video_done() {
+  g_vidDone.store(true);
+  }
 #endif
 
 struct VideoWidget::Input : Bink::Video::Input {
@@ -346,7 +393,7 @@ void VideoWidget::tick() {
   if(ctx!=nullptr && ctx->isEof()) {
     stopVideo();
     }
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   if(browserVideo && ogVideoDone()) {
     stopVideo();
     }
@@ -433,6 +480,33 @@ bool VideoWidget::startBrowserVideo(zenkit::Read& fin) {
   ogVideoPlay(data.data(),data.size(),Gothic::inst().settingsGetF("SOUND","soundVolume"));
   browserVideo = true;
   return true;
+#elif defined(__ANDROID__)
+  char head[8] = {};
+  const bool isMp4 = fin.read(head,sizeof(head))==sizeof(head) && std::memcmp(head+4,"ftyp",4)==0;
+  fin.seek(0,zenkit::Whence::END);
+  const size_t size = fin.tell();
+  fin.seek(0,zenkit::Whence::BEG);
+  if(!isMp4)
+    return false;
+
+  // the page reads it as a file: the game folder is the working directory
+  char cwd[1024] = {};
+  if(getcwd(cwd,sizeof(cwd))==nullptr)
+    return false;
+  const std::string path = std::string(cwd) + "/.og_video.mp4";
+  std::vector<uint8_t> data(size);
+  if(fin.read(data.data(),size)!=size)
+    throw std::runtime_error("i/o error");
+  FILE* f = std::fopen(path.c_str(),"wb");
+  if(f==nullptr)
+    return false;
+  const bool ok = std::fwrite(data.data(),1,data.size(),f)==data.size();
+  std::fclose(f);
+  if(!ok)
+    return false;
+  ogVideoPlay(path,Gothic::inst().settingsGetF("SOUND","soundVolume"));
+  browserVideo = true;
+  return true;
 #else
   (void)fin;
   return false;
@@ -441,7 +515,7 @@ bool VideoWidget::startBrowserVideo(zenkit::Read& fin) {
 
 void VideoWidget::stopVideo() {
   ctx.reset();
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   if(browserVideo)
     ogVideoStop();
 #endif
