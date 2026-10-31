@@ -314,6 +314,36 @@
     .ctl-right, .ctl-left { display: flex; align-items: center; }
     .fps-opt { gap: 6px; user-select: none; }
     .fps-opt input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+    /* detailed stats ("Performance overlay"): phone, mode, resolution, frame time graph */
+    #perf-box { position: absolute; top: 8px; left: 8px; z-index: 15; display: none; padding: 6px 8px; width: 262px; max-width: 60vw;
+      font: 11px/1.45 monospace; color: #e8e8e8; background: rgba(0, 0, 0, 0.62); pointer-events: none; white-space: pre-wrap; word-break: break-word; }
+    body.perf-on #perf-box { display: block; }
+    body.perf-on #fps-counter { display: none !important; }
+    #perf-box b { color: #5dff8a; font-weight: normal; }
+    #perf-box canvas { display: block; width: 100%; height: 64px; margin: 4px 0 2px; background: rgba(255,255,255,0.06); }
+    /* side menu (Android app: the back button) */
+    #side-scrim { position: absolute; inset: 0; z-index: 30; display: none; background: rgba(0, 0, 0, 0.45); }
+    #side-menu { position: absolute; top: 0; bottom: 0; left: 0; z-index: 31; width: 36%; min-width: 230px; max-width: 380px;
+      display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) 0 8px; box-sizing: border-box;
+      background: rgba(14, 14, 14, 0.97); border-right: 1px solid var(--line); transform: translateX(-102%);
+      transition: transform .18s ease-out; visibility: hidden; }
+    #player.side-open #side-scrim { display: block; }
+    #player.side-open #side-menu { transform: none; visibility: visible; }
+    #side-menu .sm-title { padding: 14px 18px 10px; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+    #side-menu .sm-item { display: flex; align-items: center; gap: 14px; width: 100%; min-height: 52px; padding: 0 18px; box-sizing: border-box;
+      font: inherit; font-size: 16px; text-align: left; color: var(--text); background: none; border: 0; border-top: 1px solid rgba(255,255,255,0.06); cursor: pointer; }
+    #side-menu .sm-item:active { background: rgba(255, 255, 255, 0.1); }
+    #side-menu .sm-item svg { flex: none; width: 24px; height: 24px; fill: currentColor; color: var(--accent); }
+    #side-menu .sm-item .sm-label { flex: 1; }
+    #side-menu .sm-sw { flex: none; position: relative; width: 38px; height: 20px; border-radius: 10px; background: #444; transition: background .15s; }
+    #side-menu .sm-sw::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #ddd; transition: left .15s; }
+    #side-menu .sm-item[aria-checked="true"] .sm-sw { background: var(--accent); }
+    #side-menu .sm-item[aria-checked="true"] .sm-sw::after { left: 20px; }
+    #side-menu .sm-spacer { flex: 1; }
+    #side-menu .sm-exit svg { color: var(--danger, #ff6a5d); }
+    html:not(.native) #side-menu, html:not(.native) #side-scrim { display: none !important; }
+    html.native label:has(#fps-chk),
+    html.native label[for="perf-chk"], html.native label:has(#perf-chk) { display: none !important; }
     #fps-counter {
       position: absolute;
       top: 8px;
@@ -522,6 +552,26 @@
       -webkit-overflow-scrolling: touch;
     }
     #player.menu-open #settings-panel { display: block; }
+    #settings-panel { scrollbar-width: auto; scrollbar-color: var(--accent) #222; }
+    #settings-panel::-webkit-scrollbar { width: 10px; }
+    #settings-panel::-webkit-scrollbar-track { background: #222; }
+    #settings-panel::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 5px; }
+    #settings-close { display: none; position: sticky; top: -10px; z-index: 2; margin: -10px -12px 4px; padding: 4px 6px 2px;
+      background: rgba(10, 10, 10, 0.97); justify-content: flex-end; }
+    #settings-panel.centered #settings-close { display: flex; }
+    #settings-close button { font: inherit; font-size: 18px; line-height: 1; width: 26px; height: 26px; color: var(--text);
+      background: #222; border: 1px solid var(--line); cursor: pointer; }
+    #settings-close button:hover { border-color: var(--accent); color: var(--accent); }
+    #settings-more { position: sticky; bottom: -10px; height: 30px; margin: -30px -12px -10px; padding-top: 12px; text-align: center;
+      font-size: 16px; line-height: 18px; color: var(--accent); pointer-events: none;
+      background: linear-gradient(to bottom, rgba(10,10,10,0), rgba(10,10,10,0.95) 60%); transition: opacity .15s; }
+    #settings-more.hide { opacity: 0; }
+    /* opened from the game's own menu: in the middle of the screen */
+    #player #settings-panel.centered {
+      top: 50%; left: 50%; right: auto; bottom: auto;
+      transform: translate(-50%, -50%);
+      max-height: calc(100% - 16px);
+    }
     #settings-panel .set-row {
       display: flex;
       align-items: center;
@@ -554,6 +604,7 @@
     #settings-panel .barrier-ctl output { min-width: 14px; text-align: right; }
     #settings-panel .barrier-ctl input { width: 64px; accent-color: var(--accent); cursor: pointer; }
     #settings-panel input[type=checkbox] { accent-color: var(--accent); cursor: pointer; }
+    #settings-panel .set-note:empty { display: none; }
     #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
     #player:fullscreen #fs-btn .icon-enter { display: none; }
@@ -610,6 +661,18 @@
 
     <div id="fps-counter">0 FPS</div>
 
+    <div id="perf-box"><span id="perf-text"></span><canvas id="perf-graph" width="520" height="128"></canvas><span id="perf-stat"></span></div>
+
+    <div id="side-scrim"></div>
+    <div id="side-menu" role="menu">
+      <div class="sm-title">OpenGothic</div>
+      <button class="sm-item" id="sm-touch" type="button" role="switch" aria-checked="true"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg><span class="sm-label">Mobile input</span><span class="sm-sw"></span></button>
+      <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
+      <button class="sm-item" id="sm-perf" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm4 10h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z"/></svg><span class="sm-label">Performance stats</span><span class="sm-sw"></span></button>
+      <div class="sm-spacer"></div>
+      <button class="sm-item sm-exit" id="sm-exit" type="button"><svg viewBox="0 0 24 24"><path d="M10.09 15.59 11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg><span class="sm-label">Exit</span></button>
+    </div>
+
     <div id="touch-ui">
       <div id="touch-look"></div>
       <div id="touch-stick"></div>
@@ -617,6 +680,7 @@
     <div id="gfx-toast" role="status" aria-live="polite"></div>
 
     <div id="settings-panel" class="disabled">
+      <div id="settings-close"><button type="button" aria-label="Close" title="Close">&times;</button></div>
       <div class="presets" id="gfx-presets">
         <button type="button" data-preset="ultralow" title="Everything at the minimum, shortest draw distance">Ultra low</button>
         <button type="button" data-preset="low" title="Fewer effects, short draw distance">Low</button>
@@ -704,6 +768,7 @@
       </div>
       <label class="set-row g1only" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
+      <div id="settings-more" aria-hidden="true">&#9660; scroll &#9660;</div>
     </div>
 
     <div id="controls">
@@ -716,6 +781,7 @@
       <div class="ctl-right">
       <label class="ctl fps-opt" title="On-screen touch controls (turned on by itself on phones and tablets)"><input type="checkbox" id="touch-chk"> Mobile input</label>
       <label class="ctl fps-opt" title="Show FPS"><input type="checkbox" id="fps-chk"> Show FPS</label>
+      <label class="ctl fps-opt" title="Detailed stats: hardware, resolution, frame time graph"><input type="checkbox" id="perf-chk"> Detailed stats</label>
       <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
         <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
       </button>
@@ -1492,6 +1558,7 @@ async function installChunks(m) {
           frames++;
           const now = performance.now();
           if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
+          if (window.ogPerfPush && stats.last) window.ogPerfPush(now - stats.last);
           stats.last = now;
           stats.count++;
           if (stats.count === 4 && bootBg.isConnected) hideBootBg();
@@ -1522,6 +1589,135 @@ async function installChunks(m) {
       // keep clicks on the option from reaching the game canvas
       chk.addEventListener('click', e => e.stopPropagation());
       apply();
+    })();
+
+
+    // Detailed stats: phone / browser hardware, how the game runs, resolution (render scale), frame time graph
+    (function() {
+      const chk = document.getElementById('perf-chk');
+      const text = document.getElementById('perf-text');
+      const stat = document.getElementById('perf-stat');
+      const cv = document.getElementById('perf-graph');
+      const cx = cv.getContext('2d');
+      const N = 240;
+      const times = [];
+      let timer = 0, poll = 0, info = null, gpuWeb = '';
+      const PCT = [100, 75, 50, 40, 30, 25, 20, 15];
+      window.ogPerfPush = ms => { if (chk.checked && ms > 0 && ms < 5000) { times.push(ms); if (times.length > N) times.shift(); } };
+      function hardware() {
+        if (info) return info;
+        let cpu = '', gpu = '';
+        if (NATIVE) {
+          try { const a = AndroidBridge.cpuInfo().split('|'); cpu = a[0] + ' (' + a[1] + ' cores' + (+a[2] ? ', ' + (a[2] / 1000).toFixed(1) + ' GHz' : '') + ')'; } catch (e) {}
+        } else {
+          cpu = (navigator.hardwareConcurrency || '?') + ' threads' + (navigator.userAgentData && navigator.userAgentData.platform ? ', ' + navigator.userAgentData.platform : '');
+          if (navigator.gpu && !gpuWeb) {
+            gpuWeb = '...';
+            navigator.gpu.requestAdapter().then(ad => {
+              const i = ad && (ad.info || {});
+              gpuWeb = [i.vendor, i.architecture, i.description || i.device].filter(Boolean).join(' ') || 'WebGPU';
+            }).catch(() => { gpuWeb = 'WebGPU'; });
+          }
+          gpu = gpuWeb;
+        }
+        if (NATIVE) {
+          const r = AndroidBridge.call('og_perf_info', '[]').split('|');
+          gpu = r[0];
+          if (!gpu) return { cpu, gpu: '...', partial: true };
+        }
+        if (!NATIVE && (!gpu || gpu === '...')) return { cpu, gpu: gpu || '...', partial: true };
+        return (info = { cpu, gpu });
+      }
+      function resolution() {
+        let w, h, pct;
+        if (NATIVE) {
+          const r = AndroidBridge.call('og_perf_info', '[]').split('|');
+          w = +r[1]; h = +r[2]; pct = +r[3];
+        } else {
+          w = canvas.width; h = canvas.height; pct = 100;
+          try { pct = PCT[ogGet('resScale')] || 100; } catch (e) {}
+        }
+        return w + 'x' + h + ' (100%) ' + Math.max(1, Math.floor(w * pct / 100)) + 'x' + Math.max(1, Math.floor(h * pct / 100)) + ' (' + pct + '%)';
+      }
+      function draw() {
+        const w = cv.width, h = cv.height;
+        cx.clearRect(0, 0, w, h);
+        if (!times.length) return;
+        const top = Math.max(50, Math.ceil(Math.max.apply(null, times) / 10) * 10);
+        const y = ms => h - Math.min(1, ms / top) * (h - 4) - 2;
+        cx.font = '18px monospace'; cx.lineWidth = 1;
+        for (const g of [16.7, 33.3]) {
+          if (g >= top) continue;
+          cx.strokeStyle = 'rgba(255,255,255,0.25)'; cx.beginPath(); cx.moveTo(0, y(g)); cx.lineTo(w, y(g)); cx.stroke();
+          cx.fillStyle = 'rgba(255,255,255,0.55)'; cx.fillText(g === 16.7 ? '60' : '30', 2, y(g) - 3);
+        }
+        const step = w / N, x0 = w - times.length * step;
+        cx.lineWidth = 2; cx.lineJoin = 'round';
+        cx.strokeStyle = '#5dff8a'; cx.beginPath();
+        times.forEach((t, i) => { const x = x0 + i * step, yy = y(t); i ? cx.lineTo(x, yy) : cx.moveTo(x, yy); });
+        cx.stroke();
+        cx.fillStyle = 'rgba(255,255,255,0.55)'; cx.fillText(top + ' ms', w - 70, 16);
+      }
+      function update() {
+        const hw = hardware();
+        text.innerHTML = 'CPU: <b>' + hw.cpu + '</b>\nGPU: <b>' + hw.gpu + '</b>\nMode: <b>' + (NATIVE ? 'Android native' : 'Web version') +
+                         '</b>\nRes: <b>' + resolution() + '</b>';
+        draw();
+        if (times.length) {
+          let sum = 0, mx = 0;
+          for (const t of times) { sum += t; if (t > mx) mx = t; }
+          const avg = sum / times.length;
+          stat.innerHTML = 'Frame: <b>' + times[times.length - 1].toFixed(1) + '</b> ms   Avg: <b>' + avg.toFixed(1) + '</b> ms (' + Math.round(1000 / avg) +
+                           ' FPS)\nMax: <b>' + mx.toFixed(1) + '</b> ms (' + Math.round(1000 / mx) + ' FPS)';
+        } else stat.textContent = 'Waiting for frames...';
+      }
+      function apply() {
+        document.body.classList.toggle('perf-on', chk.checked);
+        try { localStorage.setItem('perfStats', chk.checked ? '1' : '0'); } catch (e) {}
+        clearInterval(timer); clearInterval(poll);
+        times.length = 0;
+        if (chk.checked) {
+          if (NATIVE) {
+            try { AndroidBridge.call('og_frame_times', '[]'); } catch (e) {}
+            poll = setInterval(() => {
+              const s = AndroidBridge.call('og_frame_times', '[]');
+              if (s) for (const v of s.split(',')) if (v) window.ogPerfPush(parseFloat(v));
+            }, 150);
+          }
+          update();
+          timer = setInterval(update, 250);
+        }
+        const sm = document.getElementById('sm-perf');
+        if (sm) sm.setAttribute('aria-checked', chk.checked ? 'true' : 'false');
+      }
+      try { chk.checked = localStorage.getItem('perfStats') === '1'; } catch (e) {}
+      chk.addEventListener('change', apply);
+      chk.addEventListener('click', e => e.stopPropagation());
+      apply();
+    })();
+
+    // Android app: the back button opens the side menu
+    (function() {
+      if (!NATIVE) return;
+      const player = document.getElementById('player');
+      const touch = document.getElementById('touch-chk');
+      const perf = document.getElementById('perf-chk');
+      const smTouch = document.getElementById('sm-touch');
+      const smPerf = document.getElementById('sm-perf');
+      const fpsChk = document.getElementById('fps-chk');
+      const smFps = document.getElementById('sm-fps');
+      const sync = () => {
+        smTouch.setAttribute('aria-checked', document.body.classList.contains('touch-on') ? 'true' : 'false');
+        smPerf.setAttribute('aria-checked', document.body.classList.contains('perf-on') ? 'true' : 'false');
+        smFps.setAttribute('aria-checked', fpsChk.checked ? 'true' : 'false');
+      };
+      const setOpen = o => { if (o) sync(); player.classList.toggle('side-open', o); };
+      window.ogBackMenu = () => setOpen(!player.classList.contains('side-open'));
+      document.getElementById('side-scrim').addEventListener('click', () => setOpen(false));
+      smTouch.addEventListener('click', () => { touch.checked = !document.body.classList.contains('touch-on'); touch.dispatchEvent(new Event('change')); sync(); });
+      smFps.addEventListener('click', () => { fpsChk.checked = !fpsChk.checked; fpsChk.dispatchEvent(new Event('change')); sync(); });
+      smPerf.addEventListener('click', () => { perf.checked = !document.body.classList.contains('perf-on'); perf.dispatchEvent(new Event('change')); sync(); });
+      document.getElementById('sm-exit').addEventListener('click', () => AndroidBridge.exitGame());
     })();
 
     // graphics settings menu: values live in the game's Gothic.ini, changes
@@ -1575,7 +1771,7 @@ async function installChunks(m) {
         panel.classList.toggle('disabled', !ok);
         // the barrier is only in Gothic 1
         if (ok) panel.querySelectorAll('.g1only').forEach(e => { e.style.display = ogGet('gameVersion') === 2 ? 'none' : ''; });
-        note.textContent = ok ? 'Changes apply immediately and are saved.' :
+        note.textContent = ok ? '' :
                            err ? 'Settings are unavailable: ' + err : 'Start the game to change settings.';
         if (!ok) return;
         const fl = ogGet('fpsLimit');
@@ -1591,7 +1787,8 @@ async function installChunks(m) {
       }
       // the game may still be starting when the menu opens: check again while it is open
       let retry = 0;
-      function setOpen(open) {
+      function setOpen(open, centered) {
+        panel.classList.toggle('centered', !!(open && centered));
         player.classList.toggle('menu-open', open);
         btn.setAttribute('aria-expanded', open ? 'true' : 'false');
         clearInterval(retry);
@@ -1608,6 +1805,16 @@ async function installChunks(m) {
         if (document.pointerLockElement) document.exitPointerLock();
         setOpen(!player.classList.contains('menu-open'));
       });
+      const more = document.getElementById('settings-more');
+      function updMore() { more.classList.toggle('hide', panel.scrollTop + panel.clientHeight >= panel.scrollHeight - 6); }
+      panel.addEventListener('scroll', updMore);
+      window.addEventListener('resize', updMore);
+      new MutationObserver(updMore).observe(player, { attributes: true, attributeFilter: ['class'] });
+      setInterval(updMore, 500);
+      document.querySelector('#settings-close button').addEventListener('click', e => {
+        e.stopPropagation();
+        setOpen(false);
+      });
       window.ogSettingsReload = () => { if (player.classList.contains('menu-open')) load(); };
       // the game's own graphics menu (og_ui_state bit 30) opens this panel together with it and closes it with it
       let engineGfx = false;
@@ -1623,7 +1830,7 @@ async function installChunks(m) {
         if (now === engineGfx) return;
         engineGfx = now;
         if (now && document.pointerLockElement) { try { document.exitPointerLock(); } catch (e) {} }
-        if (now !== player.classList.contains('menu-open')) setOpen(now);
+        if (now !== player.classList.contains('menu-open')) setOpen(now, true);
       }, 200);
       inputs.forEach(el => el.addEventListener('change', () => {
         // the player chose: automatic settings leave the graphics alone from now on

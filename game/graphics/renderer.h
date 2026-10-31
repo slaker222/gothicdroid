@@ -31,6 +31,9 @@ class Renderer final {
 
     Tempest::Attachment screenshoot(uint8_t frameId);
 
+    // render resolution in percent of the screen (the stats overlay)
+    int  renderPercent() const { return int(internalResolutionScale()*100.f+0.5f); }
+
   private:
     struct BarrierStrike {
       uint64_t start   = 0;     // ms

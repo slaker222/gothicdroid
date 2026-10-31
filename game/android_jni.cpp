@@ -24,6 +24,8 @@ extern "C" int og_setting_set(const char* name, int val);
 extern "C" int og_barrier_zone(int kind);
 extern "C" int og_ui_state();
 extern "C" int og_frames();
+extern "C" const char* og_perf_info();
+extern "C" const char* og_frame_times();
 extern "C" void og_quick(int kind);
 extern "C" const char* og_quests();
 extern "C" const char* og_video_take();
@@ -304,6 +306,12 @@ Java_com_opengothic_GameActivity_nativeSetMod(JNIEnv* env, jobject, jstring jMod
 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeFrames(JNIEnv*, jobject) { return og_frames(); }
+
+JNIEXPORT jstring JNICALL
+Java_com_opengothic_GameActivity_nativePerfInfo(JNIEnv* env, jobject) { return env->NewStringUTF(og_perf_info()); }
+
+JNIEXPORT jstring JNICALL
+Java_com_opengothic_GameActivity_nativeFrameTimes(JNIEnv* env, jobject) { return env->NewStringUTF(og_frame_times()); }
 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeUiState(JNIEnv*, jobject) { return og_ui_state(); }

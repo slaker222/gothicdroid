@@ -37,6 +37,9 @@
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <cstring>
 #include <atomic>
+#include <mutex>
+#include <vector>
+#include <string>
 #if defined(__ANDROID__)
 #include <mutex>
 #include <vector>
@@ -251,6 +254,36 @@ extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_frames() {
   return int(g_frames.load());
+  }
+
+// detailed stats of the page ("Performance overlay"): the gpu, the screen, the render scale and the frame times
+namespace {
+std::mutex           g_statMutex;
+std::string          g_statGpu;
+std::atomic<int>     g_statW{0}, g_statH{0}, g_statPct{100};
+std::vector<float>   g_statTimes;   // ms of the frames since the last og_frame_times()
+}
+
+// "gpu name|width|height|render percent"
+extern "C" EMSCRIPTEN_KEEPALIVE const char* og_perf_info() {
+  static std::string out;
+  std::lock_guard<std::mutex> g(g_statMutex);
+  out = g_statGpu + "|" + std::to_string(g_statW.load()) + "|" + std::to_string(g_statH.load()) + "|" + std::to_string(g_statPct.load());
+  return out.c_str();
+  }
+
+// frame times in ms, comma separated, since the last call
+extern "C" EMSCRIPTEN_KEEPALIVE const char* og_frame_times() {
+  static std::string out;
+  out.clear();
+  std::lock_guard<std::mutex> g(g_statMutex);
+  char buf[16];
+  for(float t:g_statTimes) {
+    std::snprintf(buf, sizeof(buf), "%.1f,", double(t));
+    out += buf;
+    }
+  g_statTimes.clear();
+  return out.c_str();
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
@@ -575,7 +608,12 @@ void MainWindow::paintEvent(PaintEvent& event) {
 
   const float scale = Gothic::interfaceScale(this);
 #if defined(__MOBILE_PLATFORM__) || defined(__ANDROID__)
-  if(opengothic_debug_show_fps()!=0) {
+#if defined(OG_WEB_UI)
+  const bool engineFps = false; // the page over the game has its own (green) FPS counter, "Show FPS"
+#else
+  const bool engineFps = opengothic_debug_show_fps()!=0;
+#endif
+  if(engineFps) {
     char fpsT[64]={};
     double f = fps.get();
     double ms = f > 0.01 ? (1000.0 / f) : 0.0;
@@ -1842,6 +1880,18 @@ void MainWindow::render(){
       t += delay;
       }
     fps.push(t-time);
+#if defined(OG_WEB_UI)
+    {
+      std::lock_guard<std::mutex> g(g_statMutex);
+      if(g_statGpu.empty())
+        g_statGpu = device.properties().name;
+      if(g_statTimes.size()<2000)
+        g_statTimes.push_back(float(t-time));
+      g_statW.store(int(w()));
+      g_statH.store(int(h()));
+      g_statPct.store(renderer.renderPercent());
+    }
+#endif
 
     if(++s_pCnt % 10 == 0) {
       Log::i("[PERF] frame=", (t-time), "ms (tick=", tTick, " wait=", tWait, " draw=", tDraw, " sub=", tSub, " gpu=", tGpu, " pres=", tPres, ") fps=", fps.get());

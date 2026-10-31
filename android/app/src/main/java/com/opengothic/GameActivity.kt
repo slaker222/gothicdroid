@@ -3,6 +3,8 @@ package com.opengothic
 import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.annotation.SuppressLint
 import android.graphics.Color
@@ -27,6 +29,10 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         const val EXTRA_MOD = "extra_mod"   // the ini of a mod in the game folder (Archolos), "" - none
 
         init {
+            // the game runs in its own process (":game"): the WebView there needs its own data directory
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                try { WebView.setDataDirectorySuffix("game") } catch (e: Exception) { Log.w(TAG, "WebView suffix: ${e.message}") }
+            }
             try {
                 System.loadLibrary("c++_shared")
             } catch (e: UnsatisfiedLinkError) {
@@ -54,6 +60,8 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeBarrierZone(kind: Int): Int
     private external fun nativeUiState(): Int
     private external fun nativeFrames(): Int
+    private external fun nativePerfInfo(): String
+    private external fun nativeFrameTimes(): String
     private external fun nativeQuick(kind: Int)
     private external fun nativeQuests(): String
     private external fun nativeVideoTake(): String
@@ -133,6 +141,11 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             true
         }
 
+        // the back button / gesture (also the predictive one): the side menu
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() = backPressed()
+        })
+
         val root = FrameLayout(this)
         root.addView(surfaceView, FrameLayout.LayoutParams(-1, -1))
         root.addView(createUiView(), FrameLayout.LayoutParams(-1, -1))
@@ -151,6 +164,8 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 "og_barrier_zone" -> nativeBarrierZone(a.getInt(0)).toString()
                 "og_ui_state" -> nativeUiState().toString()
                 "og_frames" -> nativeFrames().toString()
+                "og_perf_info" -> nativePerfInfo()
+                "og_frame_times" -> nativeFrameTimes()
                 "og_quick" -> { nativeQuick(a.getInt(0)); "0" }
                 "og_quests" -> nativeQuests()
                 "og_video_take" -> nativeVideoTake()
@@ -160,6 +175,20 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 "og_pointer" -> { nativePointer(a.getInt(0), a.getInt(1), a.getInt(2)); "0" }
                 "og_input_look" -> { nativeLook(a.getInt(0), a.getInt(1)); "0" }
                 else -> "-1"
+            }
+        }
+
+        // the phone's processor: "SoC name|cores|max MHz"
+        @JavascriptInterface
+        fun cpuInfo(): String = cpuDescription()
+
+        // "Exit": to the app's main menu. The game runs in its own process (":game", it cannot be started twice),
+        // which ends with the screen; the main menu is the activity under it
+        @JavascriptInterface
+        fun exitGame() {
+            runOnUiThread {
+                finish()
+                Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
             }
         }
 
@@ -235,20 +264,42 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         surfaceHolder = null
     }
 
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            nativeOnKey(0, keyCode)
-            return true
+    // back opens the side menu of the page (it is closed by back again); the game's own menu is an item in it
+    private fun backPressed() {
+        webView?.evaluateJavascript("window.ogBackMenu && window.ogBackMenu()", null)
+    }
+
+    private fun cpuDescription(): String {
+        var name = ""
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            name = listOf(Build.SOC_MANUFACTURER, Build.SOC_MODEL).filter { it.isNotBlank() && it != Build.UNKNOWN }.joinToString(" ")
         }
+        if (name.isBlank()) {
+            try {
+                File("/proc/cpuinfo").forEachLine { l ->
+                    if (name.isBlank() && l.startsWith("Hardware")) name = l.substringAfter(':').trim()
+                }
+            } catch (e: Exception) {}
+        }
+        if (name.isBlank()) name = Build.HARDWARE
+        var maxKhz = 0L
+        val cores = Runtime.getRuntime().availableProcessors()
+        for (i in 0 until cores) {
+            try {
+                maxKhz = maxOf(maxKhz, File("/sys/devices/system/cpu/cpu$i/cpufreq/cpuinfo_max_freq").readText().trim().toLong())
+            } catch (e: Exception) {}
+        }
+        return "$name|$cores|${maxKhz / 1000}"
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyDown(keyCode, event)
         nativeOnKey(0, keyCode)
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (keyCode == KeyEvent.KEYCODE_BACK) {
-            nativeOnKey(1, keyCode)
-            return true
-        }
+        if (keyCode == KeyEvent.KEYCODE_BACK) return super.onKeyUp(keyCode, event)
         nativeOnKey(1, keyCode)
         return super.onKeyUp(keyCode, event)
     }
