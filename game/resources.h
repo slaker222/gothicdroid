@@ -1,5 +1,7 @@
 #pragma once
 
+#include <unordered_set>
+
 #include <Tempest/Font>
 #include <Tempest/Texture2d>
 #include <Tempest/Device>
@@ -111,6 +113,8 @@ class Resources final {
     static Tempest::Texture2d        loadTextureUncached(std::string_view name, bool forceMips = false);
     static const Tempest::Texture2d* loadTexture(std::string_view name, bool forceMips = false);
     static const Tempest::Texture2d* loadTexture(Tempest::Color color);
+    // a DXT1 texture that was decoded to RGBA8 (the device has no BC): it still has no alpha channel to speak of
+    static bool                      isDxt1Decoded(const Tempest::Texture2d* tex);
     static const Tempest::Texture2d* loadTexture(std::string_view name, int32_t v, int32_t c);
     static       Tempest::Texture2d  loadTexturePm(const Tempest::Pixmap& pm);
     static auto                      loadTextureAnim(std::string_view name) -> std::vector<const Tempest::Texture2d*>;
@@ -197,6 +201,8 @@ class Resources final {
     void                  detectVdf(std::vector<Archive>& ret, const std::u16string& root);
 
     Tempest::Texture2d*   implLoadTexture(std::string_view cname, bool forceMips);
+    std::unordered_set<const Tempest::Texture2d*> dxt1Decoded;
+    bool                  lastDxt1Decoded = false;
     Tempest::Texture2d    implLoadTextureUncached(std::string_view name, bool forceMips);
     void                  implFinishTextMount();
     void                  restoreOriginals(const std::set<std::string>& paths);

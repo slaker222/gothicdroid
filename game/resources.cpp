@@ -613,10 +613,14 @@ Tempest::Texture2d* Resources::implLoadTexture(std::string_view cname, bool forc
   if(it!=texCache.end())
     return it->second.get();
 
+  lastDxt1Decoded = false;
   auto tex = implLoadTextureUncached(cname, forceMips);
+  const bool dxt1Dec = lastDxt1Decoded;
   if(!tex.isEmpty()) {
     std::unique_ptr<Texture2d> t{new Texture2d(std::move(tex))};
     Texture2d* ret=t.get();
+    if(dxt1Dec)
+      dxt1Decoded.insert(ret);
     texCache[std::move(name)] = std::move(t);
     return ret;
     }
@@ -653,6 +657,7 @@ Texture2d Resources::implLoadTextureUncached(std::string_view name, bool forceMi
         return implLoadTextureUncached(name, *ddsRead, forceMips);
         } else {
         auto rgba = tex.as_rgba8(0);
+        lastDxt1Decoded = (tex.format() == zenkit::TextureFormat::DXT1);
 
         try {
           Tempest::Pixmap    pm(tex.width(), tex.height(), TextureFormat::RGBA8);
@@ -1061,6 +1066,11 @@ Texture2d Resources::loadTextureUncached(std::string_view name, bool forceMips) 
 const Texture2d* Resources::loadTexture(std::string_view name, bool forceMips) {
   std::lock_guard<std::recursive_mutex> g(inst->sync);
   return inst->implLoadTexture(name,forceMips);
+  }
+
+bool Resources::isDxt1Decoded(const Tempest::Texture2d* tex) {
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  return inst->dxt1Decoded.find(tex)!=inst->dxt1Decoded.end();
   }
 
 const Texture2d* Resources::loadTexture(Tempest::Color color) {
