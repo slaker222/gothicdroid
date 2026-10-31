@@ -948,8 +948,27 @@ void Gothic::detectGothicVersion() {
   int score[3]={};
 
   auto gpath = CommandLine::inst().rootPath();
-  if(gpath.find(u"Gothic/")!=std::string::npos || gpath.find(u"gothic/")!=std::string::npos)
+  {
+  // a folder named exactly "Gothic" (not a part of the name: android has com.opengothic/files/Gothic2)
+  bool g1dir = false;
+  for(size_t start=0; start<gpath.size() && !g1dir; ) {
+    size_t end = gpath.find_first_of(u"/\\",start);
+    if(end==std::u16string::npos)
+      end = gpath.size();
+    if(end-start==6) {
+      g1dir = true;
+      static const char16_t name[] = u"gothic";
+      for(size_t i=0; i<6; ++i) {
+        const char16_t c = gpath[start+i];
+        if((c|0x20)!=name[i])
+          g1dir = false;
+        }
+      }
+    start = end+1;
+    }
+  if(g1dir)
     score[1]++;
+  }
   if(FileUtil::exists(nestedPath({u"_work",u"Data",u"Scripts",u"content",u"CUTSCENE",u"OU.BIN"},Dir::FT_File)))
     score[1]++;
 
