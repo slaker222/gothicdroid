@@ -19,6 +19,7 @@
 #include <mutex>
 #include <string>
 #include <cstdio>
+#include <chrono>
 #include <unistd.h>
 #endif
 
@@ -78,17 +79,28 @@ EM_JS(void, ogVideoStop, (), {
 static std::mutex        g_vidMutex;
 static std::string       g_vidCmd;          // "volume|path" to start, "!" to stop, empty: nothing
 static std::atomic<bool> g_vidDone{false};
+static std::chrono::steady_clock::time_point g_vidAsked; // when the engine asked for the video, while the page has not taken it
 
 static void ogVideoPlay(const std::string& path, float volume) {
   char buf[32];
   std::snprintf(buf,sizeof(buf),"%.2f|",double(volume));
   std::lock_guard<std::mutex> lk(g_vidMutex);
   g_vidCmd = buf + path;
+  g_vidAsked = std::chrono::steady_clock::now();
   g_vidDone.store(false);
   }
 
 static int ogVideoDone() {
-  return g_vidDone.load() ? 1 : 0;
+  if(g_vidDone.load())
+    return 1;
+  // no page took the video (the WebView is gone or stuck): the player is not available, the cutscene is skipped
+  std::lock_guard<std::mutex> lk(g_vidMutex);
+  if(!g_vidCmd.empty() && g_vidCmd!="!" &&
+     std::chrono::steady_clock::now()-g_vidAsked > std::chrono::seconds(4)) {
+    g_vidCmd.clear();
+    return 1;
+    }
+  return 0;
   }
 
 static void ogVideoStop() {

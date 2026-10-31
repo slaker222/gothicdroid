@@ -182,6 +182,10 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         wv.settings.mediaPlaybackRequiresUserGesture = false
         wv.overScrollMode = View.OVER_SCROLL_NEVER
         wv.webChromeClient = object : WebChromeClient() {
+            // the white play icon the WebView shows in a <video> until the first frame
+            override fun getDefaultVideoPoster(): android.graphics.Bitmap? =
+                android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888).also { it.eraseColor(Color.BLACK) }
+
             override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
                 Log.i(TAG, "ui: ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
                 return true
