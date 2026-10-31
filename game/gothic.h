@@ -219,6 +219,8 @@ class Gothic final {
     bool                                  webSwampWater() const { return swampWater; }
     // web water physics: rings on the water around a wading / swimming / landing character
     bool                                  webWaterPhysics() const { return waterPhysics; }
+    // web: blood from the hit NPC (the emitter of its guild from the script)
+    bool                                  webBlood() const { return blood; }
     // web fog setting: <0 = off, >0 = soft haze (1.6) / dense haze (3); 0 = the engine fog (other platforms)
     float                                 webFogAmount() const { return fogAmount; }
     // fog distances relative to the unlimited world (1), smaller for a shorter world draw distance
@@ -336,6 +338,7 @@ class Gothic final {
     bool                                    blobShadow     = false;
     bool                                    swampWater     = false;
     bool                                    waterPhysics   = false;
+    bool                                    blood          = false;
     float                                   fogAmount      = 0;
     float                                   fogScale       = 1;
     int                                     sunMode        = 0;

@@ -1962,6 +1962,8 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
 
   if(hitResult.value>0) {
     currentOther = &other;
+    if(Gothic::inst().webBlood())
+      owner.addBloodEffect(*this);
     changeAttribute(ATR_HITPOINTS,-hitResult.value,dontKill);
 
     if(bMask&(COLL_APPLYVICTIMSTATE|COLL_DOEVERYTHING)) {

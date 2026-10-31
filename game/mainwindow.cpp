@@ -60,6 +60,7 @@ const WebSetting g_webSettings[] = {
   {"texQuality",  "INTERNAL", "webTexQuality",      false},
   {"waterQuality","INTERNAL", "webWaterQuality",    false},
   {"waterPhysics","INTERNAL", "webWaterPhysics",    false},
+  {"blood",       "INTERNAL", "webBlood",           false},
   {"fog",         "INTERNAL", "webFog",             false},
   {"sun",         "INTERNAL", "webSun",             false},
   {"barrier",     "INTERNAL", "webBarrier",         false},

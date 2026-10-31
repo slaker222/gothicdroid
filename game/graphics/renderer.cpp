@@ -807,7 +807,8 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   // after the fog: the haze is nearly opaque on the sky and would swallow the sun disc
   cmd.setFramebuffer({{sceneLinear, Tempest::Preserve, Tempest::Preserve}}, {zbuffer, Tempest::Readonly});
   cmd.setDebugMarker("Sun&Moon");
-  drawSunMoon(cmd, *wview);
+  if(!camera->isInWater()) // under the water the sun is not seen
+    drawSunMoon(cmd, *wview);
   cmd.setDebugMarker("Barrier");
   drawBarrier(cmd, *wview);
   auto tTrans = perfNow() - t5;
@@ -1923,6 +1924,7 @@ void Renderer::drawReflections(Encoder<CommandBuffer>& cmd, const WorldView& wvi
 void Renderer::drawUnderwater(Encoder<CommandBuffer>& cmd, const WorldView& wview) {
   cmd.setBinding(0, wview.sceneGlobals().uboGlobal[SceneGlobals::V_Main]);
   cmd.setBinding(1, zbuffer);
+  cmd.setBinding(2, *wview.sceneGlobals().swampMask);
 
   cmd.setPipeline(shaders.underwaterT);
   cmd.draw(nullptr, 0, 3);

@@ -883,6 +883,28 @@ Sound World::addHitEffect(std::string_view src, std::string_view dst, std::strin
   return ret;
   }
 
+// blood of the hit NPC: the particle emitter that the script gives to its guild (PFX_BLOOD for humans)
+void World::addBloodEffect(const Npc& victim) {
+  const auto  gl  = std::min<uint32_t>(victim.guild(),GIL_MAX);
+  const auto& gv  = script().guildVal();
+  if(gv.blood_disabled[gl]!=0)
+    return;
+  // the scripts give the emitter only to animals and monsters, humans have none: the red one of the animals (BFX_Preset2 is green)
+  const bool human = gl>0 && gl<GIL_SEPERATOR_HUM;
+  const std::string name = gv.blood_emitter[gl].empty() && human ? std::string("BFX_Preset1") : gv.blood_emitter[gl];
+  if(name.empty() || Gothic::inst().loadParticleFx(name,true)==nullptr)
+    return;
+
+  Tempest::Matrix4x4 pos;
+  pos.identity();
+  pos.translate(victim.centerPosition());
+
+  Effect e(PfxEmitter(*this,name),"");
+  e.setObjMatrix(pos);
+  e.setActive(true);
+  runEffect(std::move(e));
+  }
+
 bool World::isInSfxRange(const Tempest::Vec3& pos) const {
   return wsound.isInListenerRange(pos,WorldSound::talkRange);
   }

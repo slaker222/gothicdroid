@@ -532,6 +532,7 @@
       background: #222; border: 1px solid var(--line); cursor: pointer;
     }
     #settings-panel .presets button:hover { border-color: var(--accent); }
+    #settings-panel .presets button.active { border-color: #ffd400; box-shadow: 0 0 0 1px #ffd400 inset; }
     #settings-panel .fps-slider { display: flex; align-items: center; gap: 6px; }
     #settings-panel .fps-slider input { width: 100px; accent-color: var(--accent); cursor: pointer; }
     #settings-panel .fps-slider output { min-width: 24px; text-align: right; }
@@ -648,6 +649,7 @@
         </select>
       </label>
       <label class="set-row" title="Rings spread over the water around the character: steps, wading, swimming, and a splash with waves when falling into it. Not for the Low water quality">Water physics <input type="checkbox" data-set="waterPhysics"></label>
+      <label class="set-row" title="Blood splashes from NPCs and the hero when hit">Blood <input type="checkbox" data-set="blood"></label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
       <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: no fog on objects. Always off when the world draw distance is below 150 m">Fog
@@ -1521,6 +1523,12 @@ async function installChunks(m) {
       });
       // the engine answers once the game window exists
       const ready = () => ogGet('shadows') >= 0;
+      function markPreset() {
+        let cur = '';
+        try { cur = localStorage.getItem('gfxPreset') || ''; } catch (e) {}
+        document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === cur));
+      }
+      markPreset();
       function load() {
         let ok = false, err = '';
         try { ok = ready(); }
@@ -1578,17 +1586,18 @@ async function installChunks(m) {
       }, 200);
       inputs.forEach(el => el.addEventListener('change', () => {
         // the player chose: automatic settings leave the graphics alone from now on
-        try { localStorage.setItem('gfxManual', '1'); } catch (e) {}
+        try { localStorage.setItem('gfxManual', '1'); localStorage.removeItem('gfxPreset'); } catch (e) {}
+        markPreset();
         const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10);
         try { ogSet(el.dataset.set, v); } catch (e) {}
         el.blur(); // arrow keys go back to the game
       }));
-      // graphics presets: render resolution and textures are never touched
+      // graphics presets (only Ultra low touches render resolution and textures)
       const PRESETS = {
-        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1 },
-        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1 },
-        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0 },
-        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 0, waterPhysics: 1, reflections: 1, ssao: 1, skipFarAnim: 0 },
+        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 1, texQuality: 1 },
+        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 0, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 0, texQuality: 0 },
+        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {
         const b = e.target.closest('[data-preset]');
@@ -1596,6 +1605,8 @@ async function installChunks(m) {
         try { localStorage.setItem('gfxManual', '1'); } catch (err) {}
         const p = PRESETS[b.dataset.preset];
         for (const k in p) { try { ogSet(k, p[k]); } catch (err) {} }
+        try { localStorage.setItem('gfxPreset', b.dataset.preset); } catch (err) {}
+        markPreset();
         load();
         b.blur();
       });
