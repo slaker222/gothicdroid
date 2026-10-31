@@ -677,7 +677,9 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
 
 #if !defined(__EMSCRIPTEN__)
     // (not in the browser: the recorded commands are replayed there while nothing changes, the camera is not a part of that)
-    if(viewId==SceneGlobals::V_Main && !opengothic_debug_no_cmd_cull() && cx.isOutsideOf(scene.frustrum[viewId]))
+    // (the shadow views: the same sphere test on the gpu, by the frustum of the view; the sun below the horizon clears it)
+    if((viewId==SceneGlobals::V_Main || viewId==SceneGlobals::V_Shadow0 || viewId==SceneGlobals::V_Shadow1) &&
+       !opengothic_debug_no_cmd_cull() && cx.isOutsideOf(scene.frustrum[viewId]))
       continue;
 #endif
 
