@@ -1,5 +1,7 @@
 #include "drawcommands.h"
 
+#include <mutex>
+
 #include <Tempest/Log>
 #include <Tempest/Application>
 
@@ -244,8 +246,12 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
   return ret;
   }
 
+// boxes of the commands: grown by the npc animation workers (VisualObjects::updateInstance), read and reset by the main thread
+static std::mutex g_boundsSync;
+
 bool DrawCommands::DrawCmd::isOutsideOf(const Frustrum& f) const {
   // the spheres the gpu culls with (see VisualObjects::expandBounds): outside of them all, nothing of it is drawn
+  std::lock_guard<std::mutex> guard(g_boundsSync);
   if(type==Type::Pfx)
     return false;
   if(unbounded!=0 || boundsMin.x>boundsMax.x)
@@ -259,6 +265,7 @@ bool DrawCommands::DrawCmd::isOutsideOf(const Frustrum& f) const {
   }
 
 void DrawCommands::resetDynamicBounds() {
+  std::lock_guard<std::mutex> guard(g_boundsSync);
   for(auto& c:cmd) {
     if(c.type!=Type::Movable && c.type!=Type::Animated && c.type!=Type::Morph)
       continue;
@@ -269,6 +276,7 @@ void DrawCommands::resetDynamicBounds() {
   }
 
 void DrawCommands::expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const Tempest::Vec3& mx) {
+  std::lock_guard<std::mutex> guard(g_boundsSync);
   auto& c = cmd[cmdId];
   c.boundsMin = Tempest::Vec3(std::min(c.boundsMin.x,mn.x), std::min(c.boundsMin.y,mn.y), std::min(c.boundsMin.z,mn.z));
   c.boundsMax = Tempest::Vec3(std::max(c.boundsMax.x,mx.x), std::max(c.boundsMax.y,mx.y), std::max(c.boundsMax.z,mx.z));
@@ -286,6 +294,7 @@ void DrawCommands::expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const T
   }
 
 void DrawCommands::addUnbounded(uint16_t cmdId, int delta) {
+  std::lock_guard<std::mutex> guard(g_boundsSync);
   auto& c = cmd[cmdId];
   c.unbounded = uint32_t(int(c.unbounded)+delta);
   }

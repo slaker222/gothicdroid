@@ -15,6 +15,11 @@
 #include "gapi/vulkan/vpipelinelogger.h"
 #include "utils/string_frm.h"
 
+// render resolution by vidResIndex; 0..7 are the old steps (kept for saved settings), 8.. are the finer ones
+static const float resScaleTable[] = {1.f,0.75f,0.5f,0.4f,0.3f,0.25f,0.2f,0.15f,
+                                      0.95f,0.9f,0.85f,0.8f,0.7f,0.65f,0.6f,0.55f,0.45f,0.35f};
+static int resScaleCount() { return int(sizeof(resScaleTable)/sizeof(resScaleTable[0])); }
+
 using namespace Tempest;
 
 static const bool skyPathTrace = false;
@@ -231,22 +236,11 @@ void Renderer::setupSettings() {
 #else
   int rscale = opengothic_debug_render_scale();
 #endif
-  if(rscale == 40)
-    settings.vidResIndex = 3;
-  else if(rscale == 50)
-    settings.vidResIndex = 2;
-  else if(rscale == 75)
-    settings.vidResIndex = 1;
-  else if(rscale == 100)
-    settings.vidResIndex = 0;
-  else if(rscale == 30)
-    settings.vidResIndex = 4;
-  else if(rscale == 25)
-    settings.vidResIndex = 5;
-  else if(rscale == 20)
-    settings.vidResIndex = 6;
-  else if(rscale == 15)
-    settings.vidResIndex = 7;
+  for(int i=0; i<resScaleCount(); ++i)
+    if(rscale == int(resScaleTable[i]*100.f+0.5f)) {
+      settings.vidResIndex = float(i);
+      break;
+      }
   settings.aaEnabled = (Gothic::options().aaPreset>0) && (settings.vidResIndex==0);
 
   // direct lighting
@@ -2534,22 +2528,12 @@ Tempest::Attachment Renderer::screenshoot(uint8_t frameId) {
   return img;
   }
 
-// web: render resolution steps below 40% (vidResIndex 4..7)
 float Renderer::lowResScale() const {
-  static const float steps[] = {0.3f, 0.25f, 0.2f, 0.15f};
-  const int i = std::clamp(int(settings.vidResIndex)-4, 0, 3);
-  return steps[i];
+  const int i = std::clamp(int(settings.vidResIndex), 0, resScaleCount()-1);
+  return resScaleTable[i];
   }
 
 float Renderer::internalResolutionScale() const {
-  if(settings.vidResIndex==0)
-    return 1;
-  if(settings.vidResIndex==1)
-    return 0.75;
-  if(settings.vidResIndex==2)
-    return 0.5;
-  if(settings.vidResIndex==3)
-    return 0.4;
   return lowResScale();
   }
 
