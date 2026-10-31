@@ -448,6 +448,12 @@ class MainActivity : AppCompatActivity() {
         fun select(id: Int) { prefs().edit().putInt("sel", id).apply(); detectedGameDir = findGameDirectory() }
 
         @JavascriptInterface
+        fun openUrl(url: String) {
+            if (!url.startsWith("https://")) return
+            runOnUiThread { try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { Log.e(TAG, "openUrl: ${e.message}") } }
+        }
+
+        @JavascriptInterface
         fun get(name: String): Int { detectedGameDir = findGameDirectory(); return settings[name]?.let { iniGet(it) } ?: -1 }
 
         @JavascriptInterface
