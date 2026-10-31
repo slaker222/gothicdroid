@@ -710,6 +710,10 @@ void PfxBucket::drawShadow(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
     }
   }
 
+bool PfxBucket::needsSceneInfo(uint8_t fId) const {
+  return decl.visMaterial.isSceneInfoRequired() && (!item[fId].pfxGpu.isEmpty() || !itemTrl[fId].pfxGpu.isEmpty());
+  }
+
 void PfxBucket::drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const SceneGlobals& scene, uint8_t fId) {
   for(auto i:{/*Material::Water, */Material::Multiply, Material::Multiply2, Material::Transparent, Material::AdditiveLight, Material::Ghost}) {
     drawCommon(cmd, scene, item[fId],    SceneGlobals::V_Main, i, false);

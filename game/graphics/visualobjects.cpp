@@ -659,6 +659,11 @@ bool VisualObjects::hasWater() const {
   return drawCmd.hasCommands(Material::Water);
   }
 
+bool VisualObjects::needsSceneCopy(const Frustrum& f) const {
+  // everything that reads the copy of the scene (Material::isSceneInfoRequired)
+  return drawCmd.hasVisible(Material::Water, f) || drawCmd.hasVisible(Material::Ghost, f);
+  }
+
 void VisualObjects::drawWater(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
   // return;
   drawCmd.drawCommon(cmd, SceneGlobals::V_Main, Material::Water);

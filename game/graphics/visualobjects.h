@@ -80,6 +80,7 @@ class VisualObjects final {
 
     void drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     bool hasWater       () const;
+    bool needsSceneCopy (const Frustrum& f) const;
     void drawWater      (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawGBuffer    (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawShadow     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, int layer);

@@ -76,6 +76,13 @@ void PfxObjects::drawShadow(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8
     i.drawShadow(cmd, scene, fId, layer);
   }
 
+bool PfxObjects::needsSceneInfo(uint8_t fId) const {
+  for(auto& i:bucket)
+    if(i.needsSceneInfo(fId))
+      return true;
+  return false;
+  }
+
 void PfxObjects::drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId) {
   for(auto& i:bucket)
     i.drawTranslucent(cmd, scene, fId);

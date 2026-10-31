@@ -762,7 +762,14 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   auto tLight = perfNow() - t4;
 
   auto t5 = perfNow();
+#if !defined(__EMSCRIPTEN__)
+  // nothing in this frame reads the copy: no water, no glass, no ghosts (conservative: the camera in water copies)
+  const bool needStash = camera->isInWater() || wview->needsSceneCopy(fId) || opengothic_debug_always_stash();
+  if(needStash)
+    stashSceneAux(cmd);
+#else
   stashSceneAux(cmd);
+#endif
 
   // water quality low: a world loaded before the switch still has its water
   const bool drawWater = !settings.simpleWater || wview->hasWater();

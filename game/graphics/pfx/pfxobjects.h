@@ -31,6 +31,7 @@ class PfxObjects final {
 
     void       drawGBuffer    (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId);
     void       drawShadow     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId, int layer);
+    bool       needsSceneInfo(uint8_t fId) const;
     void       drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId);
 
   private:

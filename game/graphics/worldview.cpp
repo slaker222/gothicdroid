@@ -155,6 +155,10 @@ bool WorldView::hasWater() const {
   return visuals.hasWater();
   }
 
+bool WorldView::needsSceneCopy(uint8_t fId) const {
+  return visuals.needsSceneCopy(sGlobal.frustrum[SceneGlobals::V_Main]) || pfxGroup.needsSceneInfo(fId);
+  }
+
 void WorldView::drawWater(Tempest::Encoder<Tempest::CommandBuffer>& cmd) {
   visuals.drawWater(cmd);
   }

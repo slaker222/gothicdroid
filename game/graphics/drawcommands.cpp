@@ -600,6 +600,14 @@ bool DrawCommands::hasCommands(Material::AlphaFunc func) const {
   return false;
   }
 
+bool DrawCommands::hasVisible(Material::AlphaFunc func, const Frustrum& f) const {
+  // the same test as in drawCommon: commands that are not recorded draw nothing
+  for(auto i:ord)
+    if(i->alpha==func && i->maxPayload!=0 && !i->isOutsideOf(f))
+      return true;
+  return false;
+  }
+
 void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, SceneGlobals::VisCamera viewId, Material::AlphaFunc func) {
   struct Push { uint32_t firstMeshlet; uint32_t meshletCount; } push = {};
 

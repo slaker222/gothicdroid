@@ -65,6 +65,7 @@ class WorldView {
     void drawVsm        (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawGBuffer    (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t frameId);
     bool hasWater       () const;
+    bool needsSceneCopy (uint8_t frameId) const;
     void drawWater      (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t frameId);
 

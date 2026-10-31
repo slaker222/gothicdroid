@@ -75,6 +75,7 @@ class DrawCommands {
 
     void     drawHiZ(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     bool     hasCommands(Material::AlphaFunc func) const;
+    bool     hasVisible (Material::AlphaFunc func, const Frustrum& f) const;
     void     drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, SceneGlobals::VisCamera viewId, Material::AlphaFunc func);
 
     void     drawVsm(Tempest::Encoder<Tempest::CommandBuffer>& cmd);

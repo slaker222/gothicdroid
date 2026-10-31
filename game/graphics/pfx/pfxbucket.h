@@ -58,6 +58,7 @@ class PfxBucket {
     void                        preFrameUpdate(const SceneGlobals& scene, uint8_t fId);
     void                        drawGBuffer    (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const SceneGlobals &scene, uint8_t fId);
     void                        drawShadow     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const SceneGlobals &scene, uint8_t fId, int layer);
+    bool                        needsSceneInfo(uint8_t fId) const;
     void                        drawTranslucent(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const SceneGlobals &scene, uint8_t fId);
 
     size_t                      allocEmitter();
