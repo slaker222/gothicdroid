@@ -9,6 +9,7 @@
 #endif
 
 #include <cstring>
+#include <cstdlib>
 #include <cctype>
 #include <cassert>
 
@@ -124,9 +125,15 @@ Gothic::Gothic() {
   if(!iniFile->has("INTERNAL", "vidResIndex")) {
     int res = 0; // full-res
 #if defined(__ANDROID__)
-    // Mali (Helio G90T and alike): the whole world at the native resolution is too much, the driver resets the gpu
-    if(std::strstr(gpu.name,"Mali")!=nullptr)
-      res = 1;
+    // a weak Mali (G76 of the Helio G90T and older/smaller): the whole world at the native resolution is too much,
+    // the driver resets the gpu. Only what was seen: G76, the rest of the old ones by their number (G71, G72, G52...)
+    if(const char* m = std::strstr(gpu.name,"Mali-G")) {
+      const int model = std::atoi(m+6);
+      if(model>0 && model<=76)
+        res = 1;
+      }
+    else if(std::strstr(gpu.name,"Mali-T")!=nullptr)
+      res = 1; // the older T series: all of them weaker
 #endif
     iniFile->set("INTERNAL", "vidResIndex", res);
     }
