@@ -2010,6 +2010,7 @@ async function installChunks(m) {
         for (const [k, n] of held) if (n > 0) { held.set(k, 1); key(k, false); }
         stickEnd();
         for (const b of buttons) b.el.classList.remove('down');
+        aimOn = false; byId.aim.el.classList.remove('active');
       }
 
       // ---- buttons: [id, key, class, position (CSS), layouts]
@@ -2019,6 +2020,7 @@ async function installChunks(m) {
         ['action', 'Shift', 'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
+        ['aim',    'Shift', '',      'right:28cqmin;bottom:24cqmin',           'world'],
         ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
         ['inv',    'Tab',   'small', 'left:calc(50% + 31cqmin);bottom:2.5cqmin',                       'world'],
         ['stats',  'B',     'small', 'left:16cqmin;top:calc(36px + 1cqmin)',               'world'],
@@ -2060,7 +2062,19 @@ async function installChunks(m) {
         // new chapter screen: only a way out
         ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
       ];
-      let weaponOut = false, strikeMode = false, toolsOpen = false, marvinOn = false;
+      let weaponOut = false, bowOut = false, strikeMode = false, toolsOpen = false, marvinOn = false;
+      // bow: the aim button holds Shift until pressed again; the shot button (W) works once the bow is drawn
+      let aimOn = false, aimAt = 0;
+      const aimReady = () => aimOn && Date.now() - aimAt > 800;
+      function aimSet(on) {
+        if (aimOn === on) return;
+        aimOn = on; aimAt = Date.now();
+        key('Shift', on);
+        byId.aim.el.classList.toggle('active', on);
+        update();
+        if (on) setTimeout(update, 850);
+      }
+      function aimToggle() { aimSet(!aimOn); }
       function setTools(on) {
         toolsOpen = on;
         byId.tools.el.classList.toggle('active', on);
@@ -2083,8 +2097,8 @@ async function installChunks(m) {
         const b = { id, key: k, el, layouts: layouts.split(' '), label: '' };
         // Gothic strikes and blocks with key combinations: Shift held, then a
         // direction (W strikes, S blocks). With a weapon out the action button
-        // strikes, so it presses Shift+W instead of Shift alone.
-        const keysOf = () => (b.id === 'action' && weaponOut) ? ['Shift', 'W'] : b.key.split('+');
+        // strikes, so it presses Shift+W instead of Shift alone (a bow shoots on Shift alone).
+        const keysOf = () => (b.id === 'action' && weaponOut && !bowOut) ? ['Shift', 'W'] : b.key.split('+');
         const press = e => { e.preventDefault(); e.stopPropagation(); if (el.classList.contains('down')) return;
                              // buttons that act on the page or the engine instead of pressing a key
                              if (b.id === 'tools') { setTools(!toolsOpen); update(); return; }
@@ -2093,12 +2107,21 @@ async function installChunks(m) {
                                if (g_runtimeUp) Module.ccall('og_quick', null, ['number'], [b.id === 'qsave' ? 1 : 2]);
                                return;
                              }
+                             if (b.id === 'aim') { aimToggle(); return; }
                              el.classList.add('down');
                              try { el.setPointerCapture(e.pointerId); } catch (err) {}
                              if (b.id === 'action' && strikeMode) {
                                // a tap strikes forward, a swipe left / up / right strikes that way
                                b.strike = { x: e.clientX, y: e.clientY, dir: null, key: null, timer: 0 };
                                b.pressed = ['Shift']; key('Shift', true);
+                               return;
+                             }
+                             if (b.id === 'action' && bowOut) {
+                               // the shot: W tapped while Shift (the aim button) is held
+                               if (aimOn && aimReady()) {
+                                 key('W', true, true);
+                                 setTimeout(() => { key('W', false); el.classList.remove('down'); }, 150);
+                               } else el.classList.remove('down');
                                return;
                              }
                              b.pressed = keysOf();
@@ -2145,6 +2168,7 @@ async function installChunks(m) {
         // fists: a closed hand; bow and crossbow: an arrow; magic: a glowing orb
         fist: '<path d="M6.5 11.5V8.7a1.6 1.6 0 0 1 3.1 0 1.6 1.6 0 0 1 3.1 0 1.6 1.6 0 0 1 3.1 0 1.6 1.6 0 0 1 3.1 0V15a6 6 0 0 1-6 6h-1.4a5.5 5.5 0 0 1-5.5-5.5z"/><path d="M9.6 8.7v3.6M12.7 8.7v3.6M15.8 8.7v3.6"/><path d="M6.5 13.6h6.4a1.5 1.5 0 0 1 0 3H9.6"/>',
         arrow: '<path d="M4 20L19 5M20 4l-9 1.5 7.5 7.5zM4.8 15.8l3.4 3.4M8.2 12.4l3.4 3.4"/>',
+        aim: '<circle cx="12" cy="12" r="7"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/>',
         orb: '<circle cx="12" cy="12.5" r="6.5"/><path d="M8.4 11a4 4 0 0 1 3-2.6M8 21.5h8"/>',
         weapon: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/>',
         weaponOff: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/><path d="M3.5 20.5L20.5 3.5" stroke="rgba(0,0,0,.65)" stroke-width="5"/><path d="M3.5 20.5L20.5 3.5" stroke-width="2"/>',
@@ -2177,7 +2201,7 @@ async function installChunks(m) {
         left1:  '<path d="M15 6l-6 6 6 6"/>', right1: '<path d="M9 6l6 6-6 6"/>',
       };
       const NAMES = { action: 'Action', talk: 'Talk', take: 'Take', use: 'Use', loot: 'Loot', attack: 'Attack',
-        fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', dive: 'Dive', up: 'Surface', block: 'Block',
+        aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', dive: 'Dive', up: 'Surface', block: 'Block',
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
         camera: 'Camera: first / third person (F)', tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
@@ -2187,7 +2211,7 @@ async function installChunks(m) {
         stats: 'stats', map: 'map', menu: 'menu', skip: 'skip', dUp: 'up1', dDown: 'down1', select: 'ok',
         pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
-        ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
+        aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
         tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
         possess: 'possess' };
       stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');
@@ -2551,6 +2575,9 @@ async function installChunks(m) {
         const swim = !!(st & (1 << 8)), dive = !!(st & (1 << 9)), invMode = (st >> 20) & 7;
         const drawn = WEAPON_DRAWN[weapon];
         weaponOut = drawn;
+        bowOut = drawn && weapon >= 4 && weapon <= 5;
+        if (!bowOut && aimOn) aimSet(false);
+        void 0; // bow / crossbow: the action key alone aims, letting go shoots
         // the game's walk mode is a toggle: press Caps Lock when it is not what the stick asks for
         if (layout === 'world' && engineSlow !== wantSlow && Date.now() - lastShift > 350) {
           lastShift = Date.now();
@@ -2571,6 +2598,8 @@ async function installChunks(m) {
                                                          (marvinOn && b.layouts.includes('wcheat'))));
           if (b.id === 'cheat' && marvinOn) show = false;
           if (b.id === 'action' && layout === 'world' && act === 'action') show = false;
+          if (b.id === 'aim' && !bowOut) show = false;
+          if (b.id === 'action' && bowOut && !aimReady()) show = false; // the shot waits for the drawn bow
           if (b.id === 'block' && !(drawn && weapon <= 3)) show = false; // fists and melee weapons
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
           b.el.classList.toggle('hidden', !show);
