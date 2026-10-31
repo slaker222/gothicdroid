@@ -15,6 +15,7 @@
 #   DIR        папка игры на телефоне (по умолчанию .../com.opengothic/files/Gothic1)
 #   OUT        куда класть скриншоты (по умолчанию /tmp/og_perf)
 #   ANDROID_SERIAL  какой телефон, если подключено несколько (adb devices)
+#   TIMERS=1   включить таймеры проходов GPU (по умолчанию выключены: стоят ~2,7 FPS, без них нет строки GPU passes)
 #   WARM, SAMPLE    прогрев и окно замера в секундах (20 и 30)
 #
 # Скрипт сам: делает копию Gothic.ini / debug.cfg владельца, в конце ЗАКРЫВАЕТ ИГРУ, удаляет .og_args и возвращает
@@ -74,7 +75,7 @@ zCloudShadowScale=0
 zEnvMappingEnabled=0
 EOF
   for kv in $kvs; do k=${kv%%=*}; adb shell "sed -i 's/^$k=.*/$kv/' $D/Gothic.ini"; done
-  adb shell "printf 'safe_mode=0\nlog_pipelines=0\n' > $D/debug.cfg"
+  adb shell "printf 'safe_mode=0\nlog_pipelines=0\ngpu_timers=${TIMERS:-0}\n' > $D/debug.cfg"
   for kv in $dbg; do adb shell "echo $kv >> $D/debug.cfg"; done
   adb logcat -c
   adb shell am start -n com.opengothic/.GameActivity --es extra_game_dir "$D" >/dev/null
