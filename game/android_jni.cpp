@@ -107,6 +107,26 @@ static void runGameThread(std::string gameDir) {
     androidAppendLog(("Mod: " + s_modArg).c_str());
   }
 
+  // debugging: more command line arguments (-nomenu, ...) from <game dir>/.og_args, split by blanks
+  if(FILE* f = fopen((gameDir + "/.og_args").c_str(), "r")) {
+    char buf[512] = {};
+    const size_t n = fread(buf, 1, sizeof(buf)-1, f);
+    fclose(f);
+    std::string cur;
+    for(size_t i=0; i<=n; ++i) {
+      const char c = i<n ? buf[i] : ' ';
+      if(c==' ' || c=='\n' || c=='\r' || c=='\t') {
+        if(!cur.empty()) {
+          args.push_back(cur);
+          androidAppendLog(("Arg: " + cur).c_str());
+          cur.clear();
+        }
+      } else {
+        cur += c;
+      }
+    }
+  }
+
   std::vector<const char*> argv;
   for(const auto& a : args) {
     argv.push_back(a.c_str());

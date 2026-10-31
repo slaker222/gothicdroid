@@ -122,7 +122,13 @@ Gothic::Gothic() {
   baseIniFile.reset(new IniFile(nestedPath({u"system",u"Gothic.ini"},Dir::FT_File)));
   iniFile    .reset(new IniFile(u"Gothic.ini"));
   if(!iniFile->has("INTERNAL", "vidResIndex")) {
-    iniFile->set("INTERNAL", "vidResIndex", 0); // full-res
+    int res = 0; // full-res
+#if defined(__ANDROID__)
+    // Mali (Helio G90T and alike): the whole world at the native resolution is too much, the driver resets the gpu
+    if(std::strstr(gpu.name,"Mali")!=nullptr)
+      res = 1;
+#endif
+    iniFile->set("INTERNAL", "vidResIndex", res);
     }
   {
   defaults.reset(new IniFile());

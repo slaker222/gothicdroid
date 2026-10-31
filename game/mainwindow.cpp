@@ -31,6 +31,7 @@
 #include "gothic.h"
 #if defined(__ANDROID__)
 #include "gapi/vulkan/vpipelinelogger.h"
+#include "system/api/androidapi.h"
 #endif
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
@@ -85,6 +86,40 @@ const WebSetting g_webSettings[] = {
 // the app's page calls from its own thread: the changes are applied by the game thread between frames
 std::mutex                                 g_pendMutex;
 std::vector<std::pair<std::string,int>>    g_pending;
+#endif
+
+#if defined(__ANDROID__)
+// The driver reset the gpu: the frame was too much for it (a hang, not a bug of one draw: it depends on
+// the resolution and the draw distance together). Nothing can be drawn any more, so the next start gets lighter
+// settings, a step lower each time, and the game ends cleanly instead of crashing in the next submit.
+void onGpuDeviceLost() {
+  auto& g = Gothic::inst();
+  // not applied (no onSettingsChanged: it would rebuild the renderer on the lost device), only written to Gothic.ini
+  Gothic::settingsBeginBatch();
+  try {
+  const int lost = g.settingsGetI("INTERNAL","gpuLost") + 1;
+  g.settingsSetI("INTERNAL","gpuLost",lost);
+  const int res = int(g.settingsGetF("INTERNAL","vidResIndex"));
+  if(lost==1) {
+    g.settingsSetF("INTERNAL","vidResIndex",float(std::max(res,1)));    // 75% of the resolution
+    } else {
+    g.settingsSetF("INTERNAL","vidResIndex",float(std::max(res,2)));    // 50%
+    const int wd = g.settingsGetI("INTERNAL","webWorldDistM");
+    if(wd==0 || wd>200)
+      g.settingsSetI("INTERNAL","webWorldDistM",200);
+    if(lost>2) {
+      g.settingsSetI("INTERNAL","webWorldDistM",100);
+      g.settingsSetI("INTERNAL","webDrawDist",3);
+      g.settingsSetI("INTERNAL","webShadows",0);
+      }
+    }
+  g.flushSettings();
+  Tempest::Log::e("gpu device lost: the settings are lowered for the next start (",lost,")");
+  }
+  catch(...) {
+    Tempest::Log::e("gpu device lost: unable to lower the settings");
+    }
+  }
 #endif
 
 const WebSetting* findWebSetting(const char* name) {
@@ -311,6 +346,9 @@ MainWindow::MainWindow(Device& device)
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   g_webSettingsReady = true;
   g_webMain          = this;
+#endif
+#if defined(__ANDROID__)
+  Tempest::AndroidApi::setDeviceLostHandler(&onGpuDeviceLost);
 #endif
 
   if(Gothic::inst().version().game==2)
