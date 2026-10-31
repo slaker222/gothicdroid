@@ -5015,7 +5015,7 @@ function serveLoop() {
         throw e;
       }
       const adapter = g_gpuAdapter;
-      const wanted = ['texture-compression-bc', 'float32-filterable', 'rg11b10ufloat-renderable',
+      const wanted = ['texture-compression-bc', 'texture-compression-astc', 'float32-filterable', 'rg11b10ufloat-renderable',
                       'indirect-first-instance', 'depth-clip-control', 'depth32float-stencil8',
                       'clip-distances'];
       const requiredFeatures = wanted.filter(f => adapter.features.has(f));
