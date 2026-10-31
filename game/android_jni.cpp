@@ -218,6 +218,11 @@ Java_com_opengothic_MainActivity_nativeSurfaceChanged(JNIEnv*, jobject, jint wid
 }
 
 JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetDensity(JNIEnv*, jobject, jfloat density) {
+  Tempest::AndroidApi::setDensity(density);
+}
+
+JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeSurfaceChanged(JNIEnv*, jobject, jint width, jint height) {
   Tempest::AndroidApi::notifySurfaceChanged(width, height);
 }

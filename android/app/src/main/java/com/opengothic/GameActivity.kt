@@ -49,6 +49,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeSetSurface(surface: Surface, gameDir: String)
     private external fun nativeSetMod(mod: String)
     private external fun nativeSurfaceChanged(width: Int, height: Int)
+    private external fun nativeSetDensity(density: Float)
     private external fun nativeDestroySurface()
     private external fun nativeOnTouch(action: Int, x: Float, y: Float, id: Int)
     private external fun nativeOnKey(action: Int, keyCode: Int)
@@ -255,6 +256,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
         Log.i(TAG, "GameActivity surfaceChanged: ${width}x${height}, format=$format")
+        nativeSetDensity(resources.displayMetrics.density)
         nativeSurfaceChanged(width, height)
     }
 
