@@ -19,39 +19,54 @@
     .game .pic { aspect-ratio: 21 / 9; background-size: cover; background-color: #000; position: relative; }
     .game .pic .badge { position: absolute; left: 8px; bottom: 8px; font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--dim); }
     .game .pic .badge.ok { color: #4caf50; }
+    .dots::after { content: ''; animation: dots 1.2s steps(4, end) infinite; }
+    @keyframes dots { 0% { content: ''; } 25% { content: '.'; } 50% { content: '..'; } 75% { content: '...'; } }
+    .langs { position: absolute; right: 8px; bottom: 8px; display: flex; gap: 6px; }
+    .langs span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--text); }
     .game .body { padding: 12px 14px 14px; }
+    .game .title { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
     .game h3 { font-size: 20px; font-weight: 600; color: var(--accent); }
+    .game .dl-info { font-size: 13px; color: var(--dim); display: none; align-items: center; gap: 8px; }
+    .game .dl-info button { font: inherit; font-size: 12px; padding: 2px 8px; }
     .game .path { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); margin: 4px 0 12px; word-break: break-all; min-height: 17px; }
+    .game .path.err { color: var(--danger); }
     .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
     .game button:active { border-color: var(--accent); }
     .game button.play { flex: 1; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
     .game button.play:disabled { opacity: .35; }
-    .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
+    .game button.play.busy { opacity: 1; color: #8a8a8a; border-color: var(--line); }
     .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
+    .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
     .game button.icon svg { margin: 0; }
     .game button:disabled { opacity: .4; }
-    .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
-    #dev-btn { font: inherit; font-size: 13px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; cursor: pointer; white-space: nowrap; }
-    #dev-btn:active { border-color: var(--accent); }
-    .langs { position: absolute; left: 8px; bottom: 8px; display: flex; gap: 6px; }
-    .langs span { font-size: 12px; padding: 2px 8px; border-radius: 10px; background: rgba(0,0,0,.65); color: var(--text); }
-    .game .pic .badge { left: auto; right: 8px; }
-    #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: flex-end; z-index: 50; }
+    #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: none; align-items: flex-end; z-index: 50; }
     #sheet.open { display: flex; }
-    #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 14px 14px 0 0; padding: 16px 16px 24px; display: flex; flex-direction: column; gap: 12px; max-height: 90vh; overflow-y: auto; }
-    #sheet h2 { font-size: 17px; color: var(--accent); }
-    #sheet .sr { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 15px; }
-    #sheet select, #sheet input[type=text] { font: inherit; font-size: 15px; color: var(--text); background: #222; border: 1px solid var(--line); padding: 8px; }
-    #sheet input[type=text] { flex: 1; min-width: 0; }
-    #sheet .total { font-size: 15px; color: var(--accent); }
-    #sheet .bar { height: 8px; background: #2a2a2a; display: none; }
-    #sheet .bar div { height: 100%; width: 0; background: var(--accent); }
-    #sheet .msg { font-size: 13px; color: var(--dim); white-space: pre-wrap; }
+    #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; padding: 22px 18px 24px; display: flex; flex-direction: column; gap: 18px; max-height: 92vh; overflow-y: auto; }
+    #sheet .sh-head h2 { font-size: 21px; font-weight: 600; color: var(--accent); }
+    #sheet .sh-head p { font-size: 13px; color: var(--dim); margin-top: 3px; }
+    #sheet .sh-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
+    #sheet .field-row { display: flex; gap: 8px; }
+    #sheet input[type=text] { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; height: 44px; }
+    #sheet input[type=text][readonly] { color: var(--dim); background: #181818; }
+    #sheet .ib { flex: none; width: 44px; height: 44px; padding: 0; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+    #sheet .ib:active { border-color: var(--accent); }
+    #sheet .ib svg { width: 21px; height: 21px; fill: currentColor; }
+    #sbody { display: flex; flex-direction: column; gap: 14px; }
+    #sheet .pick { display: flex; flex-direction: column; gap: 8px; }
+    #sheet .pick .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; background: #222; border: 1px solid var(--line); border-radius: 10px; padding: 4px 8px 4px 14px; font-size: 15px; }
+    #sheet .pick select { font: inherit; font-size: 15px; color: var(--accent); background: transparent; border: 0; padding: 10px 4px; max-width: 60%; }
+    #sheet .size { display: flex; flex-direction: column; gap: 2px; }
+    #sheet .size b { font-size: 30px; font-weight: 600; color: var(--accent); line-height: 1.1; }
+    #sheet .size span { font-size: 13px; color: var(--dim); }
+    #sheet .msg { font-size: 13px; color: var(--dim); white-space: pre-wrap; line-height: 1.5; }
     #sheet .msg.err { color: var(--danger); }
-    #sheet .go { font: inherit; font-size: 16px; padding: 12px; color: #000; background: var(--accent); border: 0; cursor: pointer; }
-    #sheet .go:disabled { opacity: .4; }
-    #sheet .sec { font: inherit; font-size: 14px; padding: 10px; color: var(--text); background: #222; border: 1px solid var(--line); cursor: pointer; }
+    #sheet h2 { font-size: 21px; font-weight: 600; color: var(--accent); }
+    #sheet .sec { font: inherit; font-size: 15px; height: 48px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    #sheet .go { font: inherit; font-size: 16px; font-weight: 600; height: 50px; color: #000; background: var(--accent); border: 0; border-radius: 10px; cursor: pointer; width: 100%; }
+    #sheet .go:active { background: #bbb; }
+    #sheet .link { font: inherit; font-size: 14px; color: var(--dim); background: transparent; border: 0; padding: 4px; cursor: pointer; align-self: center; }
+    .langs span { cursor: pointer; }
     .hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
     #settings-panel { position: static; display: block; width: auto; max-width: none; max-height: none; background: transparent; border: 0; padding: 0; overflow: visible; }
     #settings-panel .set-row { font-size: 15px; padding: 7px 0; }
@@ -68,9 +83,8 @@
 </head>
 <body>
   <div id="wrap">
-    <div class="top"><h1>OpenGothic<small>Android</small></h1><button id="dev-btn">Gothic Dev</button></div>
+    <h1>OpenGothic<small>Android</small></h1>
     <div class="games" id="games"></div>
-    <div class="hint" id="scan-note"></div>
     <div class="card" id="settings-card"><h2 id="settings-title">Settings</h2>{{PANEL}}</div>
     <div class="card"><h2>Log</h2>
       <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
@@ -81,128 +95,209 @@
   <script>
     'use strict';
     const $ = id => document.getElementById(id);
-    const PICS = { 1: 'img/g1.png', 2: 'img/g2.png' };
+    const PICS = { 1: 'img/g1.png', 2: 'img/g2.png', 3: 'img/myrtana.jpg' };
+    const POS = { 1: '25%', 2: '80%', 3: '12%' };
     const ICON_HOME = '<svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>';
     const ICON_FOLDER = '<svg viewBox="0 0 24 24"><path d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/></svg>';
+    const ICON_LOCK = '<svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-10 0v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zM9 6a3 3 0 0 1 6 0v2H9V6z"/></svg>';
+    const ICON_UNLOCK = '<svg viewBox="0 0 24 24"><path d="M18 8h-1V6a5 5 0 0 0-9.9-1h2A3 3 0 0 1 15 6v2H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2z"/></svg>';
+    const mb = n => n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : Math.round(n / 1048576) + ' MB';
     let games = [];
+    let scanTimer = 0;
+
     function refresh(scanned) {
       try { games = JSON.parse(scanned ? Launcher.rescan() : Launcher.games()); } catch (e) { games = []; }
+      const scanning = Launcher.scanning();
       const sel = Launcher.selected();
       const root = $('games');
       root.innerHTML = '';
       for (const g of games) {
         const el = document.createElement('div');
         el.className = 'game' + (g.id === sel ? ' sel' : '');
+        el.dataset.id = g.id;
         const found = !!g.path;
         el.innerHTML =
-          '<div class="pic" style="background-image:url(' + PICS[g.id] + ');background-position:center ' + (g.id === 1 ? '25%' : '80%') + '">' +
-            '<span class="badge' + (found ? ' ok' : '') + '">' + (found ? 'Installed' : 'Not found') + '</span><div class="langs"></div></div>' +
-          '<div class="body"><h3></h3><div class="path"></div><div class="btns">' +
-            '<button class="play"></button>' +
+          '<div class="pic" style="background-image:url(' + PICS[g.id] + ');background-position:center ' + POS[g.id] + '">' +
+            '<span class="badge"></span><div class="langs"></div></div>' +
+          '<div class="body"><div class="title"><h3></h3><span class="dl-info"><span class="dl-text"></span><button class="dl-cancel">Cancel</button></span></div>' +
+          '<div class="path"></div><div class="btns">' +
+            '<button class="play">Play</button>' +
             '<button class="folder" title="Choose the game folder">' + ICON_FOLDER + ' Folder</button>' +
-            '<button class="dl" title="Download from the PC (Gothic_Dev) on the local network">Download</button>' +
+            (g.canDownload ? '<button class="dl" title="' + (g.downloaded ? 'Delete the downloaded game' : 'Download from the PC on the local network') + '">' + (g.downloaded ? 'Delete' : 'Download') + '</button>' : '') +
             '<button class="icon home" title="Add to the home screen" aria-label="Add to the home screen">' + ICON_HOME + '</button>' +
           '</div></div>';
-        el.querySelector('h3').textContent = 'Gothic ' + g.id;
-        el.querySelector('.path').textContent = found ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : 'Choose the folder with Data/*.vdf, or the phone is searched again with the button below';
+        el.querySelector('h3').textContent = g.title;
+        const badge = el.querySelector('.badge');
+        if (found) { badge.textContent = 'Installed'; badge.classList.add('ok'); }
+        else if (scanning) { badge.innerHTML = 'Searching<span class="dots"></span>'; }
+        else badge.textContent = 'Not found';
+        el.querySelector('.path').textContent = found ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : (scanning ? '' : 'Choose the folder with Data/*.vdf');
         const play = el.querySelector('.play');
-        play.textContent = 'Play';
         play.disabled = !found;
         play.addEventListener('click', () => Launcher.start(g.id));
         el.querySelector('.folder').addEventListener('click', () => Launcher.pick(g.id));
-        el.querySelector('.dl').addEventListener('click', () => openDownload(g.id));
-        // the languages of the game, bottom left of the picture
-        try {
-          const lg = Launcher.langs(g.id);
-          if (lg) { const l = JSON.parse(lg); el.querySelector('.langs').innerHTML = '<span>Text: ' + l.text.toUpperCase() + '</span><span>Voice: ' + l.voice.toUpperCase() + '</span>'; }
-        } catch (e) {}
+        const dl = el.querySelector('.dl');
+        if (dl) dl.addEventListener('click', () => g.downloaded ? confirmDelete(g) : openSheet(g, 'all'));
         el.querySelector('.home').disabled = !found;
         el.querySelector('.home').addEventListener('click', () => Launcher.pin(g.id));
+        el.querySelector('.dl-cancel').addEventListener('click', () => Launcher.cancelDownload());
         // a tap on the picture: the settings below are of this game
         el.querySelector('.pic').addEventListener('click', () => { Launcher.select(g.id); refresh(); });
+        // the languages of the game, right of the picture
+        try {
+          const lg = Launcher.langs(g.id);
+          if (lg) {
+            const l = JSON.parse(lg);
+            el.querySelector('.langs').innerHTML = '<span data-kind="text" title="Change the text language">Text: ' + l.text.toUpperCase() + '</span>' +
+              '<span data-kind="voice" title="Change the voice language">Voice: ' + (l.voice === 'none' ? '—' : l.voice.toUpperCase()) + '</span>';
+            el.querySelectorAll('.langs span').forEach(c => c.addEventListener('click', e => { e.stopPropagation(); openSheet(g, c.dataset.kind); }));
+          }
+        } catch (e) {}
         root.appendChild(el);
       }
       const g = games.find(x => x.id === sel) || games[0];
-      $('settings-title').textContent = 'Settings: Gothic ' + g.id;
-      $('scan-note').innerHTML = '<button id="rescan" style="font:inherit;font-size:13px;color:var(--text);background:#222;border:1px solid var(--line);padding:8px 12px;cursor:pointer">Search the phone for games</button>';
-      $('rescan').addEventListener('click', () => { $('rescan').textContent = 'Searching...'; setTimeout(() => refresh(true), 50); });
+      $('settings-title').textContent = 'Settings: ' + g.title;
+      // the barrier is only in Gothic 1
+      document.querySelectorAll('#settings-panel .g1only').forEach(e => { e.style.display = g.id === 1 ? '' : 'none'; });
       load();
+      applyDownload();
+      // the phone is searched after the start: the cards show it and update when it is done
+      clearInterval(scanTimer);
+      if (scanning) scanTimer = setInterval(() => { if (!Launcher.scanning()) { clearInterval(scanTimer); refresh(); } }, 500);
     }
-    // ---- downloading a game from the PC (the packs of Gothic_Dev, the same ones the browser installs)
+
+    // ---- the download runs in the background: the card of the game shows it (the Play button fills, the title gets
+    // the size and the speed), the line goes when the game is installed
+    let dlSeen = false, dlLast = { t: 0, done: 0 }, dlSpeed = 0;
+    function applyDownload() {
+      let st;
+      try { st = JSON.parse(Launcher.dlState()); } catch (e) { return; }
+      document.querySelectorAll('.game').forEach(el => {
+        const mine = st.game === +el.dataset.id && (st.running || st.error);
+        const info = el.querySelector('.dl-info'), play = el.querySelector('.play'), path = el.querySelector('.path');
+        const dl = el.querySelector('.dl');
+        if (dl) dl.disabled = !!st.running;
+        if (!mine) { info.style.display = 'none'; play.classList.remove('busy'); play.style.background = ''; return; }
+        if (st.running) {
+          const now = performance.now();
+          if (dlLast.t && st.done >= dlLast.done) {
+            const inst = (st.done - dlLast.done) / ((now - dlLast.t) / 1000);
+            dlSpeed = dlSpeed ? dlSpeed * 0.7 + inst * 0.3 : inst;
+          }
+          dlLast = { t: now, done: st.done };
+          const pct = st.total ? Math.min(100, st.done * 100 / st.total) : 0;
+          play.classList.add('busy');
+          play.style.background = 'linear-gradient(to right, #fff ' + pct + '%, #000 ' + pct + '%)';
+          info.style.display = 'flex';
+          info.querySelector('.dl-text').textContent = mb(st.done) + ' of ' + mb(st.total) + '  ·  ' + (dlSpeed / 1048576).toFixed(1) + ' MB/s';
+        } else {
+          info.style.display = 'none';
+          play.classList.remove('busy'); play.style.background = '';
+          path.className = 'path err'; path.textContent = st.error;
+        }
+      });
+    }
+    setInterval(() => {
+      let st;
+      try { st = JSON.parse(Launcher.dlState()); } catch (e) { return; }
+      if (st.running) { dlSeen = true; applyDownload(); }
+      else if (dlSeen) { dlSeen = false; dlLast = { t: 0, done: 0 }; dlSpeed = 0; if (st.error) applyDownload(); else refresh(); }
+    }, 500);
+
+    // ---- delete of a game downloaded from the PC (asks first)
+    function confirmDelete(g) {
+      const sheet = $('sheet'), box = $('sheet-box');
+      box.innerHTML = '<h2>Delete ' + g.title + '?</h2>' +
+        '<div class="msg">The game downloaded from the PC is removed from the phone (' + g.path.replace(/</g, '&lt;') + '), with its savegames and settings. It can be downloaded again.</div>' +
+        '<button class="go" id="del-yes" style="background:#e5484d;color:#fff">Delete</button><button class="sec" id="del-no">Cancel</button>';
+      sheet.classList.add('open');
+      $('del-no').addEventListener('click', () => sheet.classList.remove('open'));
+      $('del-yes').addEventListener('click', () => { sheet.classList.remove('open'); Launcher.deleteGame(g.id); });
+    }
+
+    // ---- the sheet of the downloads: a whole game from the PC (Gothic_Dev), or one language of a downloaded game
     const sheet = $('sheet'), box = $('sheet-box');
-    sheet.addEventListener('click', e => { if (e.target === sheet && !(dlTimer)) sheet.classList.remove('open'); });
-    let dlTimer = 0;
-    const mb = n => n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : Math.round(n / 1048576) + ' MB';
-    $('dev-btn').addEventListener('click', () => {
-      box.innerHTML = '<h2>Gothic Dev: server of the PC</h2><div class="msg">The games are downloaded from the PC in the same network: run <b>python3 web/serve.py 8322 --lan</b> there (without --https) and enter its address.</div>' +
-        '<div class="sr"><input type="text" id="srv" autocapitalize="off" autocorrect="off" spellcheck="false"></div><button class="go" id="srv-save">Save</button><button class="sec" id="srv-close">Close</button>';
-      $('srv').value = Launcher.server();
-      $('srv-save').addEventListener('click', () => { Launcher.setServer($('srv').value); sheet.classList.remove('open'); });
-      $('srv-close').addEventListener('click', () => sheet.classList.remove('open'));
+    const ICON_RELOAD = '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
+    sheet.addEventListener('click', e => { if (e.target === sheet) sheet.classList.remove('open'); });
+    let cur = null;   // {g, kind: 'all' | 'text' | 'voice'}
+    function openSheet(g, kind) {
+      cur = { g, kind };
+      const head = kind === 'all' ? ['Download ' + g.title, 'The game and its languages from the PC in your network'] :
+                   kind === 'text' ? ['Text language', g.title + ': the other languages stay as they are'] :
+                                     ['Voice language', g.title + ': the other languages stay as they are'];
+      box.innerHTML = '<div class="sh-head"><h2></h2><p></p></div>' +
+        '<div><div class="sh-label">Server of the PC</div><div class="field-row">' +
+          '<input type="text" id="srv" readonly autocapitalize="off" autocorrect="off" spellcheck="false">' +
+          '<button class="ib" id="srv-lock" title="Unlock the link">' + ICON_LOCK + '</button>' +
+          '<button class="ib" id="srv-reset" title="Reset the link">' + ICON_RELOAD + '</button></div></div>' +
+        '<div id="sbody"></div><button class="link" id="x">Close</button>';
+      box.querySelector('h2').textContent = head[0];
+      box.querySelector('p').textContent = head[1];
+      const srv = $('srv');
+      srv.value = Launcher.server();
+      let locked = true;
+      const setLock = on => { locked = on; srv.readOnly = on; $('srv-lock').innerHTML = on ? ICON_LOCK : ICON_UNLOCK; $('srv-lock').title = on ? 'Unlock the link' : 'Lock the link'; };
+      $('srv-lock').addEventListener('click', () => {
+        if (locked) { setLock(false); srv.focus(); }
+        else { setLock(true); Launcher.setServer(srv.value); connect(); }
+      });
+      srv.addEventListener('change', () => Launcher.setServer(srv.value));
+      $('srv-reset').addEventListener('click', () => { srv.value = Launcher.resetServer(); setLock(true); connect(); });
+      $('x').addEventListener('click', () => sheet.classList.remove('open'));
       sheet.classList.add('open');
-    });
-    let dlGame = 0, dlIndex = null;
-    function openDownload(id) {
-      dlGame = id; dlIndex = null;
-      const st = JSON.parse(Launcher.dlState());
-      box.innerHTML = '<h2>Download Gothic ' + id + '</h2><div class="msg" id="dl-msg">Connecting to ' + Launcher.server() + ' ...</div>';
-      sheet.classList.add('open');
-      if (st.running) { showProgress(); return; }
-      Launcher.fetchIndex(id);
+      connect();
+    }
+    function connect() {
+      $('sbody').innerHTML = '<div class="msg">Connecting to ' + Launcher.server().replace(/</g, '&lt;') + ' <span class="dots"></span></div>';
+      Launcher.fetchIndex(cur.g.id);
     }
     window.onIndex = (id, r) => {
-      if (id !== dlGame || !sheet.classList.contains('open')) return;
+      if (!cur || id !== cur.g.id || !sheet.classList.contains('open') || !$('sbody')) return;
       if (r.error) {
-        box.innerHTML = '<h2>Download Gothic ' + id + '</h2><div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the server address (button Gothic Dev) and that the PC is in the same network.</div><button class="sec" id="x">Close</button>';
-        $('x').addEventListener('click', () => sheet.classList.remove('open'));
+        $('sbody').innerHTML = '<div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the link and that the PC is in the same network (python3 web/serve.py 8322 --lan).</div>';
         return;
       }
-      dlIndex = r;
-      const opt = (l, voice) => '<option value="' + l.id + '">' + l.name + '</option>';
-      const prev = (() => { try { return JSON.parse(Launcher.langs(id)); } catch (e) { return null; } })();
-      box.innerHTML = '<h2>Download Gothic ' + id + '</h2>' +
-        '<div class="sr">Text language <select id="l-text">' + r.langs.map(l => opt(l)).join('') + '</select></div>' +
-        '<div class="sr">Voice language <select id="l-voice">' + r.langs.filter(l => l.hasVoice).map(l => opt(l)).join('') + '</select></div>' +
-        '<div class="total" id="total"></div><div class="msg">The game is installed in the folder of the app and used from the next start.</div>' +
-        '<div class="bar" id="bar"><div></div></div><div class="msg" id="dl-msg"></div>' +
-        '<button class="go" id="go">Download</button><button class="sec" id="x">Close</button>';
-      if (prev) { $('l-text').value = prev.text; $('l-voice').value = prev.voice; }
-      else { $('l-text').value = (r.langs.find(l => l.id === 'ru') || r.langs[0]).id; $('l-voice').value = (r.langs.find(l => l.id === 'ru' && l.hasVoice) || r.langs.find(l => l.hasVoice)).id; }
-      const total = () => {
-        const t = r.langs.find(l => l.id === $('l-text').value), v = r.langs.find(l => l.id === $('l-voice').value);
-        const n = r.base + t.text + v.voice;
-        $('total').textContent = 'Download size: ' + mb(n) + '  (game ' + mb(r.base) + ', text ' + mb(t.text) + ', voice ' + mb(v.voice) + ')';
+      const kind = cur.kind;
+      let prev = null;
+      try { prev = JSON.parse(Launcher.langs(id)); } catch (e) {}
+      const opt = l => '<option value="' + l.id + '">' + l.name + '</option>';
+      const voiceOpts = '<option value="none">Without</option>' + r.langs.filter(l => l.hasVoice).map(opt).join('');
+      let html = '<div class="pick">';
+      if (kind !== 'voice') html += '<div class="row"><span>Text</span><select id="l-text">' + r.langs.map(opt).join('') + '</select></div>';
+      if (kind !== 'text') html += '<div class="row"><span>Voice</span><select id="l-voice">' + voiceOpts + '</select></div>';
+      html += '</div><div class="size"><b id="size-n"></b><span id="size-d"></span></div>' +
+        '<div class="msg">' + (kind === 'all' ? 'The game is installed in the folder of the app and used from the next start.' : 'Only this language is downloaded; the old one is removed when it is done.') + '</div>' +
+        '<button class="go" id="go"></button>';
+      $('sbody').innerHTML = html;
+      const lt = $('l-text'), lv = $('l-voice');
+      if (lt) lt.value = prev ? prev.text : (r.langs.find(l => l.id === 'ru') || r.langs[0]).id;
+      if (lv) lv.value = prev ? prev.voice : ((r.langs.find(l => l.id === 'ru' && l.hasVoice) || {}).id || 'none');
+      const info = () => {
+        const t = lt ? r.langs.find(l => l.id === lt.value) : null;
+        const v = lv && lv.value !== 'none' ? r.langs.find(l => l.id === lv.value) : null;
+        const parts = [];
+        let n = 0;
+        if (kind === 'all') { n += r.base; parts.push('game ' + mb(r.base)); }
+        if (t) { n += t.text; parts.push('text ' + mb(t.text)); }
+        if (v) { n += v.voice; parts.push('voice ' + mb(v.voice)); }
+        else if (lv) parts.push('no voice');
+        $('size-n').textContent = n ? mb(n) : '0 MB';
+        $('size-d').textContent = parts.join('  ·  ');
+        $('go').textContent = kind === 'all' ? 'Download' : (lv && lv.value === 'none' ? 'Remove the voice' : 'Install');
       };
-      $('l-text').addEventListener('change', total); $('l-voice').addEventListener('change', total); total();
-      $('x').addEventListener('click', () => sheet.classList.remove('open'));
+      if (lt) lt.addEventListener('change', info);
+      if (lv) lv.addEventListener('change', info);
+      info();
       $('go').addEventListener('click', () => {
-        if (!Launcher.download(id, $('l-text').value, $('l-voice').value)) return;
-        showProgress();
+        const text = kind === 'voice' ? '' : lt.value;
+        const voice = kind === 'text' ? '' : lv.value;
+        if (!Launcher.download(id, text, voice)) return;
+        // the menu closes, the card of the game shows the progress
+        sheet.classList.remove('open');
+        dlSeen = true; dlLast = { t: 0, done: 0 }; dlSpeed = 0;
+        applyDownload();
       });
     };
-    function showProgress() {
-      if (!$('bar')) {
-        box.innerHTML = '<h2>Download Gothic ' + dlGame + '</h2><div class="total" id="total"></div><div class="bar" id="bar"><div></div></div><div class="msg" id="dl-msg"></div><button class="sec" id="x">Cancel</button>';
-      }
-      $('bar').style.display = 'block';
-      $('go') && ($('go').style.display = 'none');
-      $('x').textContent = 'Cancel';
-      $('x').onclick = () => Launcher.cancelDownload();
-      clearInterval(dlTimer);
-      const tick = () => {
-        const st = JSON.parse(Launcher.dlState());
-        const pct = st.total ? Math.min(100, st.done * 100 / st.total) : 0;
-        $('bar').firstElementChild.style.width = pct + '%';
-        $('total').textContent = mb(st.done) + ' of ' + mb(st.total) + '  (' + Math.round(pct) + '%)';
-        $('dl-msg').className = 'msg' + (st.error ? ' err' : '');
-        $('dl-msg').textContent = st.error ? st.error : st.finished ? 'Done' : 'Downloading: ' + st.phase;
-        if (!st.running) {
-          clearInterval(dlTimer); dlTimer = 0;
-          $('x').textContent = 'Close'; $('x').onclick = () => { sheet.classList.remove('open'); refresh(); };
-        }
-      };
-      dlTimer = setInterval(tick, 500); tick();
-    }
 
     // settings: the same elements as on the site's page, read and written to the game's Gothic.ini by the app
     const panel = $('settings-panel');

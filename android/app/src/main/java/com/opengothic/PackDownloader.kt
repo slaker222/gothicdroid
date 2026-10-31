@@ -76,29 +76,43 @@ class PackDownloader(private val server: String) {
         return Index(j.getJSONObject("base").getLong("size"), langs, dir)
     }
 
-    /** installs base + the text pack + the voice pack of the chosen languages into [target] */
-    fun install(game: Int, text: String, voice: String, target: File) {
+    /**
+     * installs base + the text pack + the voice pack of the chosen languages into [target].
+     * "" keeps the language that is installed (one language is changed alone), voice "none" is no voice pack at all.
+     */
+    fun install(game: Int, textSel: String, voiceSel: String, target: File) {
         running = true; finished = false; error = ""; cancel = false; done.set(0)
         try {
             val idx = index(game)
+            val cur = try { JSONObject(File(target, ".og_langs.json").readText()) } catch (e: Exception) { null }
+            val text = if (textSel.isEmpty()) cur?.optString("text", "") ?: "" else textSel
+            val voice = if (voiceSel.isEmpty()) cur?.optString("voice", "none") ?: "none" else voiceSel
             val t = idx.langs.firstOrNull { it.id == text } ?: throw Exception("no text pack: $text")
-            val v = idx.langs.firstOrNull { it.id == voice && it.hasVoice } ?: throw Exception("no voice pack: $voice")
-            total = idx.baseSize + t.textSize + v.voiceSize
+            val v = if (voice == "none") null else idx.langs.firstOrNull { it.id == voice && it.hasVoice } ?: throw Exception("no voice pack: $voice")
             target.mkdirs()
+            val packs = ArrayList<Pair<String, String>>()
+            packs.add(Pair("base", "${idx.dir}/base/manifest.json"))
+            packs.add(Pair("text-$text", "${idx.dir}/$text/text/manifest.json"))
+            if (v != null) packs.add(Pair("voice-$voice", "${idx.dir}/$voice/voice/manifest.json"))
+            // what is still to be downloaded (packs that are installed already are not counted)
+            phase = "check"
+            val manifests = packs.map { (key, path) -> getJson(base() + path).also { it.put("_key", key) } }
+            total = manifests.sumOf { remaining(target, it) }
             val free = target.usableSpace
             if (free < total * 2) throw Exception("Not enough space: need about ${total * 2 / 1048576} MB (the unpacked game is larger than the download), free ${free / 1048576} MB")
-            val packs = listOf(
-                Pair("base", "${idx.dir}/base/manifest.json"),
-                Pair("text-$text", "${idx.dir}/$text/text/manifest.json"),
-                Pair("voice-$voice", "${idx.dir}/$voice/voice/manifest.json"))
             val files = JSONObject()
-            for ((key, path) in packs) {
-                phase = key
-                files.put(key.substringBefore('-'), installPack(target, key, base() + path))
+            for ((i, p) in packs.withIndex()) {
+                phase = p.first
+                files.put(p.first.substringBefore('-'), installPack(target, p.first, base() + p.second, manifests[i]))
             }
             // the files of the languages that were installed before and are not in this choice
             removeOld(target, files)
-            File(target, ".og_langs.json").writeText(JSONObject().put("text", text).put("voice", voice).put("files", files).toString())
+            // the state of a pack whose files are gone: it must not say "done" if the language comes back
+            if (cur != null) {
+                if (cur.optString("text") != text) File(target, ".og_pack_text-${cur.optString("text")}.json").delete()
+                if (cur.optString("voice") != voice && cur.optString("voice") != "none") File(target, ".og_pack_voice-${cur.optString("voice")}.json").delete()
+            }
+            File(target, ".og_langs.json").writeText(JSONObject().put("text", text).put("voice", if (v != null) voice else "none").put("files", files).toString())
             phase = "done"
             finished = true
         } catch (e: Cancelled) {
@@ -124,9 +138,18 @@ class PackDownloader(private val server: String) {
         }
     }
 
+    // bytes of the chunks of a pack that are not installed yet
+    private fun remaining(target: File, man: JSONObject): Long {
+        val done = HashSet<String>()
+        try { val a = JSONObject(File(target, ".og_pack_${man.getString("_key")}.json").readText()).getJSONArray("done"); for (i in 0 until a.length()) done.add(a.getString(i)) } catch (e: Exception) {}
+        var n = 0L
+        val chunks = man.getJSONArray("chunks")
+        for (i in 0 until chunks.length()) chunks.getJSONObject(i).let { if (it.getString("name") !in done) n += it.getLong("size") }
+        return n
+    }
+
     /** returns the paths of the files of the pack */
-    private fun installPack(target: File, key: String, manifestUrl: String): JSONArray {
-        val man = getJson(manifestUrl)
+    private fun installPack(target: File, key: String, manifestUrl: String, man: JSONObject): JSONArray {
         if (man.getInt("version") != 1) throw Exception("unsupported manifest version")
         val folder = manifestUrl.substringBeforeLast('/') + "/"
         val files = man.getJSONArray("files")
@@ -153,10 +176,6 @@ class PackDownloader(private val server: String) {
             }
             return file
         }
-
-        var already = 0L
-        for (i in 0 until chunks.length()) if (chunks.getJSONObject(i).getString("name") in doneNames) already += chunks.getJSONObject(i).getLong("size")
-        done.addAndGet(already)
 
         val todo = (0 until chunks.length()).filter { chunks.getJSONObject(it).getString("name") !in doneNames }
         val next = AtomicInteger()

@@ -34,6 +34,7 @@ extern "C" void og_input_look(int dx, int dy);
 static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
+static std::string       s_modArg;   // -game:<ini> of a mod (Archolos), set by the activity before the surface
 static std::mutex        s_logMutex;
 static std::string       s_recentLog;
 static std::string       s_logFilePath = "/sdcard/Gothic2/opengothic_log.txt";
@@ -99,6 +100,10 @@ static void runGameThread(std::string gameDir) {
     "-g",
     gameDir
   };
+  if(!s_modArg.empty()) {
+    args.push_back("-game:" + s_modArg);
+    androidAppendLog(("Mod: " + s_modArg).c_str());
+  }
 
   std::vector<const char*> argv;
   for(const auto& a : args) {
@@ -266,6 +271,13 @@ Java_com_opengothic_GameActivity_nativeSettingSet(JNIEnv* env, jobject, jstring 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeBarrierZone(JNIEnv*, jobject, jint kind) {
   return og_barrier_zone(kind);
+}
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetMod(JNIEnv* env, jobject, jstring jMod) {
+  const char* c = env->GetStringUTFChars(jMod, nullptr);
+  s_modArg = c;
+  env->ReleaseStringUTFChars(jMod, c);
 }
 
 JNIEXPORT jint JNICALL

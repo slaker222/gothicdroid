@@ -538,6 +538,7 @@
     #settings-panel .fps-slider input { width: 100px; accent-color: var(--accent); cursor: pointer; }
     #settings-panel .fps-slider output { min-width: 24px; text-align: right; }
     #settings-panel .barrier-ctl { display: flex; align-items: center; gap: 6px; }
+    #settings-panel .vol-ico { width: 18px; height: 18px; fill: var(--dim); flex: none; }
     #settings-panel .barrier-ctl button { font: inherit; font-size: 12px; padding: 2px 5px; color: var(--text); background: #222; border: 1px solid var(--line); cursor: pointer; }
     #settings-panel .barrier-ctl button:hover { border-color: var(--accent); }
     #settings-panel .barrier-ctl output { min-width: 14px; text-align: right; }
@@ -673,20 +674,21 @@
           <option value="0">High</option><option value="1">Low</option><option value="2">Off</option>
         </select>
       </label>
-      <label class="set-row" title="Classic: the barrier shows for 45 seconds when the game starts, dissolves, and comes back for 45 seconds every 36 minutes. Constant: always there. Off: no barrier. The slider is the volume of its hum and thunder (Gothic 1 only)">Barrier
+      <label class="set-row g1only" title="Classic: the barrier shows for 45 seconds when the game starts, dissolves, and comes back for 45 seconds every 36 minutes. Constant: always there. Off: no barrier. The slider is the volume of its hum and thunder (Gothic 1 only)">Barrier
         <span class="barrier-ctl">
           <select data-set="barrier">
             <option value="0">Classic</option><option value="1">Constant</option><option value="2">Off</option>
           </select>
+          <svg class="vol-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4.03v8.05A4.5 4.5 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>
           <input type="range" data-set="barrierVol" min="20" max="100" step="5" value="100" title="Barrier volume">
         </span>
       </label>
-      <div class="set-row" title="The barrier kills what touches it, but the game has no data where. Stand at a corner of a place the barrier should kill in and press Corner (or the backslash key), go to the opposite corner and press again: a zone is saved. Undo removes the last one">Barrier zones
+      <div class="set-row g1only" title="The barrier kills what touches it, but the game has no data where. Stand at a corner of a place the barrier should kill in and press Corner (or the backslash key), go to the opposite corner and press again: a zone is saved. Undo removes the last one">Barrier zones
         <span class="barrier-ctl" id="barrier-zones">
           <button type="button" data-zone="1">Corner</button><button type="button" data-zone="2">Undo</button><button type="button" data-zone="3">Clear</button><output id="barrier-zone-count">0</output>
         </span>
       </div>
-      <label class="set-row" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
+      <label class="set-row g1only" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
     </div>
 
@@ -1557,6 +1559,8 @@ async function installChunks(m) {
         try { ok = ready(); }
         catch (e) { ok = false; err = String((e && (e.message || e.name)) || e); console.warn('[settings] unavailable:', e); }
         panel.classList.toggle('disabled', !ok);
+        // the barrier is only in Gothic 1
+        if (ok) panel.querySelectorAll('.g1only').forEach(e => { e.style.display = ogGet('gameVersion') === 2 ? 'none' : ''; });
         note.textContent = ok ? 'Changes apply immediately and are saved.' :
                            err ? 'Settings are unavailable: ' + err : 'Start the game to change settings.';
         if (!ok) return;

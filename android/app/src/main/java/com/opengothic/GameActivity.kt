@@ -24,6 +24,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     companion object {
         private const val TAG = "OpenGothic"
         const val EXTRA_GAME_DIR = "extra_game_dir"
+        const val EXTRA_MOD = "extra_mod"   // the ini of a mod in the game folder (Archolos), "" - none
 
         init {
             try {
@@ -40,6 +41,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private external fun nativeSetSurface(surface: Surface, gameDir: String)
+    private external fun nativeSetMod(mod: String)
     private external fun nativeSurfaceChanged(width: Int, height: Int)
     private external fun nativeDestroySurface()
     private external fun nativeOnTouch(action: Int, x: Float, y: Float, id: Int)
@@ -79,6 +81,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         hideSystemBars()
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
+        nativeSetMod(intent.getStringExtra(EXTRA_MOD) ?: "")
 
         // Global uncaught exception logger
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()

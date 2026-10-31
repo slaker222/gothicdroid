@@ -61,11 +61,12 @@ class MainActivity : AppCompatActivity() {
 
         checkAndRequestStoragePermissions()
         val shortcutGame = intent.getIntExtra("game", 0)
-        if (shortcutGame != 0) { scanned = scan(); rememberScan() }
+        if (shortcutGame != 0) { scanned = scan(); rememberScan(); scanning = false }
         else Thread {
             // the scan walks the storage: the menu is shown first and updated when it is done
             scanned = scan()
             rememberScan()
+            scanning = false
             runOnUiThread { webView?.evaluateJavascript("window.onResumed && onResumed()", null) }
         }.start()
         detectedGameDir = findGameDirectory()
@@ -126,7 +127,8 @@ class MainActivity : AppCompatActivity() {
     // the files the engine itself tells them apart by (OU.DAT: Gothic 2, OU.BIN: Gothic 1), then the addon archives
     // and the exe, then the name of the folder
     private data class Game(val id: Int, val title: String)
-    private val gameList = listOf(Game(1, "Gothic"), Game(2, "Gothic II"))
+    private val gameList = listOf(Game(1, "Gothic 1"), Game(2, "Gothic 2"), Game(3, "Archolos"))
+    @Volatile private var scanning = true
 
     private fun child(dir: File, name: String): File? {
         File(dir, name).let { if (it.exists()) return it }
@@ -170,6 +172,17 @@ class MainActivity : AppCompatActivity() {
         return 0
     }
 
+    // the ini of the Archolos mod in a game folder (relative to it) or null. The engine starts a mod with -game:<ini>
+    private fun modIni(dir: File): String? {
+        val sys = child(dir, "system") ?: return null
+        val ini = sys.listFiles { f -> f.name.endsWith(".ini", ignoreCase = true) &&
+            (f.name.contains("archolos", true) || f.name.contains("myrtana", true)) }?.firstOrNull()
+        if (ini != null) return "system/" + ini.name
+        // only the archives: the mod's own ini is made then
+        val mods = child(dir, "Data")?.let { child(it, "ModVDF") }?.listFiles { f -> f.name.contains("archolos", true) || f.name.contains("myrtana", true) }
+        return if (mods != null && mods.isNotEmpty()) "system/Archolos.ini" else null
+    }
+
     private val skipDirs = setOf("android", "dcim", "pictures", "movies", "music", "alarms", "notifications", "podcasts",
         "ringtones", "audiobooks", "documents", "recordings", "screenshots", "telegram", "whatsapp", "data", "_work", "miles", "saves")
 
@@ -193,6 +206,8 @@ class MainActivity : AppCompatActivity() {
         fun consider(dir: File) {
             val v = versionOf(dir)
             if (v != 0 && v !in found) found[v] = dir.path
+            // Chronicles of Myrtana: Archolos is a mod of Gothic 2: its ini and archives lie in the game folder
+            if (3 !in found && modIni(dir) != null) found[3] = dir.path
         }
         // the app's own folder: games put there by the downloader
         getExternalFilesDir(null)?.let { base ->
@@ -218,6 +233,7 @@ class MainActivity : AppCompatActivity() {
 
     private var scanned: Map<Int, String> = emptyMap()
     private var dl: PackDownloader? = null
+    private var dlGame = 0
 
     // the folder of a game: the one the player chose, or the one found on the phone
     private fun gamePath(id: Int): String? {
@@ -233,6 +249,14 @@ class MainActivity : AppCompatActivity() {
             if (old == null || !hasVdf(File(old))) e.putString("path_$id", p)
         }
         e.apply()
+    }
+
+    // a game that this app downloaded (its own folder, with the mark of the language packs) can be deleted by the app
+    private fun appCopy(id: Int) = File(getExternalFilesDir(null), "Gothic$id")
+
+    private fun isDownloaded(id: Int): Boolean {
+        val dir = appCopy(id)
+        return gamePath(id) == dir.path && File(dir, ".og_langs.json").exists()
     }
 
     private fun selectedGame(): Int = prefs().getInt("sel", 1)
@@ -319,6 +343,7 @@ class MainActivity : AppCompatActivity() {
         detectedGameDir = findGameDirectory()
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
+            if (id == 3) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir)) ?: "")
         }
         startActivity(intent)
     }
@@ -395,6 +420,8 @@ class MainActivity : AppCompatActivity() {
             for (g in gameList) {
                 val p = gamePath(g.id)
                 val o = JSONObject().put("id", g.id).put("title", g.title).put("path", p ?: JSONObject.NULL)
+                    .put("canDownload", g.id != 3)
+                    .put("downloaded", isDownloaded(g.id))
                 if (p != null) o.put("vdf", vdfs(File(p)).size).put("manual", prefs().getString("path_${g.id}", null) == p)
                 a.put(o)
             }
@@ -402,7 +429,10 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun rescan(): String { scanned = scan(); return games() }
+        fun scanning(): Boolean = scanning
+
+        @JavascriptInterface
+        fun rescan(): String { scanning = true; scanned = scan(); rememberScan(); scanning = false; return games() }
 
         @JavascriptInterface
         fun pick(id: Int) { pickFor = id; runOnUiThread { picker.launch(null) } }
@@ -433,8 +463,13 @@ class MainActivity : AppCompatActivity() {
         fun start(id: Int) { runOnUiThread { launchGame(id) } }
 
         // ---- the server of the PC (Gothic_Dev) and the download
+        private val defaultServer = "http://192.168.0.100:8322/"
+
         @JavascriptInterface
-        fun server(): String = prefs().getString("server", "http://192.168.0.100:8322/") ?: ""
+        fun server(): String = prefs().getString("server", defaultServer) ?: defaultServer
+
+        @JavascriptInterface
+        fun resetServer(): String { prefs().edit().remove("server").apply(); return defaultServer }
 
         @JavascriptInterface
         fun setServer(url: String) { prefs().edit().putString("server", url.trim()).apply() }
@@ -457,11 +492,24 @@ class MainActivity : AppCompatActivity() {
             }.start()
         }
 
+        // deletes the copy the app downloaded; the page asks the player first
+        @JavascriptInterface
+        fun deleteGame(id: Int) {
+            if (dl?.running == true || !isDownloaded(id)) return
+            Thread {
+                appCopy(id).deleteRecursively()
+                prefs().edit().remove("path_$id").apply()
+                scanned = scanned - id
+                runOnUiThread { webView?.evaluateJavascript("window.onResumed && onResumed()", null) }
+            }.start()
+        }
+
         @JavascriptInterface
         fun download(id: Int, text: String, voice: String): Boolean {
             if (dl?.running == true) return false
             val d = PackDownloader(server())
             dl = d
+            dlGame = id
             val target = File(getExternalFilesDir(null), "Gothic$id")
             runOnUiThread { window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
             Thread {
@@ -480,7 +528,7 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun dlState(): String {
             val d = dl ?: return JSONObject().put("running", false).toString()
-            return JSONObject().put("running", d.running).put("finished", d.finished).put("error", d.error)
+            return JSONObject().put("game", dlGame).put("running", d.running).put("finished", d.finished).put("error", d.error)
                 .put("phase", d.phase).put("done", d.done.get()).put("total", d.total).toString()
         }
 
@@ -506,7 +554,7 @@ class MainActivity : AppCompatActivity() {
             return false
         }
         val bmp = try {
-            assets.open("img/icon_g$id.png").use { android.graphics.BitmapFactory.decodeStream(it) }
+            assets.open(if (id == 3) "img/myrtana.jpg" else "img/icon_g$id.png").use { android.graphics.BitmapFactory.decodeStream(it) }
         } catch (e: Exception) { null }
         val icon = if (bmp != null) {
             // the icon of the exe of the game, on a dark tile (adaptive icons crop the edges)
@@ -514,9 +562,16 @@ class MainActivity : AppCompatActivity() {
             val tile = android.graphics.Bitmap.createBitmap(size, size, android.graphics.Bitmap.Config.ARGB_8888)
             val c = android.graphics.Canvas(tile)
             c.drawColor(Color.parseColor("#1b1b1b"))
-            val box = size * 0.5f
             val p = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
-            c.drawBitmap(bmp, null, android.graphics.RectF((size - box) / 2, (size - box) / 2, (size + box) / 2, (size + box) / 2), p)
+            if (id == 3) {
+                // a picture (no exe icon): the middle square fills the tile
+                val side = minOf(bmp.width, bmp.height)
+                val src = android.graphics.Rect((bmp.width - side) / 2, (bmp.height - side) / 2, (bmp.width + side) / 2, (bmp.height + side) / 2)
+                c.drawBitmap(bmp, src, android.graphics.RectF(size * 0.15f, size * 0.15f, size * 0.85f, size * 0.85f), p)
+            } else {
+                val box = size * 0.5f
+                c.drawBitmap(bmp, null, android.graphics.RectF((size - box) / 2, (size - box) / 2, (size + box) / 2, (size + box) / 2), p)
+            }
             android.graphics.drawable.Icon.createWithAdaptiveBitmap(tile)
         } else android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.sym_def_app_icon)
         val intent = Intent(this, MainActivity::class.java).apply {
@@ -525,6 +580,7 @@ class MainActivity : AppCompatActivity() {
         }
         val info = android.content.pm.ShortcutInfo.Builder(this, "game$id")
             .setShortLabel(gameList.first { it.id == id }.title)
+            .setLongLabel(gameList.first { it.id == id }.let { if (it.id == 3) "Chronicles of Myrtana: Archolos" else it.title })
             .setIcon(icon)
             .setIntent(intent)
             .build()
