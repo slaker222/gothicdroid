@@ -320,6 +320,7 @@
     body.perf-on #perf-box { display: block; }
     body.perf-on #fps-counter { display: none !important; }
     #perf-box b { color: #5dff8a; font-weight: normal; }
+    #perf-box #perf-fps { display: block; margin-top: 2px; font-size: 20px; line-height: 1.2; font-weight: bold; color: #ff3b30; }
     #perf-box canvas { display: block; width: 100%; height: 64px; margin: 4px 0 2px; background: rgba(255,255,255,0.06); }
     /* side menu (Android app: the back button) */
     #side-scrim { position: absolute; inset: 0; z-index: 30; display: none; background: rgba(0, 0, 0, 0.45); }
@@ -661,7 +662,7 @@
 
     <div id="fps-counter">0 FPS</div>
 
-    <div id="perf-box"><span id="perf-text"></span><canvas id="perf-graph" width="520" height="128"></canvas><span id="perf-stat"></span></div>
+    <div id="perf-box"><span id="perf-text"></span><canvas id="perf-graph" width="520" height="128"></canvas><span id="perf-stat"></span><span id="perf-fps"></span></div>
 
     <div id="side-scrim"></div>
     <div id="side-menu" role="menu">
@@ -1597,6 +1598,7 @@ async function installChunks(m) {
       const chk = document.getElementById('perf-chk');
       const text = document.getElementById('perf-text');
       const stat = document.getElementById('perf-stat');
+      const fpsEl = document.getElementById('perf-fps');
       const cv = document.getElementById('perf-graph');
       const cx = cv.getContext('2d');
       const N = 240;
@@ -1669,7 +1671,8 @@ async function installChunks(m) {
           const avg = sum / times.length;
           stat.innerHTML = 'Frame: <b>' + times[times.length - 1].toFixed(1) + '</b> ms   Avg: <b>' + avg.toFixed(1) + '</b> ms (' + Math.round(1000 / avg) +
                            ' FPS)\nMax: <b>' + mx.toFixed(1) + '</b> ms (' + Math.round(1000 / mx) + ' FPS)';
-        } else stat.textContent = 'Waiting for frames...';
+          fpsEl.textContent = 'FPS: ' + Math.round(1000 / times[times.length - 1]);
+        } else { stat.textContent = 'Waiting for frames...'; fpsEl.textContent = ''; }
       }
       function apply() {
         document.body.classList.toggle('perf-on', chk.checked);
