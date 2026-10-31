@@ -1687,12 +1687,19 @@ void MainWindow::render(){
     std::lock_guard<std::mutex> lk(g_pendMutex);
     todo.swap(g_pending);
     }
-    for(auto& p:todo) {
-      if(auto s = findWebSetting(p.first.c_str())) {
-        if(s->real)
-          Gothic::settingsSetF(s->sec, s->key, float(p.second)); else
-          Gothic::settingsSetI(s->sec, s->key, p.second);
+    if(!todo.empty()) {
+      // a preset is a dozen settings: the renderer is rebuilt once, with the GPU idle
+      // (not once per setting, which piled up shadow maps and swapchain images of intermediate states)
+      device.waitIdle();
+      Gothic::settingsBeginBatch();
+      for(auto& p:todo) {
+        if(auto s = findWebSetting(p.first.c_str())) {
+          if(s->real)
+            Gothic::settingsSetF(s->sec, s->key, float(p.second)); else
+            Gothic::settingsSetI(s->sec, s->key, p.second);
+          }
         }
+      Gothic::settingsEndBatch();
       }
     if(!todo.empty())
       Gothic::flushSettings();

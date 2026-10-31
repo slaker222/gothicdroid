@@ -4610,7 +4610,9 @@ void Npc::updateAnimationPose(bool force) {
     visual.syncAttaches();
   }
 
-void Npc::updateBlobShadow() {
+void Npc::syncBlobShadow() {
+  // creates and frees the view: touches the shared draw lists, so only from one thread at a time
+  // (not from the animation workers - a preset change toggles it for every npc at once)
   // only the characters have the circle, not monsters
   if(!Gothic::inst().blobShadows() || !isHuman()) {
     if(!blobShadow.isEmpty())
@@ -4621,6 +4623,9 @@ void Npc::updateBlobShadow() {
     blobShadow = owner.addBlobShadowView();
     durtyTranform |= TR_Pos;
     }
+  }
+
+void Npc::updateBlobShadow() {
   if(blobShadow.isEmpty() || durtyTranform==0)
     return;
 

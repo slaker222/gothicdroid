@@ -427,6 +427,9 @@ void WorldObjects::updateAnimation(uint64_t dt) {
     return;
   if(dt==0)
     return;
+  // blob shadow views are created/freed here, one thread: the workers only move them
+  for(auto& i:npcArr)
+    i->syncBlobShadow();
 #if defined(__EMSCRIPTEN_PTHREADS__)
   // web: audio, effects and GPU resources belong to the main thread. Transforms
   // and animation events run there in order, only poses run on the workers

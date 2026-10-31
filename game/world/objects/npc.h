@@ -558,6 +558,9 @@ class Npc final {
     float                          swimMoveMs = 0; // time since the last real movement on the water
     float                          swimLift = 0; // swimming: the model is drawn above the physical position (it sits too deep in the water)
     void                           updateBlobShadow();
+  public:
+    void                           syncBlobShadow();
+  private:
 
     DynamicWorld::NpcItem          physic;
 

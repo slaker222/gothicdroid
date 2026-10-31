@@ -883,7 +883,10 @@ int Gothic::settingsGetI(std::string_view sec, std::string_view name) {
 
 void Gothic::settingsSetI(std::string_view sec, std::string_view name, int val) {
   instance->iniFile->set(sec,name,val);
-  instance->onSettingsChanged();
+  if(instance->settingsBatch==0)
+    instance->onSettingsChanged();
+  else
+    instance->settingsBatchDirty = true;
   }
 
 std::string_view Gothic::settingsGetS(std::string_view sec, std::string_view name) {
@@ -900,7 +903,10 @@ std::string_view Gothic::settingsGetS(std::string_view sec, std::string_view nam
 
 void Gothic::settingsSetS(std::string_view sec, std::string_view name, std::string_view val) {
   instance->iniFile->set(sec,name,val);
-  instance->onSettingsChanged();
+  if(instance->settingsBatch==0)
+    instance->onSettingsChanged();
+  else
+    instance->settingsBatchDirty = true;
   }
 
 float Gothic::settingsGetF(std::string_view sec, std::string_view name) {
@@ -917,7 +923,21 @@ float Gothic::settingsGetF(std::string_view sec, std::string_view name) {
 
 void Gothic::settingsSetF(std::string_view sec, std::string_view name, float val) {
   instance->iniFile->set(sec,name,val);
-  instance->onSettingsChanged();
+  if(instance->settingsBatch==0)
+    instance->onSettingsChanged();
+  else
+    instance->settingsBatchDirty = true;
+  }
+
+void Gothic::settingsBeginBatch() {
+  ++instance->settingsBatch;
+  }
+
+void Gothic::settingsEndBatch() {
+  if(instance->settingsBatch>0 && --instance->settingsBatch==0 && instance->settingsBatchDirty) {
+    instance->settingsBatchDirty = false;
+    instance->onSettingsChanged();
+    }
   }
 
 void Gothic::flushSettings() {

@@ -212,6 +212,9 @@ class Gothic final {
     static float                          settingsGetF(std::string_view sec, std::string_view name);
     static void                           settingsSetF(std::string_view sec, std::string_view name, float val);
     static void                           flushSettings();
+    // several settings at once: onSettingsChanged is emitted once, at the end
+    static void                           settingsBeginBatch();
+    static void                           settingsEndBatch();
 
     // web shadows "ultra low": a translucent circle under every npc instead of shadow maps
     bool                                  blobShadows() const { return blobShadow; }
@@ -335,6 +338,8 @@ class Gothic final {
     bool                                    godMode        = false;
     bool                                    desktop        = false;
     bool                                    showFpsCounter = false;
+    int                                     settingsBatch  = 0;
+    bool                                    settingsBatchDirty = false;
     bool                                    blobShadow     = false;
     bool                                    swampWater     = false;
     bool                                    waterPhysics   = false;
