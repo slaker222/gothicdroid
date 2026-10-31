@@ -244,6 +244,35 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
   return ret;
   }
 
+bool DrawCommands::DrawCmd::isOutsideOf(const Frustrum& f) const {
+  // the spheres the gpu culls with (see VisualObjects::expandBounds): outside of them all, nothing of it is drawn
+  if(type==Type::Pfx)
+    return false;
+  if(unbounded!=0 || boundsMin.x>boundsMax.x)
+    return false;
+  return f.testBbox(boundsMin,boundsMax)==Frustrum::T_Invisible;
+  }
+
+void DrawCommands::resetDynamicBounds() {
+  for(auto& c:cmd) {
+    if(c.type!=Type::Movable && c.type!=Type::Animated && c.type!=Type::Morph)
+      continue;
+    c.boundsMin = Tempest::Vec3( 1e30f, 1e30f, 1e30f);
+    c.boundsMax = Tempest::Vec3(-1e30f,-1e30f,-1e30f);
+    }
+  }
+
+void DrawCommands::expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const Tempest::Vec3& mx) {
+  auto& c = cmd[cmdId];
+  c.boundsMin = Tempest::Vec3(std::min(c.boundsMin.x,mn.x), std::min(c.boundsMin.y,mn.y), std::min(c.boundsMin.z,mn.z));
+  c.boundsMax = Tempest::Vec3(std::max(c.boundsMax.x,mx.x), std::max(c.boundsMax.y,mx.y), std::max(c.boundsMax.z,mx.z));
+  }
+
+void DrawCommands::addUnbounded(uint16_t cmdId, int delta) {
+  auto& c = cmd[cmdId];
+  c.unbounded = uint32_t(int(c.unbounded)+delta);
+  }
+
 void DrawCommands::addClusters(uint16_t cmdId, uint32_t meshletCount) {
   cmdDurtyBit = true;
   ++cmdGen;
@@ -620,6 +649,12 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
       }
     if(pso==nullptr)
       continue;
+
+#if !defined(__EMSCRIPTEN__)
+    // (not in the browser: the recorded commands are replayed there while nothing changes, the camera is not a part of that)
+    if(viewId==SceneGlobals::V_Main && !opengothic_debug_no_cmd_cull() && cx.isOutsideOf(scene.frustrum[viewId]))
+      continue;
+#endif
 
     auto id  = size_t(std::distance(this->cmd.data(), &cx));
     push.firstMeshlet = cx.firstPayload;

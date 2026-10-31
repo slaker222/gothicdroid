@@ -1,5 +1,7 @@
 #include "visualobjects.h"
 
+#include <algorithm>
+
 #include <Tempest/Log>
 #include <cassert>
 
@@ -8,6 +10,10 @@
 #include "gapi/vulkan/vpipelinelogger.h"
 
 using namespace Tempest;
+
+static bool isDynamicType(DrawCommands::Type t) {
+  return t==DrawCommands::Movable || t==DrawCommands::Animated || t==DrawCommands::Morph;
+  }
 
 static RtScene::Category toRtCategory(DrawCommands::Type t) {
   switch (t) {
@@ -53,11 +59,13 @@ void VisualObjects::Item::setObjMatrix(const Tempest::Matrix4x4& pos) {
     auto& obj = owner->objects[id];
     // instance data depends on pos, animPtr and fatness only; the other two
     // refresh it on change. Wind objects get a swayed matrix written per frame.
-    if(obj.pos==pos && obj.wind==zenkit::AnimationType::NONE)
+    if(obj.pos==pos && obj.wind==zenkit::AnimationType::NONE && obj.positioned)
       return;
     if(obj.pos!=pos)
       owner->updateRtAs(id);
-    obj.pos = pos;
+    obj.pos        = pos;
+    obj.positioned = true;
+    owner->syncBounds(id);
     owner->updateInstance(id);
     }
   }
@@ -174,6 +182,7 @@ void VisualObjects::updateInstance(size_t id, Matrix4x4* pos) {
     clustersMem[cId].pos = npos;
     clustersMem.markClusters(cId);
     }
+  expandBounds(id);
   }
 
 void VisualObjects::updateRtAs(size_t id) {
@@ -239,6 +248,9 @@ VisualObjects::Item VisualObjects::get(const StaticMesh& mesh, const Material& m
     obj.objMorphAnim.set(&d, 0, sizeof(d));
     }
 
+  syncBounds(id);
+  if(isDynamicType(obj.type))
+    objectsDynamic.insert(id);
   updateInstance(id);
   updateRtAs(id);
   return Item(*this, id);
@@ -276,6 +288,7 @@ VisualObjects::Item VisualObjects::get(const AnimMesh& mesh, const Material& mat
   obj.objInstance = instanceMem.alloc(sizeof(InstanceDesc));
   clustersMem[obj.clusterId].instanceId = obj.objInstance.offsetId<InstanceDesc>();
 
+  objectsDynamic.insert(id);
   updateInstance(id);
   updateRtAs(id);
   return Item(*this, id);
@@ -304,6 +317,8 @@ VisualObjects::Item VisualObjects::get(const StaticMesh& mesh, const Material& m
 
   if(obj.isEmpty())
     return Item(); // null command
+  obj.positioned = true; // the world mesh is in world space
+  expandBounds(id);
   updateRtAs(id);
   return Item(*this, id);
   }
@@ -319,12 +334,72 @@ size_t VisualObjects::implAlloc() {
   return objects.size()-1;
   }
 
+// What the gpu culls with (visibility_pass.comp, frustrumTest): a sphere per cluster, its centre and radius are in
+// clustersMem. The command keeps the box of those spheres; a command wholly outside of the camera draws nothing
+// whatever the gpu does, so it is not recorded (DrawCommands::DrawCmd::isOutsideOf).
+// Landscape and static objects: the box only grows, a static object that has no matrix yet is unbounded (its sphere is
+// at the origin until then). Movable, animated and morphing objects move every frame: their boxes are made
+// again each frame (updateDynamicBounds).
+void VisualObjects::syncBounds(size_t id) {
+  auto& obj = objects[id];
+  if(obj.isEmpty())
+    return;
+  const bool want = (obj.type==DrawCommands::Static) && !obj.positioned;
+  if(want && !obj.unboundedCounted) {
+    drawCmd.addUnbounded(obj.cmdId,+1);
+    obj.unboundedCounted = true;
+    } else
+  if(!want && obj.unboundedCounted) {
+    drawCmd.addUnbounded(obj.cmdId,-1);
+    obj.unboundedCounted = false;
+    }
+  }
+
+void VisualObjects::detachBounds(size_t id) {
+  auto& obj = objects[id];
+  if(obj.unboundedCounted) {
+    drawCmd.addUnbounded(obj.cmdId,-1);
+    obj.unboundedCounted = false;
+    }
+  }
+
+void VisualObjects::expandBounds(size_t id) {
+  auto& obj = objects[id];
+  if(obj.isEmpty() || obj.clusterId==uint32_t(-1))
+    return;
+  if(obj.type==DrawCommands::Landscape) {
+    const uint32_t cnt = obj.iboLen/PackedMesh::MaxInd;
+    for(uint32_t i=0; i<cnt; ++i) {
+      const auto& c = clustersMem[obj.clusterId + i];
+      drawCmd.expandBounds(obj.cmdId, Vec3(c.pos.x-c.r,c.pos.y-c.r,c.pos.z-c.r), Vec3(c.pos.x+c.r,c.pos.y+c.r,c.pos.z+c.r));
+      }
+    return;
+    }
+  if(obj.type==DrawCommands::Static && obj.positioned) {
+    const auto& c = clustersMem[obj.clusterId];
+    drawCmd.expandBounds(obj.cmdId, Vec3(c.pos.x-c.r,c.pos.y-c.r,c.pos.z-c.r), Vec3(c.pos.x+c.r,c.pos.y+c.r,c.pos.z+c.r));
+    }
+  }
+
+void VisualObjects::updateDynamicBounds() {
+  drawCmd.resetDynamicBounds();
+  for(size_t id:objectsDynamic) {
+    auto& obj = objects[id];
+    if(obj.isEmpty() || obj.clusterId==uint32_t(-1))
+      continue;
+    const auto& c = clustersMem[obj.clusterId];
+    drawCmd.expandBounds(obj.cmdId, Vec3(c.pos.x-c.r,c.pos.y-c.r,c.pos.z-c.r), Vec3(c.pos.x+c.r,c.pos.y+c.r,c.pos.z+c.r));
+    }
+  }
+
 void VisualObjects::free(size_t id) {
   Object& obj = objects[id];
 
   const uint32_t meshletCount = (obj.iboLen/PackedMesh::MaxInd);
   const uint32_t numCluster = (obj.type==DrawCommands::Landscape ? meshletCount : 1);
 
+  detachBounds(id);
+  objectsDynamic.erase(id);
   drawCmd.addClusters(obj.cmdId, -meshletCount);
   clustersMem.free(obj.clusterId, numCluster);
 
@@ -446,6 +521,7 @@ void VisualObjects::setAsGhost(size_t id, bool g) {
   auto  mat = bx.mat;
 
   const uint32_t meshletCount = (obj.iboLen/PackedMesh::MaxInd);
+  detachBounds(id);
   drawCmd.addClusters(obj.cmdId, -meshletCount);
 
   mat.alpha   = g ? Material::Ghost : obj.alpha;
@@ -457,6 +533,8 @@ void VisualObjects::setAsGhost(size_t id, bool g) {
 
   obj.cmdId = drawCmd.commandId(mat, cx.type, obj.bucketId.toInt());
   drawCmd.addClusters(obj.cmdId, +meshletCount);
+  syncBounds(id);
+  expandBounds(id);
 
   const uint32_t numCluster = (obj.type==DrawCommands::Landscape ? meshletCount : 1);
   for(size_t i=0; i<numCluster; ++i) {
@@ -467,6 +545,7 @@ void VisualObjects::setAsGhost(size_t id, bool g) {
   }
 
 void VisualObjects::prepareGlobals(Encoder<CommandBuffer>& enc, uint8_t fId) {
+  updateDynamicBounds();
   instanceMem.commit(enc, fId);
   clustersMem.commit(enc, fId);
   drawCmd.commit(enc);

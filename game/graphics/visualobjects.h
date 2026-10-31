@@ -124,7 +124,16 @@ class VisualObjects final {
       float               windIntensity = 0;
       float               fatness       = 0;
       bool                isGhost       = false;
+      // see DrawCommands::DrawCmd::boundsMin: the object has its matrix; it is counted as unbounded in its command
+      bool                positioned    = false;
+      bool                unboundedCounted = false;
       };
+
+    // bounds of the draw command (what is outside of the camera is not recorded)
+    void     syncBounds(size_t id);
+    void     detachBounds(size_t id);
+    void     expandBounds(size_t id);
+    void     updateDynamicBounds();
 
     void     preFrameUpdateWind();
     void     preFrameUpdateMorph();
@@ -155,6 +164,7 @@ class VisualObjects final {
     std::vector<Object>        objects;
     std::unordered_set<size_t> objectsWind;
     std::unordered_set<size_t> objectsMorph;
+    std::unordered_set<size_t> objectsDynamic; // moves every frame: movable, animated, morphing (their command bounds are made again each frame)
     std::unordered_set<size_t> objectsFree;
 
     friend class Item;

@@ -39,6 +39,14 @@ class DrawCommands {
       // bindfull only
       uint32_t                       bucketId     = 0;
 
+      // Where everything this command draws can be (world space): a command that is wholly outside of the camera
+      // is not recorded at all. A draw that comes out empty costs a state change on a tile based gpu (15 us).
+      // unbounded: objects with no matrix yet or that sway (wind), the command is always recorded
+      Tempest::Vec3                  boundsMin    = Tempest::Vec3( 1e30f, 1e30f, 1e30f);
+      Tempest::Vec3                  boundsMax    = Tempest::Vec3(-1e30f,-1e30f,-1e30f);
+      uint32_t                       unbounded    = 0;
+      bool                           isOutsideOf(const Frustrum& f) const;
+
       bool                           isForwardShading() const;
       bool                           isShadowmapRequired() const;
       bool                           isSceneInfoRequired() const;
@@ -56,6 +64,9 @@ class DrawCommands {
     void     commit(Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     uint16_t commandId(const Material& m, Type type, uint32_t bucketId);
     void     addClusters(uint16_t cmdId, uint32_t meshletCount);
+    void     expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const Tempest::Vec3& mx);
+    void     addUnbounded(uint16_t cmdId, int delta);
+    void     resetDynamicBounds();
 
     void     resetRendering();
 
