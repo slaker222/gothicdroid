@@ -42,6 +42,7 @@ class CommandLine {
     bool                isVirtualShadow()  const { return isVsm;        }
     bool                isSoftwareShadow() const { return isRtSm;       }
     bool                doStartMenu()      const { return !noMenu;      }
+    bool                doSkipVideo()      const { return noVideo;      }
     Benchmark           isBenchmarkMode()  const { return isBenchmark;  }
     bool                doForceG1()        const { return forceG1;      }
     bool                doForceG2()        const { return forceG2;      }
@@ -61,6 +62,7 @@ class CommandLine {
     std::string         saveDef;
     bool                devmode      = false;
     bool                noMenu       = false;
+    bool                noVideo      = false;
     Benchmark           isBenchmark  = Benchmark::None;
     bool                isWindow     = false;
     bool                isDebug      = false;

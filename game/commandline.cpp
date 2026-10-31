@@ -83,6 +83,9 @@ CommandLine::CommandLine(int argc, const char** argv) {
     else if(arg=="-nomenu") {
       noMenu = true;
       }
+    else if(arg=="-novideo") {
+      noVideo = true; // cutscene videos are skipped (phone tests: no touch is needed to get past the intro)
+      }
     else if(arg=="-benchmark") {
       isBenchmark = Benchmark::Normal;
       if(i+1<argc && argv[i+1][0]!='-') {

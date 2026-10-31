@@ -39,13 +39,14 @@ adb pull "$D/debug.cfg"  "$BAK/" >/dev/null 2>&1
 cleanup() {
   adb shell am force-stop com.opengothic >/dev/null 2>&1          # игру закрываем всегда
   adb shell "rm -f $D/.og_args" >/dev/null 2>&1
-  [ -f "$BAK/Gothic.ini" ] && adb push "$BAK/Gothic.ini" "$D/Gothic.ini" >/dev/null 2>&1
-  [ -f "$BAK/debug.cfg"  ] && adb push "$BAK/debug.cfg"  "$D/debug.cfg"  >/dev/null 2>&1
+  # было у владельца - вернуть, не было - удалить то, что создал скрипт
+  if [ -f "$BAK/Gothic.ini" ]; then adb push "$BAK/Gothic.ini" "$D/Gothic.ini" >/dev/null 2>&1; else adb shell "rm -f $D/Gothic.ini" >/dev/null 2>&1; fi
+  if [ -f "$BAK/debug.cfg"  ]; then adb push "$BAK/debug.cfg"  "$D/debug.cfg"  >/dev/null 2>&1; else adb shell "rm -f $D/debug.cfg"  >/dev/null 2>&1; fi
   rm -rf "$BAK"
 }
 trap cleanup EXIT INT TERM
 
-adb shell "echo '-nomenu' > $D/.og_args"
+adb shell "echo '-nomenu -novideo' > $D/.og_args"
 
 for spec in "$@"; do
   name=${spec%%|*}; rest=${spec#*|}; kvs=${rest%%|*}; dbg=""
