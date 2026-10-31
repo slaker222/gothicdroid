@@ -45,6 +45,10 @@ class DrawCommands {
       Tempest::Vec3                  boundsMin    = Tempest::Vec3( 1e30f, 1e30f, 1e30f);
       Tempest::Vec3                  boundsMax    = Tempest::Vec3(-1e30f,-1e30f,-1e30f);
       uint32_t                       unbounded    = 0;
+      // the same boxes by cells of the XZ grid (boundsMin/Max is their union): a command is outside of the camera when
+      // every cell is, a material that is spread over the whole world is not recorded for what is far behind
+      struct Cell { int32_t x, z; Tempest::Vec3 mn, mx; };
+      std::vector<Cell>              cells;
       bool                           isOutsideOf(const Frustrum& f) const;
 
       bool                           isForwardShading() const;

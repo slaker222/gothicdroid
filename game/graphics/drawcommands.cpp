@@ -250,7 +250,12 @@ bool DrawCommands::DrawCmd::isOutsideOf(const Frustrum& f) const {
     return false;
   if(unbounded!=0 || boundsMin.x>boundsMax.x)
     return false;
-  return f.testBbox(boundsMin,boundsMax)==Frustrum::T_Invisible;
+  if(f.testBbox(boundsMin,boundsMax)==Frustrum::T_Invisible)
+    return true;
+  for(auto& i:cells)
+    if(f.testBbox(i.mn,i.mx)!=Frustrum::T_Invisible)
+      return false;
+  return true;
   }
 
 void DrawCommands::resetDynamicBounds() {
@@ -259,6 +264,7 @@ void DrawCommands::resetDynamicBounds() {
       continue;
     c.boundsMin = Tempest::Vec3( 1e30f, 1e30f, 1e30f);
     c.boundsMax = Tempest::Vec3(-1e30f,-1e30f,-1e30f);
+    c.cells.clear();
     }
   }
 
@@ -266,6 +272,17 @@ void DrawCommands::expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const T
   auto& c = cmd[cmdId];
   c.boundsMin = Tempest::Vec3(std::min(c.boundsMin.x,mn.x), std::min(c.boundsMin.y,mn.y), std::min(c.boundsMin.z,mn.z));
   c.boundsMax = Tempest::Vec3(std::max(c.boundsMax.x,mx.x), std::max(c.boundsMax.y,mx.y), std::max(c.boundsMax.z,mx.z));
+
+  constexpr float cellSz = 2000.f; // 20 m
+  const int32_t   cx     = int32_t(std::floor((mn.x+mx.x)*0.5f/cellSz));
+  const int32_t   cz     = int32_t(std::floor((mn.z+mx.z)*0.5f/cellSz));
+  for(auto& i:c.cells)
+    if(i.x==cx && i.z==cz) {
+      i.mn = Tempest::Vec3(std::min(i.mn.x,mn.x), std::min(i.mn.y,mn.y), std::min(i.mn.z,mn.z));
+      i.mx = Tempest::Vec3(std::max(i.mx.x,mx.x), std::max(i.mx.y,mx.y), std::max(i.mx.z,mx.z));
+      return;
+      }
+  c.cells.push_back({cx,cz,mn,mx});
   }
 
 void DrawCommands::addUnbounded(uint16_t cmdId, int delta) {
