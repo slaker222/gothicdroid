@@ -3029,6 +3029,7 @@ async function installChunks(m) {
         const lmag = Math.hypot(lx, ly), rmag = Math.hypot(rx, ry);
         const anyBtn = pad.buttons.some(x => x.pressed) || (android && (Math.abs(pad.axes[6]) > 0.5 || Math.abs(pad.axes[7]) > 0.5));
         pad.buttons.forEach((x, i) => { if (x.pressed !== !!gp.dbg[i]) { gp.dbg[i] = x.pressed; if (x.pressed) console.log('[gamepad] button ' + i); } });
+        pad.axes.forEach((v, i) => { const q = Math.abs(v) > 0.6 ? Math.sign(v) : 0; if (q !== (gp.dbg['a' + i] || 0)) { gp.dbg['a' + i] = q; if (q) console.log('[gamepad] axis ' + i + ' ' + (q > 0 ? '+' : '-')); } });
         if (anyBtn || lmag > 0.5 || rmag > 0.5) gpSetActive(true);
         if (!g_runtimeUp) { for (let i = 0; i < 17; i++) gp.edge[i] = b(i); return; }
         if (now - gp.stAt > 60) {

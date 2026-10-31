@@ -213,7 +213,10 @@ void main_frag() {
   lum *= scene.exposure;
 
 #if !defined(VOLUMETRIC)
-  if(scene.fogAmount>0) {
+  // the light shafts do not depend on the fog settings: with the fog off (or a short world) they are drawn with the default strength
+  const bool  fogOn    = scene.fogAmount>0;
+  const float fogAmt   = fogOn ? scene.fogAmount : 1.6;
+  if(fogOn || scene.sunRays>0.5) {
     // soft sandy haze: thickens with distance, strongest near the horizon, tinted by the sky
     const vec3  pos0   = project(scene.viewProjectInv, vec3(inPos,0.0));
     const vec3  posz   = project(scene.viewProjectInv, vec3(inPos,dMax));
@@ -222,13 +225,15 @@ void main_frag() {
     // valleys below the viewer are thicker, ridges above it thinner
     const float dy     = (posz.y-pos0.y)*0.01;
     const float height = 1.0 + clamp(-dy/200.0,0.0,1.0)*0.4 - clamp(dy/300.0,0.0,1.0)*0.4;
-    float       dens   = pow(max(meters-fogStart*scene.fogScale,0.0)/(fogRange*scene.fogScale), 1.17)*height*scene.fogAmount;
+    float       dens   = pow(max(meters-fogStart*scene.fogScale,0.0)/(fogRange*scene.fogScale), 1.17)*height*fogAmt;
     float       a      = mix(0.97, fogMaxDens, scene.fogScale)*(1.0 - exp(-dens));
     // same brightness for the sky and the terrain above the horizon: no seam along the ridges
     const float hor    = exp(-max(dir.y-0.04,0.0)*3.0);
     const float skyDim = mix(fogSkyDim, 1.0, hor);
     if(isSky)
-      a = mix(fogSkyTop, fogSkyHor, hor)*min(scene.fogAmount,1.0);
+      a = mix(fogSkyTop, fogSkyHor, hor)*min(fogAmt,1.0);
+    if(!fogOn)
+      a = 0.0;    // no haze, only the shafts below
 
     // brightness of the haze is taken at the horizon in this direction: even above and below it
     // horizon behind the camera (looking steeply up/down): fade to the horizon straight ahead, no seams
@@ -284,7 +289,7 @@ void main_frag() {
         open /= float(N);
         const float cone  = pow(smoothstep(0.35, 1.0, toSun), 2.0);
         const float reach = exp(-length((uv-sunUv)*vec2(float(size.x)/float(size.y),1.0))*1.7);
-        lum += luma*tint*gain*open*cone*reach*scene.fogAmount*shaftGain*(1.0-0.6*lowSun)*(isSky ? 0.08 : 1.0);
+        lum += luma*tint*gain*open*cone*reach*fogAmt*shaftGain*(1.0-0.6*lowSun)*(isSky ? 0.08 : 1.0);
         }
       }
     } else if(scene.fogAmount<0 && !isSky) {
