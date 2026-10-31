@@ -226,7 +226,7 @@
                    kind === 'text' ? ['Text language', g.title + ': the other languages stay as they are'] :
                                      ['Voice language', g.title + ': the other languages stay as they are'];
       box.innerHTML = '<div class="sh-head"><h2></h2><p></p></div>' +
-        '<div><div class="sh-label">Server of the PC</div><div class="field-row">' +
+        '<div><div class="sh-label">Server</div><div class="field-row">' +
           '<input type="text" id="srv" readonly autocapitalize="off" autocorrect="off" spellcheck="false">' +
           '<button class="ib" id="srv-lock" title="Unlock the link">' + ICON_LOCK + '</button>' +
           '<button class="ib" id="srv-reset" title="Reset the link">' + ICON_RELOAD + '</button></div></div>' +
@@ -262,12 +262,11 @@
       try { prev = JSON.parse(Launcher.langs(id)); } catch (e) {}
       const opt = l => '<option value="' + l.id + '">' + l.name + '</option>';
       const voiceOpts = '<option value="none">Without</option>' + r.langs.filter(l => l.hasVoice).map(opt).join('');
-      let html = '<div class="pick">';
+      // the size is above the languages
+      let html = '<div class="size"><b id="size-n"></b><span id="size-d"></span></div><div class="pick">';
       if (kind !== 'voice') html += '<div class="row"><span>Text</span><select id="l-text">' + r.langs.map(opt).join('') + '</select></div>';
       if (kind !== 'text') html += '<div class="row"><span>Voice</span><select id="l-voice">' + voiceOpts + '</select></div>';
-      html += '</div><div class="size"><b id="size-n"></b><span id="size-d"></span></div>' +
-        '<div class="msg">' + (kind === 'all' ? 'The game is installed in the folder of the app and used from the next start.' : 'Only this language is downloaded; the old one is removed when it is done.') + '</div>' +
-        '<button class="go" id="go"></button>';
+      html += '</div><button class="go" id="go"></button>';
       $('sbody').innerHTML = html;
       const lt = $('l-text'), lv = $('l-voice');
       if (lt) lt.value = prev ? prev.text : (r.langs.find(l => l.id === 'ru') || r.langs[0]).id;
