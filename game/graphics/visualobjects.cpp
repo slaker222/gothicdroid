@@ -375,6 +375,12 @@ void VisualObjects::expandBounds(size_t id) {
       }
     return;
     }
+  if(isDynamicType(obj.type)) {
+    // the sphere changes only here (updateInstance): the box grows at once, updateDynamicBounds makes it small again now and then
+    const auto& c = clustersMem[obj.clusterId];
+    drawCmd.expandBounds(obj.cmdId, Vec3(c.pos.x-c.r,c.pos.y-c.r,c.pos.z-c.r), Vec3(c.pos.x+c.r,c.pos.y+c.r,c.pos.z+c.r));
+    return;
+    }
   if(obj.type==DrawCommands::Static && obj.positioned) {
     const auto& c = clustersMem[obj.clusterId];
     drawCmd.expandBounds(obj.cmdId, Vec3(c.pos.x-c.r,c.pos.y-c.r,c.pos.z-c.r), Vec3(c.pos.x+c.r,c.pos.y+c.r,c.pos.z+c.r));
@@ -382,6 +388,10 @@ void VisualObjects::expandBounds(size_t id) {
   }
 
 void VisualObjects::updateDynamicBounds() {
+  // the boxes of what moves grow when it moves (expandBounds); the trail it leaves is removed here every 2 s or so
+  constexpr uint32_t period = 120;
+  if((++dynBoundsFrame)%period!=0)
+    return;
   drawCmd.resetDynamicBounds();
   for(size_t id:objectsDynamic) {
     auto& obj = objects[id];

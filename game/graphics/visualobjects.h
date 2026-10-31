@@ -165,6 +165,7 @@ class VisualObjects final {
     std::vector<Object>        objects;
     std::unordered_set<size_t> objectsWind;
     std::unordered_set<size_t> objectsMorph;
+    uint32_t                   dynBoundsFrame = 0;
     std::unordered_set<size_t> objectsDynamic; // moves every frame: movable, animated, morphing (their command bounds are made again each frame)
     std::unordered_set<size_t> objectsFree;
 
