@@ -17,5 +17,10 @@ layout(push_constant, std430) uniform UboPush {
 
 void main() {
   UV          = inUV;
+  // the vertex layout is built from the inputs the shader uses (ShaderReflection::getVertexDecl): an unused
+  // normal or colour drops out and the UV would be read from the normal's place. Never true (normals are unit
+  // length), the compiler cannot remove it
+  if(inColor==0xFFFFFFFEu && inNormal.x>1e9)
+    UV = vec2(0);
   gl_Position = viewProject*vec4(inPos,1.0);
   }
