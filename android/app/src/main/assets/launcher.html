@@ -110,12 +110,14 @@
     .dn-kofi small { display: block; font-size: 12px; opacity: .92; }
     .dn-pay { display: flex; gap: 5px; margin-top: 7px; }
     .dn-kofi .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
-    .dn-pay-ru { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: #2b2f3a; color: #fff; text-decoration: none; box-shadow: 0 0 16px rgba(120, 90, 220, .35); }
+    /* DonatePay: a quiet secondary option, Ko-fi stays the main one */
+    .dn-pay-ru { display: flex; align-items: center; gap: 10px; margin-top: 28px; padding: 8px 12px; border-radius: 8px; background: transparent; border: 1px solid var(--line); color: #b4b4b4; text-decoration: none; }
     .dn-pay-ru[hidden] { display: none; }
-    .dn-pay-ru:hover { background: #343947; }
-    .dn-pay-ru > svg { width: 32px; height: 32px; flex: none; }
-    .dn-pay-ru b { display: block; font-size: 19px; }
-    .dn-pay-ru .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
+    .dn-pay-ru:hover { border-color: #5a5a5a; color: #e2e2e2; }
+    .dn-pay-ru img { width: 26px; height: 26px; flex: none; border-radius: 6px; }
+    .dn-pay-ru b { font-size: 14px; font-weight: 500; }
+    .dn-pay-ru .dn-sbp { display: inline-flex; margin-left: 2px; opacity: .85; }
+    .dn-pay-ru .dn-sbp svg { width: 30px; height: 19.6px; display: block; }
     .dn-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 10px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
     .dn-or::before, .dn-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
     .dn-coin { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; background: #222; border: 1px solid var(--line); border-radius: 10px; }
@@ -901,8 +903,8 @@
         <span><b>Support on Ko-fi</b><span class="dn-pay" role="img" aria-label="Bank cards, PayPal, Mastercard, Visa"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><rect x="12.5" y="8.5" width="21" height="13" rx="2.2" fill="none" stroke="#3a3f47" stroke-width="1.7"/><path d="M12.5 13.4h21" stroke="#3a3f47" stroke-width="2.6"/><path d="M16 18h5" stroke="#3a3f47" stroke-width="1.6" stroke-linecap="round"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(14 6) scale(.75)"><path fill="#003087" d="M7.016 19.198h-4.2a.562.562 0 0 1-.555-.65L5.093.584A.692.692 0 0 1 5.776 0h7.222c3.417 0 5.904 2.488 5.846 5.5-.006.25-.027.5-.066.747A6.794 6.794 0 0 1 12.071 12H8.743a.69.69 0 0 0-.682.583l-.325 2.056-.013.083-.692 4.39-.015.087zM19.79 6.142c-.01.087-.01.175-.023.261a7.76 7.76 0 0 1-7.695 6.598H9.007l-.283 1.795-.013.083-.692 4.39-.134.843-.014.088H6.86l-.497 3.15a.562.562 0 0 0 .555.65h3.612c.34 0 .63-.249.683-.585l.952-6.031a.692.692 0 0 1 .683-.584h2.126a6.793 6.793 0 0 0 6.707-5.752c.306-1.95-.466-3.744-1.89-4.906z"/></g></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><circle cx="18" cy="15" r="8" fill="#EB001B"/><circle cx="28" cy="15" r="8" fill="#F79E1B"/><path fill="#FF5F00" d="M23 8.755A8 8 0 0 1 23 21.245A8 8 0 0 1 23 8.755z"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(8 0) scale(1.25)"><path fill="#1A1F71" d="M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z"/></g></svg></span></span>
       </a>
       <a class="dn-pay-ru" id="dn-donatepay" href="https://donatepay.ru/don/1541038" target="_blank" rel="noopener" data-ext>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#7b5cf0"/><path fill="#fff" d="M12 19.3c-.3 0-.6-.1-.8-.3C7 15.300 5 13.500 5 10.900 5 8.900 6.500 7.500 8.400 7.500c1.500 0 2.800.9 3.600 2 .8-1.100 2.100-2 3.600-2 1.900 0 3.400 1.400 3.400 3.400 0 2.600-2 4.400-6.200 8.100-.2.200-.5.300-.8.300z"/></svg>
-        <span><b>DonatePay</b><span class="dn-pay" role="img" aria-label="SBP (Faster Payments System)"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(5 4) scale(.9)"><path fill="#5B57A2" d="M0 8.5 6 12v7L0 15.5z"/><path fill="#D90751" d="M6 5l6 3.5v7L6 12z"/><path fill="#FAB718" d="M6 5l6-3.5v7z"/><path fill="#E5E5E5" d="M12 15.5l-6-3.5 6-3.5z" opacity="0"/><path fill="#2DC25B" d="M12 15.5 6 19v-7l6 3.5z"/><path fill="#1D92D0" d="M18 12l-6 3.5v-7z"/><path fill="#EE4D23" d="M6 12v7l-6-3.5z" opacity="0"/></g><text x="29" y="19" font-family="Arial,sans-serif" font-size="9" font-weight="700" fill="#1d1e3a" text-anchor="middle">СБП</text></svg></span></span>
+        <img src="data:image/png;base64,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" alt="" width="26" height="26">
+        <b>DonatePay</b><span class="dn-sbp" role="img" aria-label="SBP (Faster Payments System)"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(5 4) scale(.9)"><path fill="#5B57A2" d="M0 8.5 6 12v7L0 15.5z"/><path fill="#D90751" d="M6 5l6 3.5v7L6 12z"/><path fill="#FAB718" d="M6 5l6-3.5v7z"/><path fill="#E5E5E5" d="M12 15.5l-6-3.5 6-3.5z" opacity="0"/><path fill="#2DC25B" d="M12 15.5 6 19v-7l6 3.5z"/><path fill="#1D92D0" d="M18 12l-6 3.5v-7z"/><path fill="#EE4D23" d="M6 12v7l-6-3.5z" opacity="0"/></g><text x="29" y="19" font-family="Arial,sans-serif" font-size="9" font-weight="700" fill="#1d1e3a" text-anchor="middle">СБП</text></svg></span>
       </a>
       <div class="dn-or">or send crypto</div>
       <div class="dn-coin">
@@ -945,7 +947,7 @@
         const ok = document.execCommand('copy'); t.remove(); return ok;
       } catch (e) { return false; }
     }
-    // DonatePay (SBP) is for Russian-speaking users: hidden for Ukrainian language/time zone, and when the site is not reachable (blocked)
+    // DonatePay (SBP) is for Russian-speaking users: hidden for Ukrainian language/time zone only (no reachability probe: Tor and some networks block donatepay.ru and the button used to vanish)
     (function () {
       const el = document.getElementById('dn-donatepay');
       let hide = false;
@@ -955,13 +957,7 @@
         const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
         if (/^Europe\/(Kyiv|Kiev|Uzhgorod|Zaporozhye)$/.test(tz)) hide = true;
       } catch (e) {}
-      if (hide) { el.hidden = true; return; }
-      try {
-        const ac = new AbortController();
-        const t = setTimeout(() => ac.abort(), 8000);
-        fetch('https://donatepay.ru/favicon.ico', { mode: 'no-cors', cache: 'no-store', signal: ac.signal })
-          .then(() => clearTimeout(t), () => { clearTimeout(t); if (navigator.onLine !== false) el.hidden = true; });
-      } catch (e) {}
+      if (hide) el.hidden = true;
     })();
     window.openDonate = () => { modal.hidden = false; };
     window.closeDonate = () => { modal.hidden = true; };
@@ -1138,25 +1134,25 @@
     function confirmDelete(g) {
       const sheet = $('sheet'), box = $('sheet-box');
       box.innerHTML = '<h2>Delete ' + g.title + '?</h2>' +
-        '<div class="msg">The game downloaded from the PC is removed from the phone (' + g.path.replace(/</g, '&lt;') + '), with its savegames and settings. It can be downloaded again.</div>' +
+        '<div class="msg">The downloaded game is removed from the phone (' + g.path.replace(/</g, '&lt;') + '), with its savegames and settings. It can be downloaded again.</div>' +
         '<button class="go" id="del-yes" style="background:#e5484d;color:#fff">Delete</button><button class="sec" id="del-no">Cancel</button>';
       sheet.classList.add('open');
       $('del-no').addEventListener('click', () => sheet.classList.remove('open'));
       $('del-yes').addEventListener('click', () => { sheet.classList.remove('open'); Launcher.deleteGame(g.id); });
     }
 
-    // ---- the sheet of the downloads: a whole game from the PC (Gothic_Dev), or one language of a downloaded game
+    // ---- the sheet of the downloads: a whole game from the site (release.json), or one language of a downloaded game
     const sheet = $('sheet'), box = $('sheet-box');
     const ICON_RELOAD = '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
     sheet.addEventListener('click', e => { if (e.target === sheet) sheet.classList.remove('open'); });
     let cur = null;   // {g, kind: 'all' | 'text' | 'voice'}
     function openSheet(g, kind) {
       cur = { g, kind };
-      const head = kind === 'all' ? ['Download ' + g.title, 'The game and its languages from the PC in your network'] :
+      const head = kind === 'all' ? ['Download ' + g.title, 'The game and its languages from the gothicplay.fun site'] :
                    kind === 'text' ? ['Text language', g.title + ': the other languages stay as they are'] :
                                      ['Voice language', g.title + ': the other languages stay as they are'];
       box.innerHTML = '<div class="sh-head"><h2></h2><p></p></div>' +
-        '<div><div class="sh-label">Server</div><div class="field-row">' +
+        '<div><div class="sh-label">Manifest link</div><div class="field-row">' +
           '<input type="text" id="srv" readonly autocapitalize="off" autocorrect="off" spellcheck="false">' +
           '<button class="ib" id="srv-lock" title="Unlock the link">' + ICON_LOCK + '</button>' +
           '<button class="ib" id="srv-reset" title="Reset the link">' + ICON_RELOAD + '</button></div></div>' +
@@ -1184,7 +1180,7 @@
     window.onIndex = (id, r) => {
       if (!cur || id !== cur.g.id || !sheet.classList.contains('open') || !$('sbody')) return;
       if (r.error) {
-        $('sbody').innerHTML = '<div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the link and that the PC is in the same network (python3 web/serve.py 8322 --lan).</div>';
+        $('sbody').innerHTML = '<div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the link and the internet connection.</div>';
         return;
       }
       const kind = cur.kind;

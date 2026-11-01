@@ -224,25 +224,25 @@
     function confirmDelete(g) {
       const sheet = $('sheet'), box = $('sheet-box');
       box.innerHTML = '<h2>Delete ' + g.title + '?</h2>' +
-        '<div class="msg">The game downloaded from the PC is removed from the phone (' + g.path.replace(/</g, '&lt;') + '), with its savegames and settings. It can be downloaded again.</div>' +
+        '<div class="msg">The downloaded game is removed from the phone (' + g.path.replace(/</g, '&lt;') + '), with its savegames and settings. It can be downloaded again.</div>' +
         '<button class="go" id="del-yes" style="background:#e5484d;color:#fff">Delete</button><button class="sec" id="del-no">Cancel</button>';
       sheet.classList.add('open');
       $('del-no').addEventListener('click', () => sheet.classList.remove('open'));
       $('del-yes').addEventListener('click', () => { sheet.classList.remove('open'); Launcher.deleteGame(g.id); });
     }
 
-    // ---- the sheet of the downloads: a whole game from the PC (Gothic_Dev), or one language of a downloaded game
+    // ---- the sheet of the downloads: a whole game from the site (release.json), or one language of a downloaded game
     const sheet = $('sheet'), box = $('sheet-box');
     const ICON_RELOAD = '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.96 7.96 0 0 0 12 4a8 8 0 1 0 7.73 10h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>';
     sheet.addEventListener('click', e => { if (e.target === sheet) sheet.classList.remove('open'); });
     let cur = null;   // {g, kind: 'all' | 'text' | 'voice'}
     function openSheet(g, kind) {
       cur = { g, kind };
-      const head = kind === 'all' ? ['Download ' + g.title, 'The game and its languages from the PC in your network'] :
+      const head = kind === 'all' ? ['Download ' + g.title, 'The game and its languages from the gothicplay.fun site'] :
                    kind === 'text' ? ['Text language', g.title + ': the other languages stay as they are'] :
                                      ['Voice language', g.title + ': the other languages stay as they are'];
       box.innerHTML = '<div class="sh-head"><h2></h2><p></p></div>' +
-        '<div><div class="sh-label">Server</div><div class="field-row">' +
+        '<div><div class="sh-label">Manifest link</div><div class="field-row">' +
           '<input type="text" id="srv" readonly autocapitalize="off" autocorrect="off" spellcheck="false">' +
           '<button class="ib" id="srv-lock" title="Unlock the link">' + ICON_LOCK + '</button>' +
           '<button class="ib" id="srv-reset" title="Reset the link">' + ICON_RELOAD + '</button></div></div>' +
@@ -270,7 +270,7 @@
     window.onIndex = (id, r) => {
       if (!cur || id !== cur.g.id || !sheet.classList.contains('open') || !$('sbody')) return;
       if (r.error) {
-        $('sbody').innerHTML = '<div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the link and that the PC is in the same network (python3 web/serve.py 8322 --lan).</div>';
+        $('sbody').innerHTML = '<div class="msg err">' + r.error.replace(/</g, '&lt;') + '</div><div class="msg">Check the link and the internet connection.</div>';
         return;
       }
       const kind = cur.kind;

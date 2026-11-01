@@ -480,11 +480,16 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun start(id: Int) { runOnUiThread { launchGame(id) } }
 
-        // ---- the server of the PC (Gothic_Dev) and the download
-        private val defaultServer = "http://192.168.0.100:8322/"
+        // ---- the link to release.json of the site (the same manifest as the browser version) and the download.
+        // A link that does not end with .json is the server of the PC (web/serve.py), see PackDownloader.
+        private val defaultServer = "https://gothicplay.fun/release.json"
+        private val oldDefaultServer = "http://192.168.0.100:8322/"   // the default of the earlier versions: now the site
 
         @JavascriptInterface
-        fun server(): String = prefs().getString("server", defaultServer) ?: defaultServer
+        fun server(): String {
+            val s = prefs().getString("server", defaultServer) ?: defaultServer
+            return if (s == oldDefaultServer) defaultServer else s
+        }
 
         @JavascriptInterface
         fun resetServer(): String { prefs().edit().remove("server").apply(); return defaultServer }
