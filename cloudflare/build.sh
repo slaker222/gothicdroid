@@ -15,6 +15,7 @@ else
   cp "$ROOT/dist-web/release.json" "$OUT/release.json"
 fi
 cp "$ROOT/web/landing.html" "$OUT/index.html"
+cp "$ROOT/web/gpucheck.html" "$OUT/gpucheck.html"   # диагностика WebGPU (на неё ссылается страница ошибки)
 cp "$ROOT"/dist-web/opengothic.{js,wasm,worker.js} "$OUT/"
 cp -rL "$ROOT/dist-web/img" "$OUT/img"
 cp _headers "$OUT/_headers"
