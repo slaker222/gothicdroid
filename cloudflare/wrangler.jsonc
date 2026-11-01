@@ -1,10 +1,13 @@
 {
-  // Статический сайт на Cloudflare Workers (Static Assets). Воркер-кода нет:
-  // файлы из public/ раздаются как есть, заголовки — из public/_headers.
+  // Статический сайт на Cloudflare Workers (Static Assets) с паролем (worker.js).
+  // Файлы из public/, заголовки — из public/_headers.
   "name": "gothic-web-test",
   "compatibility_date": "2025-01-01",
+  "main": "./worker.js",   // Basic Auth перед статикой (см. worker.js)
   "assets": {
     "directory": "./public",
+    "binding": "ASSETS",
+    "run_worker_first": true,
     "not_found_handling": "404-page"
   },
   // Свой домен (зона gothicplay.fun должна быть активна в аккаунте Cloudflare)
