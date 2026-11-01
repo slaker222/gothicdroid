@@ -124,6 +124,9 @@ Gothic::Gothic() {
   iniFile    .reset(new IniFile(u"Gothic.ini"));
   if(!iniFile->has("INTERNAL", "vidResIndex")) {
     int res = 0; // full-res
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+    res = 11;    // the Classic preset: 80%
+#endif
 #if defined(__ANDROID__)
     // a weak Mali (G76 of the Helio G90T and older/smaller): the whole world at the native resolution is too much,
     // the driver resets the gpu. Only what was seen: G76, the rest of the old ones by their number (G71, G72, G52...)
@@ -191,17 +194,21 @@ Gothic::Gothic() {
   //defaults->set("ENGINE", "zCloudShadowScale",  0);
   defaults->set("ENGINE", "zWindEnabled",       1);
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
-#if defined(__ANDROID__)
-  defaults->set("INTERNAL", "webShadows",   1); // a phone: low shadows, no ssao, no reflections
-  defaults->set("ENGINE",   "zCloudShadowScale", 0);
-  defaults->set("ENGINE",   "zEnvMappingEnabled", 0);
-#else
-  defaults->set("INTERNAL", "webShadows",   2); // player settings menu: 0 off, 1 low, 2 high
-#endif
-  defaults->set("INTERNAL", "webFpsLimit", 0);
-  defaults->set("INTERNAL", "webDrawDist",  0); // 0 no limit, 1 far .. 4 nearest
-  defaults->set("INTERNAL", "webWorldDistM", 0); // meters, 0 no limit
-  defaults->set("INTERNAL", "webSkipFarAnim", 0);
+  // the default is the "Classic" graphics preset (as in web/shell.html and the launcher)
+  defaults->set("ENGINE",   "zCloudShadowScale", 0);  // ssao off
+  defaults->set("ENGINE",   "zEnvMappingEnabled", 0); // reflections off
+  defaults->set("INTERNAL", "vidResIndex",   11);     // 80% of the resolution
+  defaults->set("INTERNAL", "webShadows",    3);      // circles under npcs (0 off, 1 low, 2 high)
+  defaults->set("INTERNAL", "webFpsLimit",   0);
+  defaults->set("INTERNAL", "webDrawDist",   2);      // 0 no limit, 1 far .. 4 nearest
+  defaults->set("INTERNAL", "webWorldDistM", 200);    // meters, 0 no limit
+  defaults->set("INTERNAL", "webSkipFarAnim", 1);
+  defaults->set("INTERNAL", "webWaterQuality", 1);
+  defaults->set("INTERNAL", "webWaterPhysics", 0);
+  defaults->set("INTERNAL", "webFog", 1);
+  defaults->set("INTERNAL", "webSun", 1);
+  defaults->set("INTERNAL", "webBlood", 1);
+  defaults->set("INTERNAL", "webTexQuality", 0);
 #endif
   defaults->set("ENGINE", "zWindCycleTime",     4);
   defaults->set("ENGINE", "zWindCycleTimeVar",  6);

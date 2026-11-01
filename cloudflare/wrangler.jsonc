@@ -1,0 +1,15 @@
+{
+  // Статический сайт на Cloudflare Workers (Static Assets). Воркер-кода нет:
+  // файлы из public/ раздаются как есть, заголовки — из public/_headers.
+  "name": "gothic-web-test",
+  "compatibility_date": "2025-01-01",
+  "assets": {
+    "directory": "./public",
+    "not_found_handling": "404-page"
+  },
+  // Свой домен (зона gothicplay.fun должна быть активна в аккаунте Cloudflare)
+  "routes": [
+    { "pattern": "gothicplay.fun", "custom_domain": true },
+    { "pattern": "www.gothicplay.fun", "custom_domain": true }
+  ]
+}

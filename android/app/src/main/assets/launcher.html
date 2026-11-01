@@ -110,6 +110,12 @@
     .dn-kofi small { display: block; font-size: 12px; opacity: .92; }
     .dn-pay { display: flex; gap: 5px; margin-top: 7px; }
     .dn-kofi .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
+    .dn-pay-ru { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: #2b2f3a; color: #fff; text-decoration: none; box-shadow: 0 0 16px rgba(120, 90, 220, .35); }
+    .dn-pay-ru[hidden] { display: none; }
+    .dn-pay-ru:hover { background: #343947; }
+    .dn-pay-ru > svg { width: 32px; height: 32px; flex: none; }
+    .dn-pay-ru b { display: block; font-size: 19px; }
+    .dn-pay-ru .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
     .dn-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 10px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
     .dn-or::before, .dn-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
     .dn-coin { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; background: #222; border: 1px solid var(--line); border-radius: 10px; }
@@ -894,6 +900,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M11.351 2.715c-2.7 0-4.986.025-6.83.26C2.078 3.285 0 5.154 0 8.61c0 3.506.182 6.13 1.585 8.493 1.584 2.701 4.233 4.182 7.662 4.182h.83c4.209 0 6.494-2.234 7.637-4a9.5 9.5 0 0 0 1.091-2.338C21.792 14.688 24 12.22 24 9.208v-.415c0-3.247-2.13-5.507-5.792-5.87-1.558-.156-2.65-.208-6.857-.208m0 1.947c4.208 0 5.09.052 6.571.182 2.624.311 4.13 1.584 4.13 4v.39c0 2.156-1.792 3.844-3.87 3.844h-.935l-.156.649c-.208 1.013-.597 1.818-1.039 2.546-.909 1.428-2.545 3.064-5.922 3.064h-.805c-2.571 0-4.831-.883-6.078-3.195-1.09-2-1.298-4.155-1.298-7.506 0-2.181.857-3.402 3.012-3.714 1.533-.233 3.559-.26 6.39-.26m6.547 2.287c-.416 0-.65.234-.65.546v2.935c0 .311.234.545.65.545 1.324 0 2.051-.754 2.051-2s-.727-2.026-2.052-2.026m-10.39.182c-1.818 0-3.013 1.48-3.013 3.142 0 1.533.858 2.857 1.949 3.897.727.701 1.87 1.429 2.649 1.896a1.47 1.47 0 0 0 1.507 0c.78-.467 1.922-1.195 2.623-1.896 1.117-1.039 1.974-2.364 1.974-3.897 0-1.662-1.247-3.142-3.039-3.142-1.065 0-1.792.545-2.338 1.298-.493-.753-1.246-1.298-2.312-1.298"/></svg>
         <span><b>Support on Ko-fi</b><span class="dn-pay" role="img" aria-label="Bank cards, PayPal, Mastercard, Visa"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><rect x="12.5" y="8.5" width="21" height="13" rx="2.2" fill="none" stroke="#3a3f47" stroke-width="1.7"/><path d="M12.5 13.4h21" stroke="#3a3f47" stroke-width="2.6"/><path d="M16 18h5" stroke="#3a3f47" stroke-width="1.6" stroke-linecap="round"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(14 6) scale(.75)"><path fill="#003087" d="M7.016 19.198h-4.2a.562.562 0 0 1-.555-.65L5.093.584A.692.692 0 0 1 5.776 0h7.222c3.417 0 5.904 2.488 5.846 5.5-.006.25-.027.5-.066.747A6.794 6.794 0 0 1 12.071 12H8.743a.69.69 0 0 0-.682.583l-.325 2.056-.013.083-.692 4.39-.015.087zM19.79 6.142c-.01.087-.01.175-.023.261a7.76 7.76 0 0 1-7.695 6.598H9.007l-.283 1.795-.013.083-.692 4.39-.134.843-.014.088H6.86l-.497 3.15a.562.562 0 0 0 .555.65h3.612c.34 0 .63-.249.683-.585l.952-6.031a.692.692 0 0 1 .683-.584h2.126a6.793 6.793 0 0 0 6.707-5.752c.306-1.95-.466-3.744-1.89-4.906z"/></g></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><circle cx="18" cy="15" r="8" fill="#EB001B"/><circle cx="28" cy="15" r="8" fill="#F79E1B"/><path fill="#FF5F00" d="M23 8.755A8 8 0 0 1 23 21.245A8 8 0 0 1 23 8.755z"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(8 0) scale(1.25)"><path fill="#1A1F71" d="M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z"/></g></svg></span></span>
       </a>
+      <a class="dn-pay-ru" id="dn-donatepay" href="https://donatepay.ru/don/1541038" target="_blank" rel="noopener" data-ext>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#7b5cf0"/><path fill="#fff" d="M12 19.3c-.3 0-.6-.1-.8-.3C7 15.300 5 13.500 5 10.900 5 8.900 6.500 7.500 8.400 7.500c1.500 0 2.800.9 3.600 2 .8-1.100 2.100-2 3.600-2 1.900 0 3.400 1.400 3.400 3.400 0 2.600-2 4.400-6.200 8.100-.2.200-.5.300-.8.300z"/></svg>
+        <span><b>DonatePay</b><span class="dn-pay" role="img" aria-label="SBP (Faster Payments System)"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(5 4) scale(.9)"><path fill="#5B57A2" d="M0 8.5 6 12v7L0 15.5z"/><path fill="#D90751" d="M6 5l6 3.5v7L6 12z"/><path fill="#FAB718" d="M6 5l6-3.5v7z"/><path fill="#E5E5E5" d="M12 15.5l-6-3.5 6-3.5z" opacity="0"/><path fill="#2DC25B" d="M12 15.5 6 19v-7l6 3.5z"/><path fill="#1D92D0" d="M18 12l-6 3.5v-7z"/><path fill="#EE4D23" d="M6 12v7l-6-3.5z" opacity="0"/></g><text x="29" y="19" font-family="Arial,sans-serif" font-size="9" font-weight="700" fill="#1d1e3a" text-anchor="middle">СБП</text></svg></span></span>
+      </a>
       <div class="dn-or">or send crypto</div>
       <div class="dn-coin">
         <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#F7931A"/><path fill="#FFF" fill-rule="nonzero" d="M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z"/></g></svg>
@@ -935,6 +945,24 @@
         const ok = document.execCommand('copy'); t.remove(); return ok;
       } catch (e) { return false; }
     }
+    // DonatePay (SBP) is for Russian-speaking users: hidden for Ukrainian language/time zone, and when the site is not reachable (blocked)
+    (function () {
+      const el = document.getElementById('dn-donatepay');
+      let hide = false;
+      try {
+        const langs = [].concat(navigator.languages || [], navigator.language || []).map((l) => String(l).toLowerCase());
+        if (langs.some((l) => l === 'uk' || l.startsWith('uk-'))) hide = true;
+        const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+        if (/^Europe\/(Kyiv|Kiev|Uzhgorod|Zaporozhye)$/.test(tz)) hide = true;
+      } catch (e) {}
+      if (hide) { el.hidden = true; return; }
+      try {
+        const ac = new AbortController();
+        const t = setTimeout(() => ac.abort(), 8000);
+        fetch('https://donatepay.ru/favicon.ico', { mode: 'no-cors', cache: 'no-store', signal: ac.signal })
+          .then(() => clearTimeout(t), () => { clearTimeout(t); if (navigator.onLine !== false) el.hidden = true; });
+      } catch (e) {}
+    })();
     window.openDonate = () => { modal.hidden = false; };
     window.closeDonate = () => { modal.hidden = true; };
     modal.addEventListener('click', (e) => {
@@ -1231,9 +1259,9 @@
       load();
     }));
     const PRESETS = {
-        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 1, texQuality: 1 },
-        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 0, texQuality: 0 },
-        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 0, texQuality: 0 },
+        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 80,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 3, texQuality: 1 },
+        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 150, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 14, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 11, texQuality: 0 },
         ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
       };
     $('gfx-presets').addEventListener('click', e => {

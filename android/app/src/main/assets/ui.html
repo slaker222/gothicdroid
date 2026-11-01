@@ -115,6 +115,12 @@
     .dn-kofi small { display: block; font-size: 12px; opacity: .92; }
     .dn-pay { display: flex; gap: 5px; margin-top: 7px; }
     .dn-kofi .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
+    .dn-pay-ru { display: flex; align-items: center; gap: 12px; margin-top: 10px; padding: 12px 14px; border-radius: 10px; background: #2b2f3a; color: #fff; text-decoration: none; box-shadow: 0 0 16px rgba(120, 90, 220, .35); }
+    .dn-pay-ru[hidden] { display: none; }
+    .dn-pay-ru:hover { background: #343947; }
+    .dn-pay-ru > svg { width: 32px; height: 32px; flex: none; }
+    .dn-pay-ru b { display: block; font-size: 19px; }
+    .dn-pay-ru .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
     .dn-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 10px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
     .dn-or::before, .dn-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
     .dn-coin { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; background: #222; border: 1px solid var(--line); border-radius: 10px; }
@@ -890,6 +896,10 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M11.351 2.715c-2.7 0-4.986.025-6.83.26C2.078 3.285 0 5.154 0 8.61c0 3.506.182 6.13 1.585 8.493 1.584 2.701 4.233 4.182 7.662 4.182h.83c4.209 0 6.494-2.234 7.637-4a9.5 9.5 0 0 0 1.091-2.338C21.792 14.688 24 12.22 24 9.208v-.415c0-3.247-2.13-5.507-5.792-5.87-1.558-.156-2.65-.208-6.857-.208m0 1.947c4.208 0 5.09.052 6.571.182 2.624.311 4.13 1.584 4.13 4v.39c0 2.156-1.792 3.844-3.87 3.844h-.935l-.156.649c-.208 1.013-.597 1.818-1.039 2.546-.909 1.428-2.545 3.064-5.922 3.064h-.805c-2.571 0-4.831-.883-6.078-3.195-1.09-2-1.298-4.155-1.298-7.506 0-2.181.857-3.402 3.012-3.714 1.533-.233 3.559-.26 6.39-.26m6.547 2.287c-.416 0-.65.234-.65.546v2.935c0 .311.234.545.65.545 1.324 0 2.051-.754 2.051-2s-.727-2.026-2.052-2.026m-10.39.182c-1.818 0-3.013 1.48-3.013 3.142 0 1.533.858 2.857 1.949 3.897.727.701 1.87 1.429 2.649 1.896a1.47 1.47 0 0 0 1.507 0c.78-.467 1.922-1.195 2.623-1.896 1.117-1.039 1.974-2.364 1.974-3.897 0-1.662-1.247-3.142-3.039-3.142-1.065 0-1.792.545-2.338 1.298-.493-.753-1.246-1.298-2.312-1.298"/></svg>
         <span><b>Support on Ko-fi</b><span class="dn-pay" role="img" aria-label="Bank cards, PayPal, Mastercard, Visa"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><rect x="12.5" y="8.5" width="21" height="13" rx="2.2" fill="none" stroke="#3a3f47" stroke-width="1.7"/><path d="M12.5 13.4h21" stroke="#3a3f47" stroke-width="2.6"/><path d="M16 18h5" stroke="#3a3f47" stroke-width="1.6" stroke-linecap="round"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(14 6) scale(.75)"><path fill="#003087" d="M7.016 19.198h-4.2a.562.562 0 0 1-.555-.65L5.093.584A.692.692 0 0 1 5.776 0h7.222c3.417 0 5.904 2.488 5.846 5.5-.006.25-.027.5-.066.747A6.794 6.794 0 0 1 12.071 12H8.743a.69.69 0 0 0-.682.583l-.325 2.056-.013.083-.692 4.39-.015.087zM19.79 6.142c-.01.087-.01.175-.023.261a7.76 7.76 0 0 1-7.695 6.598H9.007l-.283 1.795-.013.083-.692 4.39-.134.843-.014.088H6.86l-.497 3.15a.562.562 0 0 0 .555.65h3.612c.34 0 .63-.249.683-.585l.952-6.031a.692.692 0 0 1 .683-.584h2.126a6.793 6.793 0 0 0 6.707-5.752c.306-1.95-.466-3.744-1.89-4.906z"/></g></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><circle cx="18" cy="15" r="8" fill="#EB001B"/><circle cx="28" cy="15" r="8" fill="#F79E1B"/><path fill="#FF5F00" d="M23 8.755A8 8 0 0 1 23 21.245A8 8 0 0 1 23 8.755z"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(8 0) scale(1.25)"><path fill="#1A1F71" d="M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z"/></g></svg></span></span>
       </a>
+      <a class="dn-pay-ru" id="dn-donatepay" href="https://donatepay.ru/don/1541038" target="_blank" rel="noopener" data-ext>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#7b5cf0"/><path fill="#fff" d="M12 19.3c-.3 0-.6-.1-.8-.3C7 15.300 5 13.500 5 10.900 5 8.900 6.500 7.500 8.400 7.500c1.500 0 2.800.9 3.600 2 .8-1.100 2.100-2 3.600-2 1.900 0 3.400 1.400 3.400 3.400 0 2.600-2 4.400-6.200 8.100-.2.200-.5.300-.8.300z"/></svg>
+        <span><b>DonatePay</b><span class="dn-pay" role="img" aria-label="SBP (Faster Payments System)"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(5 4) scale(.9)"><path fill="#5B57A2" d="M0 8.5 6 12v7L0 15.5z"/><path fill="#D90751" d="M6 5l6 3.5v7L6 12z"/><path fill="#FAB718" d="M6 5l6-3.5v7z"/><path fill="#E5E5E5" d="M12 15.5l-6-3.5 6-3.5z" opacity="0"/><path fill="#2DC25B" d="M12 15.5 6 19v-7l6 3.5z"/><path fill="#1D92D0" d="M18 12l-6 3.5v-7z"/><path fill="#EE4D23" d="M6 12v7l-6-3.5z" opacity="0"/></g><text x="29" y="19" font-family="Arial,sans-serif" font-size="9" font-weight="700" fill="#1d1e3a" text-anchor="middle">СБП</text></svg></span></span>
+      </a>
       <div class="dn-or">or send crypto</div>
       <div class="dn-coin">
         <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#F7931A"/><path fill="#FFF" fill-rule="nonzero" d="M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z"/></g></svg>
@@ -931,6 +941,24 @@
         const ok = document.execCommand('copy'); t.remove(); return ok;
       } catch (e) { return false; }
     }
+    // DonatePay (SBP) is for Russian-speaking users: hidden for Ukrainian language/time zone, and when the site is not reachable (blocked)
+    (function () {
+      const el = document.getElementById('dn-donatepay');
+      let hide = false;
+      try {
+        const langs = [].concat(navigator.languages || [], navigator.language || []).map((l) => String(l).toLowerCase());
+        if (langs.some((l) => l === 'uk' || l.startsWith('uk-'))) hide = true;
+        const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
+        if (/^Europe\/(Kyiv|Kiev|Uzhgorod|Zaporozhye)$/.test(tz)) hide = true;
+      } catch (e) {}
+      if (hide) { el.hidden = true; return; }
+      try {
+        const ac = new AbortController();
+        const t = setTimeout(() => ac.abort(), 8000);
+        fetch('https://donatepay.ru/favicon.ico', { mode: 'no-cors', cache: 'no-store', signal: ac.signal })
+          .then(() => clearTimeout(t), () => { clearTimeout(t); if (navigator.onLine !== false) el.hidden = true; });
+      } catch (e) {}
+    })();
     window.openDonate = () => { modal.hidden = false; };
     window.closeDonate = () => { modal.hidden = true; };
     modal.addEventListener('click', (e) => {
@@ -1192,9 +1220,26 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
+// slicing-by-8: eight table lookups per 8 bytes (about 3x faster than the byte-wise loop)
+const CRC8 = (() => {
+  const t = new Int32Array(256 * 8);
+  t.set(CRC_TABLE);
+  for (let n = 0; n < 256; n++) {
+    let c = CRC_TABLE[n];
+    for (let k = 1; k < 8; k++) { c = CRC_TABLE[c & 0xff] ^ (c >>> 8); t[k * 256 + n] = c; }
+  }
+  return t;
+})();
+
 function crc32(crc, buf) {
-  let c = ~crc;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  let c = ~crc, i = 0;
+  const n = buf.length, t = CRC8, end = n - 7;
+  for (; i < end; i += 8) {
+    const a = c ^ (buf[i] | buf[i + 1] << 8 | buf[i + 2] << 16 | buf[i + 3] << 24);
+    c = t[1792 + (a & 0xff)] ^ t[1536 + ((a >>> 8) & 0xff)] ^ t[1280 + ((a >>> 16) & 0xff)] ^ t[1024 + (a >>> 24)] ^
+        t[768 + buf[i + 4]] ^ t[512 + buf[i + 5]] ^ t[256 + buf[i + 6]] ^ t[buf[i + 7]];
+  }
+  for (; i < n; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return ~c;
 }
 
@@ -1443,8 +1488,10 @@ async function installChunks(m) {
     state = JSON.parse(new TextDecoder().decode(buf));
   } catch (_) {}
   // a different pack behind the link: start over
-  if (!state || state.url !== m.urls[0] || JSON.stringify(state.names) !== JSON.stringify(names))
-    state = { url: m.urls[0], names, done: [], created: [] };
+  // m.stateKey: the pack's own name when it comes from release.json (whichever mirror serves it)
+  const stateKey = m.stateKey || m.urls[0];
+  if (!state || state.url !== stateKey || JSON.stringify(state.names) !== JSON.stringify(names))
+    state = { url: stateKey, names, done: [], created: [] };
   const done = new Set(state.done);
 
   const gameDir = m.memory ? null : await root.getDirectoryHandle(m.gameDirName, { create: true });
@@ -1548,64 +1595,148 @@ async function installChunks(m) {
     }
   }
 
-  async function installChunk(ci) {
+  const T = { fetch: 0, sha: 0, inflate: 0, crc: 0, write: 0, flush: 0, handle: 0, raw: 0, t0: performance.now() };
+
+  // Downloading and unpacking are two stages. CHUNK_JOBS chunks download at once; finished downloads
+  // wait in a queue and are unpacked one at a time (DecompressionStream is ~3x slower per byte when
+  // several run together in one worker), so the network never waits for the unpacking and the other
+  // way round. At most UNPACK_BACKLOG downloaded chunks wait (memory: a chunk is up to 30 MB).
+  async function downloadChunk(ci) {
     const c = man.chunks[ci];
     active.add(ci);
-    try { return await installChunk1(ci, c); } finally { active.delete(ci); }
-  }
-  async function installChunk1(ci, c) {
-    // next to the manifest, in the mirror folders of the pack, then the
-    // chunk's own links
-    const urls = [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
-    const data = await fetchMirrors(urls, c.name, async (resp) => {
-      const buf = new Uint8Array(c.size);
-      let at = 0;
-      try {
-        const reader = resp.body.getReader();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (at + value.byteLength > c.size) throw new Error('unexpected size of ' + c.name);
-          buf.set(value, at);
-          at += value.byteLength;
-          count(value.byteLength);
+    try {
+      // release.json gives the links of every chunk (one per mirror, in the order of preference);
+      // otherwise next to the manifest, in the mirror folders of the pack, then the chunk's own links
+      const urls = m.chunkUrls && m.chunkUrls[ci] && m.chunkUrls[ci].length ? m.chunkUrls[ci] :
+        [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
+      const tf = performance.now();
+      return await fetchMirrors(urls, c.name, async (resp) => {
+        const buf = new Uint8Array(c.size);
+        let at = 0;
+        try {
+          const reader = resp.body.getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (at + value.byteLength > c.size) throw new Error('unexpected size of ' + c.name);
+            buf.set(value, at);
+            at += value.byteLength;
+            count(value.byteLength);
+          }
+          if (at !== c.size) throw new Error('connection lost');
+          T.fetch += performance.now() - tf;
+          const ts = performance.now();
+          if (toHex(await crypto.subtle.digest('SHA-256', buf)) !== c.sha256)
+            throw new Error('corrupt download: ' + c.name);
+          T.sha += performance.now() - ts;
+        } catch (err) {
+          count(-at);
+          throw err;
         }
-        if (at !== c.size) throw new Error('connection lost');
-        if (toHex(await crypto.subtle.digest('SHA-256', buf)) !== c.sha256)
-          throw new Error('corrupt download: ' + c.name);
-      } catch (err) {
-        count(-at);
-        throw err;
-      }
-      return buf;
-    });
-
-    const touched = new Set();
-    for (const p of pieces[ci]) {
-      const h = await handleFor(p.file);
-      if (!h) continue;
-      let raw = data.subarray(p.off, p.off + p.len);
-      if (p.method === 'deflate-raw') raw = await inflateRaw(raw);
-      if (raw.byteLength !== p.raw || (crc32(0, raw) >>> 0) !== p.crc)
-        throw new Error('corrupt pack: ' + man.files[p.file].path);
-      h.write(raw, { at: p.at });
-      touched.add(h);
+        return buf;
+      });
+    } finally {
+      active.delete(ci);
     }
-    for (const h of touched) h.flush();
-    done.add(c.name);
+  }
+
+  // No fsync: it waits for the disk and cost 30-45 s of a 60 s install on a slow disk (fsync of every chunk,
+  // btrfs+zstd; 8 s without). The written data is in the OS cache and survives a closed tab or a browser crash;
+  // only a power loss in the middle of an install can lose it. ?inst=flush:N (a test hook) fsyncs every N chunks.
+  const tune = Object.fromEntries((m.tune || '').split(',').filter(Boolean).map(kv => kv.split(':')));
+  const NO_FSYNC = !tune.flush || tune.flush === '0';
+  const FLUSH_CHUNKS = NO_FSYNC ? 1 : +tune.flush;
+  const UNPACK_BACKLOG = +(tune.backlog || 2);
+  const unflushed = [];
+  const dirty = new Set();
+  function flushAll() {
+    if (!unflushed.length) return;
+    const tl = performance.now();
+    if (!NO_FSYNC) for (const h of dirty) h.flush();
+    dirty.clear();
+    T.flush += performance.now() - tl;
+    for (const n of unflushed) done.add(n);
+    unflushed.length = 0;
     state.done = [...done];
     writeJsonSync(stateH, state);
+  }
+
+  async function unpackChunk(ci, data) {
+    for (const p of pieces[ci]) {
+      const th = performance.now();
+      const h = await handleFor(p.file);
+      T.handle += performance.now() - th;
+      if (!h) continue;
+      let raw = data.subarray(p.off, p.off + p.len);
+      const t1 = performance.now();
+      if (p.method === 'deflate-raw') raw = await inflateRaw(raw);
+      const t2 = performance.now();
+      T.inflate += t2 - t1;
+      T.raw += raw.byteLength;
+      if (raw.byteLength !== p.raw || (crc32(0, raw) >>> 0) !== p.crc)
+        throw new Error('corrupt pack: ' + man.files[p.file].path);
+      const t3 = performance.now();
+      T.crc += t3 - t2;
+      h.write(raw, { at: p.at });
+      T.write += performance.now() - t3;
+      dirty.add(h);
+    }
+    unflushed.push(man.chunks[ci].name);
+    if (unflushed.length >= FLUSH_CHUNKS) flushAll();
+  }
+
+  const unpacking = [];   // promises of the chunks being unpacked or waiting for it
+  let unpackChain = Promise.resolve();
+  let waiting = 0, failed = null;
+  const roomWake = [];
+  function queueUnpack(ci, data) {
+    waiting++;
+    const pr = unpackChain.then(() => failed ? null : unpackChunk(ci, data)).catch(err => { failed = failed || err; throw err; })
+      .finally(() => { waiting--; for (const w of roomWake.splice(0)) w(); });
+    unpackChain = pr.catch(() => {});
+    pr.catch(() => {});
+    unpacking.push(pr);
+  }
+
+  // the files are created while the first chunks download (creating a file and its sync access handle
+  // is slow); not in memory mode, where every file is a buffer of its size
+  function openFilesAhead() {
+    if (m.memory || tune.ahead === '0') return;
+    let k = 0;
+    const worker = async () => {
+      while (k < man.files.length && !failed) {
+        const fi = k++;
+        if (wanted[fi]) await handleFor(fi).catch(() => {});
+      }
+    };
+    for (let i = 0; i < 4; i++) worker();
   }
 
   try {
     // chunks start in pack order (core game data first), CHUNK_JOBS at a time
     const todo = man.chunks.map((c, i) => i).filter(i => !done.has(man.chunks[i].name));
     let next = 0;
+    openFilesAhead();
     async function lane() {
-      while (next < todo.length) await installChunk(todo[next++]);
+      while (next < todo.length && !failed) {
+        while (waiting >= UNPACK_BACKLOG && !failed) await new Promise(r => roomWake.push(r));
+        if (next >= todo.length || failed) break;
+        const ci = todo[next++];
+        queueUnpack(ci, await downloadChunk(ci));
+      }
     }
-    await Promise.all(Array.from({ length: Math.min(CHUNK_JOBS, todo.length) }, lane));
+    try {
+      await Promise.all(Array.from({ length: Math.min(CHUNK_JOBS, todo.length) }, lane));
+    } catch (err) {
+      failed = failed || err;
+    }
+    await Promise.allSettled(unpacking);
+    if (failed) throw failed;
+    flushAll();
     progress({ phase: 'download', done: total, total });
+    self.postMessage({ type: 'log', msg: 'pack ' + (m.stateKey || m.urls[0]) + ': ' + todo.length + ' chunks, ' + (total / 1048576).toFixed(0) + ' MB -> ' +
+      (T.raw / 1048576).toFixed(0) + ' MB, wall ' + (performance.now() - T.t0).toFixed(0) + ' ms | summed: fetch ' + T.fetch.toFixed(0) +
+      ' sha ' + T.sha.toFixed(0) + ' inflate ' + T.inflate.toFixed(0) + ' crc ' + T.crc.toFixed(0) + ' write ' + T.write.toFixed(0) + ' flush ' + T.flush.toFixed(0) + ' handle ' + T.handle.toFixed(0) });
 
     // files no chunk wrote into (empty ones) still have to exist (a finished pack has them)
     if (todo.length) for (let fi = 0; fi < man.files.length; fi++) await handleFor(fi);
@@ -4041,9 +4172,9 @@ function serveLoop() {
     const sumSizes = files => files.reduce((a, f) => a + (shouldImport(f.path) && !isPersistedPath(f.path) ? f.size : 0), 0);
     const g_packFiles = new Map();
     async function packFiles(info) {
-      const url = new URL(info.path, g_langBase).href;
-      if (!g_packFiles.has(url)) g_packFiles.set(url, (await (await fetch(url, { cache: 'no-store' })).json()).files);
-      return g_packFiles.get(url);
+      const key = packManifestUrls(info)[0];
+      if (!g_packFiles.has(key)) g_packFiles.set(key, (await fetchPackManifest(info)).files);
+      return g_packFiles.get(key);
     }
 
     // the game-source items (Select folder / Select ZIP) live in the files menu and are always there
@@ -4190,6 +4321,8 @@ function serveLoop() {
             onProgress(m);
           } else if (m.type === 'done') {
             finish(); resolve(m.result);
+          } else if (m.type === 'log') {
+            console.log('[install] ' + m.msg);
           } else if (m.type === 'error') {
             finish();
             const err = new Error(m.msg);
@@ -4202,6 +4335,7 @@ function serveLoop() {
           credit: g_spaceCredit,
           gameDirName: OPFS_ROOT_DIR,
           skip: IMPORT_SKIP,
+          tune: new URLSearchParams(location.search).get('inst') || '',   // test hook: ?inst=flush:999,ahead:0
           persisted: [/^[^/]+\.(sav|ini)$/i, /^saves[^/]*\//i]
         }, msg));
       });
@@ -4291,8 +4425,7 @@ function serveLoop() {
           const total = steps.reduce((a, i) => a + i.size, 0);
           let before = 0;
           for (const info of steps) {
-            const url = new URL(info.path, g_langBase).href;
-            take(await runInstallWorker({ type: 'chunks', urls: [url], stateName: '', memory: true }, (m) =>
+            take(await runInstallWorker(packMsg(info, { stateName: '', memory: true }), (m) =>
               report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m)));
             before += info.size;
           }
@@ -4451,7 +4584,69 @@ function serveLoop() {
     // folder of the language packs of a game on the server (tools/pack_langs.py output)
     function langDir(game) { return game === 'g2' ? 'lang_g2' : 'lang'; }
 
+    // A pack of the index is {path, size, files}: a folder next to languages.json, or, from release.json,
+    // {id, size, files, manifest: [links], chunks: [[links], ...]}: explicit links, one per mirror.
+    function packManifestUrls(info) {
+      return info.manifest || [new URL(info.path, g_langBase).href];
+    }
+    async function fetchPackManifest(info) {
+      let last = null;
+      for (const url of packManifestUrls(info)) {
+        try {
+          const r = await fetch(url, { cache: 'no-store' });
+          if (!r.ok) throw new Error('HTTP ' + r.status + ' (' + new URL(url).host + ')');
+          return await r.json();
+        } catch (e) { last = e; }
+      }
+      throw last || new Error('no link to the pack');
+    }
+    function packMsg(info, extra) {
+      return Object.assign({ type: 'chunks', urls: packManifestUrls(info) },
+                           info.manifest ? { chunkUrls: info.chunks, stateKey: info.id } : {}, extra);
+    }
+
+    // release.json (tools/make_release.py): all mirrors and a link to every archive in one file.
+    // The links of a file are in the order of the "mirrors" list; ?mirror=<id> puts that mirror first.
+    // Mirrors that fail are tried last (hostFailures); the first answering one gives the manifest of a pack.
+    // ?release=<url> overrides the address; without release.json the folder lang/languages.json is used.
+    let g_release = null;
+    async function loadRelease() {
+      try {
+        const q = new URLSearchParams(location.search).get('release');
+        const r = await fetch(new URL(q || 'release.json', location.href).href, { cache: 'no-store' });
+        if (!r.ok) return null;
+        const rel = await r.json();
+        if (rel.format !== 'gothic-release' || rel.version !== 1 || !rel.games) return null;
+        return rel;
+      } catch (e) {
+        return null;
+      }
+    }
+    // the index of one game in the shape the page works with (see loadLangIndex)
+    function releaseIndex(rel, game) {
+      const g = rel.games[game];
+      if (!g) return null;
+      const first = new URLSearchParams(location.search).get('mirror');
+      const order = rel.mirrors.map((m, i) => i);
+      order.sort((a, b) => (rel.mirrors[b].id === first) - (rel.mirrors[a].id === first));   // stable: the rest keep their order
+      const pick = list => order.map(i => list[i]).filter(Boolean);
+      const pack = (key, p) => ({ id: game + '/' + key, size: p.size, files: p.files,
+                                  manifest: pick(p.manifest), chunks: p.chunks.map(pick) });
+      const languages = g.languages.map(l => {
+        const e = { id: l.id, name: l.name, hasText: l.hasText, hasVoice: l.hasVoice };
+        if (l.text) e.text = pack(l.id + '/text', l.text);
+        if (l.voice) e.voice = pack(l.id + '/voice', l.voice);
+        return e;
+      });
+      return { version: 1, release: true, base: pack('base', g.base), languages };
+    }
+
     async function loadLangIndex() {
+      g_release = await loadRelease();
+      if (g_release) {
+        const idx = releaseIndex(g_release, GAME_ID);
+        if (idx) return idx;
+      }
       try {
         const q = new URLSearchParams(location.search).get('langs');
         const r = await fetch(new URL(q || langDir(GAME_ID) + '/languages.json', location.href).href, { cache: 'no-store' });
@@ -4528,6 +4723,7 @@ function serveLoop() {
       const sel = document.getElementById('game-select');
       const has = {};
       for (const g of ['g1', 'g2']) {
+        if (g_release) { has[g] = !!g_release.games[g]; continue; }
         try {
           const r = await fetch(new URL(langDir(g) + '/languages.json', location.href).href, { method: 'HEAD', cache: 'no-store' });
           has[g] = r.ok;
@@ -4731,12 +4927,11 @@ function serveLoop() {
       setLangBusy(true);
       note.textContent = '';
       try {
-        const url = new URL(voice.voice.path, g_langBase).href;
-        const man = await (await fetch(url, { cache: 'no-store' })).json();
+        const man = await fetchPackManifest(voice.voice);
         const dirName = LIVE_VOICE_DIR + voice.id;
         const stateName = LIVE_VOICE_STATE + voice.id + '.json';
         voiceBar('Voice ' + voice.name + ': connecting...', 0);
-        await runInstallWorker({ type: 'chunks', urls: [url], stateName, gameDirName: dirName }, (m) => {
+        await runInstallWorker(packMsg(voice.voice, { stateName, gameDirName: dirName }), (m) => {
           if (m.phase === 'download')
             voiceBar('Voice ' + voice.name + ': ' + mb(m.done) + ' / ' + mb(m.total) + ' MB',
                      m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0);
@@ -4836,10 +5031,9 @@ function serveLoop() {
       const stateName = LIVE_TEXT_STATE + text.id + '.json';
       const base = 'textlive' + (++g_liveSeq);
       try {
-        const url = new URL(text.text.path, g_langBase).href;
-        const man = await (await fetch(url, { cache: 'no-store' })).json();
+        const man = await fetchPackManifest(text.text);
         voiceBar('Text ' + text.name + ': connecting...', 0);
-        await runInstallWorker({ type: 'chunks', urls: [url], stateName, gameDirName: dirName }, (m) => {
+        await runInstallWorker(packMsg(text.text, { stateName, gameDirName: dirName }), (m) => {
           if (m.phase === 'download')
             voiceBar('Text ' + text.name + ': ' + mb(m.done) + ' / ' + mb(m.total) + ' MB',
                      m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0);
@@ -5046,8 +5240,7 @@ function serveLoop() {
           { key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id }
         ];
         for (const s of steps) {
-          s.url = new URL(s.info.path, g_langBase).href;
-          const man = await (await fetch(s.url, { cache: 'no-store' })).json();
+          const man = await fetchPackManifest(s.info);
           s.files = man.files.map(f => f.path);
           s.sizes = man.files;
         }
@@ -5106,7 +5299,7 @@ function serveLoop() {
           reclaimed = 0;
           let res;
           try {
-            res = await runInstallWorker({ type: 'chunks', urls: [s.url], stateName: s.state }, (m) =>
+            res = await runInstallWorker(packMsg(s.info, { stateName: s.state }), (m) =>
               report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m));
           } finally {
             g_spaceCredit = 0;

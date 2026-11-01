@@ -44,3 +44,6 @@ dist-web/
 android/touch_log.txt
 scripts/__pycache__/
 web/.cert/
+cloudflare/public/
+cloudflare/node_modules/
+cloudflare/.wrangler/
