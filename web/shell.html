@@ -941,7 +941,7 @@
         const ok = document.execCommand('copy'); t.remove(); return ok;
       } catch (e) { return false; }
     }
-    // DonatePay (SBP) is for Russian-speaking users: hidden for Ukrainian language/time zone, and when the site is not reachable (blocked)
+    // DonatePay (SBP) is for Russian-speaking users: hidden for Ukrainian language/time zone only (no reachability probe: Tor and some networks block donatepay.ru and the button used to vanish)
     (function () {
       const el = document.getElementById('dn-donatepay');
       let hide = false;
@@ -951,13 +951,7 @@
         const tz = (Intl.DateTimeFormat().resolvedOptions().timeZone || '');
         if (/^Europe\/(Kyiv|Kiev|Uzhgorod|Zaporozhye)$/.test(tz)) hide = true;
       } catch (e) {}
-      if (hide) { el.hidden = true; return; }
-      try {
-        const ac = new AbortController();
-        const t = setTimeout(() => ac.abort(), 8000);
-        fetch('https://donatepay.ru/favicon.ico', { mode: 'no-cors', cache: 'no-store', signal: ac.signal })
-          .then(() => clearTimeout(t), () => { clearTimeout(t); if (navigator.onLine !== false) el.hidden = true; });
-      } catch (e) {}
+      if (hide) el.hidden = true;
     })();
     window.openDonate = () => { modal.hidden = false; };
     window.closeDonate = () => { modal.hidden = true; };
