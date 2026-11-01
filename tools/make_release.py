@@ -6,7 +6,8 @@
         --mirror m2 "Mirror 2" https://huggingface.co/.../resolve/main/ \
         [--map m2 links-m2.json]
 
-<archives dir> holds gothic1/ and gothic2/ made by tools/pack_langs.py. A mirror is a
+<archives dir> holds gothic1/ and gothic2/ made by tools/pack_langs.py (only archives and manifest.json files:
+that is all a mirror needs; keep languages.json out of it and pass the folder with --meta). A mirror is a
 base link: the archive gothic1/ru/voice/voice-ru-01.bin is expected at <base>gothic1/ru/voice/voice-ru-01.bin.
 A mirror whose links can not be derived (a host with random per-file links) gets --map:
 a JSON {"gothic1/base/base-01.bin": "https://...", ...} (also manifest.json files);
@@ -37,6 +38,7 @@ def main():
     ap.add_argument('archives')
     ap.add_argument('-o', '--out', default='release.json')
     ap.add_argument('--mirror', nargs=3, action='append', metavar=('ID', 'NAME', 'BASE'), required=True)
+    ap.add_argument('--meta', help='folder with <game>/languages.json (made by pack_langs.py); default: the archives folder itself')
     ap.add_argument('--map', nargs=2, action='append', default=[], metavar=('ID', 'FILE'))
     args = ap.parse_args()
 
@@ -71,7 +73,7 @@ def main():
 
     games = {}
     for game_dir, gid in GAMES.items():
-        idx_path = os.path.join(args.archives, game_dir, 'languages.json')
+        idx_path = os.path.join(args.meta or args.archives, game_dir, 'languages.json')
         if not os.path.exists(idx_path):
             continue
         with open(idx_path, encoding='utf-8') as f:
