@@ -10,7 +10,7 @@ Files are laid out by priority: everything the game needs to start comes
 first ("core"), speech and the remaining cutscenes follow; the shell may start
 the game once the first `coreChunks` chunks are installed.
 
-    tools/pack_web.py <game dir> <out dir> [--chunk-mb 20] [--base <mirror folder url>]...
+    tools/pack_web.py <game dir> <out dir> [--chunk-mb 30] [--name base] [--base <mirror folder url>]...
 
 --base lists folders that hold a copy of the pack (chunks under the same
 names); the shell falls back to them when a download fails.
@@ -61,7 +61,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument('src')
     ap.add_argument('dst')
-    ap.add_argument('--chunk-mb', type=float, default=20)
+    ap.add_argument('--chunk-mb', type=float, default=30)
+    ap.add_argument('--name', default='', help='readable chunk names: <name>-01.bin (default: c000-<hash>.bin)')
     ap.add_argument('--base', action='append', default=[], help='mirror folder url (repeatable)')
     args = ap.parse_args()
     limit = int(args.chunk_mb * 1000 * 1000)
@@ -92,7 +93,7 @@ def main():
         if not cur:
             return
         digest = hashlib.sha256(cur).hexdigest()
-        name = f'c{len(chunks):03d}-{digest[:10]}.bin'
+        name = f'{args.name}-{len(chunks) + 1:02d}.bin' if args.name else f'c{len(chunks):03d}-{digest[:10]}.bin'
         with open(os.path.join(args.dst, name), 'wb') as f:
             f.write(cur)
         chunks.append({'name': name, 'size': len(cur), 'sha256': digest})

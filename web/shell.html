@@ -1192,9 +1192,26 @@ const CRC_TABLE = (() => {
   return t;
 })();
 
+// slicing-by-8: eight table lookups per 8 bytes (about 3x faster than the byte-wise loop)
+const CRC8 = (() => {
+  const t = new Int32Array(256 * 8);
+  t.set(CRC_TABLE);
+  for (let n = 0; n < 256; n++) {
+    let c = CRC_TABLE[n];
+    for (let k = 1; k < 8; k++) { c = CRC_TABLE[c & 0xff] ^ (c >>> 8); t[k * 256 + n] = c; }
+  }
+  return t;
+})();
+
 function crc32(crc, buf) {
-  let c = ~crc;
-  for (let i = 0; i < buf.length; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
+  let c = ~crc, i = 0;
+  const n = buf.length, t = CRC8, end = n - 7;
+  for (; i < end; i += 8) {
+    const a = c ^ (buf[i] | buf[i + 1] << 8 | buf[i + 2] << 16 | buf[i + 3] << 24);
+    c = t[1792 + (a & 0xff)] ^ t[1536 + ((a >>> 8) & 0xff)] ^ t[1280 + ((a >>> 16) & 0xff)] ^ t[1024 + (a >>> 24)] ^
+        t[768 + buf[i + 4]] ^ t[512 + buf[i + 5]] ^ t[256 + buf[i + 6]] ^ t[buf[i + 7]];
+  }
+  for (; i < n; i++) c = CRC_TABLE[(c ^ buf[i]) & 0xff] ^ (c >>> 8);
   return ~c;
 }
 
@@ -1443,8 +1460,10 @@ async function installChunks(m) {
     state = JSON.parse(new TextDecoder().decode(buf));
   } catch (_) {}
   // a different pack behind the link: start over
-  if (!state || state.url !== m.urls[0] || JSON.stringify(state.names) !== JSON.stringify(names))
-    state = { url: m.urls[0], names, done: [], created: [] };
+  // m.stateKey: the pack's own name when it comes from release.json (whichever mirror serves it)
+  const stateKey = m.stateKey || m.urls[0];
+  if (!state || state.url !== stateKey || JSON.stringify(state.names) !== JSON.stringify(names))
+    state = { url: stateKey, names, done: [], created: [] };
   const done = new Set(state.done);
 
   const gameDir = m.memory ? null : await root.getDirectoryHandle(m.gameDirName, { create: true });
@@ -1548,64 +1567,148 @@ async function installChunks(m) {
     }
   }
 
-  async function installChunk(ci) {
+  const T = { fetch: 0, sha: 0, inflate: 0, crc: 0, write: 0, flush: 0, handle: 0, raw: 0, t0: performance.now() };
+
+  // Downloading and unpacking are two stages. CHUNK_JOBS chunks download at once; finished downloads
+  // wait in a queue and are unpacked one at a time (DecompressionStream is ~3x slower per byte when
+  // several run together in one worker), so the network never waits for the unpacking and the other
+  // way round. At most UNPACK_BACKLOG downloaded chunks wait (memory: a chunk is up to 30 MB).
+  async function downloadChunk(ci) {
     const c = man.chunks[ci];
     active.add(ci);
-    try { return await installChunk1(ci, c); } finally { active.delete(ci); }
-  }
-  async function installChunk1(ci, c) {
-    // next to the manifest, in the mirror folders of the pack, then the
-    // chunk's own links (tools/mirrorhost_mirror.py)
-    const urls = [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
-    const data = await fetchMirrors(urls, c.name, async (resp) => {
-      const buf = new Uint8Array(c.size);
-      let at = 0;
-      try {
-        const reader = resp.body.getReader();
-        for (;;) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          if (at + value.byteLength > c.size) throw new Error('unexpected size of ' + c.name);
-          buf.set(value, at);
-          at += value.byteLength;
-          count(value.byteLength);
+    try {
+      // release.json gives the links of every chunk (one per mirror, in the order of preference);
+      // otherwise next to the manifest, in the mirror folders of the pack, then the chunk's own links
+      const urls = m.chunkUrls && m.chunkUrls[ci] && m.chunkUrls[ci].length ? m.chunkUrls[ci] :
+        [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
+      const tf = performance.now();
+      return await fetchMirrors(urls, c.name, async (resp) => {
+        const buf = new Uint8Array(c.size);
+        let at = 0;
+        try {
+          const reader = resp.body.getReader();
+          for (;;) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            if (at + value.byteLength > c.size) throw new Error('unexpected size of ' + c.name);
+            buf.set(value, at);
+            at += value.byteLength;
+            count(value.byteLength);
+          }
+          if (at !== c.size) throw new Error('connection lost');
+          T.fetch += performance.now() - tf;
+          const ts = performance.now();
+          if (toHex(await crypto.subtle.digest('SHA-256', buf)) !== c.sha256)
+            throw new Error('corrupt download: ' + c.name);
+          T.sha += performance.now() - ts;
+        } catch (err) {
+          count(-at);
+          throw err;
         }
-        if (at !== c.size) throw new Error('connection lost');
-        if (toHex(await crypto.subtle.digest('SHA-256', buf)) !== c.sha256)
-          throw new Error('corrupt download: ' + c.name);
-      } catch (err) {
-        count(-at);
-        throw err;
-      }
-      return buf;
-    });
-
-    const touched = new Set();
-    for (const p of pieces[ci]) {
-      const h = await handleFor(p.file);
-      if (!h) continue;
-      let raw = data.subarray(p.off, p.off + p.len);
-      if (p.method === 'deflate-raw') raw = await inflateRaw(raw);
-      if (raw.byteLength !== p.raw || (crc32(0, raw) >>> 0) !== p.crc)
-        throw new Error('corrupt pack: ' + man.files[p.file].path);
-      h.write(raw, { at: p.at });
-      touched.add(h);
+        return buf;
+      });
+    } finally {
+      active.delete(ci);
     }
-    for (const h of touched) h.flush();
-    done.add(c.name);
+  }
+
+  // No fsync: it waits for the disk and cost 30-45 s of a 60 s install on a slow disk (fsync of every chunk,
+  // btrfs+zstd; 8 s without). The written data is in the OS cache and survives a closed tab or a browser crash;
+  // only a power loss in the middle of an install can lose it. ?inst=flush:N (a test hook) fsyncs every N chunks.
+  const tune = Object.fromEntries((m.tune || '').split(',').filter(Boolean).map(kv => kv.split(':')));
+  const NO_FSYNC = !tune.flush || tune.flush === '0';
+  const FLUSH_CHUNKS = NO_FSYNC ? 1 : +tune.flush;
+  const UNPACK_BACKLOG = +(tune.backlog || 2);
+  const unflushed = [];
+  const dirty = new Set();
+  function flushAll() {
+    if (!unflushed.length) return;
+    const tl = performance.now();
+    if (!NO_FSYNC) for (const h of dirty) h.flush();
+    dirty.clear();
+    T.flush += performance.now() - tl;
+    for (const n of unflushed) done.add(n);
+    unflushed.length = 0;
     state.done = [...done];
     writeJsonSync(stateH, state);
+  }
+
+  async function unpackChunk(ci, data) {
+    for (const p of pieces[ci]) {
+      const th = performance.now();
+      const h = await handleFor(p.file);
+      T.handle += performance.now() - th;
+      if (!h) continue;
+      let raw = data.subarray(p.off, p.off + p.len);
+      const t1 = performance.now();
+      if (p.method === 'deflate-raw') raw = await inflateRaw(raw);
+      const t2 = performance.now();
+      T.inflate += t2 - t1;
+      T.raw += raw.byteLength;
+      if (raw.byteLength !== p.raw || (crc32(0, raw) >>> 0) !== p.crc)
+        throw new Error('corrupt pack: ' + man.files[p.file].path);
+      const t3 = performance.now();
+      T.crc += t3 - t2;
+      h.write(raw, { at: p.at });
+      T.write += performance.now() - t3;
+      dirty.add(h);
+    }
+    unflushed.push(man.chunks[ci].name);
+    if (unflushed.length >= FLUSH_CHUNKS) flushAll();
+  }
+
+  const unpacking = [];   // promises of the chunks being unpacked or waiting for it
+  let unpackChain = Promise.resolve();
+  let waiting = 0, failed = null;
+  const roomWake = [];
+  function queueUnpack(ci, data) {
+    waiting++;
+    const pr = unpackChain.then(() => failed ? null : unpackChunk(ci, data)).catch(err => { failed = failed || err; throw err; })
+      .finally(() => { waiting--; for (const w of roomWake.splice(0)) w(); });
+    unpackChain = pr.catch(() => {});
+    pr.catch(() => {});
+    unpacking.push(pr);
+  }
+
+  // the files are created while the first chunks download (creating a file and its sync access handle
+  // is slow); not in memory mode, where every file is a buffer of its size
+  function openFilesAhead() {
+    if (m.memory || tune.ahead === '0') return;
+    let k = 0;
+    const worker = async () => {
+      while (k < man.files.length && !failed) {
+        const fi = k++;
+        if (wanted[fi]) await handleFor(fi).catch(() => {});
+      }
+    };
+    for (let i = 0; i < 4; i++) worker();
   }
 
   try {
     // chunks start in pack order (core game data first), CHUNK_JOBS at a time
     const todo = man.chunks.map((c, i) => i).filter(i => !done.has(man.chunks[i].name));
     let next = 0;
+    openFilesAhead();
     async function lane() {
-      while (next < todo.length) await installChunk(todo[next++]);
+      while (next < todo.length && !failed) {
+        while (waiting >= UNPACK_BACKLOG && !failed) await new Promise(r => roomWake.push(r));
+        if (next >= todo.length || failed) break;
+        const ci = todo[next++];
+        queueUnpack(ci, await downloadChunk(ci));
+      }
     }
-    await Promise.all(Array.from({ length: Math.min(CHUNK_JOBS, todo.length) }, lane));
+    try {
+      await Promise.all(Array.from({ length: Math.min(CHUNK_JOBS, todo.length) }, lane));
+    } catch (err) {
+      failed = failed || err;
+    }
+    await Promise.allSettled(unpacking);
+    if (failed) throw failed;
+    flushAll();
     progress({ phase: 'download', done: total, total });
+    self.postMessage({ type: 'log', msg: 'pack ' + (m.stateKey || m.urls[0]) + ': ' + todo.length + ' chunks, ' + (total / 1048576).toFixed(0) + ' MB -> ' +
+      (T.raw / 1048576).toFixed(0) + ' MB, wall ' + (performance.now() - T.t0).toFixed(0) + ' ms | summed: fetch ' + T.fetch.toFixed(0) +
+      ' sha ' + T.sha.toFixed(0) + ' inflate ' + T.inflate.toFixed(0) + ' crc ' + T.crc.toFixed(0) + ' write ' + T.write.toFixed(0) + ' flush ' + T.flush.toFixed(0) + ' handle ' + T.handle.toFixed(0) });
 
     // files no chunk wrote into (empty ones) still have to exist (a finished pack has them)
     if (todo.length) for (let fi = 0; fi < man.files.length; fi++) await handleFor(fi);
@@ -1950,7 +2053,11 @@ async function installChunks(m) {
       const ready = () => ogGet('shadows') >= 0;
       function markPreset() {
         let cur = '';
-        try { cur = localStorage.getItem('gfxPreset') || ''; } catch (e) {}
+        try {
+          cur = localStorage.getItem('gfxPreset') || '';
+          // nothing chosen yet: the defaults are the Classic preset
+          if (!cur && localStorage.getItem('gfxManual') !== '1') cur = 'classic';
+        } catch (e) {}
         document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === cur));
       }
       markPreset();
@@ -2030,11 +2137,11 @@ async function installChunks(m) {
         try { ogSet(el.dataset.set, v); } catch (e) {}
         el.blur(); // arrow keys go back to the game
       }));
-      // graphics presets (only Ultra low touches render resolution and textures)
+      // graphics presets (Ultra low also lowers the textures)
       const PRESETS = {
-        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 1, texQuality: 1 },
-        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 0, texQuality: 0 },
-        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 0, texQuality: 0 },
+        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 80,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 3, texQuality: 1 },
+        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 150, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 14, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 11, texQuality: 0 },
         ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {
@@ -3962,11 +4069,8 @@ function serveLoop() {
     // The whole game: a ZIP archive (game folder with Data/ inside, any nesting)
     // or a chunked pack (manifest.json, tools/pack_web.py; chunks next to it).
     // Further links are mirrors of the same pack, used when the first one fails.
-    // Overridden by ?archive=<url>. The server must allow CORS; mirrorhost share
-    // links are rewritten to their CORS-enabled download host.
+    // Overridden by ?archive=<url>. The server must allow CORS.
     const ARCHIVE_URLS = [
-      'https://example.invalid/removed',
-      'https://example.invalid/removed',
       'https://example.invalid/removed'
     ];
 
@@ -3992,14 +4096,6 @@ function serveLoop() {
       const url = u.startsWith('/') && !u.startsWith('//') ? new URL(u, location.href) : new URL(u);
       if (url.protocol !== 'https:' && url.protocol !== 'http:')
         throw new Error('not an http(s) link');
-      // www.mirrorhost.com answers with a redirect that has no CORS headers;
-      // dl.mirrorhostusercontent.com serves the same file with CORS and Range
-      if (/(^|\.)mirrorhost\.com$/i.test(url.hostname)) {
-        url.hostname = 'dl.mirrorhostusercontent.com';
-        url.searchParams.delete('st');
-        url.searchParams.delete('e');
-        url.searchParams.set('dl', '1');
-      }
       return url.href;
     }
 
@@ -4048,9 +4144,9 @@ function serveLoop() {
     const sumSizes = files => files.reduce((a, f) => a + (shouldImport(f.path) && !isPersistedPath(f.path) ? f.size : 0), 0);
     const g_packFiles = new Map();
     async function packFiles(info) {
-      const url = new URL(info.path, g_langBase).href;
-      if (!g_packFiles.has(url)) g_packFiles.set(url, (await (await fetch(url, { cache: 'no-store' })).json()).files);
-      return g_packFiles.get(url);
+      const key = packManifestUrls(info)[0];
+      if (!g_packFiles.has(key)) g_packFiles.set(key, (await fetchPackManifest(info)).files);
+      return g_packFiles.get(key);
     }
 
     // the game-source items (Select folder / Select ZIP) live in the files menu and are always there
@@ -4197,6 +4293,8 @@ function serveLoop() {
             onProgress(m);
           } else if (m.type === 'done') {
             finish(); resolve(m.result);
+          } else if (m.type === 'log') {
+            console.log('[install] ' + m.msg);
           } else if (m.type === 'error') {
             finish();
             const err = new Error(m.msg);
@@ -4209,6 +4307,7 @@ function serveLoop() {
           credit: g_spaceCredit,
           gameDirName: OPFS_ROOT_DIR,
           skip: IMPORT_SKIP,
+          tune: new URLSearchParams(location.search).get('inst') || '',   // test hook: ?inst=flush:999,ahead:0
           persisted: [/^[^/]+\.(sav|ini)$/i, /^saves[^/]*\//i]
         }, msg));
       });
@@ -4298,8 +4397,7 @@ function serveLoop() {
           const total = steps.reduce((a, i) => a + i.size, 0);
           let before = 0;
           for (const info of steps) {
-            const url = new URL(info.path, g_langBase).href;
-            take(await runInstallWorker({ type: 'chunks', urls: [url], stateName: '', memory: true }, (m) =>
+            take(await runInstallWorker(packMsg(info, { stateName: '', memory: true }), (m) =>
               report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m)));
             before += info.size;
           }
@@ -4458,7 +4556,69 @@ function serveLoop() {
     // folder of the language packs of a game on the server (tools/pack_langs.py output)
     function langDir(game) { return game === 'g2' ? 'lang_g2' : 'lang'; }
 
+    // A pack of the index is {path, size, files}: a folder next to languages.json, or, from release.json,
+    // {id, size, files, manifest: [links], chunks: [[links], ...]}: explicit links, one per mirror.
+    function packManifestUrls(info) {
+      return info.manifest || [new URL(info.path, g_langBase).href];
+    }
+    async function fetchPackManifest(info) {
+      let last = null;
+      for (const url of packManifestUrls(info)) {
+        try {
+          const r = await fetch(url, { cache: 'no-store' });
+          if (!r.ok) throw new Error('HTTP ' + r.status + ' (' + new URL(url).host + ')');
+          return await r.json();
+        } catch (e) { last = e; }
+      }
+      throw last || new Error('no link to the pack');
+    }
+    function packMsg(info, extra) {
+      return Object.assign({ type: 'chunks', urls: packManifestUrls(info) },
+                           info.manifest ? { chunkUrls: info.chunks, stateKey: info.id } : {}, extra);
+    }
+
+    // release.json (tools/make_release.py): all mirrors and a link to every archive in one file.
+    // The links of a file are in the order of the "mirrors" list; ?mirror=<id> puts that mirror first.
+    // Mirrors that fail are tried last (hostFailures); the first answering one gives the manifest of a pack.
+    // ?release=<url> overrides the address; without release.json the folder lang/languages.json is used.
+    let g_release = null;
+    async function loadRelease() {
+      try {
+        const q = new URLSearchParams(location.search).get('release');
+        const r = await fetch(new URL(q || 'release.json', location.href).href, { cache: 'no-store' });
+        if (!r.ok) return null;
+        const rel = await r.json();
+        if (rel.format !== 'gothic-release' || rel.version !== 1 || !rel.games) return null;
+        return rel;
+      } catch (e) {
+        return null;
+      }
+    }
+    // the index of one game in the shape the page works with (see loadLangIndex)
+    function releaseIndex(rel, game) {
+      const g = rel.games[game];
+      if (!g) return null;
+      const first = new URLSearchParams(location.search).get('mirror');
+      const order = rel.mirrors.map((m, i) => i);
+      order.sort((a, b) => (rel.mirrors[b].id === first) - (rel.mirrors[a].id === first));   // stable: the rest keep their order
+      const pick = list => order.map(i => list[i]).filter(Boolean);
+      const pack = (key, p) => ({ id: game + '/' + key, size: p.size, files: p.files,
+                                  manifest: pick(p.manifest), chunks: p.chunks.map(pick) });
+      const languages = g.languages.map(l => {
+        const e = { id: l.id, name: l.name, hasText: l.hasText, hasVoice: l.hasVoice };
+        if (l.text) e.text = pack(l.id + '/text', l.text);
+        if (l.voice) e.voice = pack(l.id + '/voice', l.voice);
+        return e;
+      });
+      return { version: 1, release: true, base: pack('base', g.base), languages };
+    }
+
     async function loadLangIndex() {
+      g_release = await loadRelease();
+      if (g_release) {
+        const idx = releaseIndex(g_release, GAME_ID);
+        if (idx) return idx;
+      }
       try {
         const q = new URLSearchParams(location.search).get('langs');
         const r = await fetch(new URL(q || langDir(GAME_ID) + '/languages.json', location.href).href, { cache: 'no-store' });
@@ -4535,6 +4695,7 @@ function serveLoop() {
       const sel = document.getElementById('game-select');
       const has = {};
       for (const g of ['g1', 'g2']) {
+        if (g_release) { has[g] = !!g_release.games[g]; continue; }
         try {
           const r = await fetch(new URL(langDir(g) + '/languages.json', location.href).href, { method: 'HEAD', cache: 'no-store' });
           has[g] = r.ok;
@@ -4738,12 +4899,11 @@ function serveLoop() {
       setLangBusy(true);
       note.textContent = '';
       try {
-        const url = new URL(voice.voice.path, g_langBase).href;
-        const man = await (await fetch(url, { cache: 'no-store' })).json();
+        const man = await fetchPackManifest(voice.voice);
         const dirName = LIVE_VOICE_DIR + voice.id;
         const stateName = LIVE_VOICE_STATE + voice.id + '.json';
         voiceBar('Voice ' + voice.name + ': connecting...', 0);
-        await runInstallWorker({ type: 'chunks', urls: [url], stateName, gameDirName: dirName }, (m) => {
+        await runInstallWorker(packMsg(voice.voice, { stateName, gameDirName: dirName }), (m) => {
           if (m.phase === 'download')
             voiceBar('Voice ' + voice.name + ': ' + mb(m.done) + ' / ' + mb(m.total) + ' MB',
                      m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0);
@@ -4843,10 +5003,9 @@ function serveLoop() {
       const stateName = LIVE_TEXT_STATE + text.id + '.json';
       const base = 'textlive' + (++g_liveSeq);
       try {
-        const url = new URL(text.text.path, g_langBase).href;
-        const man = await (await fetch(url, { cache: 'no-store' })).json();
+        const man = await fetchPackManifest(text.text);
         voiceBar('Text ' + text.name + ': connecting...', 0);
-        await runInstallWorker({ type: 'chunks', urls: [url], stateName, gameDirName: dirName }, (m) => {
+        await runInstallWorker(packMsg(text.text, { stateName, gameDirName: dirName }), (m) => {
           if (m.phase === 'download')
             voiceBar('Text ' + text.name + ': ' + mb(m.done) + ' / ' + mb(m.total) + ' MB',
                      m.total ? Math.min(100, Math.floor(m.done / m.total * 100)) : 0);
@@ -5053,8 +5212,7 @@ function serveLoop() {
           { key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id }
         ];
         for (const s of steps) {
-          s.url = new URL(s.info.path, g_langBase).href;
-          const man = await (await fetch(s.url, { cache: 'no-store' })).json();
+          const man = await fetchPackManifest(s.info);
           s.files = man.files.map(f => f.path);
           s.sizes = man.files;
         }
@@ -5113,7 +5271,7 @@ function serveLoop() {
           reclaimed = 0;
           let res;
           try {
-            res = await runInstallWorker({ type: 'chunks', urls: [s.url], stateName: s.state }, (m) =>
+            res = await runInstallWorker(packMsg(s.info, { stateName: s.state }), (m) =>
               report(m.phase === 'download' ? Object.assign({}, m, { done: before + m.done, total }) : m));
           } finally {
             g_spaceCredit = 0;

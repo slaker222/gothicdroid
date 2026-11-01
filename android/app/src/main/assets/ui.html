@@ -1555,7 +1555,7 @@ async function installChunks(m) {
   }
   async function installChunk1(ci, c) {
     // next to the manifest, in the mirror folders of the pack, then the
-    // chunk's own links (tools/mirrorhost_mirror.py)
+    // chunk's own links
     const urls = [manifestUrl, ...(man.bases || [])].map(b => new URL(c.name, b).href).concat(c.mirrors || []);
     const data = await fetchMirrors(urls, c.name, async (resp) => {
       const buf = new Uint8Array(c.size);
@@ -1950,7 +1950,11 @@ async function installChunks(m) {
       const ready = () => ogGet('shadows') >= 0;
       function markPreset() {
         let cur = '';
-        try { cur = localStorage.getItem('gfxPreset') || ''; } catch (e) {}
+        try {
+          cur = localStorage.getItem('gfxPreset') || '';
+          // nothing chosen yet: the defaults are the Classic preset
+          if (!cur && localStorage.getItem('gfxManual') !== '1') cur = 'classic';
+        } catch (e) {}
         document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === cur));
       }
       markPreset();
@@ -2030,11 +2034,11 @@ async function installChunks(m) {
         try { ogSet(el.dataset.set, v); } catch (e) {}
         el.blur(); // arrow keys go back to the game
       }));
-      // graphics presets (only Ultra low touches render resolution and textures)
+      // graphics presets (Ultra low also lowers the textures)
       const PRESETS = {
-        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 30,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 1, texQuality: 1 },
-        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 100, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 0, texQuality: 0 },
-        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 0, texQuality: 0 },
+        ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 80,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 3, texQuality: 1 },
+        low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 150, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 14, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 11, texQuality: 0 },
         ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {
@@ -3962,11 +3966,8 @@ function serveLoop() {
     // The whole game: a ZIP archive (game folder with Data/ inside, any nesting)
     // or a chunked pack (manifest.json, tools/pack_web.py; chunks next to it).
     // Further links are mirrors of the same pack, used when the first one fails.
-    // Overridden by ?archive=<url>. The server must allow CORS; mirrorhost share
-    // links are rewritten to their CORS-enabled download host.
+    // Overridden by ?archive=<url>. The server must allow CORS.
     const ARCHIVE_URLS = [
-      'https://example.invalid/removed',
-      'https://example.invalid/removed',
       'https://example.invalid/removed'
     ];
 
@@ -3992,14 +3993,6 @@ function serveLoop() {
       const url = u.startsWith('/') && !u.startsWith('//') ? new URL(u, location.href) : new URL(u);
       if (url.protocol !== 'https:' && url.protocol !== 'http:')
         throw new Error('not an http(s) link');
-      // www.mirrorhost.com answers with a redirect that has no CORS headers;
-      // dl.mirrorhostusercontent.com serves the same file with CORS and Range
-      if (/(^|\.)mirrorhost\.com$/i.test(url.hostname)) {
-        url.hostname = 'dl.mirrorhostusercontent.com';
-        url.searchParams.delete('st');
-        url.searchParams.delete('e');
-        url.searchParams.set('dl', '1');
-      }
       return url.href;
     }
 

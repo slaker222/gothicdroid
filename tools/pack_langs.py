@@ -26,7 +26,7 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
-def pack(files, src_root, dst, bases):
+def pack(files, src_root, dst, bases, name=''):
     """Pack files of src_root into dst: all of it (files is None), a list of paths, or
     a dict {path in the pack: file on disk}."""
     stage = None
@@ -41,6 +41,8 @@ def pack(files, src_root, dst, bases):
             os.symlink(path, os.path.join(stage, rel))
         src = stage
     cmd = [sys.executable, os.path.join(HERE, 'pack_web.py'), src, dst]
+    if name:
+        cmd += ['--name', name]
     for b in bases:
         cmd += ['--base', b]
     out = subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
@@ -56,18 +58,19 @@ def main():
     ap.add_argument('src')
     ap.add_argument('dst')
     ap.add_argument('--base', action='append', default=[])
+    ap.add_argument('--compact', action='store_true', help='also pack gothic_base_compact')
     args = ap.parse_args()
 
     def mirror(sub):
         return [b.rstrip('/') + '/' + sub + '/' for b in args.base]
 
     index = {'version': 1, 'base': None, 'languages': []}
-    man, size, line = pack(None, os.path.join(args.src, 'gothic_base'), os.path.join(args.dst, 'base'), mirror('base'))
+    man, size, line = pack(None, os.path.join(args.src, 'gothic_base'), os.path.join(args.dst, 'base'), mirror('base'), 'base')
     index['base'] = {'path': 'base/manifest.json', 'size': size, 'files': len(man['files'])}
     print('base:', line)
     # a smaller base with reduced-colour pictures (tools/compact_vdf.py); needs the palette+tRNS PNG fix
     compact = os.path.join(args.src, 'gothic_base_compact')
-    if os.path.isdir(compact):
+    if args.compact and os.path.isdir(compact):
         man, size, line = pack(None, compact, os.path.join(args.dst, 'base_compact'), mirror('base_compact'))
         index['baseCompact'] = {'path': 'base_compact/manifest.json', 'size': size, 'files': len(man['files'])}
         print('base_compact:', line)
@@ -100,7 +103,7 @@ def main():
             if not files:
                 continue
             sub = f"{lang['id']}/{kind}"
-            man, size, line = pack(files, folder, os.path.join(args.dst, sub), mirror(sub))
+            man, size, line = pack(files, folder, os.path.join(args.dst, sub), mirror(sub), f"{kind}-{lang['id']}")
             entry[kind] = {'path': sub + '/manifest.json', 'size': size, 'files': len(man['files'])}
             print(f'{sub}: {line}')
         index['languages'].append(entry)
