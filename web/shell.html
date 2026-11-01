@@ -5682,7 +5682,13 @@ function serveLoop() {
       }
       if (g_gpuAdapter) return null;
       let ad = null;
-      for (const opt of [{ powerPreference: 'high-performance' }, {}, { forceFallbackAdapter: true }]) {
+      // ?gpu=low tries the integrated GPU first, ?gpu=any lets the browser choose (a laptop with two GPUs
+      // may show a black screen on one of them); the default is the fast one first
+      const gpuQ = new URLSearchParams(location.search).get('gpu');
+      const order = gpuQ === 'low' ? [{ powerPreference: 'low-power' }, {}, { forceFallbackAdapter: true }]
+                  : gpuQ === 'any' ? [{}, { powerPreference: 'low-power' }, { forceFallbackAdapter: true }]
+                  : [{ powerPreference: 'high-performance' }, {}, { forceFallbackAdapter: true }];
+      for (const opt of order) {
         try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
         if (ad) break;
       }
@@ -5708,6 +5714,11 @@ function serveLoop() {
         return 'WebGPU is there, but the browser found no graphics adapter. ' + how + check;
       }
       g_gpuAdapter = ad;
+      try {
+        const i = ad.info || {};
+        console.log('[SHELL] WebGPU adapter: ' + [i.vendor, i.architecture, i.device, i.description].filter(Boolean).join(' / ') +
+                    (ad.isFallbackAdapter ? ' (fallback, software)' : '') + ', features=' + ad.features.size);
+      } catch (e) {}
       return null;
     }
     async function webgpuBlocked() {
@@ -5769,10 +5780,36 @@ function serveLoop() {
                  'and send its report.';
         throw e;
       }
-      device.lost.then(info => console.error('[WebGPU] device lost:', info.reason, info.message));
+      device.lost.then(info => {
+        console.error('[WebGPU] device lost:', info.reason, info.message);
+        if (info.reason !== 'destroyed') showGpuLost(info);
+      });
       Module.preinitializedWebGPUDevice = device;
       console.log('[SHELL] WebGPU device: features=' + [...device.features].join(','));
     }
+
+    // the browser took the graphics device away (GPU process crashed, driver reset): the game goes on
+    // but nothing is drawn any more, so say it on the screen instead of leaving a black canvas
+    function showGpuLost(info) {
+      if (document.getElementById('gpu-lost')) return;
+      const d = document.createElement('div');
+      d.id = 'gpu-lost';
+      d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,640px);' +
+        'padding:12px 38px 12px 14px;border-radius:10px;background:#3a1414;border:1px solid #a33;color:#fff;font:14px/1.45 system-ui,sans-serif;box-shadow:0 4px 24px #000a';
+      const t = document.createElement('div');
+      t.innerHTML = '<b>The graphics device was lost</b> (' + String(info && info.reason || '').replace(/[<>&]/g, '') + '). ' +
+        'The browser stopped the GPU, so nothing is drawn any more. ' +
+        (info && info.message ? '<br><small>' + String(info.message).replace(/[<>&]/g, '').slice(0, 300) + '</small><br>' : '') +
+        'Reload the page. If it comes back: add <b>?gpu=low</b> to the address (integrated GPU), update the graphics driver, ' +
+        'or open <b>chrome://gpu</b> and check the WebGPU line. <a href="gpucheck.html" style="color:#ffb4b4">Run the WebGPU check</a>.';
+      const x = document.createElement('button');
+      x.textContent = '\u00d7';
+      x.style.cssText = 'position:absolute;top:4px;right:8px;border:0;background:none;color:#fff;font-size:22px;cursor:pointer';
+      x.onclick = () => d.remove();
+      d.append(t, x);
+      document.body.appendChild(d);
+    }
+    window.showGpuLost = showGpuLost;
 
     let g_started = false;
     const bootBg_isUp = () => !!document.getElementById('boot-bg');   // gone once the engine has drawn its first frames
