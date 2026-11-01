@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-OpenGothic Web - development server.
+GothicDroid - development server.
 
 Serves the dist-web bundle with the cross-origin isolation headers required
 for SharedArrayBuffer (COOP/COEP). Without these headers the launcher falls
@@ -148,7 +148,7 @@ def make_cert(addresses):
     if not (cert.exists() and key.exists() and stamp.exists() and stamp.read_text() == san):
         subprocess.run(
             ["openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes", "-days", "825",
-             "-subj", "/CN=OpenGothic Web", "-addext", f"subjectAltName={san}",
+             "-subj", "/CN=GothicDroid", "-addext", f"subjectAltName={san}",
              "-keyout", str(key), "-out", str(cert)],
             check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         stamp.write_text(san)
@@ -156,7 +156,7 @@ def make_cert(addresses):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="OpenGothic Web development server")
+    ap = argparse.ArgumentParser(description="GothicDroid development server")
     ap.add_argument("port", nargs="?", type=int, default=8080)
     ap.add_argument("--lan", action="store_true",
                     help="listen on all interfaces (open from other devices on the network)")

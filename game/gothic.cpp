@@ -962,7 +962,7 @@ void Gothic::detectGothicVersion() {
 
   auto gpath = CommandLine::inst().rootPath();
   {
-  // a folder named exactly "Gothic" (not a part of the name: android has com.opengothic/files/Gothic2)
+  // a folder named exactly "Gothic" (not a part of the name: android has com.gothic.droid/files/Gothic2)
   bool g1dir = false;
   for(size_t start=0; start<gpath.size() && !g1dir; ) {
     size_t end = gpath.find_first_of(u"/\\",start);

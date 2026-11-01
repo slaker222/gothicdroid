@@ -12,7 +12,7 @@
 #   scripts/android_perf.sh "res75|x=0" "res100|vidResIndex=0.000000" "без отсечения|x=0|no_cmd_cull=1"
 #
 # Переменные:
-#   DIR        папка игры на телефоне (по умолчанию .../com.opengothic/files/Gothic1)
+#   DIR        папка игры на телефоне (по умолчанию .../com.gothic.droid/files/Gothic1)
 #   OUT        куда класть скриншоты (по умолчанию /tmp/og_perf)
 #   ANDROID_SERIAL  какой телефон, если подключено несколько (adb devices)
 #   TIMERS=1   включить таймеры проходов GPU (по умолчанию выключены: стоят ~2,7 FPS, без них нет строки GPU passes)
@@ -27,7 +27,7 @@
 #       tick  — игровая логика (CPU), draw — запись команд кадра (CPU), pres — ожидание вывода (большое = упор в GPU)
 #       lost  — сколько раз драйвер потерял устройство (должно быть 0)
 set -u
-D=${DIR:-/storage/emulated/0/Android/data/com.opengothic/files/Gothic1}
+D=${DIR:-/storage/emulated/0/Android/data/com.gothic.droid/files/Gothic1}
 OUT=${OUT:-/tmp/og_perf}
 WARM=${WARM:-20}
 SAMPLE=${SAMPLE:-30}
@@ -38,7 +38,7 @@ adb pull "$D/Gothic.ini" "$BAK/" >/dev/null 2>&1
 adb pull "$D/debug.cfg"  "$BAK/" >/dev/null 2>&1
 
 cleanup() {
-  adb shell am force-stop com.opengothic >/dev/null 2>&1          # игру закрываем всегда
+  adb shell am force-stop com.gothic.droid >/dev/null 2>&1          # игру закрываем всегда
   adb shell "rm -f $D/.og_args" >/dev/null 2>&1
   # было у владельца - вернуть, не было - удалить то, что создал скрипт
   if [ -f "$BAK/Gothic.ini" ]; then adb push "$BAK/Gothic.ini" "$D/Gothic.ini" >/dev/null 2>&1; else adb shell "rm -f $D/Gothic.ini" >/dev/null 2>&1; fi
@@ -52,7 +52,7 @@ adb shell "echo '-nomenu -novideo' > $D/.og_args"
 for spec in "$@"; do
   name=${spec%%|*}; rest=${spec#*|}; kvs=${rest%%|*}; dbg=""
   [[ "$rest" == *"|"* ]] && dbg=${rest#*|}
-  adb shell am force-stop com.opengothic
+  adb shell am force-stop com.gothic.droid
   # базовый набор: лёгкий пресет «Ultra low», тени выключены, без ограничения FPS
   adb shell "cat > $D/Gothic.ini" <<EOF
 [INTERNAL]
@@ -78,7 +78,7 @@ EOF
   adb shell "printf 'safe_mode=0\nlog_pipelines=0\ngpu_timers=${TIMERS:-0}\n' > $D/debug.cfg"
   for kv in $dbg; do adb shell "echo $kv >> $D/debug.cfg"; done
   adb logcat -c
-  adb shell am start -n com.opengothic/.GameActivity --es extra_game_dir "$D" >/dev/null
+  adb shell am start -n com.gothic.droid/com.opengothic.GameActivity --es extra_game_dir "$D" >/dev/null
 
   # ждём мир (запись кадра >= 2 мс и есть геометрия); вступительные ролики пропускаем касанием (на MIUI касания
   # заблокированы без «Отладка по USB (настройки безопасности)» — тогда ролик придётся дождаться)

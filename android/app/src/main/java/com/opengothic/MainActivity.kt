@@ -77,7 +77,7 @@ class MainActivity : AppCompatActivity() {
             intent.removeExtra("game")
             if (gamePath(shortcutGame) != null) launchGame(shortcutGame)
         }
-        // adb: am start -n com.opengothic/.MainActivity --ez autostart true (scripts/android_*.sh)
+        // adb: am start -n com.gothic.droid/com.opengothic.MainActivity --ez autostart true (scripts/android_*.sh)
         if (intent.getBooleanExtra("autostart", false)) {
             intent.removeExtra("autostart")
             launchGame()
@@ -95,7 +95,7 @@ class MainActivity : AppCompatActivity() {
                 Log.i(TAG, "Requesting MANAGE_APP_ALL_FILES_ACCESS_PERMISSION")
                 Toast.makeText(
                     this,
-                    "Для чтения файлов игры Gothic II требуется доступ ко всем файлам",
+                    "All files access is required to launch Gothic",
                     Toast.LENGTH_LONG
                 ).show()
                 try {
@@ -327,15 +327,15 @@ class MainActivity : AppCompatActivity() {
             sb.append(readTail(sessionLogFile))
         }
 
-        return if (sb.isNotBlank()) sb.toString() else "Лог пуст. Запустите игру для сбора логов."
+        return if (sb.isNotBlank()) sb.toString() else "The log is empty. Run the game to collect logs."
     }
 
     private fun copyLogToClipboard() {
         val logText = readCompleteLog()
         val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("OpenGothic Log", logText)
+        val clip = ClipData.newPlainText("GothicDroid Log", logText)
         clipboard.setPrimaryClip(clip)
-        Toast.makeText(this, "Лог скопирован в буфер обмена! (${logText.length} симв.)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, "Log copied to the clipboard! (${logText.length} chars)", Toast.LENGTH_SHORT).show()
     }
 
     private fun launchGame(id: Int = selectedGame()) {
@@ -451,6 +451,18 @@ class MainActivity : AppCompatActivity() {
         fun openUrl(url: String) {
             if (!url.startsWith("https://")) return
             runOnUiThread { try { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } catch (e: Exception) { Log.e(TAG, "openUrl: ${e.message}") } }
+        }
+
+        // the donate window: a wallet address goes to the system clipboard
+        @JavascriptInterface
+        fun copyText(text: String) {
+            if (text.length > 200) return
+            runOnUiThread {
+                try {
+                    val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                    cm.setPrimaryClip(ClipData.newPlainText("address", text))
+                } catch (e: Exception) { Log.e(TAG, "copyText: ${e.message}") }
+            }
         }
 
         @JavascriptInterface

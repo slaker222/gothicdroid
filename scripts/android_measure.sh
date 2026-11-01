@@ -5,7 +5,7 @@ D="$(cd "$(dirname "$0")" && pwd)"
 $D/android_setprefs.sh "${4:-/storage/emulated/0/GothicSmall}" "$1" "$2" ${DRAW:-4} ${WORLD:-150} ${SHADOWS:-1} ${SSAO:-false} ${REFL:-false}
 adb logcat -c
 adb shell input keyevent KEYCODE_WAKEUP
-adb shell am start -n com.opengothic/.MainActivity --ez autostart true > /dev/null
+adb shell am start -n com.gothic.droid/com.opengothic.MainActivity --ez autostart true > /dev/null
 $D/android_newgame.sh "${3:-70}"
 echo "== scale=$1 simple=$2 $(adb shell cat ${4:-/storage/emulated/0/GothicSmall}/debug.cfg | tr '\n' ' ' | grep -o 'render_scale=[0-9]* \|simple_render=[01]' | tr '\n' ' ')"
 adb logcat -d -s OpenGothic:I | grep "RENDERER_SETTINGS" | tail -1 | grep -o "internalRes=[0-9x]*"

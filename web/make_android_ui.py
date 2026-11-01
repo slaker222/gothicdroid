@@ -16,6 +16,8 @@ open(os.path.join(out, 'ui.html'), 'w', encoding='utf-8').write(src.replace('{{{
 style = re.search(r'<style>(.*?)</style>', src, re.S).group(1)
 panel = re.search(r'(<div id="settings-panel".*?<div class="set-note" id="settings-note">.*?</div>\s*</div>)', src, re.S).group(1)
 presets = re.search(r'(const PRESETS = \{.*?\n      \};)', src, re.S).group(1)
+# the donate window (Ko-fi, crypto addresses) is written once in shell.html, between these two marks
+donate = re.search(r'<!--DONATE-BEGIN-->(.*?)<!--DONATE-END-->', src, re.S).group(1)
 tpl = open(os.path.join(root, 'web/android_launcher.tpl.html'), encoding='utf-8').read()
-page = tpl.replace('{{STYLE}}', style).replace('{{PANEL}}', panel).replace('{{PRESETS}}', presets)
+page = tpl.replace('{{STYLE}}', style).replace('{{PANEL}}', panel).replace('{{PRESETS}}', presets).replace('{{DONATE}}', donate)
 open(os.path.join(out, 'launcher.html'), 'w', encoding='utf-8').write(page)

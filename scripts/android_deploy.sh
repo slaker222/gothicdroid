@@ -11,6 +11,6 @@ adb install -r android/app/build/outputs/apk/debug/app-debug.apk | tail -1
 if [ "$1" = "--run" ]; then
   adb shell input keyevent KEYCODE_WAKEUP
   adb logcat -c
-  adb shell am force-stop com.opengothic
-  adb shell am start -n com.opengothic/.MainActivity > /dev/null
+  adb shell am force-stop com.gothic.droid
+  adb shell am start -n com.gothic.droid/com.opengothic.MainActivity > /dev/null
 fi

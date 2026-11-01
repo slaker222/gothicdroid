@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
+  <title>GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
   <link rel="icon" type="image/png" href="img/icon.png">
   <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <meta property="og:type" content="website">
-  <meta property="og:title" content="OpenGothic Web | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
+  <meta property="og:title" content="GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
   <meta property="og:description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <style>
     :root {
@@ -77,16 +77,75 @@
       font: inherit;
     }
     #lang-bar .btn { padding: 3px 12px; }
-    #lang-bar .back-link { color: var(--text); text-decoration: none; padding: 3px 10px 3px 4px; border-radius: 4px; }
+    #lang-bar .back-link { display: inline-flex; align-items: center; gap: 5px; color: var(--text); text-decoration: none; font-weight: 600; padding: 3px 10px 3px 4px; border-radius: 4px; }
+    #lang-bar .back-link svg { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
     #lang-bar .back-link:hover { background: var(--line); }
     #lang-bar .support { display: flex; gap: 8px; margin-left: auto; flex: none; }
-    #lang-bar .support a {
-      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 6px;
-      font-weight: 700; font-size: 13px; text-decoration: none; line-height: 1.2;
+    #lang-bar .support a, #lang-bar .support button {
+      display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 6px; border: 0;
+      font-family: inherit; font-weight: 700; font-size: 13px; text-decoration: none; line-height: 1.2; cursor: pointer;
     }
     #lang-bar .support .donate { background: #ffc61a; color: #1a1a1a; box-shadow: 0 0 12px rgba(255,198,26,.55); }
     #lang-bar .support .join { background: #5865f2; color: #fff; box-shadow: 0 0 12px rgba(88,101,242,.6); }
     #lang-bar .support svg { width: 16px; height: 16px; fill: currentColor; }
+    #lang-bar .support .donate svg, .support .donate svg { width: 21px; height: 21px; }
+    /* rare small stars flying out of the Donate button; they live in their own layer, so the bars do not clip them */
+    #dn-sparks { position: fixed; inset: 0; z-index: 150; pointer-events: none; overflow: hidden; }
+    .dn-star { position: absolute; width: var(--s); height: var(--s); background: var(--c, #ffe27a); opacity: 0;
+      clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+      animation: dn-star 1.7s ease-out forwards; }
+    @keyframes dn-star {
+      0% { opacity: 0; transform: translate(0, 0) scale(.3) rotate(0deg); }
+      18% { opacity: .95; }
+      100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1) rotate(var(--rot)); }
+    }
+    @media (prefers-reduced-motion: reduce) { #dn-sparks { display: none; } }
+    /* donate window (the Android main menu takes the same markup and styles, see web/make_android_ui.py) */
+    .dn-overlay { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .66); }
+    .dn-overlay[hidden] { display: none; }
+    .dn-box { position: relative; width: 100%; max-width: 460px; max-height: 100%; overflow-y: auto; background: #1b1b1b; border: 1px solid var(--line); border-radius: 14px; padding: 20px 18px 16px; color: var(--text); box-shadow: 0 18px 60px rgba(0, 0, 0, .6); }
+    .dn-x { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--dim); font-size: 24px; line-height: 1; cursor: pointer; }
+    .dn-x:hover { background: var(--line); color: var(--accent); }
+    .dn-box h2 { font-size: 20px; font-weight: 600; color: var(--accent); padding-right: 30px; }
+    .dn-sub { font-size: 13px; color: var(--dim); margin: 4px 0 14px; }
+    .dn-kofi { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #0f7fc0; color: #fff; text-decoration: none; box-shadow: 0 0 16px rgba(41, 171, 224, .4); }
+    .dn-kofi:hover { background: #1389d0; }
+    .dn-kofi svg { width: 32px; height: 32px; flex: none; }
+    .dn-kofi b { display: block; font-size: 19px; }
+    .dn-kofi small { display: block; font-size: 12px; opacity: .92; }
+    .dn-pay { display: flex; gap: 5px; margin-top: 7px; }
+    .dn-kofi .dn-pay svg { width: 36px; height: 23.5px; flex: none; }
+    .dn-or { display: flex; align-items: center; gap: 10px; margin: 16px 0 10px; font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); }
+    .dn-or::before, .dn-or::after { content: ''; flex: 1; height: 1px; background: var(--line); }
+    .dn-coin { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 10px 12px; margin-bottom: 8px; background: #222; border: 1px solid var(--line); border-radius: 10px; }
+    .dn-coin > svg { width: 34px; height: 34px; flex: none; fill: none; }
+    .dn-info { flex: 1; min-width: 0; }
+    .dn-info b { font-size: 14px; }
+    .dn-info small { color: var(--dim); font-size: 12px; margin-left: 6px; }
+    .dn-info code { display: block; margin-top: 3px; font: 11px/1.35 ui-monospace, 'SFMono-Regular', Menlo, monospace; color: #cfcfcf; word-break: break-all; user-select: text; -webkit-user-select: text; }
+    .dn-btns { flex: none; display: flex; gap: 6px; }
+    .dn-copy, .dn-qrbtn { flex: none; width: 38px; height: 38px; padding: 0; display: inline-flex; align-items: center; justify-content: center; border: 1px solid var(--line); border-radius: 8px; background: #2b2b2b; color: var(--text); cursor: pointer; }
+    .dn-copy svg, .dn-qrbtn svg { width: 20px; height: 20px; }
+    .dn-copy .i-ok { display: none; }
+    .dn-copy:hover, .dn-qrbtn:hover { border-color: var(--accent); }
+    .dn-qrbtn.on { border-color: var(--accent); color: var(--accent); }
+    .dn-qr { flex: 0 0 100%; display: flex; flex-direction: column; align-items: center; gap: 6px; padding-top: 4px; }
+    .dn-qr[hidden] { display: none; }
+    .dn-qr svg { width: min(210px, 62vw); height: auto; border-radius: 8px; background: #fff; }
+    .dn-qr span { font-size: 12px; color: var(--dim); }
+    .dn-copy.ok { background: #1f6f43; border-color: #2fa76a; color: #fff; }
+    .dn-copy.ok .i-copy { display: none; }
+    .dn-copy.ok .i-ok { display: inline; }
+    .dn-note { font-size: 12px; color: var(--dim); margin-top: 10px; }
+    @media (max-width: 440px) {
+      .dn-box { padding: 18px 14px 14px; }
+      .dn-coin { gap: 8px; padding: 10px; }
+      .dn-coin > svg { width: 30px; height: 30px; }
+      .dn-btns { gap: 5px; }
+      .dn-copy, .dn-qrbtn { width: 34px; height: 34px; }
+      .dn-info code { font-size: 10.5px; }
+      .dn-info small { display: block; margin: 0; }
+    }
     #lang-note { overflow: hidden; text-overflow: ellipsis; }
     body.has-lang #player { width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9)); }
     /* strip under the player: progress of a voice language download */
@@ -124,7 +183,7 @@
       #lang-bar label { justify-content: space-between; }
       #lang-bar select { flex: 1 1 auto; max-width: 62%; min-height: 32px; }
       #lang-note { white-space: normal; }
-      #lang-bar .support { margin-left: 0; justify-content: center; }
+      #lang-bar .support { margin-left: 0; justify-content: center; gap: 18px; margin-top: 14px; margin-bottom: 4px; }
       body.has-lang #voice-bar { white-space: normal; padding: 0 8px; }
     }
     /* a phone held sideways: the player is narrower than the three selects, the bar takes the whole width */
@@ -132,6 +191,7 @@
       #lang-bar, body.has-lang #voice-bar { width: 100vw; }
       #lang-bar { justify-content: center; font-size: 12px; gap: 8px; }
       #lang-bar select { padding: 2px 4px; }
+      #lang-bar .support { gap: 14px; }
     }
     #voice-track { flex: 1; height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
     #voice-fill { height: 100%; width: 0; background: var(--accent); transition: width .2s; }
@@ -255,15 +315,6 @@
       background: var(--accent);
     }
 
-    .source-row {
-      position: absolute;
-      left: 0;
-      right: 0;
-      bottom: 52px;
-      display: none;
-      justify-content: center;
-      gap: 8px;
-    }
 
     .btn {
       padding: 8px 16px;
@@ -312,8 +363,28 @@
 
     .ctl:hover { color: var(--accent); }
     .ctl-right, .ctl-left { display: flex; align-items: center; }
+    .ctl-right { gap: 6px; }
     .fps-opt { gap: 6px; user-select: none; }
     .fps-opt input { margin: 0; accent-color: var(--accent); cursor: pointer; }
+    /* toolbar toggles shown as icons: the checkbox stays (the page code reads it) but is invisible, the label is the button */
+    .ico { position: relative; padding: 0 9px; color: var(--dim); }
+    .ico input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .ico:hover { color: var(--accent); }
+    .ico:has(input:checked) { color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+    .ico:has(input:focus-visible) { outline: 1px solid var(--accent); outline-offset: -2px; }
+    .fps-badge { font-size: 13px; font-weight: 600; letter-spacing: .03em; }
+    /* one folder button on the left: savegames and game files in a menu above it */
+    .ctl-left { position: relative; }
+    #files-btn[aria-expanded="true"] { color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
+    #files-menu { position: absolute; left: 0; bottom: calc(100% + 8px); z-index: 25; min-width: 200px; padding: 6px 0;
+      background: rgba(10, 10, 10, 0.92); border: 1px solid var(--line); }
+    #files-menu[hidden] { display: none; }
+    .fm-item { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 34px; padding: 0 14px; border: 0;
+      background: none; color: var(--text); font: inherit; font-size: 13px; text-align: left; cursor: pointer; white-space: nowrap; }
+    .fm-item:hover { background: rgba(255, 255, 255, 0.08); color: var(--accent); }
+    .fm-item svg { width: 18px; height: 18px; flex: none; fill: currentColor; color: var(--dim); }
+    .fm-item:hover svg { color: var(--accent); }
+    .fm-sep { height: 1px; margin: 5px 0; background: var(--line); }
     /* detailed stats ("Performance overlay"): phone, mode, resolution, frame time graph */
     #perf-box { position: absolute; top: 8px; left: 8px; z-index: 15; display: none; padding: 6px 8px; width: 262px; max-width: 60vw;
       font: 11px/1.45 monospace; color: #e8e8e8; background: rgba(0, 0, 0, 0.62); pointer-events: none; white-space: pre-wrap; word-break: break-word; }
@@ -391,6 +462,11 @@
     }
     body.touch-on .ctl { height: 28px; padding: 0 5px; font-size: 11px; }
     body.touch-on .ctl svg { width: 18px; height: 18px; }
+    body.touch-on .ctl-right { gap: 4px; }
+    /* on a phone the bar is at the top of the player: the menu opens downwards, the counters sit under the bar */
+    body.touch-on #files-menu { bottom: auto; top: calc(100% + 6px); }
+    body.touch-on .fm-item { min-height: 40px; }
+    body.touch-on #fps-counter, body.touch-on #perf-box { top: 40px; }
     body.touch-on #controls .ctl-left { visibility: hidden; }
     body.touch-on.touch-menu #controls .ctl-left { visibility: visible; }
     body.touch-on #settings-panel { top: 38px; bottom: auto; max-height: calc(100% - 46px); }
@@ -616,8 +692,8 @@
     html.native #player { position: fixed; inset: 0; width: 100vw; height: 100vh; aspect-ratio: auto; background: transparent; }
     html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
     html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
-    html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #saves-dl-btn, html.native #saves-ul-btn,
-    html.native #clear-btn, html.native label[title^="On-screen touch"] { display: none !important; }
+    html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #files-btn, html.native #files-menu,
+    html.native label[title^="On-screen touch"] { display: none !important; }
     /* the top bar: only the gear stays, in its place, without the dark strip */
     html.native body.touch-on #controls, html.native #controls { background: none !important; }
     /* settings of the page that the app does not have (the canvas pixel ratio, the web texture mips) */
@@ -626,7 +702,7 @@
 </head>
 <body>
   <div id="lang-bar" hidden>
-    <a class="back-link" href="./" title="Back to the main page" aria-label="Back to the main page">&larr; Back</a>
+    <a class="back-link" href="./" title="Back to the main page" aria-label="Back to the main page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11.5 5.5L5 12l6.5 6.5"/></svg>Back</a>
     <label>Game <select id="game-select" onchange="gameChosen()">
       <option value="g1">Gothic 1</option>
       <option value="g2">Gothic 2</option>
@@ -635,8 +711,8 @@
     <label id="lang-voice-label" hidden>Voice language <select id="lang-voice" onchange="languagesChosen()"></select></label>
     <span id="lang-note"></span>
     <span class="support">
-      <a class="donate" href="https://www.patreon.com/" target="_blank" rel="noopener">&#9829; Donate</a>
-      <a class="join" href="https://discord.gg/" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.2.5a18 18 0 0 0-6.4 0L8.6 3a19.8 19.8 0 0 0-4.9 1.4C.6 9-.2 13.5.2 18a19.9 19.9 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14.2 14.2 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.9 19.9 0 0 0 6-3c.5-5.2-.8-9.7-3.5-13.6zM8.5 15.3c-1.2 0-2.1-1.1-2.1-2.4s.9-2.4 2.1-2.4 2.1 1.1 2.1 2.4-.9 2.4-2.1 2.4zm7 0c-1.2 0-2.1-1.1-2.1-2.4s.9-2.4 2.1-2.4 2.1 1.1 2.1 2.4-.9 2.4-2.1 2.4z"/></svg>Join</a>
+      <button type="button" class="donate" onclick="openDonate()"><svg class="dn-gift" viewBox="0 0 24 24" style="fill:none;stroke:currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13M12 8C10 8 7.5 7.3 7.5 5.4 7.5 3.5 10.6 3.6 12 8zM12 8c2 0 4.5-.7 4.5-2.6 0-1.9-3.1-1.8-4.5 2.6z"/></svg>Donate</button>
+      <a class="join" href="https://discord.gg/CFnpSBVsbU" target="_blank" rel="noopener" data-ext><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.2.5a18 18 0 0 0-6.4 0L8.6 3a19.8 19.8 0 0 0-4.9 1.4C.6 9-.2 13.5.2 18a19.9 19.9 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14.2 14.2 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.9 19.9 0 0 0 6-3c.5-5.2-.8-9.7-3.5-13.6zM8.5 15.3c-1.2 0-2.1-1.1-2.1-2.4s.9-2.4 2.1-2.4 2.1 1.1 2.1 2.4-.9 2.4-2.1 2.4zm7 0c-1.2 0-2.1-1.1-2.1-2.4s.9-2.4 2.1-2.4 2.1 1.1 2.1 2.4-.9 2.4-2.1 2.4z"/></svg>Join</a>
     </span>
   </div>
   <div id="player">
@@ -656,10 +732,6 @@
       <input type="file" id="folder-picker" class="file-input" webkitdirectory directory multiple onchange="onFolderSelected(event)">
       <input type="file" id="zip-picker" class="file-input" accept=".zip" onchange="onZipSelected(event)">
 
-      <div class="source-row" id="source-row">
-        <button class="btn" id="folder-btn" onclick="pickOffline('folder-picker')">Select folder</button>
-        <button class="btn" id="zip-btn" onclick="pickOffline('zip-picker')">Select ZIP</button>
-      </div>
     </div>
 
     <div id="fps-counter">0 FPS</div>
@@ -668,7 +740,7 @@
 
     <div id="side-scrim"></div>
     <div id="side-menu" role="menu">
-      <div class="sm-title">OpenGothic</div>
+      <div class="sm-title">GothicDroid</div>
       <button class="sm-item" id="sm-touch" type="button" role="switch" aria-checked="true"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg><span class="sm-label">Mobile input</span><span class="sm-sw"></span></button>
       <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
       <button class="sm-item" id="sm-perf" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm4 10h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z"/></svg><span class="sm-label">Performance stats</span><span class="sm-sw"></span></button>
@@ -767,21 +839,28 @@
         </span>
       </div>
       <label class="set-row g1only" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
+      <label class="set-row" title="Detailed stats: hardware, resolution, frame time graph">Detailed stats <input type="checkbox" id="perf-chk"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
       <div id="settings-more" aria-hidden="true">&#9660; scroll &#9660;</div>
     </div>
 
     <div id="controls">
       <div class="ctl-left">
-      <button class="ctl" id="clear-btn" style="display:none;" onclick="clearStorage()">Delete game</button>
-      <button class="ctl" id="saves-dl-btn" onclick="downloadSaves()" title="Download all savegames as a ZIP archive">Download saves</button>
-      <button class="ctl" id="saves-ul-btn" onclick="document.getElementById('saves-picker').click()" title="Add savegames from a ZIP archive or .sav files">Upload saves</button>
+      <button class="ctl ico" id="files-btn" type="button" aria-label="Game files and savegames" title="Game files and savegames" aria-haspopup="menu" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg></button>
+      <div id="files-menu" role="menu" hidden>
+        <div id="fm-source">
+          <button class="fm-item" id="folder-btn" type="button" role="menuitem" onclick="pickFiles('folder-picker')" title="Use a Gothic folder from this device"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm0 12H4V8h16v10z"/></svg>Select folder</button>
+          <button class="fm-item" id="zip-btn" type="button" role="menuitem" onclick="pickFiles('zip-picker')" title="Use a ZIP archive of the game from this device"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-2 6h-2v2h2v2h-2v2h-2v-2h2v-2h-2v-2h2v-2h-2V8h2v2h2v2z"/></svg>Select ZIP</button>
+          <div class="fm-sep"></div>
+        </div>
+        <button class="fm-item" id="saves-dl-btn" type="button" role="menuitem" onclick="downloadSaves()" title="Download all savegames as a ZIP archive"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 20h14v-2H5v2zM19 9h-4V3H9v6H5l7 7 7-7z"/></svg>Download saves</button>
+        <button class="fm-item" id="saves-ul-btn" type="button" role="menuitem" onclick="document.getElementById('saves-picker').click()" title="Add savegames from a ZIP archive or .sav files"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16h6v-6h4l-7-7-7 7h4zm-4 2h14v2H5z"/></svg>Upload saves</button>
+      </div>
       <input type="file" id="saves-picker" class="file-input" accept=".zip,.sav" multiple onchange="onSavesPicked(event)">
       </div>
       <div class="ctl-right">
-      <label class="ctl fps-opt" title="On-screen touch controls (turned on by itself on phones and tablets)"><input type="checkbox" id="touch-chk"> Mobile input</label>
-      <label class="ctl fps-opt" title="Show FPS"><input type="checkbox" id="fps-chk"> Show FPS</label>
-      <label class="ctl fps-opt" title="Detailed stats: hardware, resolution, frame time graph"><input type="checkbox" id="perf-chk"> Detailed stats</label>
+      <label class="ctl fps-opt ico" title="On-screen touch controls (turned on by itself on phones and tablets)" aria-label="Mobile input"><input type="checkbox" id="touch-chk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg></label>
+      <label class="ctl fps-opt ico" title="Show FPS" aria-label="Show FPS"><input type="checkbox" id="fps-chk"><span class="fps-badge">FPS</span></label>
       <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
         <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
       </button>
@@ -800,6 +879,117 @@
   <div id="voice-bar" class="idle"><div id="voice-track"><div id="voice-fill"></div></div><span id="voice-text"></span></div>
 
   <p id="legal">Unofficial fan project. The author claims no rights to the game: Gothic and Gothic II, including all game assets, characters, names, music and trademarks, belong to Piranha Bytes and their respective rights holders (THQ Nordic / Embracer Group). Not affiliated with or endorsed by the rights holders.<br>Based on&nbsp;<a href="https://github.com/Try/OpenGothic" target="_blank" rel="noopener" style="color:inherit">OpenGothic</a>&nbsp;and the Tempest engine, Copyright &copy; 2018-2019 Try, MIT License; web port by the developer below. Also uses ZenKit, Bullet, Opus, miniz, TinySoundFont and dmusic under their own licenses.<br>Contact the developer:&nbsp;<a href="mailto:ivanpro8411@proton.me" style="color:inherit">ivanpro8411@proton.me</a></p>
+
+  <!--DONATE-BEGIN-->
+  <div id="donate-modal" class="dn-overlay" hidden>
+    <div class="dn-box" role="dialog" aria-modal="true" aria-labelledby="dn-title">
+      <button type="button" class="dn-x" onclick="closeDonate()" aria-label="Close">&times;</button>
+      <h2 id="dn-title">Support the project</h2>
+      <p class="dn-sub">Donating is optional. The money goes to servers and to the development of the project. Thank you!</p>
+      <a class="dn-kofi" href="https://ko-fi.com/slaker222" target="_blank" rel="noopener" data-ext>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="#fff" d="M11.351 2.715c-2.7 0-4.986.025-6.83.26C2.078 3.285 0 5.154 0 8.61c0 3.506.182 6.13 1.585 8.493 1.584 2.701 4.233 4.182 7.662 4.182h.83c4.209 0 6.494-2.234 7.637-4a9.5 9.5 0 0 0 1.091-2.338C21.792 14.688 24 12.22 24 9.208v-.415c0-3.247-2.13-5.507-5.792-5.87-1.558-.156-2.65-.208-6.857-.208m0 1.947c4.208 0 5.09.052 6.571.182 2.624.311 4.13 1.584 4.13 4v.39c0 2.156-1.792 3.844-3.87 3.844h-.935l-.156.649c-.208 1.013-.597 1.818-1.039 2.546-.909 1.428-2.545 3.064-5.922 3.064h-.805c-2.571 0-4.831-.883-6.078-3.195-1.09-2-1.298-4.155-1.298-7.506 0-2.181.857-3.402 3.012-3.714 1.533-.233 3.559-.26 6.39-.26m6.547 2.287c-.416 0-.65.234-.65.546v2.935c0 .311.234.545.65.545 1.324 0 2.051-.754 2.051-2s-.727-2.026-2.052-2.026m-10.39.182c-1.818 0-3.013 1.48-3.013 3.142 0 1.533.858 2.857 1.949 3.897.727.701 1.87 1.429 2.649 1.896a1.47 1.47 0 0 0 1.507 0c.78-.467 1.922-1.195 2.623-1.896 1.117-1.039 1.974-2.364 1.974-3.897 0-1.662-1.247-3.142-3.039-3.142-1.065 0-1.792.545-2.338 1.298-.493-.753-1.246-1.298-2.312-1.298"/></svg>
+        <span><b>Support on Ko-fi</b><span class="dn-pay" role="img" aria-label="Bank cards, PayPal, Mastercard, Visa"><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><rect x="12.5" y="8.5" width="21" height="13" rx="2.2" fill="none" stroke="#3a3f47" stroke-width="1.7"/><path d="M12.5 13.4h21" stroke="#3a3f47" stroke-width="2.6"/><path d="M16 18h5" stroke="#3a3f47" stroke-width="1.6" stroke-linecap="round"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(14 6) scale(.75)"><path fill="#003087" d="M7.016 19.198h-4.2a.562.562 0 0 1-.555-.65L5.093.584A.692.692 0 0 1 5.776 0h7.222c3.417 0 5.904 2.488 5.846 5.5-.006.25-.027.5-.066.747A6.794 6.794 0 0 1 12.071 12H8.743a.69.69 0 0 0-.682.583l-.325 2.056-.013.083-.692 4.39-.015.087zM19.79 6.142c-.01.087-.01.175-.023.261a7.76 7.76 0 0 1-7.695 6.598H9.007l-.283 1.795-.013.083-.692 4.39-.134.843-.014.088H6.86l-.497 3.15a.562.562 0 0 0 .555.65h3.612c.34 0 .63-.249.683-.585l.952-6.031a.692.692 0 0 1 .683-.584h2.126a6.793 6.793 0 0 0 6.707-5.752c.306-1.95-.466-3.744-1.89-4.906z"/></g></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><circle cx="18" cy="15" r="8" fill="#EB001B"/><circle cx="28" cy="15" r="8" fill="#F79E1B"/><path fill="#FF5F00" d="M23 8.755A8 8 0 0 1 23 21.245A8 8 0 0 1 23 8.755z"/></svg><svg viewBox="0 0 46 30" aria-hidden="true"><rect width="46" height="30" rx="6" fill="#fff"/><g transform="translate(8 0) scale(1.25)"><path fill="#1A1F71" d="M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z"/></g></svg></span></span>
+      </a>
+      <div class="dn-or">or send crypto</div>
+      <div class="dn-coin">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#F7931A"/><path fill="#FFF" fill-rule="nonzero" d="M23.189 14.02c.314-2.096-1.283-3.223-3.465-3.975l.708-2.84-1.728-.43-.69 2.765c-.454-.114-.92-.22-1.385-.326l.695-2.783L15.596 6l-.708 2.839c-.376-.086-.746-.17-1.104-.26l.002-.009-2.384-.595-.46 1.846s1.283.294 1.256.312c.7.175.826.638.805 1.006l-.806 3.235c.048.012.11.03.18.057l-.183-.045-1.13 4.532c-.086.212-.303.531-.793.41.018.025-1.256-.313-1.256-.313l-.858 1.978 2.25.561c.418.105.828.215 1.231.318l-.715 2.872 1.727.43.708-2.84c.472.127.93.245 1.378.357l-.706 2.828 1.728.43.715-2.866c2.948.558 5.164.333 6.097-2.333.752-2.146-.037-3.385-1.588-4.192 1.13-.26 1.98-1.003 2.207-2.538zm-3.95 5.538c-.533 2.147-4.148.986-5.32.695l.95-3.805c1.172.293 4.929.872 4.37 3.11zm.535-5.569c-.487 1.953-3.495.96-4.47.717l.86-3.45c.975.243 4.118.696 3.61 2.733z"/></g></svg>
+        <div class="dn-info"><b>Bitcoin</b><small>BTC</small><code>bc1q26qjtfjvh6q0043d83hscd8vh64uejc6w6y270</code></div>
+        <div class="dn-btns"><button type="button" class="dn-copy" aria-label="Copy address" title="Copy address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="i-copy"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></g><path class="i-ok" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button><button type="button" class="dn-qrbtn" aria-label="Show QR code" title="Show QR code" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path fill="currentColor" stroke="none" d="M5.2 5.2h2.6v2.6H5.2zM16.2 5.2h2.6v2.6h-2.6zM5.2 16.2h2.6v2.6H5.2zM14 14h3v3h-3zM18.5 14H21v2.5h-2.5zM14 18.5h2.5V21H14zM18.5 18.5H21V21h-2.5z"/></svg></button></div>
+        <div class="dn-qr" hidden><!--QR--><svg viewBox="0 0 35 35" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="35" height="35" fill="#fff"/><path fill="#000" d="M3 3h7v1h-7zM13 3h1v1h-1zM17 3h1v1h-1zM19 3h5v1h-5zM25 3h7v1h-7zM3 4h1v1h-1zM9 4h1v1h-1zM12 4h7v1h-7zM21 4h1v1h-1zM23 4h1v1h-1zM25 4h1v1h-1zM31 4h1v1h-1zM3 5h1v1h-1zM5 5h3v1h-3zM9 5h1v1h-1zM11 5h2v1h-2zM17 5h1v1h-1zM19 5h1v1h-1zM21 5h2v1h-2zM25 5h1v1h-1zM27 5h3v1h-3zM31 5h1v1h-1zM3 6h1v1h-1zM5 6h3v1h-3zM9 6h1v1h-1zM11 6h1v1h-1zM16 6h1v1h-1zM18 6h3v1h-3zM23 6h1v1h-1zM25 6h1v1h-1zM27 6h3v1h-3zM31 6h1v1h-1zM3 7h1v1h-1zM5 7h3v1h-3zM9 7h1v1h-1zM11 7h4v1h-4zM17 7h1v1h-1zM22 7h1v1h-1zM25 7h1v1h-1zM27 7h3v1h-3zM31 7h1v1h-1zM3 8h1v1h-1zM9 8h1v1h-1zM11 8h11v1h-11zM25 8h1v1h-1zM31 8h1v1h-1zM3 9h7v1h-7zM11 9h1v1h-1zM13 9h1v1h-1zM15 9h1v1h-1zM17 9h1v1h-1zM19 9h1v1h-1zM21 9h1v1h-1zM23 9h1v1h-1zM25 9h7v1h-7zM11 10h1v1h-1zM3 11h1v1h-1zM5 11h5v1h-5zM12 11h1v1h-1zM14 11h5v1h-5zM20 11h1v1h-1zM22 11h2v1h-2zM25 11h5v1h-5zM6 12h1v1h-1zM8 12h1v1h-1zM10 12h2v1h-2zM13 12h1v1h-1zM15 12h3v1h-3zM19 12h1v1h-1zM21 12h2v1h-2zM24 12h4v1h-4zM31 12h1v1h-1zM3 13h3v1h-3zM9 13h3v1h-3zM14 13h1v1h-1zM18 13h1v1h-1zM20 13h2v1h-2zM24 13h2v1h-2zM28 13h1v1h-1zM6 14h1v1h-1zM8 14h1v1h-1zM13 14h3v1h-3zM17 14h1v1h-1zM23 14h2v1h-2zM26 14h2v1h-2zM3 15h1v1h-1zM5 15h2v1h-2zM9 15h1v1h-1zM11 15h1v1h-1zM13 15h1v1h-1zM15 15h2v1h-2zM20 15h1v1h-1zM24 15h1v1h-1zM26 15h1v1h-1zM28 15h3v1h-3zM6 16h1v1h-1zM8 16h1v1h-1zM10 16h1v1h-1zM13 16h2v1h-2zM17 16h1v1h-1zM19 16h1v1h-1zM21 16h3v1h-3zM25 16h3v1h-3zM31 16h1v1h-1zM4 17h2v1h-2zM7 17h1v1h-1zM9 17h3v1h-3zM15 17h2v1h-2zM18 17h2v1h-2zM23 17h1v1h-1zM29 17h2v1h-2zM3 18h1v1h-1zM6 18h2v1h-2zM10 18h2v1h-2zM13 18h1v1h-1zM15 18h1v1h-1zM18 18h2v1h-2zM21 18h2v1h-2zM24 18h2v1h-2zM31 18h1v1h-1zM3 19h1v1h-1zM5 19h3v1h-3zM9 19h2v1h-2zM13 19h1v1h-1zM15 19h2v1h-2zM18 19h1v1h-1zM20 19h2v1h-2zM23 19h1v1h-1zM28 19h3v1h-3zM3 20h1v1h-1zM6 20h3v1h-3zM12 20h2v1h-2zM15 20h1v1h-1zM17 20h1v1h-1zM19 20h2v1h-2zM22 20h1v1h-1zM25 20h4v1h-4zM30 20h2v1h-2zM3 21h1v1h-1zM6 21h4v1h-4zM13 21h2v1h-2zM16 21h4v1h-4zM21 21h1v1h-1zM24 21h1v1h-1zM29 21h1v1h-1zM3 22h1v1h-1zM5 22h1v1h-1zM7 22h1v1h-1zM10 22h2v1h-2zM13 22h1v1h-1zM15 22h1v1h-1zM17 22h3v1h-3zM21 22h1v1h-1zM23 22h1v1h-1zM26 22h3v1h-3zM30 22h2v1h-2zM3 23h1v1h-1zM8 23h2v1h-2zM14 23h1v1h-1zM16 23h1v1h-1zM18 23h3v1h-3zM23 23h8v1h-8zM11 24h5v1h-5zM17 24h1v1h-1zM19 24h1v1h-1zM22 24h2v1h-2zM27 24h1v1h-1zM30 24h2v1h-2zM3 25h7v1h-7zM18 25h1v1h-1zM20 25h1v1h-1zM22 25h2v1h-2zM25 25h1v1h-1zM27 25h2v1h-2zM3 26h1v1h-1zM9 26h1v1h-1zM11 26h1v1h-1zM14 26h1v1h-1zM18 26h2v1h-2zM21 26h1v1h-1zM23 26h1v1h-1zM27 26h2v1h-2zM30 26h2v1h-2zM3 27h1v1h-1zM5 27h3v1h-3zM9 27h1v1h-1zM11 27h1v1h-1zM14 27h2v1h-2zM18 27h3v1h-3zM23 27h5v1h-5zM29 27h3v1h-3zM3 28h1v1h-1zM5 28h3v1h-3zM9 28h1v1h-1zM11 28h2v1h-2zM16 28h1v1h-1zM20 28h2v1h-2zM24 28h1v1h-1zM29 28h3v1h-3zM3 29h1v1h-1zM5 29h3v1h-3zM9 29h1v1h-1zM11 29h1v1h-1zM14 29h2v1h-2zM18 29h1v1h-1zM21 29h1v1h-1zM25 29h3v1h-3zM29 29h2v1h-2zM3 30h1v1h-1zM9 30h1v1h-1zM12 30h1v1h-1zM15 30h2v1h-2zM19 30h1v1h-1zM21 30h4v1h-4zM27 30h2v1h-2zM30 30h1v1h-1zM3 31h7v1h-7zM11 31h1v1h-1zM13 31h2v1h-2zM16 31h6v1h-6zM24 31h1v1h-1zM26 31h4v1h-4z"/></svg><!--/QR--><span>Scan with your wallet app</span></div>
+      </div>
+      <div class="dn-coin">
+        <svg viewBox="0 0 32 32" aria-hidden="true"><g fill="none" fill-rule="evenodd"><circle cx="16" cy="16" r="16" fill="#26A17B"/><path fill="#FFF" d="M17.922 17.383v-.002c-.11.008-.677.042-1.942.042-1.01 0-1.721-.03-1.971-.042v.003c-3.888-.171-6.79-.848-6.79-1.658 0-.809 2.902-1.486 6.79-1.66v2.644c.254.018.982.061 1.988.061 1.207 0 1.812-.05 1.925-.06v-2.643c3.88.173 6.775.85 6.775 1.658 0 .81-2.895 1.485-6.775 1.657m0-3.59v-2.366h5.414V7.819H8.595v3.608h5.414v2.365c-4.4.202-7.709 1.074-7.709 2.118 0 1.044 3.309 1.915 7.709 2.118v7.582h3.913v-7.584c4.393-.202 7.694-1.073 7.694-2.116 0-1.043-3.301-1.914-7.694-2.117"/></g></svg>
+        <div class="dn-info"><b>Tether</b><small>USDT &middot; TRC-20 (Tron)</small><code>TTh3rzkmzkyW1TH95Vi8mc4oz8eAFincgy</code></div>
+        <div class="dn-btns"><button type="button" class="dn-copy" aria-label="Copy address" title="Copy address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="i-copy"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></g><path class="i-ok" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button><button type="button" class="dn-qrbtn" aria-label="Show QR code" title="Show QR code" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path fill="currentColor" stroke="none" d="M5.2 5.2h2.6v2.6H5.2zM16.2 5.2h2.6v2.6h-2.6zM5.2 16.2h2.6v2.6H5.2zM14 14h3v3h-3zM18.5 14H21v2.5h-2.5zM14 18.5h2.5V21H14zM18.5 18.5H21V21h-2.5z"/></svg></button></div>
+        <div class="dn-qr" hidden><!--QR--><svg viewBox="0 0 35 35" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="35" height="35" fill="#fff"/><path fill="#000" d="M3 3h7v1h-7zM13 3h1v1h-1zM15 3h1v1h-1zM18 3h2v1h-2zM22 3h1v1h-1zM25 3h7v1h-7zM3 4h1v1h-1zM9 4h1v1h-1zM12 4h1v1h-1zM15 4h1v1h-1zM23 4h1v1h-1zM25 4h1v1h-1zM31 4h1v1h-1zM3 5h1v1h-1zM5 5h3v1h-3zM9 5h1v1h-1zM11 5h1v1h-1zM15 5h1v1h-1zM17 5h1v1h-1zM19 5h1v1h-1zM21 5h2v1h-2zM25 5h1v1h-1zM27 5h3v1h-3zM31 5h1v1h-1zM3 6h1v1h-1zM5 6h3v1h-3zM9 6h1v1h-1zM11 6h1v1h-1zM15 6h1v1h-1zM20 6h1v1h-1zM25 6h1v1h-1zM27 6h3v1h-3zM31 6h1v1h-1zM3 7h1v1h-1zM5 7h3v1h-3zM9 7h1v1h-1zM11 7h2v1h-2zM14 7h5v1h-5zM20 7h4v1h-4zM25 7h1v1h-1zM27 7h3v1h-3zM31 7h1v1h-1zM3 8h1v1h-1zM9 8h1v1h-1zM11 8h2v1h-2zM14 8h5v1h-5zM20 8h1v1h-1zM23 8h1v1h-1zM25 8h1v1h-1zM31 8h1v1h-1zM3 9h7v1h-7zM11 9h1v1h-1zM13 9h1v1h-1zM15 9h1v1h-1zM17 9h1v1h-1zM19 9h1v1h-1zM21 9h1v1h-1zM23 9h1v1h-1zM25 9h7v1h-7zM11 10h3v1h-3zM16 10h1v1h-1zM18 10h1v1h-1zM23 10h1v1h-1zM3 11h1v1h-1zM5 11h5v1h-5zM13 11h2v1h-2zM17 11h2v1h-2zM20 11h1v1h-1zM22 11h1v1h-1zM25 11h5v1h-5zM3 12h3v1h-3zM12 12h1v1h-1zM14 12h2v1h-2zM18 12h1v1h-1zM20 12h1v1h-1zM22 12h2v1h-2zM25 12h1v1h-1zM27 12h1v1h-1zM31 12h1v1h-1zM5 13h1v1h-1zM7 13h3v1h-3zM11 13h2v1h-2zM15 13h1v1h-1zM18 13h4v1h-4zM24 13h1v1h-1zM26 13h1v1h-1zM28 13h3v1h-3zM6 14h3v1h-3zM10 14h1v1h-1zM12 14h4v1h-4zM17 14h2v1h-2zM21 14h1v1h-1zM26 14h3v1h-3zM30 14h1v1h-1zM3 15h3v1h-3zM7 15h1v1h-1zM9 15h1v1h-1zM11 15h1v1h-1zM19 15h5v1h-5zM26 15h6v1h-6zM3 16h1v1h-1zM6 16h3v1h-3zM10 16h1v1h-1zM12 16h1v1h-1zM14 16h4v1h-4zM19 16h2v1h-2zM22 16h1v1h-1zM26 16h2v1h-2zM30 16h2v1h-2zM3 17h3v1h-3zM7 17h3v1h-3zM12 17h1v1h-1zM15 17h5v1h-5zM21 17h1v1h-1zM23 17h1v1h-1zM26 17h2v1h-2zM29 17h1v1h-1zM3 18h1v1h-1zM5 18h1v1h-1zM11 18h2v1h-2zM14 18h3v1h-3zM19 18h1v1h-1zM21 18h1v1h-1zM24 18h1v1h-1zM28 18h1v1h-1zM30 18h1v1h-1zM5 19h1v1h-1zM8 19h2v1h-2zM11 19h3v1h-3zM17 19h2v1h-2zM20 19h1v1h-1zM22 19h1v1h-1zM26 19h1v1h-1zM28 19h2v1h-2zM3 20h1v1h-1zM5 20h4v1h-4zM10 20h2v1h-2zM13 20h1v1h-1zM15 20h1v1h-1zM19 20h1v1h-1zM21 20h4v1h-4zM26 20h2v1h-2zM29 20h1v1h-1zM3 21h1v1h-1zM6 21h7v1h-7zM14 21h2v1h-2zM18 21h2v1h-2zM24 21h3v1h-3zM29 21h1v1h-1zM3 22h1v1h-1zM6 22h1v1h-1zM14 22h1v1h-1zM17 22h1v1h-1zM22 22h3v1h-3zM28 22h1v1h-1zM30 22h1v1h-1zM3 23h1v1h-1zM7 23h3v1h-3zM11 23h2v1h-2zM14 23h2v1h-2zM18 23h1v1h-1zM23 23h5v1h-5zM29 23h1v1h-1zM11 24h3v1h-3zM16 24h2v1h-2zM19 24h1v1h-1zM21 24h3v1h-3zM27 24h1v1h-1zM29 24h1v1h-1zM3 25h7v1h-7zM15 25h4v1h-4zM21 25h1v1h-1zM23 25h1v1h-1zM25 25h1v1h-1zM27 25h3v1h-3zM3 26h1v1h-1zM9 26h1v1h-1zM11 26h1v1h-1zM16 26h1v1h-1zM19 26h1v1h-1zM22 26h2v1h-2zM27 26h2v1h-2zM30 26h2v1h-2zM3 27h1v1h-1zM5 27h3v1h-3zM9 27h1v1h-1zM11 27h2v1h-2zM14 27h1v1h-1zM17 27h1v1h-1zM23 27h5v1h-5zM29 27h2v1h-2zM3 28h1v1h-1zM5 28h3v1h-3zM9 28h1v1h-1zM11 28h1v1h-1zM13 28h1v1h-1zM15 28h2v1h-2zM19 28h1v1h-1zM21 28h2v1h-2zM24 28h1v1h-1zM28 28h4v1h-4zM3 29h1v1h-1zM5 29h3v1h-3zM9 29h1v1h-1zM11 29h1v1h-1zM13 29h4v1h-4zM18 29h3v1h-3zM22 29h1v1h-1zM25 29h4v1h-4zM30 29h1v1h-1zM3 30h1v1h-1zM9 30h1v1h-1zM17 30h2v1h-2zM21 30h5v1h-5zM28 30h1v1h-1zM30 30h1v1h-1zM3 31h7v1h-7zM11 31h1v1h-1zM13 31h4v1h-4zM20 31h1v1h-1zM28 31h2v1h-2z"/></svg><!--/QR--><span>Scan with your wallet app</span></div>
+      </div>
+      <div class="dn-coin">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="12" fill="#0098EA"/><path fill="#FFF" d="M7.902 6.697h8.196c1.505 0 2.462 1.628 1.705 2.94l-5.059 8.765a.86.86 0 0 1-1.488 0L6.199 9.637c-.758-1.314.197-2.94 1.703-2.94z"/><path fill="#0098EA" d="M12.746 8.193v7.58l1.102-2.128 2.656-4.756a.465.465 0 0 0-.408-.696h-3.35z M7.9 8.195a.464.464 0 0 0-.408.694l2.658 4.754 1.102 2.13V8.195H7.9z"/></svg>
+        <div class="dn-info"><b>Toncoin</b><small>TON</small><code>UQDl2q_Y67WZFN-RbqaRZTvGP8R3FD4Fg-OyQAO4SWZ9M3B9</code></div>
+        <div class="dn-btns"><button type="button" class="dn-copy" aria-label="Copy address" title="Copy address"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g class="i-copy"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V6a2 2 0 0 1 2-2h9"/></g><path class="i-ok" d="M5 12.5l4.5 4.5L19 7.5"/></svg></button><button type="button" class="dn-qrbtn" aria-label="Show QR code" title="Show QR code" aria-expanded="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path fill="currentColor" stroke="none" d="M5.2 5.2h2.6v2.6H5.2zM16.2 5.2h2.6v2.6h-2.6zM5.2 16.2h2.6v2.6H5.2zM14 14h3v3h-3zM18.5 14H21v2.5h-2.5zM14 18.5h2.5V21H14zM18.5 18.5H21V21h-2.5z"/></svg></button></div>
+        <div class="dn-qr" hidden><!--QR--><svg viewBox="0 0 39 39" shape-rendering="crispEdges" role="img" aria-label="QR code"><rect width="39" height="39" fill="#fff"/><path fill="#000" d="M3 3h7v1h-7zM13 3h3v1h-3zM18 3h2v1h-2zM23 3h1v1h-1zM29 3h7v1h-7zM3 4h1v1h-1zM9 4h1v1h-1zM12 4h2v1h-2zM18 4h1v1h-1zM21 4h1v1h-1zM24 4h2v1h-2zM27 4h1v1h-1zM29 4h1v1h-1zM35 4h1v1h-1zM3 5h1v1h-1zM5 5h3v1h-3zM9 5h1v1h-1zM11 5h3v1h-3zM15 5h1v1h-1zM17 5h1v1h-1zM19 5h1v1h-1zM22 5h1v1h-1zM24 5h3v1h-3zM29 5h1v1h-1zM31 5h3v1h-3zM35 5h1v1h-1zM3 6h1v1h-1zM5 6h3v1h-3zM9 6h1v1h-1zM11 6h2v1h-2zM18 6h1v1h-1zM21 6h2v1h-2zM27 6h1v1h-1zM29 6h1v1h-1zM31 6h3v1h-3zM35 6h1v1h-1zM3 7h1v1h-1zM5 7h3v1h-3zM9 7h1v1h-1zM11 7h3v1h-3zM15 7h1v1h-1zM17 7h3v1h-3zM23 7h1v1h-1zM25 7h1v1h-1zM29 7h1v1h-1zM31 7h3v1h-3zM35 7h1v1h-1zM3 8h1v1h-1zM9 8h1v1h-1zM11 8h1v1h-1zM13 8h1v1h-1zM15 8h1v1h-1zM17 8h1v1h-1zM22 8h1v1h-1zM25 8h1v1h-1zM29 8h1v1h-1zM35 8h1v1h-1zM3 9h7v1h-7zM11 9h1v1h-1zM13 9h1v1h-1zM15 9h1v1h-1zM17 9h1v1h-1zM19 9h1v1h-1zM21 9h1v1h-1zM23 9h1v1h-1zM25 9h1v1h-1zM27 9h1v1h-1zM29 9h7v1h-7zM11 10h2v1h-2zM19 10h1v1h-1zM21 10h4v1h-4zM27 10h1v1h-1zM3 11h1v1h-1zM5 11h5v1h-5zM12 11h1v1h-1zM14 11h3v1h-3zM20 11h1v1h-1zM22 11h2v1h-2zM26 11h2v1h-2zM29 11h5v1h-5zM7 12h1v1h-1zM10 12h1v1h-1zM13 12h2v1h-2zM16 12h5v1h-5zM23 12h2v1h-2zM28 12h1v1h-1zM33 12h1v1h-1zM35 12h1v1h-1zM3 13h4v1h-4zM8 13h2v1h-2zM12 13h3v1h-3zM16 13h5v1h-5zM27 13h3v1h-3zM31 13h3v1h-3zM3 14h1v1h-1zM5 14h1v1h-1zM7 14h2v1h-2zM10 14h2v1h-2zM14 14h1v1h-1zM16 14h1v1h-1zM20 14h3v1h-3zM24 14h6v1h-6zM31 14h5v1h-5zM4 15h3v1h-3zM8 15h2v1h-2zM12 15h1v1h-1zM14 15h2v1h-2zM17 15h3v1h-3zM23 15h4v1h-4zM30 15h1v1h-1zM33 15h2v1h-2zM8 16h1v1h-1zM12 16h1v1h-1zM14 16h1v1h-1zM16 16h1v1h-1zM18 16h1v1h-1zM21 16h1v1h-1zM26 16h4v1h-4zM32 16h1v1h-1zM34 16h1v1h-1zM5 17h1v1h-1zM9 17h3v1h-3zM13 17h1v1h-1zM15 17h2v1h-2zM18 17h3v1h-3zM23 17h3v1h-3zM27 17h1v1h-1zM29 17h1v1h-1zM32 17h3v1h-3zM5 18h2v1h-2zM8 18h1v1h-1zM10 18h2v1h-2zM13 18h1v1h-1zM18 18h1v1h-1zM21 18h1v1h-1zM24 18h5v1h-5zM30 18h1v1h-1zM32 18h3v1h-3zM3 19h2v1h-2zM7 19h1v1h-1zM9 19h1v1h-1zM12 19h3v1h-3zM16 19h1v1h-1zM18 19h2v1h-2zM23 19h4v1h-4zM33 19h2v1h-2zM4 20h1v1h-1zM8 20h1v1h-1zM14 20h3v1h-3zM21 20h1v1h-1zM23 20h3v1h-3zM28 20h2v1h-2zM32 20h2v1h-2zM35 20h1v1h-1zM6 21h1v1h-1zM8 21h2v1h-2zM15 21h2v1h-2zM18 21h1v1h-1zM21 21h1v1h-1zM23 21h1v1h-1zM28 21h1v1h-1zM33 21h2v1h-2zM3 22h3v1h-3zM8 22h1v1h-1zM10 22h1v1h-1zM12 22h1v1h-1zM24 22h1v1h-1zM26 22h1v1h-1zM30 22h1v1h-1zM32 22h2v1h-2zM35 22h1v1h-1zM3 23h2v1h-2zM9 23h2v1h-2zM18 23h1v1h-1zM21 23h1v1h-1zM28 23h1v1h-1zM30 23h1v1h-1zM34 23h1v1h-1zM3 24h1v1h-1zM5 24h2v1h-2zM10 24h1v1h-1zM13 24h2v1h-2zM18 24h2v1h-2zM23 24h3v1h-3zM28 24h1v1h-1zM32 24h1v1h-1zM34 24h1v1h-1zM3 25h1v1h-1zM5 25h1v1h-1zM9 25h1v1h-1zM11 25h2v1h-2zM14 25h2v1h-2zM17 25h1v1h-1zM20 25h1v1h-1zM22 25h1v1h-1zM28 25h1v1h-1zM32 25h1v1h-1zM34 25h1v1h-1zM3 26h1v1h-1zM6 26h1v1h-1zM10 26h2v1h-2zM13 26h2v1h-2zM16 26h2v1h-2zM19 26h1v1h-1zM22 26h3v1h-3zM26 26h1v1h-1zM29 26h2v1h-2zM32 26h2v1h-2zM3 27h1v1h-1zM6 27h2v1h-2zM9 27h2v1h-2zM12 27h2v1h-2zM17 27h1v1h-1zM19 27h1v1h-1zM22 27h1v1h-1zM25 27h1v1h-1zM27 27h6v1h-6zM11 28h1v1h-1zM13 28h1v1h-1zM16 28h1v1h-1zM18 28h3v1h-3zM22 28h2v1h-2zM26 28h2v1h-2zM31 28h2v1h-2zM3 29h7v1h-7zM15 29h2v1h-2zM18 29h1v1h-1zM20 29h1v1h-1zM23 29h2v1h-2zM27 29h1v1h-1zM29 29h1v1h-1zM31 29h1v1h-1zM33 29h2v1h-2zM3 30h1v1h-1zM9 30h1v1h-1zM11 30h5v1h-5zM17 30h2v1h-2zM20 30h2v1h-2zM24 30h4v1h-4zM31 30h1v1h-1zM33 30h1v1h-1zM3 31h1v1h-1zM5 31h3v1h-3zM9 31h1v1h-1zM11 31h2v1h-2zM15 31h2v1h-2zM19 31h1v1h-1zM24 31h1v1h-1zM27 31h6v1h-6zM34 31h1v1h-1zM3 32h1v1h-1zM5 32h3v1h-3zM9 32h1v1h-1zM11 32h2v1h-2zM17 32h2v1h-2zM21 32h1v1h-1zM24 32h1v1h-1zM26 32h1v1h-1zM31 32h1v1h-1zM34 32h2v1h-2zM3 33h1v1h-1zM5 33h3v1h-3zM9 33h1v1h-1zM11 33h1v1h-1zM14 33h1v1h-1zM18 33h2v1h-2zM21 33h1v1h-1zM26 33h4v1h-4zM32 33h2v1h-2zM3 34h1v1h-1zM9 34h1v1h-1zM12 34h1v1h-1zM14 34h2v1h-2zM18 34h1v1h-1zM21 34h1v1h-1zM24 34h1v1h-1zM26 34h2v1h-2zM30 34h4v1h-4zM3 35h7v1h-7zM11 35h2v1h-2zM14 35h3v1h-3zM18 35h4v1h-4zM23 35h1v1h-1zM25 35h6v1h-6zM32 35h3v1h-3z"/></svg><!--/QR--><span>Scan with your wallet app</span></div>
+      </div>
+      <p class="dn-note">Check the network before sending: USDT is accepted only on TRC-20 (Tron), a transfer on any other network is lost.</p>
+    </div>
+  </div>
+  <script id="donate-js">
+  (function () {
+    const modal = document.getElementById('donate-modal');
+    // the Android main menu has the Launcher bridge: links open in the browser, text goes to the system clipboard
+    function openExternal(url) {
+      try { if (window.Launcher && Launcher.openUrl) { Launcher.openUrl(url); return; } } catch (e) {}
+      window.open(url, '_blank', 'noopener');
+    }
+    async function copyText(text) {
+      try { if (window.Launcher && Launcher.copyText) { Launcher.copyText(text); return true; } } catch (e) {}
+      try { if (navigator.clipboard && window.isSecureContext) { await navigator.clipboard.writeText(text); return true; } } catch (e) {}
+      try {
+        const t = document.createElement('textarea');
+        t.value = text; t.setAttribute('readonly', '');
+        t.style.cssText = 'position:fixed;left:-9999px;top:0;opacity:0';
+        document.body.appendChild(t); t.select(); t.setSelectionRange(0, text.length);
+        const ok = document.execCommand('copy'); t.remove(); return ok;
+      } catch (e) { return false; }
+    }
+    window.openDonate = () => { modal.hidden = false; };
+    window.closeDonate = () => { modal.hidden = true; };
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) { closeDonate(); return; }
+      const link = e.target.closest('a[data-ext]');
+      if (link && window.Launcher) { e.preventDefault(); openExternal(link.href); return; }
+      const qb = e.target.closest('.dn-qrbtn');
+      if (qb) {
+        const panel = qb.closest('.dn-coin').querySelector('.dn-qr');
+        const open = panel.hidden;
+        modal.querySelectorAll('.dn-qr').forEach((x) => { x.hidden = true; });
+        modal.querySelectorAll('.dn-qrbtn').forEach((x) => { x.classList.remove('on'); x.setAttribute('aria-expanded', 'false'); });
+        if (open) { panel.hidden = false; qb.classList.add('on'); qb.setAttribute('aria-expanded', 'true'); }
+        return;
+      }
+      const btn = e.target.closest('.dn-copy');
+      if (!btn) return;
+      const code = btn.closest('.dn-coin').querySelector('code');
+      copyText(code.textContent.trim()).then((ok) => {
+        if (ok) btn.classList.add('ok');
+        else { // no clipboard: select the address, it can be copied by hand
+          const r = document.createRange(); r.selectNodeContents(code);
+          const sel = getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        }
+        clearTimeout(btn._t);
+        btn._t = setTimeout(() => btn.classList.remove('ok'), 1600);
+      });
+    });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.hidden) closeDonate(); });
+    // rare sparkles from the Donate button
+    if (!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+      const layer = document.createElement('div');
+      layer.id = 'dn-sparks';
+      document.body.appendChild(layer);
+      const colors = ['#ffe27a', '#ffd23f', '#fff6c9'];
+      function sparkle(btn) {
+        const r = btn.getBoundingClientRect();
+        if (!r.width || document.hidden || !modal.hidden) return;
+        const n = Math.random() < 0.3 ? 2 : 1;
+        for (let i = 0; i < n; i++) {
+          const st = document.createElement('i');
+          const s = 6 + Math.random() * 6;
+          st.className = 'dn-star';
+          st.style.cssText = '--s:' + s.toFixed(1) + 'px;--c:' + colors[(Math.random() * colors.length) | 0] +
+            ';--dx:' + ((Math.random() - 0.5) * 50).toFixed(0) + 'px;--dy:' + (24 + Math.random() * 28).toFixed(0) +
+            'px;--rot:' + ((Math.random() - 0.5) * 180).toFixed(0) + 'deg;left:' + (r.left + Math.random() * r.width - s / 2).toFixed(1) +
+            'px;top:' + (r.top + r.height * (0.4 + Math.random() * 0.5) - s / 2).toFixed(1) + 'px';
+          layer.appendChild(st);
+          st.addEventListener('animationend', () => st.remove());
+        }
+      }
+      document.querySelectorAll('.support .donate').forEach((btn) => {
+        const next = () => setTimeout(() => { sparkle(btn); next(); }, 3000 + Math.random() * 3500);
+        setTimeout(next, 1500 + Math.random() * 2000);
+      });
+    }
+  })();
+  </script>
+  <!--DONATE-END-->
 
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
        unpacks ZIP archives into the OPFS game directory. Kept as text and
@@ -1450,9 +1640,7 @@ async function installChunks(m) {
     const uiOverlay = document.getElementById('ui-overlay');
     const player = document.getElementById('player');
     const canvas = document.getElementById('canvas');
-    const sourceRow = document.getElementById('source-row');
     const retryBtn = document.getElementById('retry-btn');
-    const clearBtn = document.getElementById('clear-btn');
 
     let g_gameReady = false;
     // resolved once the wasm runtime (and its FS) is up
@@ -1482,16 +1670,16 @@ async function installChunks(m) {
       noInitialRun: true,
       preRun: [],
       postRun: [function() {
-        console.log("OpenGothic WebAssembly core ready.");
+        console.log("GothicDroidAssembly core ready.");
         bindErrnoError();
         g_runtimeUp = true;
         g_resolveRuntime();
       }],
       print: function(text) {
-        console.log("[OpenGothic] " + text);
+        console.log("[GothicDroid] " + text);
       },
       printErr: function(text) {
-        console.error("[OpenGothic] " + text);
+        console.error("[GothicDroid] " + text);
       },
       canvas: (function() {
         return canvas;
@@ -3852,7 +4040,7 @@ function serveLoop() {
     }
     function storageError(need, have) {
       const err = new Error('not enough browser storage: need ~' + mb(need) + ' MB and ' + mb(SAVE_RESERVE) +
-                            ' MB kept for savegames, available ' + mb(have) + ' MB. Delete the other game (Delete game) or free space on the device.');
+                            ' MB kept for savegames, available ' + mb(have) + ' MB. Free space on the device or clear this site\'s data in the browser settings.');
       err.fatal = true;
       return err;
     }
@@ -3865,14 +4053,15 @@ function serveLoop() {
       return g_packFiles.get(url);
     }
 
-    function showSourceButtons(show) {
-      sourceRow.style.display = show ? 'flex' : 'none';
-    }
+    // the game-source items (Select folder / Select ZIP) live in the files menu and are always there
+    function showSourceButtons(show) {}
 
     // The game starts by itself: an installed game is mounted and launched,
     // otherwise the archive download begins right away. The offline buttons
     // stay available and stop the download when used.
     async function bootstrap() {
+      const pickMode = lsGet(PICK_FILES) === '1';
+      lsSet(PICK_FILES, null);
       try {
         g_langIndex = await loadLangIndex();
         await applyLinkLanguages();
@@ -3885,7 +4074,7 @@ function serveLoop() {
         lsSet(LANG_APPLY, null);
         const installed = await readRootJson(INSTALL_MARK);
         // without the direct mode a game imported into OPFS is used as well
-        if (!applyLang && !g_memoryMode && (installed || !DIRECT_FOLDER_MODE)) {
+        if (!pickMode && !applyLang && !g_memoryMode && (installed || !DIRECT_FOLDER_MODE)) {
           await g_runtimeReady;
           if (await mountInstalledGame()) {
             startGame();
@@ -3894,6 +4083,13 @@ function serveLoop() {
         }
       } catch (e) {
         console.warn('bootstrap error:', e);
+      }
+      if (pickMode) {
+        g_pickMode = true;
+        progressContainer.style.display = 'none';
+        setStatus('Choose the game folder or ZIP: Select folder / Select ZIP in the menu of the folder button (bottom left).');
+        if (window.ogOpenFilesMenu) window.ogOpenFilesMenu();
+        return;
       }
       showSourceButtons(true);
       progressContainer.style.display = 'none';
@@ -3908,11 +4104,20 @@ function serveLoop() {
       pauseInstall();
       input.value = '';
       input.addEventListener('cancel', () => {
+        if (g_pickMode) { location.reload(); return; }   // nothing chosen: back to the game
         if (!g_gameReady && !g_installWorker && !g_offlineBusy) downloadGame();
       }, { once: true });
       input.click();
     }
+    // the menu items: before the game starts the dialog opens at once; a running game restarts the page first
+    function pickFiles(inputId) {
+      if (!g_gameReady) { pickOffline(inputId); return; }
+      if (!confirm('The game restarts to choose other game files. Savegames are kept. Continue?')) return;
+      lsSet(PICK_FILES, '1');
+      location.reload();
+    }
     let g_offlineBusy = false;
+    let g_pickMode = false;
 
     // Mounts the game installed into OPFS (downloaded, unpacked or imported).
     // Returns false when there is no game there.
@@ -3969,7 +4174,6 @@ function serveLoop() {
       progressContainer.style.display = 'none';
       statusText.style.color = '';
       setStatus('Starting the engine...', undefined, { spin: true });
-      clearBtn.style.display = 'inline-flex';
       g_gameReady = true;
       return true;
     }
@@ -4243,6 +4447,7 @@ function serveLoop() {
     // ?langs=<url of languages.json> overrides the address.
     const LANG_STATE = 'gothic-langs' + GAME_SUF + '.json';  // {text, voice, files:{base,text,voice}} of the installed game
     const LANG_SEL = 'langSel' + GAME_SUF;              // localStorage: {text, voice} chosen on the bar
+    const PICK_FILES = 'pickFiles' + GAME_SUF;          // localStorage: this start only offers the file pickers (the game is not mounted)
     const LANG_APPLY = 'langApply' + GAME_SUF;          // localStorage: install the choice at this start
     let g_langIndex = null;
     let g_langBase = '';
@@ -4853,7 +5058,7 @@ function serveLoop() {
           s.files = man.files.map(f => f.path);
           s.sizes = man.files;
         }
-        // the chunk state says "done" also after the files were deleted (Delete game, evicted
+        // the chunk state says "done" also after the files were deleted (files deleted, evicted
         // storage): a pack whose files are not all there is installed again
         for (const s of steps) {
           s.intact = await packIntact(s.sizes);
@@ -5032,35 +5237,17 @@ function serveLoop() {
       }
     }
 
-    // removes the installed game, keeping savegames and settings
-    async function clearStorage() {
-      if (!confirm("Delete the game files from the browser? Savegames are kept.")) return;
-      // the bridge worker holds locks on every game file
-      if (GameFS.bridge) { GameFS.bridge.worker.terminate(); GameFS.bridge = null; }
-      try {
-        const dir = await opfsGameDir(false);
-        const names = [];
-        for await (const [name, h] of dir.entries()) {
-          if (!(h.kind === 'file' && /\.(sav|ini)$/i.test(name)) && !(h.kind === 'directory' && /^saves/i.test(name)))
-            names.push(name);
-        }
-        for (const name of names) await dir.removeEntry(name, { recursive: true });
-      } catch (e) {
-        console.warn('clearStorage:', e);
-      }
-      await removeRootEntry(INSTALL_MARK);
-      await removeRootEntry(DL_ZIP);
-      await removeRootEntry(DL_STATE);
-      await removeRootEntry(CHUNK_STATE);
-      await removeRootEntry(LANG_STATE);
-      for (const k of ['base', 'text', 'voice']) await removeRootEntry('gothic-chunks-' + k + '.json');
-      try {
-        indexedDB.deleteDatabase('/gothic'); // legacy IDBFS database
-        indexedDB.deleteDatabase('emscripten-fs'); // legacy runtime database
-      } catch (e) {}
-      setStatus('Deleted');
-      setTimeout(() => location.reload(), 800);
-    }
+    // the folder button on the left of the bar: open / close the menu
+    (function() {
+      const btn = document.getElementById('files-btn');
+      const menu = document.getElementById('files-menu');
+      const setOpen = o => { menu.hidden = !o; btn.setAttribute('aria-expanded', o ? 'true' : 'false'); };
+      window.ogOpenFilesMenu = () => setOpen(true);
+      btn.addEventListener('click', e => { e.stopPropagation(); setOpen(menu.hidden); });
+      menu.addEventListener('click', e => { if (e.target.closest('.fm-item')) setOpen(false); });
+      document.addEventListener('click', e => { if (!menu.hidden && !menu.contains(e.target)) setOpen(false); });
+      document.addEventListener('keydown', e => { if (e.key === 'Escape' && !menu.hidden) setOpen(false); });
+    })();
 
     // ---------------------------- Import ----------------------------
 
@@ -5415,7 +5602,7 @@ function serveLoop() {
       player.classList.add('playing');
       canvas.focus();
       if (bootBg_isUp()) { bootStatusText.textContent = 'Starting the engine...'; bootStatus.style.display = 'flex'; }
-      console.log("Starting OpenGothic engine...");
+      console.log("Starting GothicDroid engine...");
       try {
         if (!Module.preinitializedWebGPUDevice)
           await initWebGPU();

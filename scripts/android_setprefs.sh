@@ -1,7 +1,7 @@
 #!/bin/bash
 # launcher settings of the app on the phone: android_setprefs.sh GAME_DIR RENDER_SCALE SIMPLE(true|false) [DRAW_DIST 0..4] [WORLD_DIST m] [SHADOWS 0..3] [SSAO true|false] [REFLECTIONS true|false]
-adb shell am force-stop com.opengothic
-adb shell "run-as com.opengothic sh -c 'mkdir -p shared_prefs; cat > shared_prefs/opengothic_launcher.xml'" <<X
+adb shell am force-stop com.gothic.droid
+adb shell "run-as com.gothic.droid sh -c 'mkdir -p shared_prefs; cat > shared_prefs/opengothic_launcher.xml'" <<X
 <?xml version='1.0' encoding='utf-8' standalone='yes' ?>
 <map>
     <string name="game_dir">${1:-/storage/emulated/0/GothicSmall}</string>
