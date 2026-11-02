@@ -112,7 +112,7 @@
   </header>
 
   <main class="games">
-    <a class="game" href="game.html?game=1">
+    <a class="game" href="/?game=1">
       <div class="pic" style="background-image:url(img/g1.png);background-position:center 25%"></div>
       <div class="body">
         <h3>Gothic 1</h3>
@@ -120,7 +120,7 @@
         <span class="play">Play</span>
       </div>
     </a>
-    <a class="game" href="game.html?game=2">
+    <a class="game" href="/?game=2">
       <div class="pic" style="background-image:url(img/g2.png);background-position:center 80%"></div>
       <div class="body">
         <h3>Gothic 2</h3>
@@ -145,8 +145,8 @@
   </footer>
 
   <script>
-    // Old links to the game page (?game=2&text=ru, #g2/ru/en, ?archive=..., ?nomenu ...) lead to the game itself
-    if (location.search || location.hash.length > 1) location.replace('game.html' + location.search + location.hash);
+    // Old links to the game page (?game=2&text=ru, #g2/ru/en, ?archive=..., ?nomenu ...) lead to the game itself (the game page is the site root, this menu is /main)
+    if (location.search || location.hash.length > 1) location.replace('/' + location.search + location.hash);
   </script>
 </body>
 </html>

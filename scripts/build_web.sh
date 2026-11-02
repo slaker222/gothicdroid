@@ -61,7 +61,8 @@ ninja -C "${BUILD_DIR}"
 echo "[*] Подготовка дистрибутива в ${DIST_DIR}..."
 mkdir -p "${DIST_DIR}"
 cp "${BUILD_DIR}/opengothic/opengothic.html" "${DIST_DIR}/game.html"  2>/dev/null || true
-cp "$(dirname "$0")/../web/landing.html"      "${DIST_DIR}/index.html" 2>/dev/null || true
+cp "${BUILD_DIR}/opengothic/opengothic.html" "${DIST_DIR}/index.html"  2>/dev/null || true   # корень сайта = игра
+cp "$(dirname "$0")/../web/landing.html"      "${DIST_DIR}/main.html"  2>/dev/null || true   # меню с карточками: /main
 cp "${BUILD_DIR}/opengothic/opengothic.js"   "${DIST_DIR}/"           2>/dev/null || true
 cp "${BUILD_DIR}/opengothic/opengothic.wasm" "${DIST_DIR}/"           2>/dev/null || true
 cp "${BUILD_DIR}/opengothic/opengothic.worker.js" "${DIST_DIR}/"      2>/dev/null || true

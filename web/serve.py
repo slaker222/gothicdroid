@@ -62,6 +62,8 @@ class IsolatedHandler(SimpleHTTPRequestHandler):
         super().end_headers()
 
     def send_head(self):
+        if self.path.split("?")[0] == "/main":   # as on the site: /main is main.html
+            self.path = "/main.html" + self.path[5:]
         path = self.translate_path(self.path)
         if os.path.isdir(path):
             index = os.path.join(path, "index.html")

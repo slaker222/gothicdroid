@@ -14,7 +14,8 @@ else
   cp "$ROOT/dist-web/game.html" "$OUT/game.html"
   cp "$ROOT/dist-web/release.json" "$OUT/release.json"
 fi
-cp "$ROOT/web/landing.html" "$OUT/index.html"
+cp "$OUT/game.html" "$OUT/index.html"            # корень сайта — сразу страница игры
+cp "$ROOT/web/landing.html" "$OUT/main.html"      # меню с карточками Gothic 1 / 2 — /main
 cp "$ROOT/web/gpucheck.html" "$OUT/gpucheck.html"   # диагностика WebGPU (на неё ссылается страница ошибки)
 cp "$ROOT/web/manifest.webmanifest" "$OUT/manifest.webmanifest"   # установка на экран «Домой» (iPhone/Android)
 cp "$ROOT"/dist-web/opengothic.{js,wasm,worker.js} "$OUT/"
