@@ -59,6 +59,7 @@
     const m = /[?&]gapidbg=(\d+)/.exec(location.search);
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
     if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4;
+    if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
   })();
   // 6) the device and the engine log go to the site's log (Cloudflare D1) so a problem on a phone can be read without the phone:
   //    UA, screen, the WebGPU adapter (features, limits), warnings, errors and the key engine lines. No IP, no cookies, no names.
