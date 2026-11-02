@@ -98,8 +98,9 @@
     .ex-bar button svg { width: 18px; height: 18px; fill: currentColor; }
     .ex-bar button:active, .ex-roots button:active { border-color: var(--accent); }
     .ex-bar button:disabled { opacity: .4; }
-    .ex-bar { display: flex; gap: 8px; flex-wrap: wrap; }
-    .ex-bar .sp { flex: 1; }
+    .ex-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+    .ex-bar button { justify-content: center; height: 46px; font-size: 14px; white-space: nowrap; }
+    .ex-bar .sp { display: none; }
     .ex-bar .danger { color: var(--danger); }
     #ex-path { font-size: 12px; color: var(--dim); word-break: break-all; }
     #ex-prog { display: none; background: #1d1d1d; border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
@@ -119,6 +120,20 @@
     #tab-explore.selmode .ex-chk { display: block; }
     .ex-row.sel .ex-chk { background: var(--accent); border-color: var(--accent); }
     #sheet .ex-in { width: 100%; }
+
+    #ex-edit { position: fixed; inset: 0; z-index: 45; background: #121212; display: none; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
+    #ex-edit.on { display: flex; }
+    #ex-edit .eh { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+    #ex-edit .eh b { flex: 1; min-width: 0; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #ex-edit .et { display: flex; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+    #ex-edit button { flex: none; font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; padding: 0 14px; height: 40px; cursor: pointer; }
+    #ex-edit button.pri { color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    #ex-edit button.on { color: var(--accent); border-color: var(--accent); }
+    #ex-edit .fr { display: none; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+    #ex-edit .fr.on { display: flex; }
+    #ex-edit .fr input { flex: 1; min-width: 0; font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; padding: 0 10px; height: 40px; }
+    #ex-ta { flex: 1; width: 100%; resize: none; border: 0; outline: 0; background: #121212; color: var(--text); font: 13px/1.45 ui-monospace, Menlo, Consolas, monospace; padding: 10px; tab-size: 4; white-space: pre; overflow: auto; }
+    #ex-ta.wrap { white-space: pre-wrap; word-break: break-word; }
     #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: none; align-items: flex-end; z-index: 50; }
     #sheet.open { display: flex; }
     #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; padding: 22px 18px 24px; display: flex; flex-direction: column; gap: 18px; max-height: 92vh; overflow-y: auto; }
@@ -255,6 +270,12 @@
     <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>About</button>
   </nav>
 
+  <div id="ex-edit">
+    <div class="eh"><button type="button" id="ee-close">Close</button><b id="ee-name"></b><button type="button" class="pri" id="ee-save">Save</button></div>
+    <div class="et"><button type="button" id="ee-undo">Undo</button><button type="button" id="ee-redo">Redo</button><button type="button" id="ee-find">Find</button><button type="button" id="ee-wrap">Wrap</button><button type="button" id="ee-sm">A−</button><button type="button" id="ee-bg">A+</button></div>
+    <div class="fr" id="ee-fr"><input type="text" id="ee-q" placeholder="Find" autocapitalize="off"><button type="button" id="ee-next">Next</button><input type="text" id="ee-r" placeholder="Replace"><button type="button" id="ee-rep">Replace all</button></div>
+    <textarea id="ex-ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
+  </div>
   <div id="sheet"><div class="box" id="sheet-box"></div></div>
   {{DONATE}}
   <script>
@@ -552,7 +573,7 @@
       if (n) {
         bar = btn('x-copy', 'copy', 'Copy') + btn('x-cut', 'cut', 'Cut') + (n === 1 ? btn('x-ren', 'ren', 'Rename') : '') + btn('x-del', 'del', 'Delete', 'danger') + '<span class="sp"></span>' + btn('x-all', 'all', 'All');
       } else {
-        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New folder') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', '') ;
+        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New folder') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', 'Refresh');
         if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', 'Paste here (' + EX.clip.paths.length + ')');
       }
       $('ex-bar').innerHTML = bar;
@@ -574,6 +595,8 @@
           if (longed) { longed = false; return; }
           if (EX.sel.size) exToggle(it.n);
           else if (it.d) exOpen(full(it.n));
+          else if (TXT.test(it.n) || it.s === 0) edOpen(it.n);
+          else exMsg(it.n, fmt(it.s) + '\nThis file type cannot be opened in the editor.');
         });
       });
     }
@@ -582,7 +605,7 @@
     function exClip(move) { EX.clip = { paths: [...EX.sel].map(full), move }; EX.sel.clear(); exRender(); }
     function exPaste() {
       if (!EX.clip) return;
-      if (Launcher.fsPaste(JSON.stringify(EX.clip.paths), EX.path, EX.clip.move)) { if (EX.clip.move) EX.clip = null; exPoll(); }
+      if (Launcher.fsPaste(JSON.stringify(EX.clip.paths), EX.path, EX.clip.move)) { EX.clip = null; exRender(); exPoll(); }
       else exMsg('Busy', 'Another operation is still running.');
     }
     function exMsg(title, text, extra) {
@@ -604,6 +627,52 @@
       $('ex-no').onclick = () => sheet.classList.remove('open');
       $('ex-yes').onclick = () => { sheet.classList.remove('open'); if (Launcher.fsDelete(JSON.stringify(names.map(full)))) exPoll(); };
     }
+
+    // ---- text editor (txt, ini, json, ...)
+    const TXT = /\.(txt|ini|json|cfg|log|src|d|xml|md|csv|bat|sh|lua|py|js|html|htm|css|yml|yaml|inf|nfo|conf|properties|dat|ou|tsv|scr|ppl)$/i;
+    const ED = { path: '', enc: 'utf8', orig: '', fs: 13 };
+    const ta = $('ex-ta');
+    function edOpen(name) {
+      let r; try { r = JSON.parse(Launcher.fsRead(full(name))); } catch (e) { r = { error: String(e) }; }
+      if (r.error) { exMsg('Cannot open', r.error); return; }
+      ED.path = full(name); ED.enc = r.enc; ED.orig = r.text; ta.value = r.text;
+      $('ee-name').textContent = name + (r.enc === 'latin1' ? '  (8-bit)' : '');
+      $('ex-edit').classList.add('on'); ta.scrollTop = 0; ta.setSelectionRange(0, 0);
+    }
+    const edDirty = () => ta.value !== ED.orig;
+    function edClose(force) {
+      if (!force && edDirty()) {
+        exMsg('Unsaved changes', 'Close without saving?', '<button type="button" class="wide primary" id="ex-yes" style="background:var(--danger);border-color:var(--danger)">Discard</button><button type="button" class="wide" id="ex-no">Keep editing</button>');
+        $('ex-no').onclick = () => sheet.classList.remove('open');
+        $('ex-yes').onclick = () => { sheet.classList.remove('open'); edClose(true); };
+        return;
+      }
+      $('ex-edit').classList.remove('on'); exOpen(EX.path);
+    }
+    function edSave() {
+      const e = Launcher.fsWrite(ED.path, ta.value, ED.enc);
+      if (e) { exMsg('Cannot save', e); return; }
+      ED.orig = ta.value; const b = $('ee-save'); b.textContent = 'Saved'; setTimeout(() => b.textContent = 'Save', 900);
+    }
+    $('ee-close').onclick = () => edClose(); $('ee-save').onclick = edSave;
+    $('ee-undo').onclick = () => { ta.focus(); document.execCommand('undo'); };
+    $('ee-redo').onclick = () => { ta.focus(); document.execCommand('redo'); };
+    $('ee-wrap').onclick = () => $('ee-wrap').classList.toggle('on', ta.classList.toggle('wrap'));
+    const edFs = d => { ED.fs = Math.max(9, Math.min(28, ED.fs + d)); ta.style.fontSize = ED.fs + 'px'; };
+    $('ee-sm').onclick = () => edFs(-1); $('ee-bg').onclick = () => edFs(1);
+    $('ee-find').onclick = () => { const f = $('ee-fr'); f.classList.toggle('on'); $('ee-find').classList.toggle('on', f.classList.contains('on')); if (f.classList.contains('on')) $('ee-q').focus(); };
+    $('ee-next').onclick = () => {
+      const q = $('ee-q').value; if (!q) return;
+      const t = ta.value.toLowerCase(); let i = t.indexOf(q.toLowerCase(), ta.selectionEnd);
+      if (i < 0) i = t.indexOf(q.toLowerCase());
+      if (i < 0) { $('ee-next').textContent = 'None'; setTimeout(() => $('ee-next').textContent = 'Next', 900); return; }
+      ta.focus(); ta.setSelectionRange(i, i + q.length);
+      const lh = parseFloat(getComputedStyle(ta).lineHeight) || 18; ta.scrollTop = Math.max(0, (ta.value.slice(0, i).split('\n').length - 3) * lh);
+    };
+    $('ee-rep').onclick = () => {
+      const q = $('ee-q').value; if (!q) return;
+      ta.focus(); ta.select(); document.execCommand('insertText', false, ta.value.split(q).join($('ee-r').value));
+    };
     $('ex-prog-x').addEventListener('click', () => Launcher.fsCancel());
     // a running job (copy / delete / import): shown until it ends, then the list is refreshed
     let exTimer = null;
@@ -633,6 +702,7 @@
       if (TouchEditor.isOpen()) { TouchEditor.close(); return true; }
       if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
       if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
+      if ($('ex-edit').classList.contains('on')) { edClose(); return true; }
       if (curTab === 'explore') { if (EX.sel.size) { EX.sel.clear(); exRender(); return true; } if (EX.path !== rootPath()) { exUp(); return true; } }
       if (curTab !== 'main') { showTab('main'); return true; }
       return false;

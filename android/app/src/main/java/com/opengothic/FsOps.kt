@@ -100,6 +100,22 @@ class FsOps(private val roots: () -> List<Pair<String, File>>) {
         return if (t.exists()) "Already exists" else if (f.renameTo(t)) "" else "Cannot rename"
     }
 
+    /** a text file -> {text, enc}; UTF-8 when valid, otherwise Latin-1 (the bytes survive a round trip) */
+    fun read(path: String): String {
+        val f = canon(path) ?: return JSONObject().put("error", "Access denied").toString()
+        if (!f.isFile) return JSONObject().put("error", "Not a file").toString()
+        if (f.length() > 3L shl 20) return JSONObject().put("error", "File is too big for the editor (max 3 MB)").toString()
+        val b = f.readBytes()
+        val dec = Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT).onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+        return try { JSONObject().put("text", dec.decode(java.nio.ByteBuffer.wrap(b)).toString()).put("enc", "utf8").toString() }
+        catch (e: Exception) { JSONObject().put("text", String(b, Charsets.ISO_8859_1)).put("enc", "latin1").toString() }
+    }
+
+    fun write(path: String, text: String, enc: String): String {
+        val f = canon(path) ?: return "Access denied"
+        return try { f.writeBytes(text.toByteArray(if (enc == "latin1") Charsets.ISO_8859_1 else Charsets.UTF_8)); "" } catch (e: Exception) { e.message ?: "Cannot write" }
+    }
+
     /** total size of a file / folder, in bytes */
     fun size(path: String): Long { val f = canon(path) ?: return 0; return if (f.isDirectory) f.walkTopDown().filter { it.isFile }.sumOf { it.length() } else f.length() }
 

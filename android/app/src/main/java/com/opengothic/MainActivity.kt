@@ -468,6 +468,10 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun fsRename(path: String, name: String): String = fs.rename(path, name)
         @JavascriptInterface
+        fun fsRead(path: String): String = fs.read(path)
+        @JavascriptInterface
+        fun fsWrite(path: String, text: String, enc: String): String = fs.write(path, text, enc)
+        @JavascriptInterface
         fun fsSize(path: String): Long = fs.size(path)
         @JavascriptInterface
         fun fsImport(dst: String) { importDir = dst; runOnUiThread { importer.launch(arrayOf("*/*")) } }
