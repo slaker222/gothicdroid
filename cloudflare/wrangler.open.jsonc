@@ -1,10 +1,8 @@
 {
   "name": "gothic-web-test",
   "compatibility_date": "2025-01-01",
-  "main": "./worker.js",
-  "vars": { "OPEN": "1" },
-  "assets": { "directory": "./public", "binding": "ASSETS", "run_worker_first": ["/__log"], "not_found_handling": "404-page" },
-  "d1_databases": [{ "binding": "gothic_logs", "database_name": "gothic-logs", "database_id": "01dbdea9-4ffe-4175-a077-484996ea9030" }],
+  // Open site: static files only, no worker code (static asset requests are free and not limited)
+  "assets": { "directory": "./public", "not_found_handling": "404-page" },
   "routes": [
     { "pattern": "gothicplay.fun", "custom_domain": true },
     { "pattern": "www.gothicplay.fun", "custom_domain": true }
