@@ -151,6 +151,25 @@
     /* the settings of the web page the app does not have */
     #settings-panel label:has(#pixel-cap), #settings-panel label:has([data-set="texQuality"]), #settings-panel label:has(#perf-chk),
     #settings-panel .set-row:has(#barrier-zones) { display: none; }
+    .topbar { width: 100%; }
+    /* a phone held sideways: the whole width, Donate / Join in the corners, two cards in a row, a low bottom bar */
+    @media (orientation: landscape) and (max-height: 560px) {
+      #wrap { max-width: none; padding: 8px max(14px, env(safe-area-inset-left, 0px)) calc(52px + 10px) max(14px, env(safe-area-inset-right, 0px)); }
+      .topbar { flex-wrap: nowrap; align-items: center; }
+      h1 { font-size: 18px; }
+      h1 small { display: inline; margin-left: 8px; }
+      .support button { padding: 6px 12px; }
+      .games { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+      .game .pic { aspect-ratio: 21 / 7; }
+      .game .body { padding: 8px 12px 10px; }
+      .game h3 { font-size: 17px; }
+      .game .path { margin: 2px 0 8px; }
+      .game button { padding: 7px 12px; }
+      #nav button { flex-direction: row; justify-content: center; gap: 8px; padding: 6px 0; font-size: 13px; }
+      #nav button svg { width: 20px; height: 20px; }
+      .tab { gap: 10px; }
+      #tab-controls, #tab-about { max-width: 720px; margin: 0 auto; width: 100%; }
+    }
   </style>
 </head>
 <body>
