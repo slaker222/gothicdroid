@@ -60,7 +60,7 @@
     const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
     // Safari before 27 draws without textures from the cached bind groups (iPad, Safari 26.6, checked): 64 = they are created again for every draw
     const sv = /Version\/(\d+)[\d.]*.*Safari\//.exec(navigator.userAgent), oldSafari = !!sv && !/Chrome|CriOS|FxiOS|Edg/.test(navigator.userAgent) && +sv[1] < 27;
-    if (m) window.__OG_GAPI_DEBUG = +m[1]; else window.__OG_GAPI_DEBUG = (ios ? 4 : 0) | (oldSafari ? 64 : 0);
+    if (m) window.__OG_GAPI_DEBUG = +m[1]; else window.__OG_GAPI_DEBUG = (ios ? 4 | 128 : 0) | (oldSafari ? 64 : 0);   // 128: no explicit texture destroy (Gothic 2 lost its textures with it)
     if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
     setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
