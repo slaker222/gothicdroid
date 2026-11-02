@@ -796,13 +796,14 @@
     .game button:active { border-color: var(--accent); }
     .game button.play { flex: none; width: 96px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
     .game button.play:disabled { opacity: .35; }
-    .game button.play.busy { opacity: 1; color: #fff; border-color: var(--line); padding: 4px 2px; line-height: 1.2; white-space: normal; }
+    .game button.play.busy { opacity: 1; color: #fff; border-color: var(--line); padding: 0 2px; line-height: 1.15; white-space: nowrap; }
     .game button.play.busy span { display: block; mix-blend-mode: difference; color: #fff; font-size: 10px; font-weight: 600; }
-    .game button.play.busy span b { display: block; font-size: 15px; }
+    .game button.play.busy span b { display: block; font-size: 14px; }
     .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
     .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
     .game button.icon svg { margin: 0; }
     .game button:disabled { opacity: .4; }
+    .game button.play, .game button.folder, .game button.dl { box-sizing: border-box; height: 56px; overflow: hidden; }
     .game button.folder, .game button.dl { flex: none; width: 96px; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
 
     /* Explore: a file manager */
