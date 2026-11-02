@@ -99,8 +99,8 @@
     .ex-bar button:active, .ex-roots button:active { border-color: var(--accent); }
     .ex-bar button:disabled { opacity: .4; }
     .ex-bar { display: flex; flex-wrap: nowrap; gap: 6px; }
-    .ex-bar button { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 3px; height: 54px; padding: 0 2px; font-size: 11px; white-space: nowrap; }
-    .ex-bar button svg { width: 22px; height: 22px; }
+    .ex-bar button { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 1px; height: 40px; padding: 0 2px; font-size: 10px; white-space: nowrap; }
+    .ex-bar button svg { width: 17px; height: 17px; }
     #sheet .ex-btns { display: flex; gap: 10px; }
     #sheet .ex-btns .wide { height: 52px; font-size: 16px; padding: 0 12px; }
     .ex-bar .sp { display: none; }
@@ -122,7 +122,7 @@
     .ex-chk { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--dim); flex: none; display: none; }
     #tab-explore.selmode .ex-chk { display: block; }
     .ex-row.sel .ex-chk { background: var(--accent); border-color: var(--accent); }
-    #sheet .ex-in { width: 100%; }
+    #sheet input[type=text].ex-in { width: 100%; flex: none; height: 58px; font-size: 18px; padding: 0 16px; border-radius: 10px; }
 
     #ex-edit { position: fixed; inset: 0; z-index: 45; background: #121212; display: none; flex-direction: column; padding-top: env(safe-area-inset-top, 0px); }
     #ex-edit.on { display: flex; }
