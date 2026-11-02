@@ -415,6 +415,19 @@
     #side-menu .sm-item[aria-checked="true"] .sm-sw { background: var(--accent); }
     #side-menu .sm-item[aria-checked="true"] .sm-sw::after { left: 20px; }
     #side-menu .sm-spacer { flex: 1; }
+    #side-menu { overflow-y: auto; }
+    #side-menu .sm-row { display: flex; }
+    #side-menu .sm-row .sm-item { flex: 1; min-width: 0; }
+    #side-menu .sm-chev { flex: none; width: 52px; display: flex; align-items: center; justify-content: center; background: none; border: 0; border-top: 1px solid rgba(255,255,255,0.06); border-left: 1px solid rgba(255,255,255,0.06); color: var(--dim); cursor: pointer; }
+    #side-menu .sm-chev svg { width: 26px; height: 26px; fill: currentColor; transition: transform .15s; }
+    #side-menu .sm-chev[aria-expanded="true"] svg { transform: rotate(180deg); }
+    #side-menu .sm-chev:active { background: rgba(255,255,255,0.1); }
+    #sm-ctl { padding: 4px 18px 12px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); }
+    #sm-ctl[hidden] { display: none; }
+    #sm-ctl .sm-sl { display: grid; grid-template-columns: 1fr auto; row-gap: 2px; font-size: 14px; }
+    #sm-ctl .sm-sl output { color: var(--accent); font-weight: 600; }
+    #sm-ctl .sm-sl input { grid-column: 1 / 3; width: 100%; height: 28px; accent-color: #fff; }
+    #sm-edit { height: 42px; font: inherit; font-size: 15px; font-weight: 600; color: #000; background: #fff; border: 0; border-radius: 8px; cursor: pointer; }
     #side-menu .sm-exit svg { color: var(--danger, #ff6a5d); }
     html:not(.native) #side-menu, html:not(.native) #side-scrim { display: none !important; }
     html.native label:has(#fps-chk),
@@ -754,33 +767,6 @@
     .link-card svg { flex: none; width: 26px; height: 26px; fill: currentColor; color: var(--accent); }
     .link-card b { display: block; font-size: 15px; }
     .link-card span { display: block; font-size: 12px; color: var(--dim); word-break: break-all; }
-    /* the layout editor: sideways, over everything */
-    #editor { position: fixed; inset: 0; z-index: 300; background: #000; user-select: none; -webkit-user-select: none; touch-action: none; }
-    #editor[hidden] { display: none; }
-    #ed-area { position: absolute; inset: 0; container-type: size; overflow: hidden;
-      background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover; }
-    #ed-area::before { content: ''; position: absolute; inset: 0; pointer-events: none;
-      background-image: linear-gradient(to right, rgba(255,255,255,.13) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.13) 1px, transparent 1px);
-      background-size: var(--cell, 40px) var(--cell, 40px); }
-    #ed-btns { position: absolute; inset: 0; opacity: var(--tpa, 1); }
-    #ed-btns .tbtn { cursor: grab; touch-action: none; }
-    #ed-btns .tbtn.sel, #ed-btns .ed-stick.sel { outline: 2px dashed #ffd54a; outline-offset: 3px; }
-    .ed-stick { position: absolute; width: calc(26cqmin * var(--k, 1)); height: calc(26cqmin * var(--k, 1)); border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(0,0,0,.25); touch-action: none; transform: translate(-50%, -50%); }
-    .ed-stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%; background: rgba(255,255,255,.4); }
-    #ed-panel { position: absolute; left: 50%; top: 50%; width: min(360px, 62vw); transform: translate(-50%, -50%); background: rgba(16,16,16,.95); border: 1px solid #555; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); font-size: 13px; }
-    #ed-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: move; touch-action: none; border-bottom: 1px solid var(--line); font-weight: 600; color: var(--accent); }
-    #ed-head button { font: inherit; background: none; border: 0; color: var(--dim); font-size: 20px; line-height: 1; padding: 0 4px; cursor: pointer; }
-    #ed-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
-    #ed-panel.min #ed-body { display: none; }
-    #ed-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
-    #ed-tabs button { flex: none; font: inherit; font-size: 12px; padding: 5px 10px; color: var(--text); background: #262626; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
-    #ed-tabs button.on { color: #000; background: #fff; border-color: #fff; }
-    #ed-size { display: flex; align-items: center; gap: 8px; }
-    #ed-size input { flex: 1; min-width: 0; accent-color: #fff; }
-    #ed-sel { min-width: 74px; color: #ffd54a; }
-    #ed-body label.snap { display: flex; align-items: center; gap: 6px; color: var(--dim); }
-    #ed-body .btn-row .wide { height: 38px; font-size: 13px; }
-    #ed-hint { font-size: 11px; color: var(--dim); }
     h1 { font-size: 22px; font-weight: 600; color: var(--accent); }
     h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--dim); margin-top: 2px; }
     .card { background: #1b1b1b; border: 1px solid var(--line); padding: 12px 14px; }
@@ -805,13 +791,14 @@
     .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
     .game button:active { border-color: var(--accent); }
-    .game button.play { flex: 1; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    .game button.play { flex: none; width: 96px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
     .game button.play:disabled { opacity: .35; }
     .game button.play.busy { opacity: 1; color: #8a8a8a; border-color: var(--line); }
     .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
     .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
     .game button.icon svg { margin: 0; }
     .game button:disabled { opacity: .4; }
+    .game button.folder, .game button.dl { flex: none; width: 96px; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
     #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: none; align-items: flex-end; z-index: 50; }
     #sheet.open { display: flex; }
     #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; padding: 22px 18px 24px; display: flex; flex-direction: column; gap: 18px; max-height: 92vh; overflow-y: auto; }
@@ -871,6 +858,7 @@
       #tab-controls, #tab-about { max-width: 720px; margin: 0 auto; width: 100%; }
     }
   </style>
+  <script src="touch_editor.js"></script>
 </head>
 <body>
   <div id="wrap">
@@ -1021,19 +1009,6 @@
     <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>About</button>
   </nav>
 
-  <div id="editor" hidden>
-    <div id="ed-area"><div id="ed-btns"></div></div>
-    <div id="ed-panel">
-      <div id="ed-head"><span>Edit layout</span><button type="button" id="ed-min" aria-label="Minimise">&minus;</button></div>
-      <div id="ed-body">
-        <div id="ed-tabs"></div>
-        <div id="ed-size"><span id="ed-sel">Tap a button</span><input type="range" id="ed-k" min="0.5" max="2" step="0.05" value="1" disabled><output id="ed-kv">100%</output></div>
-        <label class="snap"><input type="checkbox" id="ed-snap" checked> Snap to the grid</label>
-        <div id="ed-hint">Drag a button to move it. Drag this window by its title.</div>
-        <div class="btn-row"><button class="wide" id="ed-reset">Reset</button><button class="wide" id="ed-cancel">Cancel</button><button class="wide primary" id="ed-save">Save</button></div>
-      </div>
-    </div>
-  </div>
   <div id="sheet"><div class="box" id="sheet-box"></div></div>
   
   <div id="donate-modal" class="dn-overlay" hidden>
@@ -1427,7 +1402,7 @@
     document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
     // the system back button (MainActivity asks): closes the editor, a sheet, a window, then goes to Main
     window.onBack = () => {
-      if (!$('editor').hidden) { edClose(); return true; }
+      if (TouchEditor.isOpen()) { TouchEditor.close(); return true; }
       if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
       if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
       if (curTab !== 'main') { showTab('main'); return true; }
@@ -1575,164 +1550,13 @@
       sensEl.value = '1'; opaEl.value = '100'; showCtl();
     });
 
-    // ---- the layout editor. The buttons are the game's own (their definitions come from web/shell.html), on a grid
-    const ED_COLS = 32;
-    const ED_TABS = [
-      ['World',     b => b.layouts.includes('world') && b.id !== 'aim' && b.id !== 'inv', true],
-      ['Bow',       b => ['aim', 'action', 'weapon', 'jump'].includes(b.id)],
-      ['More',      b => b.id === 'tools' || b.layouts.includes('wtools')],
-      ['Dialog',    b => b.layouts.some(l => ['talk', 'cutscene', 'choice', 'chapter'].includes(l))],
-      ['Menu',      b => b.layouts.includes('menu')],
-      ['Inventory', b => b.layouts.includes('inv')]
-    ];
-    const ed = { tab: 0, items: {}, sel: null, snap: true };
-    const edArea = $('ed-area'), edBtns = $('ed-btns');
-    const ckOf = id => TGROUP[id] || id;
-    const nameOf = id => id === 'stick' ? 'Stick' : (NAMES[ICON_OF[id] || id] || id);
-    function edCell() { return edArea.clientWidth / ED_COLS; }
-    function edPlace(el, x, y) { el.style.left = x + '%'; el.style.top = y + '%'; }
-    function edBuild() {
-      edBtns.innerHTML = '';
-      edArea.style.setProperty('--cell', edCell() + 'px');
-      edBtns.style.setProperty('--tpa', ctl.opacity > 0 ? ctl.opacity : 1);
-      const W = edArea.clientWidth, H = edArea.clientHeight;
-      const tab = ED_TABS[ed.tab], seen = new Set();
-      const mk = (ck, name, el, defX, defY) => {
-        const it = ed.items[ck];
-        el.dataset.ck = ck; el.dataset.name = name;
-        if (it) { edPlace(el, it.x, it.y); if (it.k) el.style.setProperty('--k', it.k); }
-        else edPlace(el, defX, defY);
-        el.style.transform = 'translate(-50%,-50%)';
-        el.classList.toggle('sel', ed.sel === ck);
-        el.addEventListener('pointerdown', edDown);
-        el.addEventListener('pointermove', edMove);
-        el.addEventListener('pointerup', edUp);
-        el.addEventListener('pointercancel', edUp);
-        el.addEventListener('contextmenu', e => e.preventDefault());
-      };
-      for (const [id, k, cls, pos] of defs) {
-        const b = { id, layouts: layoutsOf(id) };
-        if (!tab[1](b) || id === 'inv') continue;
-        const ck = ckOf(id);
-        if (seen.has(ck)) continue;
-        seen.add(ck);
-        const el = document.createElement('div');
-        el.className = 'tbtn ' + cls;
-        el.style.cssText = pos;
-        el.innerHTML = svgOf(ICON_OF[id] || id);
-        edBtns.appendChild(el);
-        // the default place of the button: measured, as the game's page puts it
-        const r = el.getBoundingClientRect(), a = edArea.getBoundingClientRect();
-        mk(ck, nameOf(id), el, (r.left + r.width / 2 - a.left) / W * 100, (r.top + r.height / 2 - a.top) / H * 100);
-      }
-      if (tab[2]) {
-        const el = document.createElement('div');
-        el.className = 'ed-stick';
-        edBtns.appendChild(el);
-        const m = Math.min(W, H);
-        mk('stick', 'Stick', el, 20 * m / W, (H - m * 0.24) / H * 100);
-      }
-      edSelect(ed.sel && edBtns.querySelector('[data-ck="' + ed.sel + '"]') ? ed.sel : null);
-    }
-    // the layouts of a button come from the definitions
-    const layoutsOf = id => defs.find(d => d[0] === id)[4].split(' ');
-    function edSelect(ck) {
-      ed.sel = ck;
-      edBtns.querySelectorAll('[data-ck]').forEach(e => e.classList.toggle('sel', e.dataset.ck === ck));
-      const el = ck && edBtns.querySelector('[data-ck="' + ck + '"]');
-      const k = $('ed-k');
-      $('ed-sel').textContent = el ? el.dataset.name : 'Tap a button';
-      k.disabled = !el;
-      const it = ck && ed.items[ck];
-      k.value = String(it && it.k ? it.k : 1);
-      $('ed-kv').textContent = Math.round(+k.value * 100) + '%';
-    }
-    // the item of a button in the layout being edited (made from where the button stands now)
-    function edItem(el) {
-      const ck = el.dataset.ck;
-      if (!ed.items[ck]) {
-        const W = edArea.clientWidth, H = edArea.clientHeight, r = el.getBoundingClientRect(), a = edArea.getBoundingClientRect();
-        ed.items[ck] = { x: +((r.left + r.width / 2 - a.left) / W * 100).toFixed(2), y: +((r.top + r.height / 2 - a.top) / H * 100).toFixed(2) };
-      }
-      return ed.items[ck];
-    }
-    let drag = null;
-    function edDown(e) {
-      e.preventDefault(); e.stopPropagation();
-      const el = e.currentTarget;
-      edSelect(el.dataset.ck);
-      const r = el.getBoundingClientRect();
-      drag = { id: e.pointerId, el, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) };
-      try { el.setPointerCapture(e.pointerId); } catch (err) {}
-    }
-    function edMove(e) {
-      if (!drag || e.pointerId !== drag.id) return;
-      const a = edArea.getBoundingClientRect(), W = a.width, H = a.height;
-      let px = e.clientX - drag.dx - a.left, py = e.clientY - drag.dy - a.top;
-      if (ed.snap) { const c = edCell(); px = Math.round(px / c) * c; py = Math.round(py / c) * c; }
-      px = Math.min(W - 6, Math.max(6, px)); py = Math.min(H - 6, Math.max(6, py));
-      const it = edItem(drag.el);
-      it.x = +(px / W * 100).toFixed(2); it.y = +(py / H * 100).toFixed(2);
-      edPlace(drag.el, it.x, it.y);
-    }
-    function edUp(e) { if (drag && e.pointerId === drag.id) drag = null; }
-    edArea.addEventListener('pointerdown', () => edSelect(null));
-    $('ed-k').addEventListener('input', () => {
-      const el = ed.sel && edBtns.querySelector('[data-ck="' + ed.sel + '"]');
-      if (!el) return;
-      const k = +$('ed-k').value, it = edItem(el);
-      it.k = k;
-      el.style.setProperty('--k', k);
-      $('ed-kv').textContent = Math.round(k * 100) + '%';
-    });
-    $('ed-snap').addEventListener('change', () => { ed.snap = $('ed-snap').checked; });
-    function edTabs() {
-      $('ed-tabs').innerHTML = ED_TABS.map((t, i) => '<button type="button" data-i="' + i + '"' + (i === ed.tab ? ' class="on"' : '') + '>' + t[0] + '</button>').join('');
-    }
-    $('ed-tabs').addEventListener('click', e => {
-      const b = e.target.closest('button');
-      if (!b) return;
-      ed.tab = +b.dataset.i; ed.sel = null; edTabs(); edBuild();
-    });
-    // the panel is moved by its title (it stands in the middle, where the game has the least buttons)
-    {
-      const panel = $('ed-panel'), head = $('ed-head');
-      let pd = null;
-      head.addEventListener('pointerdown', e => {
-        if (e.target.closest('button')) return;
-        const r = panel.getBoundingClientRect();
-        pd = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top };
-        head.setPointerCapture(e.pointerId);
-      });
-      head.addEventListener('pointermove', e => {
-        if (!pd || e.pointerId !== pd.id) return;
-        panel.style.transform = 'none';
-        panel.style.left = Math.max(0, Math.min(innerWidth - 60, e.clientX - pd.dx)) + 'px';
-        panel.style.top = Math.max(0, Math.min(innerHeight - 40, e.clientY - pd.dy)) + 'px';
-      });
-      head.addEventListener('pointerup', () => { pd = null; });
-      head.addEventListener('pointercancel', () => { pd = null; });
-      $('ed-min').addEventListener('click', () => { panel.classList.toggle('min'); $('ed-min').innerHTML = panel.classList.contains('min') ? '+' : '&minus;'; });
-    }
-    function edOpen() {
-      ed.items = JSON.parse(JSON.stringify(ctl.items || {}));
-      ed.sel = null; ed.tab = 0;
-      $('editor').hidden = false;
-      Launcher.editor(true);
-      edTabs();
-      // the screen turns: the buttons are measured again when it has
-      edBuild();
-      setTimeout(edBuild, 300); setTimeout(edBuild, 800);
-    }
-    function edClose() {
-      $('editor').hidden = true;
-      Launcher.editor(false);
-    }
-    window.addEventListener('resize', () => { if (!$('editor').hidden) edBuild(); });
-    $('ed-open').addEventListener('click', edOpen);
-    $('ed-cancel').addEventListener('click', edClose);
-    $('ed-reset').addEventListener('click', () => { ed.items = {}; ed.sel = null; edBuild(); });
-    $('ed-save').addEventListener('click', () => { ctl.items = ed.items; saveCtl(); edClose(); });
+    // ---- the layout editor (web/touch_editor.js, the same one the game's side menu opens)
+    $('ed-open').addEventListener('click', () => TouchEditor.open({
+      defs, ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity,
+      bg: 'linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover',
+      orient: on => Launcher.editor(on),
+      onSave: items => { ctl.items = items; saveCtl(); }
+    }));
 
     window.onResumed = () => refresh();
     refresh();

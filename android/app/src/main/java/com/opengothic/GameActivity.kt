@@ -183,6 +183,11 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         @JavascriptInterface
         fun controls(): String = try { File(filesDir, "controls.json").readText() } catch (e: Exception) { "{}" }
 
+        @JavascriptInterface
+        fun setControls(json: String) {
+            try { org.json.JSONObject(json); File(filesDir, "controls.json").writeText(json) } catch (e: Exception) { Log.e(TAG, "controls: ${e.message}") }
+        }
+
         // the phone's processor: "SoC name|cores|max MHz"
         @JavascriptInterface
         fun cpuInfo(): String = cpuDescription()

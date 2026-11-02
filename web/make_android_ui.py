@@ -24,3 +24,7 @@ ticons = re.search(r'// TOUCH-ICONS-BEGIN\n(.*?)// TOUCH-ICONS-END', src, re.S).
 tpl = open(os.path.join(root, 'web/android_launcher.tpl.html'), encoding='utf-8').read()
 page = tpl.replace('{{STYLE}}', style).replace('{{PANEL}}', panel).replace('{{PRESETS}}', presets).replace('{{DONATE}}', donate).replace('{{TOUCHDEFS}}', tdefs).replace('{{TOUCHICONS}}', ticons)
 open(os.path.join(out, 'launcher.html'), 'w', encoding='utf-8').write(page)
+
+# the layout editor of the touch buttons: one file for both pages
+import shutil
+shutil.copy(os.path.join(root, 'web/touch_editor.js'), os.path.join(out, 'touch_editor.js'))

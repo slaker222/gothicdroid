@@ -420,6 +420,19 @@
     #side-menu .sm-item[aria-checked="true"] .sm-sw { background: var(--accent); }
     #side-menu .sm-item[aria-checked="true"] .sm-sw::after { left: 20px; }
     #side-menu .sm-spacer { flex: 1; }
+    #side-menu { overflow-y: auto; }
+    #side-menu .sm-row { display: flex; }
+    #side-menu .sm-row .sm-item { flex: 1; min-width: 0; }
+    #side-menu .sm-chev { flex: none; width: 52px; display: flex; align-items: center; justify-content: center; background: none; border: 0; border-top: 1px solid rgba(255,255,255,0.06); border-left: 1px solid rgba(255,255,255,0.06); color: var(--dim); cursor: pointer; }
+    #side-menu .sm-chev svg { width: 26px; height: 26px; fill: currentColor; transition: transform .15s; }
+    #side-menu .sm-chev[aria-expanded="true"] svg { transform: rotate(180deg); }
+    #side-menu .sm-chev:active { background: rgba(255,255,255,0.1); }
+    #sm-ctl { padding: 4px 18px 12px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); }
+    #sm-ctl[hidden] { display: none; }
+    #sm-ctl .sm-sl { display: grid; grid-template-columns: 1fr auto; row-gap: 2px; font-size: 14px; }
+    #sm-ctl .sm-sl output { color: var(--accent); font-weight: 600; }
+    #sm-ctl .sm-sl input { grid-column: 1 / 3; width: 100%; height: 28px; accent-color: #fff; }
+    #sm-edit { height: 42px; font: inherit; font-size: 15px; font-weight: 600; color: #000; background: #fff; border: 0; border-radius: 8px; cursor: pointer; }
     #side-menu .sm-exit svg { color: var(--danger, #ff6a5d); }
     html:not(.native) #side-menu, html:not(.native) #side-scrim { display: none !important; }
     html.native label:has(#fps-chk),
@@ -752,7 +765,12 @@
     <div id="side-scrim"></div>
     <div id="side-menu" role="menu">
       <div class="sm-title">GothicDroid</div>
-      <button class="sm-item" id="sm-touch" type="button" role="switch" aria-checked="true"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg><span class="sm-label">Mobile input</span><span class="sm-sw"></span></button>
+      <div class="sm-row"><button class="sm-item" id="sm-touch" type="button" role="switch" aria-checked="true"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg><span class="sm-label">Mobile input</span><span class="sm-sw"></span></button><button class="sm-chev" id="sm-touch-more" type="button" aria-expanded="false" aria-label="Controls"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></button></div>
+      <div id="sm-ctl" hidden>
+        <label class="sm-sl"><span>Look sensitivity</span><output id="sm-sens-v">1.00</output><input type="range" id="sm-sens" min="0.2" max="3" step="0.05" value="1"></label>
+        <label class="sm-sl"><span>Button transparency</span><output id="sm-opa-v">100%</output><input type="range" id="sm-opa" min="10" max="100" step="5" value="100"></label>
+        <button type="button" id="sm-edit">Edit layout</button>
+      </div>
       <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
       <button class="sm-item" id="sm-perf" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm4 10h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z"/></svg><span class="sm-label">Performance stats</span><span class="sm-sw"></span></button>
       <div class="sm-spacer"></div>
@@ -1757,6 +1775,7 @@ async function installChunks(m) {
     const NATIVE = typeof AndroidBridge !== 'undefined';
     if (NATIVE) {
       document.documentElement.classList.add('native');
+      { const sc = document.createElement('script'); sc.src = 'touch_editor.js'; document.head.appendChild(sc); }
       try { localStorage.setItem('touchInput', '1'); localStorage.setItem('gfxManual', '1'); } catch (e) {}
     }
 
@@ -2037,6 +2056,34 @@ async function installChunks(m) {
       smTouch.addEventListener('click', () => { touch.checked = !document.body.classList.contains('touch-on'); touch.dispatchEvent(new Event('change')); sync(); });
       smFps.addEventListener('click', () => { fpsChk.checked = !fpsChk.checked; fpsChk.dispatchEvent(new Event('change')); sync(); });
       smPerf.addEventListener('click', () => { perf.checked = !document.body.classList.contains('perf-on'); perf.dispatchEvent(new Event('change')); sync(); });
+      // the controls under the checkbox: sensitivity, transparency, the layout editor (web/touch_editor.js)
+      const more = document.getElementById('sm-touch-more'), box = document.getElementById('sm-ctl');
+      const sens = document.getElementById('sm-sens'), opa = document.getElementById('sm-opa');
+      const showCtl = () => {
+        document.getElementById('sm-sens-v').textContent = (+sens.value).toFixed(2);
+        document.getElementById('sm-opa-v').textContent = opa.value + '%';
+      };
+      more.addEventListener('click', () => {
+        const open = box.hidden;
+        box.hidden = !open; more.setAttribute('aria-expanded', open ? 'true' : 'false');
+        if (open && window.ogTouch) {
+          const c = window.ogTouch.cfg();
+          sens.value = String(c.sens > 0 ? c.sens : 1); opa.value = String(Math.round((c.opacity > 0 ? c.opacity : 1) * 100)); showCtl();
+        }
+      });
+      sens.addEventListener('input', () => { showCtl(); if (window.ogTouch) { window.ogTouch.cfg().sens = +sens.value; window.ogTouch.apply(); } });
+      opa.addEventListener('input', () => { showCtl(); if (window.ogTouch) { window.ogTouch.cfg().opacity = +opa.value / 100; window.ogTouch.apply(); } });
+      sens.addEventListener('change', () => window.ogTouch && window.ogTouch.save());
+      opa.addEventListener('change', () => window.ogTouch && window.ogTouch.save());
+      document.getElementById('sm-edit').addEventListener('click', () => {
+        if (!window.ogTouch || !window.TouchEditor) return;
+        setOpen(false);
+        const c = window.ogTouch.cfg();
+        TouchEditor.open(Object.assign(window.ogTouch.editorData(), {
+          items: c.items, opacity: c.opacity,
+          onSave: items => { c.items = items; window.ogTouch.save(); window.ogTouch.apply(); }
+        }));
+      });
       document.getElementById('sm-exit').addEventListener('click', () => AndroidBridge.exitGame());
     })();
 
@@ -2672,7 +2719,7 @@ async function installChunks(m) {
         el.className = 'tbtn ' + cls;
         el.style.cssText = pos;
         ui.appendChild(el);
-        const b = { id, key: k, el, layouts: layouts.split(' '), label: '' };
+        const b = { id, key: k, el, pos, layouts: layouts.split(' '), label: '' };
         // Gothic strikes and blocks with key combinations: Shift held, then a
         // direction (W strikes, S blocks). With a weapon out the action button
         // strikes, so it presses Shift+W instead of Shift alone (a bow shoots on Shift alone).
@@ -2737,17 +2784,29 @@ async function installChunks(m) {
       let TC = {};
       try { if (typeof AndroidBridge !== 'undefined') TC = JSON.parse(AndroidBridge.controls() || '{}') || {}; } catch (e) {}
       const tcItem = id => (TC.items || {})[TGROUP[id] || id];
-      const lookSens = Math.min(4, Math.max(0.2, +TC.sens || 1));
-      if (TC.opacity >= 0.1 && TC.opacity <= 1) ui.style.setProperty('--tpa', String(TC.opacity));
-      for (const b of buttons) {
-        const o = b.id === 'inv' ? null : tcItem(b.id);
-        if (!o) continue;
-        b.el.style.cssText = 'left:' + o.x + '%;top:' + o.y + '%;transform:translate(-50%,-50%)';
-        if (o.k) b.el.style.setProperty('--k', String(o.k));
+      let lookSens = 1, stickCfg = null, stickK = 1;
+      // the config can change while the game runs (the side menu): the buttons are put again
+      function applyCfg(started) {
+        lookSens = Math.min(4, Math.max(0.2, +TC.sens || 1));
+        if (TC.opacity >= 0.1 && TC.opacity <= 1) ui.style.setProperty('--tpa', String(TC.opacity)); else ui.style.removeProperty('--tpa');
+        for (const b of buttons) {
+          if (b.id === 'inv') continue;   // follows the quick bar of the engine
+          const o = tcItem(b.id);
+          b.el.style.cssText = o ? 'left:' + o.x + '%;top:' + o.y + '%;transform:translate(-50%,-50%)' : b.pos;
+          if (o && o.k) b.el.style.setProperty('--k', String(o.k));
+        }
+        stickCfg = tcItem('stick');
+        stickK = stickCfg && stickCfg.k > 0 ? stickCfg.k : 1;
+        if (stickK !== 1) stickEl.style.setProperty('--k', String(stickK)); else stickEl.style.removeProperty('--k');
+        if (started && !stick) stickHome();
       }
-      const stickCfg = tcItem('stick');
-      const stickK = stickCfg && stickCfg.k > 0 ? stickCfg.k : 1;
-      if (stickK !== 1) stickEl.style.setProperty('--k', String(stickK));
+      applyCfg(false);
+      window.ogTouch = {
+        cfg: () => TC,
+        apply: () => applyCfg(true),
+        save: () => { try { AndroidBridge.setControls(JSON.stringify(TC)); } catch (e) {} },
+        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF })
+      };
       // minimal line icons (24x24); the name is also the button's tooltip
       // TOUCH-ICONS-BEGIN
       const ICONS = {
