@@ -96,7 +96,7 @@
                    touch: navigator.maxTouchPoints, mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null,
                    page: location.pathname, lang: navigator.language, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) };
     dev = base;
-    const start = () => { setInterval(flush, 5000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }); addEventListener('pagehide', flush); };
+    const start = () => { setInterval(flush, 2500); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }); addEventListener('pagehide', flush); };
     if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
       if (a) { const l = {}; for (const k in a.limits) l[k] = a.limits[k]; dev = Object.assign({}, base, { features: [...a.features], limits: l, adapter: a.info ? { vendor: a.info.vendor, architecture: a.info.architecture, device: a.info.device, description: a.info.description } : null, canvas: navigator.gpu.getPreferredCanvasFormat() }); }
       else dev = Object.assign({}, base, { adapter: 'none' });
