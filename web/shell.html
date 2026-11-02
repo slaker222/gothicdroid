@@ -52,6 +52,14 @@
     const ask = async () => { try { if (navigator.wakeLock && document.visibilityState === 'visible' && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } } catch (e) {} };
     addEventListener('pointerdown', ask); document.addEventListener('visibilitychange', ask);
   })();
+  // 7) iPhone / iPad: Safari draws wrong (textures missing) with the engine's render bundles that replay the recorded draw calls
+  //    (right after any change of the graphics preset, which drops them, the picture is right): they are off there.
+  //    ?gapidbg=N sets the engine's debug bits by hand (4 = no bundles, 0 = the normal path) to compare.
+  (function () {
+    const m = /[?&]gapidbg=(\d+)/.exec(location.search);
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4;
+  })();
   // 6) the device and the engine log go to the site's log (Cloudflare D1) so a problem on a phone can be read without the phone:
   //    UA, screen, the WebGPU adapter (features, limits), warnings, errors and the key engine lines. No IP, no cookies, no names.
   //    Off: ?nolog (remembered), on again: ?log=1 / ?nolog=0. Only on the public site, not on localhost.
