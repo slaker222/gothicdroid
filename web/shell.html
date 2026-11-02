@@ -63,7 +63,7 @@
     if (m) window.__OG_GAPI_DEBUG = +m[1]; else window.__OG_GAPI_DEBUG = (ios ? 4 : 0) | (oldSafari ? 64 : 0);
     if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
-    console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-'));
+    setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
   })();
   // 6) the device and the engine log go to the site's log (Cloudflare D1) so a problem on a phone can be read without the phone:
   //    UA, screen, the WebGPU adapter (features, limits), warnings, errors and the key engine lines. No IP, no cookies, no names.
