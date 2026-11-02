@@ -83,7 +83,9 @@
     .game button:active { border-color: var(--accent); }
     .game button.play { flex: none; width: 96px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
     .game button.play:disabled { opacity: .35; }
-    .game button.play.busy { opacity: 1; color: #8a8a8a; border-color: var(--line); }
+    .game button.play.busy { opacity: 1; color: #fff; border-color: var(--line); padding: 4px 2px; line-height: 1.2; white-space: normal; }
+    .game button.play.busy span { display: block; mix-blend-mode: difference; color: #fff; font-size: 10px; font-weight: 600; }
+    .game button.play.busy span b { display: block; font-size: 15px; }
     .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
     .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
     .game button.icon svg { margin: 0; }
@@ -366,7 +368,7 @@
         const info = el.querySelector('.dl-info'), play = el.querySelector('.play'), path = el.querySelector('.path');
         const dl = el.querySelector('.dl');
         if (dl) dl.disabled = !!st.running;
-        if (!mine) { info.style.display = 'none'; play.classList.remove('busy'); play.style.background = ''; return; }
+        if (!mine) { info.style.display = 'none'; if (play.classList.contains('busy')) play.textContent = 'Play'; play.classList.remove('busy'); play.style.background = ''; return; }
         if (st.running) {
           const now = performance.now();
           if (dlLast.t && st.done >= dlLast.done) {
@@ -377,11 +379,11 @@
           const pct = st.total ? Math.min(100, st.done * 100 / st.total) : 0;
           play.classList.add('busy');
           play.style.background = 'linear-gradient(to right, #fff ' + pct + '%, #000 ' + pct + '%)';
-          info.style.display = 'flex';
-          info.querySelector('.dl-text').textContent = mb(st.done) + ' of ' + mb(st.total) + '  ·  ' + (dlSpeed / 1048576).toFixed(1) + ' MB/s';
+          play.innerHTML = '<span><b>' + Math.floor(pct) + '%</b>' + mb(st.done) + ' / ' + mb(st.total) + '<br>' + (dlSpeed / 1048576).toFixed(1) + ' MB/s</span>';
+          info.style.display = 'flex'; info.querySelector('.dl-text').textContent = '';
         } else {
           info.style.display = 'none';
-          play.classList.remove('busy'); play.style.background = '';
+          play.classList.remove('busy'); play.style.background = ''; play.textContent = 'Play';
           path.className = 'path err'; path.textContent = st.error;
         }
       });
