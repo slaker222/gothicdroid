@@ -29,7 +29,7 @@ const SID = /^[a-z0-9]{10,32}$/;
 async function takeLog(request, env) {
   if (request.method !== 'POST' || !env.gothic_logs) return new Response('', { status: 405 });
   const text = await request.text();
-  if (text.length > 65536) return new Response('', { status: 413 });
+  if (text.length > 262144) return new Response('', { status: 413 });
   let m; try { m = JSON.parse(text); } catch (e) { return new Response('', { status: 400 }); }
   if (!m || typeof m.sid !== 'string' || !SID.test(m.sid)) return new Response('', { status: 400 });
   const now = Date.now(), db = env.gothic_logs, st = [];

@@ -66,9 +66,9 @@
     const q = []; let dev = null, n = 0, perf = 0, sent = false;
     const KEEP = /WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
     const push = (k, a) => {
-      if (n > 1500) return;
+      if (n > 2500) return;
       let t = Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ');
-      if (k === ' ') { if (/\[PERF\]/.test(t)) { if (perf++ % 15) return; } else if (n > 300 && !KEEP.test(t)) return; }
+      if (k === ' ') { if (/\[PERF\]/.test(t)) { if (perf++ % 5) return; } else if (/DRAW_PERF|\[Gothic\]|zenkit|room not found|alias not|comb not|addNpc/.test(t)) return; else if (n > 300 && !KEEP.test(t)) return; }
       n++; q.push([k, t.slice(0, 480), Date.now()]);
     };
     ['log', 'info', 'warn', 'error'].forEach(k => { const o = console[k]; console[k] = function () { push(k === 'log' || k === 'info' ? ' ' : k === 'warn' ? 'W' : 'E', arguments); return o.apply(console, arguments); }; });
@@ -76,7 +76,8 @@
     addEventListener('unhandledrejection', e => push('E', ['promise:', e.reason && (e.reason.message || e.reason)]));
     const flush = () => {
       if (!q.length && sent) return;
-      const body = JSON.stringify({ sid, dev: sent ? undefined : dev || { ua: navigator.userAgent }, lines: q.splice(0, 200) });
+      let k = 0, sz = 0; while (k < q.length && k < 200 && sz < 40000) sz += q[k++][1].length + 20;
+      const body = JSON.stringify({ sid, dev: sent ? undefined : dev || { ua: navigator.userAgent }, lines: q.splice(0, k) });
       sent = true;
       try { fetch('/__log', { method: 'POST', body, keepalive: body.length < 60000 }).catch(() => {}); } catch (e) {}
     };
@@ -84,7 +85,7 @@
                    touch: navigator.maxTouchPoints, mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null,
                    page: location.pathname, lang: navigator.language, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) };
     dev = base;
-    const start = () => { setInterval(flush, 8000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }); addEventListener('pagehide', flush); };
+    const start = () => { setInterval(flush, 5000); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }); addEventListener('pagehide', flush); };
     if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
       if (a) { const l = {}; for (const k in a.limits) l[k] = a.limits[k]; dev = Object.assign({}, base, { features: [...a.features], limits: l, adapter: a.info ? { vendor: a.info.vendor, architecture: a.info.architecture, device: a.info.device, description: a.info.description } : null, canvas: navigator.gpu.getPreferredCanvasFormat() }); }
       else dev = Object.assign({}, base, { adapter: 'none' });

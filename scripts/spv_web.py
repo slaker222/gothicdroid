@@ -280,6 +280,9 @@ def fixup_wgsl(text):
     when the primary module fails to compile."""
     # GLSL allows implicit derivatives in divergent control flow
     text = 'diagnostic(off, derivative_uniformity);\n' + text
+    # Safari's WGSL parser rejects huge integer-looking float literals (1000000000000000000000000000000f, naga's FLT_MAX-like
+    # constants): write them with an exponent
+    text = re.sub(r'(?<![\w.])(\d{10,})f\b', lambda m: '%.9ef' % float(m.group(1)), text)
     # A value read from a workgroup atomic is non-uniform for the analysis even
     # right after a barrier; workgroupUniformLoad gives the same value with a
     # uniformity guarantee, but itself must sit in uniform control flow - which
