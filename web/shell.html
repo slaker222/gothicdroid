@@ -64,7 +64,7 @@
     const m = /[?&]gapidbg=(\d+)/.exec(location.search);
     const ios = IOS;
     const sv = /Version\/(\d+)[\d.]*.*Safari\//.exec(navigator.userAgent), oldSafari = !!sv && !/Chrome|CriOS|FxiOS|Edg/.test(navigator.userAgent) && +sv[1] < 27;
-    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 64 | 128;   // iPhone / iPad: no bundles, bind groups for one frame, no explicit texture destroy (196, checked on Gothic 2)
+    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 128 | 256;   // iPhone / iPad: no bundles, no explicit texture destroy, texture views not kept between uses (388: textures right and ~60 FPS on iPad, Gothic 2)
     if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
     setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
