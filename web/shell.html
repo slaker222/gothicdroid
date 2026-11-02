@@ -453,6 +453,8 @@
       -webkit-touch-callout: none;
     }
     body.touch-on #touch-ui { display: block; }
+    /* Android, Controls tab: the transparency of the whole layer (--tpa) */
+    #touch-ui { opacity: var(--tpa, 1); }
     /* a finger that stays down while the layout changes must not be taken over by the browser (pointercancel) */
     body.touch-on #canvas { touch-action: none; }
     /* a gamepad is in use: the touch controls step aside until the next touch */
@@ -485,8 +487,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: var(--s, 13cqmin);
-      height: var(--s, 13cqmin);
+      width: calc(var(--s, 13cqmin) * var(--k, 1));
+      height: calc(var(--s, 13cqmin) * var(--k, 1));
       border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.45);
       background: rgba(0, 0, 0, 0.35);
@@ -571,6 +573,7 @@
       position: absolute;
       width: 26cqmin; height: 26cqmin;
       margin: -13cqmin 0 0 -13cqmin;
+      scale: var(--k, 1);
       border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.35);
       background: rgba(0, 0, 0, 0.2);
@@ -2584,6 +2587,7 @@ async function installChunks(m) {
 
       // ---- buttons: [id, key, class, position (CSS), layouts]
       // positions are in cqmin from the screen edges, clear of the bar at the bottom
+      // TOUCH-DEFS-BEGIN (the Android launcher's layout editor takes this block, see web/make_android_ui.py)
       const defs = [
         // world
         ['action', 'Shift', 'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
@@ -2631,6 +2635,11 @@ async function installChunks(m) {
         // new chapter screen: only a way out
         ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
       ];
+      // buttons that stand in one place in different layouts are moved together (the key of the saved layout)
+      const TGROUP = { action: 'main', skip: 'main', select: 'main', use: 'main', ok: 'main', chClose: 'main',
+        back: 'back', close: 'back', pUp: 'padUp', iUp: 'padUp', pDown: 'padDown', iDown: 'padDown',
+        pLeft: 'padLeft', iLeft: 'padLeft', pRight: 'padRight', iRight: 'padRight' };
+      // TOUCH-DEFS-END
       let weaponOut = false, bowOut = false, strikeMode = false, toolsOpen = false, marvinOn = false;
       // bow: the aim button holds Shift until pressed again; the shot button (W) works once the bow is drawn
       let aimOn = false, aimAt = 0, hasAmmo = false;
@@ -2724,7 +2733,23 @@ async function installChunks(m) {
         return b;
       });
       const byId = Object.fromEntries(buttons.map(b => [b.id, b]));
+      // Android, Controls tab: look sensitivity, transparency, moved / resized buttons (the app's controls.json)
+      let TC = {};
+      try { if (typeof AndroidBridge !== 'undefined') TC = JSON.parse(AndroidBridge.controls() || '{}') || {}; } catch (e) {}
+      const tcItem = id => (TC.items || {})[TGROUP[id] || id];
+      const lookSens = Math.min(4, Math.max(0.2, +TC.sens || 1));
+      if (TC.opacity >= 0.1 && TC.opacity <= 1) ui.style.setProperty('--tpa', String(TC.opacity));
+      for (const b of buttons) {
+        const o = b.id === 'inv' ? null : tcItem(b.id);
+        if (!o) continue;
+        b.el.style.cssText = 'left:' + o.x + '%;top:' + o.y + '%;transform:translate(-50%,-50%)';
+        if (o.k) b.el.style.setProperty('--k', String(o.k));
+      }
+      const stickCfg = tcItem('stick');
+      const stickK = stickCfg && stickCfg.k > 0 ? stickCfg.k : 1;
+      if (stickK !== 1) stickEl.style.setProperty('--k', String(stickK));
       // minimal line icons (24x24); the name is also the button's tooltip
+      // TOUCH-ICONS-BEGIN
       const ICONS = {
         action: '<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9"/>',
         talk:   '<path d="M5 4.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-8l-4.5 4v-4H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/><path d="M8 10h.01M12 10h.01M16 10h.01" stroke-width="2.6"/>',
@@ -2785,6 +2810,7 @@ async function installChunks(m) {
         aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
         tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
         possess: 'possess' };
+      // TOUCH-ICONS-END
       stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');
       function setLabel(b, icon) {
         if (b.label === icon) return;
@@ -2810,11 +2836,11 @@ async function installChunks(m) {
       // pulled further - the normal run; hysteresis keeps it from flickering at the border
       let wantSlow = false, lastShift = 0;
       function stickMove(dx, dy) {
-        const r = stickEl.offsetWidth / 2 || 60, dead = r * 0.25;
+        const r = (stickEl.offsetWidth / 2 || 60) * stickK, dead = r * 0.25;
         const len = Math.hypot(dx, dy), k = len > r ? r / len : 1;
         if (len > dead) { if (stick) stick.moved = true; if (len < r * 0.45) wantSlow = true; else if (len > r * 0.6) wantSlow = false; }
-        stickEl.style.setProperty('--tx', dx * k + 'px');
-        stickEl.style.setProperty('--ty', dy * k + 'px');
+        stickEl.style.setProperty('--tx', dx * k / stickK + 'px');
+        stickEl.style.setProperty('--ty', dy * k / stickK + 'px');
         stickSet('W', dy < -dead); stickSet('S', dy > dead);
         stickSet('Q', dx < -dead); stickSet('E', dx > dead);
       }
@@ -2822,8 +2848,8 @@ async function installChunks(m) {
       // left part of the screen moves it under the finger
       function stickHome() {
         const r = ui.getBoundingClientRect(), m = Math.min(r.width, r.height);
-        stickEl.style.left = (m * 0.20) + 'px';
-        stickEl.style.top  = (r.height - m * 0.24) + 'px';
+        stickEl.style.left = (stickCfg ? r.width * stickCfg.x / 100 : m * 0.20) + 'px';
+        stickEl.style.top  = (stickCfg ? r.height * stickCfg.y / 100 : r.height - m * 0.24) + 'px';
         stickEl.style.setProperty('--tx', '0px');
         stickEl.style.setProperty('--ty', '0px');
       }
@@ -2844,7 +2870,7 @@ async function installChunks(m) {
         const x = cx - r.left, y = cy - r.top;
         // the stick stays in its place: a touch on it (or close to it) grabs it
         const sx = parseFloat(stickEl.style.left), sy = parseFloat(stickEl.style.top);
-        const grab = (stickEl.offsetWidth || 120) * 0.9;
+        const grab = (stickEl.offsetWidth || 120) * 0.9 * stickK;
         if (!stick && Math.hypot(x - sx, y - sy) < grab) {
           stick = { id, x: sx, y: sy, t0: performance.now(), moved: false };
           stickEl.classList.add('on');
@@ -2878,7 +2904,7 @@ async function installChunks(m) {
           lookX = e.clientX; lookY = e.clientY;
           // the game window is measured in css pixels like the touch; a finger
           // moves less than a mouse for the same turn
-          const k = 2;
+          const k = 2 * lookSens;
           if (g_runtimeUp) Module.ccall('og_input_look', null, ['number', 'number'],
                                         [Math.round(dx * k), Math.round(dy * k)]);
         }
@@ -2923,8 +2949,8 @@ async function installChunks(m) {
       // the layout leaves the world: the fingers on the stick and the look area stay
       // in line to be picked up again
       function parkTouches() {
-        if (stick) pending.set(stick.id, { x: stick.x + (parseFloat(stickEl.style.getPropertyValue('--tx')) || 0) + ui.getBoundingClientRect().left,
-                                           y: stick.y + (parseFloat(stickEl.style.getPropertyValue('--ty')) || 0) + ui.getBoundingClientRect().top });
+        if (stick) pending.set(stick.id, { x: stick.x + (parseFloat(stickEl.style.getPropertyValue('--tx')) || 0) * stickK + ui.getBoundingClientRect().left,
+                                           y: stick.y + (parseFloat(stickEl.style.getPropertyValue('--ty')) || 0) * stickK + ui.getBoundingClientRect().top });
         if (lookId !== null) pending.set(lookId, { x: lookX, y: lookY });
         lookId = null;
       }

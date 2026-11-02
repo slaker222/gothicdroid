@@ -72,6 +72,16 @@ class MainActivity : AppCompatActivity() {
         detectedGameDir = findGameDirectory()
 
         setContentView(createUiView())
+        // back: the page closes its editor / window / tab first (onBack returns true), then the app goes to the background
+        onBackPressedDispatcher.addCallback(this, object : androidx.activity.OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                val w = webView
+                if (w == null) { finish(); return }
+                w.evaluateJavascript("window.onBack ? onBack() : false") { r ->
+                    if (r != "true") { isEnabled = false; onBackPressedDispatcher.onBackPressed(); isEnabled = true }
+                }
+            }
+        })
         // a home screen icon of a game: start it at once
         if (shortcutGame != 0) {
             intent.removeExtra("game")
@@ -470,6 +480,30 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun set(name: String, v: Int): Int { val s = settings[name] ?: return 0; detectedGameDir = findGameDirectory(); iniSet(s, v); return 1 }
+
+        // the touch controls (Controls tab): {sens, opacity, items:{key:{x,y,k}}}. The game process reads the same file
+        @JavascriptInterface
+        fun controls(): String = try { File(filesDir, "controls.json").readText() } catch (e: Exception) { "{}" }
+
+        @JavascriptInterface
+        fun setControls(json: String) {
+            try { JSONObject(json); File(filesDir, "controls.json").writeText(json) } catch (e: Exception) { Log.e(TAG, "controls: ${e.message}") }
+        }
+
+        // the layout editor is sideways and without the system bars; the menu goes back to the phone's own orientation
+        @JavascriptInterface
+        fun editor(on: Boolean) {
+            runOnUiThread {
+                requestedOrientation = if (on) android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+                                       else android.content.pm.ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+                val c = androidx.core.view.WindowInsetsControllerCompat(window, window.decorView)
+                if (on) c.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars()) else c.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+                c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            }
+        }
+
+        @JavascriptInterface
+        fun version(): String = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
 
         @JavascriptInterface
         fun log(): String = readCompleteLog()

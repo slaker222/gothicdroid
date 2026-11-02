@@ -448,6 +448,8 @@
       -webkit-touch-callout: none;
     }
     body.touch-on #touch-ui { display: block; }
+    /* Android, Controls tab: the transparency of the whole layer (--tpa) */
+    #touch-ui { opacity: var(--tpa, 1); }
     /* a finger that stays down while the layout changes must not be taken over by the browser (pointercancel) */
     body.touch-on #canvas { touch-action: none; }
     /* a gamepad is in use: the touch controls step aside until the next touch */
@@ -480,8 +482,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: var(--s, 13cqmin);
-      height: var(--s, 13cqmin);
+      width: calc(var(--s, 13cqmin) * var(--k, 1));
+      height: calc(var(--s, 13cqmin) * var(--k, 1));
       border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.45);
       background: rgba(0, 0, 0, 0.35);
@@ -566,6 +568,7 @@
       position: absolute;
       width: 26cqmin; height: 26cqmin;
       margin: -13cqmin 0 0 -13cqmin;
+      scale: var(--k, 1);
       border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.35);
       background: rgba(0, 0, 0, 0.2);
@@ -705,7 +708,7 @@
   <style>
     /* the main menu of the app: the page of the site, the settings menu always open */
     html, body { display: block; overflow-y: auto; height: auto; min-height: 100%; background: var(--bg); }
-    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .topbar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
     .support { display: flex; gap: 8px; flex: none; }
     .support button {
       display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px;
@@ -714,7 +717,70 @@
     .support .donate { background: #ffc61a; color: #1a1a1a; box-shadow: 0 0 14px rgba(255,198,26,.55); }
     .support .join { background: #5865f2; color: #fff; box-shadow: 0 0 14px rgba(88,101,242,.6); }
     .support svg { width: 18px; height: 18px; fill: currentColor; }
-    #wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+    #wrap { width: 100%; max-width: 640px; margin: 0 auto; padding: 16px 16px calc(84px + env(safe-area-inset-bottom, 0px)); }
+    /* the three pages of the bottom bar */
+    .tab { display: none; flex-direction: column; gap: 14px; }
+    .tab.on { display: flex; }
+    #nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: #101010; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+    #nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 0 8px; font: inherit; font-size: 11px; letter-spacing: .04em; color: var(--dim); background: none; border: 0; border-top: 2px solid transparent; margin-top: -1px; cursor: pointer; }
+    #nav button svg { width: 24px; height: 24px; fill: currentColor; }
+    #nav button.on { color: var(--accent); border-top-color: var(--accent); }
+    #nav button:active { background: rgba(255,255,255,.06); }
+    .page-title { font-size: 22px; font-weight: 600; color: var(--accent); }
+    /* controls tab */
+    .ctl-row { display: flex; flex-direction: column; gap: 6px; padding: 6px 0 10px; }
+    .ctl-row + .ctl-row { border-top: 1px solid var(--line); padding-top: 12px; }
+    .ctl-row .lab { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; }
+    .ctl-row .lab output { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .ctl-row small { font-size: 12px; color: var(--dim); }
+    input[type=range].big { width: 100%; height: 34px; accent-color: #fff; }
+    .pv { display: flex; gap: 14px; justify-content: center; padding: 14px; border-radius: 10px; background: linear-gradient(135deg, #2a3a2a, #3a2f20 55%, #1f2a3a); }
+    .pv i { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+    .pv i svg { width: 52%; height: 52%; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pv i.big { width: 62px; height: 62px; background: rgba(120,20,10,.45); }
+    .btn-row { display: flex; gap: 10px; }
+    .wide { flex: 1; font: inherit; font-size: 15px; font-weight: 600; height: 48px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    .wide.primary { color: #000; background: var(--accent); border-color: var(--accent); }
+    .wide:active { border-color: var(--accent); }
+    /* about tab */
+    .about-logo { display: flex; align-items: center; gap: 14px; }
+    .about-logo img { width: 64px; height: 64px; border-radius: 14px; background: #1b1b1b; padding: 8px; }
+    .about-logo h2 { font-size: 22px; text-transform: none; letter-spacing: 0; color: var(--accent); margin: 0; }
+    .about-logo small { color: var(--dim); font-size: 13px; }
+    .about p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: 10px; }
+    .about p.dim { color: var(--dim); font-size: 12px; }
+    .link-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-top: 8px; font: inherit; text-align: left; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    .link-card:active { border-color: var(--accent); }
+    .link-card svg { flex: none; width: 26px; height: 26px; fill: currentColor; color: var(--accent); }
+    .link-card b { display: block; font-size: 15px; }
+    .link-card span { display: block; font-size: 12px; color: var(--dim); word-break: break-all; }
+    /* the layout editor: sideways, over everything */
+    #editor { position: fixed; inset: 0; z-index: 300; background: #000; user-select: none; -webkit-user-select: none; touch-action: none; }
+    #editor[hidden] { display: none; }
+    #ed-area { position: absolute; inset: 0; container-type: size; overflow: hidden;
+      background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover; }
+    #ed-area::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+      background-image: linear-gradient(to right, rgba(255,255,255,.13) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.13) 1px, transparent 1px);
+      background-size: var(--cell, 40px) var(--cell, 40px); }
+    #ed-btns { position: absolute; inset: 0; opacity: var(--tpa, 1); }
+    #ed-btns .tbtn { cursor: grab; touch-action: none; }
+    #ed-btns .tbtn.sel, #ed-btns .ed-stick.sel { outline: 2px dashed #ffd54a; outline-offset: 3px; }
+    .ed-stick { position: absolute; width: calc(26cqmin * var(--k, 1)); height: calc(26cqmin * var(--k, 1)); border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(0,0,0,.25); touch-action: none; transform: translate(-50%, -50%); }
+    .ed-stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%; background: rgba(255,255,255,.4); }
+    #ed-panel { position: absolute; left: 50%; top: 50%; width: min(360px, 62vw); transform: translate(-50%, -50%); background: rgba(16,16,16,.95); border: 1px solid #555; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); font-size: 13px; }
+    #ed-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: move; touch-action: none; border-bottom: 1px solid var(--line); font-weight: 600; color: var(--accent); }
+    #ed-head button { font: inherit; background: none; border: 0; color: var(--dim); font-size: 20px; line-height: 1; padding: 0 4px; cursor: pointer; }
+    #ed-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
+    #ed-panel.min #ed-body { display: none; }
+    #ed-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+    #ed-tabs button { flex: none; font: inherit; font-size: 12px; padding: 5px 10px; color: var(--text); background: #262626; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+    #ed-tabs button.on { color: #000; background: #fff; border-color: #fff; }
+    #ed-size { display: flex; align-items: center; gap: 8px; }
+    #ed-size input { flex: 1; min-width: 0; accent-color: #fff; }
+    #ed-sel { min-width: 74px; color: #ffd54a; }
+    #ed-body label.snap { display: flex; align-items: center; gap: 6px; color: var(--dim); }
+    #ed-body .btn-row .wide { height: 38px; font-size: 13px; }
+    #ed-hint { font-size: 11px; color: var(--dim); }
     h1 { font-size: 22px; font-weight: 600; color: var(--accent); }
     h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--dim); margin-top: 2px; }
     .card { background: #1b1b1b; border: 1px solid var(--line); padding: 12px 14px; }
@@ -789,6 +855,7 @@
 </head>
 <body>
   <div id="wrap">
+   <div class="tab on" id="tab-main">
     <div class="topbar">
       <h1>GothicDroid<small>Android</small></h1>
       <div class="support">
@@ -886,9 +953,66 @@
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
       <div id="settings-more" aria-hidden="true">&#9660; scroll &#9660;</div>
     </div></div>
-    <div class="card"><h2>Log</h2>
+   </div>
+
+   <div class="tab" id="tab-controls">
+    <div class="page-title">Controls</div>
+    <div class="card">
+      <div class="ctl-row">
+        <div class="lab"><span>Look sensitivity</span><output id="sens-val">1.00</output></div>
+        <input type="range" class="big" id="sens" min="0.2" max="3" step="0.05" value="1">
+        <small>How far the camera turns for a swipe on the screen.</small>
+      </div>
+      <div class="ctl-row">
+        <div class="lab"><span>Button transparency</span><output id="opa-val">100%</output></div>
+        <input type="range" class="big" id="opa" min="10" max="100" step="5" value="100">
+        <div class="pv" id="pv"><i class="big" id="pv0"></i><i id="pv1"></i><i id="pv2"></i></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>On-screen buttons</h2>
+      <p class="hint" style="margin:0 0 12px">Move the buttons on a grid and change their size. The game picture is sideways, so the screen turns.</p>
+      <div class="btn-row"><button class="wide primary" id="ed-open">Edit layout</button><button class="wide" id="ctl-reset">Reset all</button></div>
+    </div>
+   </div>
+
+   <div class="tab about" id="tab-about">
+    <div class="page-title">About</div>
+    <div class="card">
+      <div class="about-logo"><img src="img/icon_g2.png" alt=""><div><h2>GothicDroid</h2><small id="ver">Android</small></div></div>
+    </div>
+    <div class="card">
+      <h2>What is this</h2>
+      <p>GothicDroid is an Android fork of <b>OpenGothic</b>, an open source engine that runs the original Gothic and Gothic II (and mods such as Chronicles of Myrtana: Archolos) with a new renderer. It needs the game files of your own copy of the game.</p>
+      <button class="link-card" onclick="Launcher.openUrl('https://github.com/Try/OpenGothic')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>OpenGothic &mdash; the original project</b><span>github.com/Try/OpenGothic (by Try)</span></div></button>
+      <button class="link-card" onclick="Launcher.openUrl('https://github.com/slaker222/gothicdroid')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>GothicDroid &mdash; this project</b><span>github.com/slaker222/gothicdroid</span></div></button>
+    </div>
+    <div class="card">
+      <h2>Log</h2>
       <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
       <div id="log"></div>
+    </div>
+    <p class="dim" style="font-size:11px;color:var(--dim);text-align:center">Gothic is a trademark of its owners. The game files are not part of this app.</p>
+   </div>
+  </div>
+
+  <nav id="nav">
+    <button type="button" data-tab="main" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>Main</button>
+    <button type="button" data-tab="controls"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>Controls</button>
+    <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>About</button>
+  </nav>
+
+  <div id="editor" hidden>
+    <div id="ed-area"><div id="ed-btns"></div></div>
+    <div id="ed-panel">
+      <div id="ed-head"><span>Edit layout</span><button type="button" id="ed-min" aria-label="Minimise">&minus;</button></div>
+      <div id="ed-body">
+        <div id="ed-tabs"></div>
+        <div id="ed-size"><span id="ed-sel">Tap a button</span><input type="range" id="ed-k" min="0.5" max="2" step="0.05" value="1" disabled><output id="ed-kv">100%</output></div>
+        <label class="snap"><input type="checkbox" id="ed-snap" checked> Snap to the grid</label>
+        <div id="ed-hint">Drag a button to move it. Drag this window by its title.</div>
+        <div class="btn-row"><button class="wide" id="ed-reset">Reset</button><button class="wide" id="ed-cancel">Cancel</button><button class="wide primary" id="ed-save">Save</button></div>
+      </div>
     </div>
   </div>
   <div id="sheet"><div class="box" id="sheet-box"></div></div>
@@ -1273,6 +1397,324 @@
       l.textContent = Launcher.log(); l.style.display = 'block';
     });
     $('log-copy').addEventListener('click', () => Launcher.copyLog());
+    // ---- the bottom bar: Main / Controls / About
+    let curTab = 'main';
+    function showTab(t) {
+      curTab = t;
+      document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.id === 'tab-' + t));
+      document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+      window.scrollTo(0, 0); document.body.scrollTop = 0;
+    }
+    document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    // the system back button (MainActivity asks): closes the editor, a sheet, a window, then goes to Main
+    window.onBack = () => {
+      if (!$('editor').hidden) { edClose(); return true; }
+      if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
+      if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
+      if (curTab !== 'main') { showTab('main'); return true; }
+      return false;
+    };
+    try { $('ver').textContent = 'Android port of OpenGothic' + (Launcher.version() ? '  ·  v' + Launcher.version() : ''); } catch (e) {}
+
+    // ---- controls: look sensitivity, transparency of the buttons, positions of the buttons (controls.json in the app,
+    // the game process reads it when it starts)
+          const defs = [
+        // world
+        ['action', 'Shift', 'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
+        ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
+        ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
+        ['aim',    'Shift', '',      'right:28cqmin;bottom:24cqmin',           'world'],
+        ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
+        ['inv',    'Tab',   'small', 'left:calc(50% + 31cqmin);bottom:2.5cqmin',                       'world'],
+        ['stats',  'B',     'small', 'left:16cqmin;top:calc(36px + 1cqmin)',               'world'],
+        ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
+        ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
+        // the tool bar: a button next to the menu opens a row of buttons to its right
+        ['tools',  '',      'small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
+        ['qsave',  '',      'small', 'left:38cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['qload',  '',      'small', 'left:48.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['log',    'N',     'small', 'left:59cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        // camera: first / third person (the game's F key), left of the cheat buttons
+        ['camera', 'F',     'small', 'left:69.5cqmin;top:calc(36px + 1cqmin)',              'wtools'],
+        ['cheat',  '',      'small cheat', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['console','F2',    'small cheat', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['fly',    'F8',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['kfast',  'K',     'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
+        ['possess','O',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        // dialog
+        ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
+        ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
+        ['dDown',  'Down',  '',      'left:6cqmin;bottom:10cqmin',             'choice'],
+        ['select', 'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'choice'],
+        // menus: arrow pad on the left
+        ['pUp',    'Up',    '',      'left:17cqmin;bottom:30cqmin',            'menu'],
+        ['pDown',  'Down',  '',      'left:17cqmin;bottom:6cqmin',             'menu'],
+        ['pLeft',  'Left',  '',      'left:4cqmin;bottom:18cqmin',             'menu'],
+        ['pRight', 'Right', '',      'left:30cqmin;bottom:18cqmin',            'menu'],
+        // the inventory moves its selection with the game's movement keys
+        // (W/A/S/D in Gothic.ini [KEYS]); the arrow keys are not bound there
+        ['iUp',    'W',     '',      'left:17cqmin;bottom:30cqmin',            'inv'],
+        ['iDown',  'S',     '',      'left:17cqmin;bottom:6cqmin',             'inv'],
+        ['iLeft',  'A',     '',      'left:4cqmin;bottom:18cqmin',             'inv'],
+        ['iRight', 'D',     '',      'left:30cqmin;bottom:18cqmin',            'inv'],
+        ['use',    'Shift', 'big',   'right:4cqmin;bottom:10cqmin',            'inv'],
+        ['drop',   'Space', '',      'right:6cqmin;bottom:32cqmin',            'inv'],
+        ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
+        ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
+        ['back',   'Esc',   '',      'right:25cqmin;bottom:8cqmin',            'menu'],
+        // new chapter screen: only a way out
+        ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
+      ];
+      // buttons that stand in one place in different layouts are moved together (the key of the saved layout)
+      const TGROUP = { action: 'main', skip: 'main', select: 'main', use: 'main', ok: 'main', chClose: 'main',
+        back: 'back', close: 'back', pUp: 'padUp', iUp: 'padUp', pDown: 'padDown', iDown: 'padDown',
+        pLeft: 'padLeft', iLeft: 'padLeft', pRight: 'padRight', iRight: 'padRight' };
+      
+          const ICONS = {
+        action: '<circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="9"/>',
+        talk:   '<path d="M5 4.5h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2h-8l-4.5 4v-4H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"/><path d="M8 10h.01M12 10h.01M16 10h.01" stroke-width="2.6"/>',
+        take:   '<path d="M12 3v11M7 9l5 5 5-5M4 20h16"/>',
+        use: '<path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V11M11 11V4a1.5 1.5 0 0 1 3 0v7M14 11V5.5a1.5 1.5 0 0 1 3 0V13M17 9.5a1.5 1.5 0 0 1 3 0V15a7 7 0 0 1-7 7h-1.5a6 6 0 0 1-4.7-2.3L4 15.5a1.5 1.5 0 0 1 2.3-2L8 15"/>',
+        loot:   '<path d="M6 9h12l-1 11H7zM9 9V7a3 3 0 0 1 6 0v2"/>',
+        attack: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M9.5 17.5L21 6V3h-3L6.5 14.5M11 19l-6-6M8 16l-4 4M5 21l-2-2"/>',
+        strike: '<g transform="translate(12 13) scale(.4) translate(-12 -12)"><path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2M9.5 17.5L21 6V3h-3L6.5 14.5M11 19l-6-6M8 16l-4 4M5 21l-2-2"/></g>' +
+                '<path class="ar l" d="M4.5 8.5L1.5 12l3 3.5"/><path class="ar u" d="M8.5 4.5L12 1.5l3.5 3"/><path class="ar r" d="M19.5 8.5l3 3.5-3 3.5"/>',
+        // fists: a closed hand; bow and crossbow: an arrow; magic: a glowing orb
+        fist: '<path d="M6.5 11.5V8.7a1.6 1.6 0 0 1 3.1 0 1.6 1.6 0 0 1 3.1 0 1.6 1.6 0 0 1 3.1 0 1.6 1.6 0 0 1 3.1 0V15a6 6 0 0 1-6 6h-1.4a5.5 5.5 0 0 1-5.5-5.5z"/><path d="M9.6 8.7v3.6M12.7 8.7v3.6M15.8 8.7v3.6"/><path d="M6.5 13.6h6.4a1.5 1.5 0 0 1 0 3H9.6"/>',
+        arrow: '<path d="M4 20L19 5M20 4l-9 1.5 7.5 7.5zM4.8 15.8l3.4 3.4M8.2 12.4l3.4 3.4"/>',
+        aim: '<circle cx="12" cy="12" r="7"/><path d="M12 2v6M12 16v6M2 12h6M16 12h6"/>',
+        orb: '<circle cx="12" cy="12.5" r="6.5"/><path d="M8.4 11a4 4 0 0 1 3-2.6M8 21.5h8"/>',
+        weapon: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/>',
+        weaponOff: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/><path d="M3.5 20.5L20.5 3.5" stroke="rgba(0,0,0,.65)" stroke-width="5"/><path d="M3.5 20.5L20.5 3.5" stroke-width="2"/>',
+        drop:   '<path d="M6 3h12M8 3v6h8V3M12 12v8M8.5 16.5L12 20l3.5-3.5"/>',
+        jump:   '<path d="M12 20V5M6 11l6-6 6 6"/>',
+        // take ten: the arrow into a tray, "10" under it
+        take10: '<path d="M12 2.5v9M8 7.8l4 4 4-4M6 14.5h12"/><text x="12" y="22.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="sans-serif">10</text>',
+        dive:   '<path d="M12 4v15M6 13l6 6 6-6M3 4h18"/>',
+        up:     '<path d="M12 20V5M6 11l6-6 6 6M3 20h18"/>',
+        block:  '<path d="M12 3l8 3v6c0 5-4 8-8 9-4-1-8-4-8-9V6z"/>',
+        sneak: '<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20L20 4"/>',
+        inv:    '<path d="M6 10a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2zM9.5 6V4h5v2M9 14h6v4H9zM6 12H4v5M18 12h2v5"/>',
+        log:    '<path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM9.5 3v18M12.5 8h4M12.5 12h4M12.5 16h2"/>',
+        stats:  '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
+        map:    '<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3zM9 3v15M15 6v15"/>',
+        menu:   '<path d="M4 6h16M4 12h16M4 18h16"/>',
+        skip:   '<path d="M4 5l8 7-8 7zM12 5l8 7-8 7z"/>',
+        close:  '<path d="M6 6l12 12M18 6L6 18"/>',
+        ok:     '<path d="M5 12l5 5 9-10"/>',
+        back:   '<path d="M9 14l-5-5 5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
+        tools:  '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
+        camera: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+        qsave: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 18v-6.5M9.5 14l2.5-2.5 2.5 2.5"/>',
+        qload: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 11.5V18M9.5 15.5L12 18l2.5-2.5"/>',
+        cheat:  '<path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 20 12 16.5 6.5 20 8 13.5 3 9l6.5-.5z"/>',
+        console:'<path d="M3 5h18v14H3zM7 9l3 3-3 3M12 15h5"/>',
+        kfast: '<text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">K</text>',
+        fly: '<text x="12" y="16" text-anchor="middle" font-size="10.5" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">F8</text>',
+        possess:'<path d="M7 8h11l-3-3M17 16H6l3 3"/>',
+        trade:  '<circle cx="9" cy="9" r="5"/><path d="M14.5 6.5a5 5 0 1 1-6 8"/>',
+        up1:    '<path d="M6 15l6-6 6 6"/>', down1: '<path d="M6 9l6 6 6-6"/>',
+        left1:  '<path d="M15 6l-6 6 6 6"/>', right1: '<path d="M9 6l6 6-6 6"/>',
+      };
+      const NAMES = { action: 'Action', talk: 'Talk', take: 'Take', use: 'Use', loot: 'Loot', attack: 'Attack',
+        aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', take10: 'Take 10', dive: 'Dive', up: 'Surface', block: 'Block',
+        sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
+        close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
+        camera: 'Camera: first / third person (F)', tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
+        console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
+      // the icon each button shows unless the situation picks another one
+      const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', inv: 'inv', log: 'log',
+        stats: 'stats', map: 'map', menu: 'menu', skip: 'skip', dUp: 'up1', dDown: 'down1', select: 'ok',
+        pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
+        iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
+        aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
+        tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
+        possess: 'possess' };
+      
+    let ctl = {};
+    try { ctl = JSON.parse(Launcher.controls() || '{}') || {}; } catch (e) {}
+    if (!ctl.items) ctl.items = {};
+    const saveCtl = () => { try { Launcher.setControls(JSON.stringify(ctl)); } catch (e) {} };
+    const sensEl = $('sens'), opaEl = $('opa');
+    const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
+    $('pv0').innerHTML = svgOf('action'); $('pv1').innerHTML = svgOf('jump'); $('pv2').innerHTML = svgOf('weapon');
+    function showCtl() {
+      $('sens-val').textContent = (+sensEl.value).toFixed(2);
+      $('opa-val').textContent = opaEl.value + '%';
+      $('pv').style.setProperty('--o', opaEl.value / 100);
+      document.querySelectorAll('#pv i').forEach(i => { i.style.opacity = opaEl.value / 100; });
+    }
+    sensEl.value = String(ctl.sens > 0 ? ctl.sens : 1);
+    opaEl.value = String(Math.round((ctl.opacity > 0 ? ctl.opacity : 1) * 100));
+    showCtl();
+    sensEl.addEventListener('input', showCtl);
+    opaEl.addEventListener('input', showCtl);
+    sensEl.addEventListener('change', () => { ctl.sens = +(+sensEl.value).toFixed(2); saveCtl(); });
+    opaEl.addEventListener('change', () => { ctl.opacity = +opaEl.value / 100; saveCtl(); });
+    $('ctl-reset').addEventListener('click', () => {
+      ctl = { items: {} }; saveCtl();
+      sensEl.value = '1'; opaEl.value = '100'; showCtl();
+    });
+
+    // ---- the layout editor. The buttons are the game's own (their definitions come from web/shell.html), on a grid
+    const ED_COLS = 32;
+    const ED_TABS = [
+      ['World',     b => b.layouts.includes('world') && b.id !== 'aim' && b.id !== 'inv', true],
+      ['Bow',       b => ['aim', 'action', 'weapon', 'jump'].includes(b.id)],
+      ['More',      b => b.id === 'tools' || b.layouts.includes('wtools')],
+      ['Dialog',    b => b.layouts.some(l => ['talk', 'cutscene', 'choice', 'chapter'].includes(l))],
+      ['Menu',      b => b.layouts.includes('menu')],
+      ['Inventory', b => b.layouts.includes('inv')]
+    ];
+    const ed = { tab: 0, items: {}, sel: null, snap: true };
+    const edArea = $('ed-area'), edBtns = $('ed-btns');
+    const ckOf = id => TGROUP[id] || id;
+    const nameOf = id => id === 'stick' ? 'Stick' : (NAMES[ICON_OF[id] || id] || id);
+    function edCell() { return edArea.clientWidth / ED_COLS; }
+    function edPlace(el, x, y) { el.style.left = x + '%'; el.style.top = y + '%'; }
+    function edBuild() {
+      edBtns.innerHTML = '';
+      edArea.style.setProperty('--cell', edCell() + 'px');
+      edBtns.style.setProperty('--tpa', ctl.opacity > 0 ? ctl.opacity : 1);
+      const W = edArea.clientWidth, H = edArea.clientHeight;
+      const tab = ED_TABS[ed.tab], seen = new Set();
+      const mk = (ck, name, el, defX, defY) => {
+        const it = ed.items[ck];
+        el.dataset.ck = ck; el.dataset.name = name;
+        if (it) { edPlace(el, it.x, it.y); if (it.k) el.style.setProperty('--k', it.k); }
+        else edPlace(el, defX, defY);
+        el.style.transform = 'translate(-50%,-50%)';
+        el.classList.toggle('sel', ed.sel === ck);
+        el.addEventListener('pointerdown', edDown);
+        el.addEventListener('pointermove', edMove);
+        el.addEventListener('pointerup', edUp);
+        el.addEventListener('pointercancel', edUp);
+        el.addEventListener('contextmenu', e => e.preventDefault());
+      };
+      for (const [id, k, cls, pos] of defs) {
+        const b = { id, layouts: layoutsOf(id) };
+        if (!tab[1](b) || id === 'inv') continue;
+        const ck = ckOf(id);
+        if (seen.has(ck)) continue;
+        seen.add(ck);
+        const el = document.createElement('div');
+        el.className = 'tbtn ' + cls;
+        el.style.cssText = pos;
+        el.innerHTML = svgOf(ICON_OF[id] || id);
+        edBtns.appendChild(el);
+        // the default place of the button: measured, as the game's page puts it
+        const r = el.getBoundingClientRect(), a = edArea.getBoundingClientRect();
+        mk(ck, nameOf(id), el, (r.left + r.width / 2 - a.left) / W * 100, (r.top + r.height / 2 - a.top) / H * 100);
+      }
+      if (tab[2]) {
+        const el = document.createElement('div');
+        el.className = 'ed-stick';
+        edBtns.appendChild(el);
+        const m = Math.min(W, H);
+        mk('stick', 'Stick', el, 20 * m / W, (H - m * 0.24) / H * 100);
+      }
+      edSelect(ed.sel && edBtns.querySelector('[data-ck="' + ed.sel + '"]') ? ed.sel : null);
+    }
+    // the layouts of a button come from the definitions
+    const layoutsOf = id => defs.find(d => d[0] === id)[4].split(' ');
+    function edSelect(ck) {
+      ed.sel = ck;
+      edBtns.querySelectorAll('[data-ck]').forEach(e => e.classList.toggle('sel', e.dataset.ck === ck));
+      const el = ck && edBtns.querySelector('[data-ck="' + ck + '"]');
+      const k = $('ed-k');
+      $('ed-sel').textContent = el ? el.dataset.name : 'Tap a button';
+      k.disabled = !el;
+      const it = ck && ed.items[ck];
+      k.value = String(it && it.k ? it.k : 1);
+      $('ed-kv').textContent = Math.round(+k.value * 100) + '%';
+    }
+    // the item of a button in the layout being edited (made from where the button stands now)
+    function edItem(el) {
+      const ck = el.dataset.ck;
+      if (!ed.items[ck]) {
+        const W = edArea.clientWidth, H = edArea.clientHeight, r = el.getBoundingClientRect(), a = edArea.getBoundingClientRect();
+        ed.items[ck] = { x: +((r.left + r.width / 2 - a.left) / W * 100).toFixed(2), y: +((r.top + r.height / 2 - a.top) / H * 100).toFixed(2) };
+      }
+      return ed.items[ck];
+    }
+    let drag = null;
+    function edDown(e) {
+      e.preventDefault(); e.stopPropagation();
+      const el = e.currentTarget;
+      edSelect(el.dataset.ck);
+      const r = el.getBoundingClientRect();
+      drag = { id: e.pointerId, el, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) };
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    function edMove(e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      const a = edArea.getBoundingClientRect(), W = a.width, H = a.height;
+      let px = e.clientX - drag.dx - a.left, py = e.clientY - drag.dy - a.top;
+      if (ed.snap) { const c = edCell(); px = Math.round(px / c) * c; py = Math.round(py / c) * c; }
+      px = Math.min(W - 6, Math.max(6, px)); py = Math.min(H - 6, Math.max(6, py));
+      const it = edItem(drag.el);
+      it.x = +(px / W * 100).toFixed(2); it.y = +(py / H * 100).toFixed(2);
+      edPlace(drag.el, it.x, it.y);
+    }
+    function edUp(e) { if (drag && e.pointerId === drag.id) drag = null; }
+    edArea.addEventListener('pointerdown', () => edSelect(null));
+    $('ed-k').addEventListener('input', () => {
+      const el = ed.sel && edBtns.querySelector('[data-ck="' + ed.sel + '"]');
+      if (!el) return;
+      const k = +$('ed-k').value, it = edItem(el);
+      it.k = k;
+      el.style.setProperty('--k', k);
+      $('ed-kv').textContent = Math.round(k * 100) + '%';
+    });
+    $('ed-snap').addEventListener('change', () => { ed.snap = $('ed-snap').checked; });
+    function edTabs() {
+      $('ed-tabs').innerHTML = ED_TABS.map((t, i) => '<button type="button" data-i="' + i + '"' + (i === ed.tab ? ' class="on"' : '') + '>' + t[0] + '</button>').join('');
+    }
+    $('ed-tabs').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      ed.tab = +b.dataset.i; ed.sel = null; edTabs(); edBuild();
+    });
+    // the panel is moved by its title (it stands in the middle, where the game has the least buttons)
+    {
+      const panel = $('ed-panel'), head = $('ed-head');
+      let pd = null;
+      head.addEventListener('pointerdown', e => {
+        if (e.target.closest('button')) return;
+        const r = panel.getBoundingClientRect();
+        pd = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top };
+        head.setPointerCapture(e.pointerId);
+      });
+      head.addEventListener('pointermove', e => {
+        if (!pd || e.pointerId !== pd.id) return;
+        panel.style.transform = 'none';
+        panel.style.left = Math.max(0, Math.min(innerWidth - 60, e.clientX - pd.dx)) + 'px';
+        panel.style.top = Math.max(0, Math.min(innerHeight - 40, e.clientY - pd.dy)) + 'px';
+      });
+      head.addEventListener('pointerup', () => { pd = null; });
+      head.addEventListener('pointercancel', () => { pd = null; });
+      $('ed-min').addEventListener('click', () => { panel.classList.toggle('min'); $('ed-min').innerHTML = panel.classList.contains('min') ? '+' : '&minus;'; });
+    }
+    function edOpen() {
+      ed.items = JSON.parse(JSON.stringify(ctl.items || {}));
+      ed.sel = null; ed.tab = 0;
+      $('editor').hidden = false;
+      Launcher.editor(true);
+      edTabs();
+      // the screen turns: the buttons are measured again when it has
+      edBuild();
+      setTimeout(edBuild, 300); setTimeout(edBuild, 800);
+    }
+    function edClose() {
+      $('editor').hidden = true;
+      Launcher.editor(false);
+    }
+    window.addEventListener('resize', () => { if (!$('editor').hidden) edBuild(); });
+    $('ed-open').addEventListener('click', edOpen);
+    $('ed-cancel').addEventListener('click', edClose);
+    $('ed-reset').addEventListener('click', () => { ed.items = {}; ed.sel = null; edBuild(); });
+    $('ed-save').addEventListener('click', () => { ctl.items = ed.items; saveCtl(); edClose(); });
+
     window.onResumed = () => refresh();
     refresh();
   </script>

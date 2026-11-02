@@ -8,7 +8,7 @@
   <style>
     /* the main menu of the app: the page of the site, the settings menu always open */
     html, body { display: block; overflow-y: auto; height: auto; min-height: 100%; background: var(--bg); }
-    .topbar { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }
+    .topbar { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 10px; }
     .support { display: flex; gap: 8px; flex: none; }
     .support button {
       display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 8px;
@@ -17,7 +17,70 @@
     .support .donate { background: #ffc61a; color: #1a1a1a; box-shadow: 0 0 14px rgba(255,198,26,.55); }
     .support .join { background: #5865f2; color: #fff; box-shadow: 0 0 14px rgba(88,101,242,.6); }
     .support svg { width: 18px; height: 18px; fill: currentColor; }
-    #wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 14px; }
+    #wrap { width: 100%; max-width: 640px; margin: 0 auto; padding: 16px 16px calc(84px + env(safe-area-inset-bottom, 0px)); }
+    /* the three pages of the bottom bar */
+    .tab { display: none; flex-direction: column; gap: 14px; }
+    .tab.on { display: flex; }
+    #nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 40; display: flex; background: #101010; border-top: 1px solid var(--line); padding-bottom: env(safe-area-inset-bottom, 0px); }
+    #nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 0 8px; font: inherit; font-size: 11px; letter-spacing: .04em; color: var(--dim); background: none; border: 0; border-top: 2px solid transparent; margin-top: -1px; cursor: pointer; }
+    #nav button svg { width: 24px; height: 24px; fill: currentColor; }
+    #nav button.on { color: var(--accent); border-top-color: var(--accent); }
+    #nav button:active { background: rgba(255,255,255,.06); }
+    .page-title { font-size: 22px; font-weight: 600; color: var(--accent); }
+    /* controls tab */
+    .ctl-row { display: flex; flex-direction: column; gap: 6px; padding: 6px 0 10px; }
+    .ctl-row + .ctl-row { border-top: 1px solid var(--line); padding-top: 12px; }
+    .ctl-row .lab { display: flex; justify-content: space-between; align-items: baseline; font-size: 15px; }
+    .ctl-row .lab output { color: var(--accent); font-weight: 600; font-variant-numeric: tabular-nums; }
+    .ctl-row small { font-size: 12px; color: var(--dim); }
+    input[type=range].big { width: 100%; height: 34px; accent-color: #fff; }
+    .pv { display: flex; gap: 14px; justify-content: center; padding: 14px; border-radius: 10px; background: linear-gradient(135deg, #2a3a2a, #3a2f20 55%, #1f2a3a); }
+    .pv i { width: 46px; height: 46px; border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(0,0,0,.35); display: flex; align-items: center; justify-content: center; }
+    .pv i svg { width: 52%; height: 52%; fill: none; stroke: #fff; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+    .pv i.big { width: 62px; height: 62px; background: rgba(120,20,10,.45); }
+    .btn-row { display: flex; gap: 10px; }
+    .wide { flex: 1; font: inherit; font-size: 15px; font-weight: 600; height: 48px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    .wide.primary { color: #000; background: var(--accent); border-color: var(--accent); }
+    .wide:active { border-color: var(--accent); }
+    /* about tab */
+    .about-logo { display: flex; align-items: center; gap: 14px; }
+    .about-logo img { width: 64px; height: 64px; border-radius: 14px; background: #1b1b1b; padding: 8px; }
+    .about-logo h2 { font-size: 22px; text-transform: none; letter-spacing: 0; color: var(--accent); margin: 0; }
+    .about-logo small { color: var(--dim); font-size: 13px; }
+    .about p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: 10px; }
+    .about p.dim { color: var(--dim); font-size: 12px; }
+    .link-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-top: 8px; font: inherit; text-align: left; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    .link-card:active { border-color: var(--accent); }
+    .link-card svg { flex: none; width: 26px; height: 26px; fill: currentColor; color: var(--accent); }
+    .link-card b { display: block; font-size: 15px; }
+    .link-card span { display: block; font-size: 12px; color: var(--dim); word-break: break-all; }
+    /* the layout editor: sideways, over everything */
+    #editor { position: fixed; inset: 0; z-index: 300; background: #000; user-select: none; -webkit-user-select: none; touch-action: none; }
+    #editor[hidden] { display: none; }
+    #ed-area { position: absolute; inset: 0; container-type: size; overflow: hidden;
+      background: linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover; }
+    #ed-area::before { content: ''; position: absolute; inset: 0; pointer-events: none;
+      background-image: linear-gradient(to right, rgba(255,255,255,.13) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,.13) 1px, transparent 1px);
+      background-size: var(--cell, 40px) var(--cell, 40px); }
+    #ed-btns { position: absolute; inset: 0; opacity: var(--tpa, 1); }
+    #ed-btns .tbtn { cursor: grab; touch-action: none; }
+    #ed-btns .tbtn.sel, #ed-btns .ed-stick.sel { outline: 2px dashed #ffd54a; outline-offset: 3px; }
+    .ed-stick { position: absolute; width: calc(26cqmin * var(--k, 1)); height: calc(26cqmin * var(--k, 1)); border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(0,0,0,.25); touch-action: none; transform: translate(-50%, -50%); }
+    .ed-stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%; background: rgba(255,255,255,.4); }
+    #ed-panel { position: absolute; left: 50%; top: 50%; width: min(360px, 62vw); transform: translate(-50%, -50%); background: rgba(16,16,16,.95); border: 1px solid #555; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); font-size: 13px; }
+    #ed-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: move; touch-action: none; border-bottom: 1px solid var(--line); font-weight: 600; color: var(--accent); }
+    #ed-head button { font: inherit; background: none; border: 0; color: var(--dim); font-size: 20px; line-height: 1; padding: 0 4px; cursor: pointer; }
+    #ed-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
+    #ed-panel.min #ed-body { display: none; }
+    #ed-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
+    #ed-tabs button { flex: none; font: inherit; font-size: 12px; padding: 5px 10px; color: var(--text); background: #262626; border: 1px solid var(--line); border-radius: 14px; cursor: pointer; }
+    #ed-tabs button.on { color: #000; background: #fff; border-color: #fff; }
+    #ed-size { display: flex; align-items: center; gap: 8px; }
+    #ed-size input { flex: 1; min-width: 0; accent-color: #fff; }
+    #ed-sel { min-width: 74px; color: #ffd54a; }
+    #ed-body label.snap { display: flex; align-items: center; gap: 6px; color: var(--dim); }
+    #ed-body .btn-row .wide { height: 38px; font-size: 13px; }
+    #ed-hint { font-size: 11px; color: var(--dim); }
     h1 { font-size: 22px; font-weight: 600; color: var(--accent); }
     h1 small { display: block; font-size: 13px; font-weight: 400; color: var(--dim); margin-top: 2px; }
     .card { background: #1b1b1b; border: 1px solid var(--line); padding: 12px 14px; }
@@ -92,6 +155,7 @@
 </head>
 <body>
   <div id="wrap">
+   <div class="tab on" id="tab-main">
     <div class="topbar">
       <h1>GothicDroid<small>Android</small></h1>
       <div class="support">
@@ -101,9 +165,66 @@
     </div>
     <div class="games" id="games"></div>
     <div class="card" id="settings-card"><h2 id="settings-title">Settings</h2>{{PANEL}}</div>
-    <div class="card"><h2>Log</h2>
+   </div>
+
+   <div class="tab" id="tab-controls">
+    <div class="page-title">Controls</div>
+    <div class="card">
+      <div class="ctl-row">
+        <div class="lab"><span>Look sensitivity</span><output id="sens-val">1.00</output></div>
+        <input type="range" class="big" id="sens" min="0.2" max="3" step="0.05" value="1">
+        <small>How far the camera turns for a swipe on the screen.</small>
+      </div>
+      <div class="ctl-row">
+        <div class="lab"><span>Button transparency</span><output id="opa-val">100%</output></div>
+        <input type="range" class="big" id="opa" min="10" max="100" step="5" value="100">
+        <div class="pv" id="pv"><i class="big" id="pv0"></i><i id="pv1"></i><i id="pv2"></i></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>On-screen buttons</h2>
+      <p class="hint" style="margin:0 0 12px">Move the buttons on a grid and change their size. The game picture is sideways, so the screen turns.</p>
+      <div class="btn-row"><button class="wide primary" id="ed-open">Edit layout</button><button class="wide" id="ctl-reset">Reset all</button></div>
+    </div>
+   </div>
+
+   <div class="tab about" id="tab-about">
+    <div class="page-title">About</div>
+    <div class="card">
+      <div class="about-logo"><img src="img/icon_g2.png" alt=""><div><h2>GothicDroid</h2><small id="ver">Android</small></div></div>
+    </div>
+    <div class="card">
+      <h2>What is this</h2>
+      <p>GothicDroid is an Android fork of <b>OpenGothic</b>, an open source engine that runs the original Gothic and Gothic II (and mods such as Chronicles of Myrtana: Archolos) with a new renderer. It needs the game files of your own copy of the game.</p>
+      <button class="link-card" onclick="Launcher.openUrl('https://github.com/Try/OpenGothic')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>OpenGothic &mdash; the original project</b><span>github.com/Try/OpenGothic (by Try)</span></div></button>
+      <button class="link-card" onclick="Launcher.openUrl('https://github.com/slaker222/gothicdroid')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>GothicDroid &mdash; this project</b><span>github.com/slaker222/gothicdroid</span></div></button>
+    </div>
+    <div class="card">
+      <h2>Log</h2>
       <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
       <div id="log"></div>
+    </div>
+    <p class="dim" style="font-size:11px;color:var(--dim);text-align:center">Gothic is a trademark of its owners. The game files are not part of this app.</p>
+   </div>
+  </div>
+
+  <nav id="nav">
+    <button type="button" data-tab="main" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>Main</button>
+    <button type="button" data-tab="controls"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>Controls</button>
+    <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>About</button>
+  </nav>
+
+  <div id="editor" hidden>
+    <div id="ed-area"><div id="ed-btns"></div></div>
+    <div id="ed-panel">
+      <div id="ed-head"><span>Edit layout</span><button type="button" id="ed-min" aria-label="Minimise">&minus;</button></div>
+      <div id="ed-body">
+        <div id="ed-tabs"></div>
+        <div id="ed-size"><span id="ed-sel">Tap a button</span><input type="range" id="ed-k" min="0.5" max="2" step="0.05" value="1" disabled><output id="ed-kv">100%</output></div>
+        <label class="snap"><input type="checkbox" id="ed-snap" checked> Snap to the grid</label>
+        <div id="ed-hint">Drag a button to move it. Drag this window by its title.</div>
+        <div class="btn-row"><button class="wide" id="ed-reset">Reset</button><button class="wide" id="ed-cancel">Cancel</button><button class="wide primary" id="ed-save">Save</button></div>
+      </div>
     </div>
   </div>
   <div id="sheet"><div class="box" id="sheet-box"></div></div>
@@ -358,6 +479,213 @@
       l.textContent = Launcher.log(); l.style.display = 'block';
     });
     $('log-copy').addEventListener('click', () => Launcher.copyLog());
+    // ---- the bottom bar: Main / Controls / About
+    let curTab = 'main';
+    function showTab(t) {
+      curTab = t;
+      document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.id === 'tab-' + t));
+      document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
+      window.scrollTo(0, 0); document.body.scrollTop = 0;
+    }
+    document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+    // the system back button (MainActivity asks): closes the editor, a sheet, a window, then goes to Main
+    window.onBack = () => {
+      if (!$('editor').hidden) { edClose(); return true; }
+      if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
+      if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
+      if (curTab !== 'main') { showTab('main'); return true; }
+      return false;
+    };
+    try { $('ver').textContent = 'Android port of OpenGothic' + (Launcher.version() ? '  ·  v' + Launcher.version() : ''); } catch (e) {}
+
+    // ---- controls: look sensitivity, transparency of the buttons, positions of the buttons (controls.json in the app,
+    // the game process reads it when it starts)
+    {{TOUCHDEFS}}
+    {{TOUCHICONS}}
+    let ctl = {};
+    try { ctl = JSON.parse(Launcher.controls() || '{}') || {}; } catch (e) {}
+    if (!ctl.items) ctl.items = {};
+    const saveCtl = () => { try { Launcher.setControls(JSON.stringify(ctl)); } catch (e) {} };
+    const sensEl = $('sens'), opaEl = $('opa');
+    const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
+    $('pv0').innerHTML = svgOf('action'); $('pv1').innerHTML = svgOf('jump'); $('pv2').innerHTML = svgOf('weapon');
+    function showCtl() {
+      $('sens-val').textContent = (+sensEl.value).toFixed(2);
+      $('opa-val').textContent = opaEl.value + '%';
+      $('pv').style.setProperty('--o', opaEl.value / 100);
+      document.querySelectorAll('#pv i').forEach(i => { i.style.opacity = opaEl.value / 100; });
+    }
+    sensEl.value = String(ctl.sens > 0 ? ctl.sens : 1);
+    opaEl.value = String(Math.round((ctl.opacity > 0 ? ctl.opacity : 1) * 100));
+    showCtl();
+    sensEl.addEventListener('input', showCtl);
+    opaEl.addEventListener('input', showCtl);
+    sensEl.addEventListener('change', () => { ctl.sens = +(+sensEl.value).toFixed(2); saveCtl(); });
+    opaEl.addEventListener('change', () => { ctl.opacity = +opaEl.value / 100; saveCtl(); });
+    $('ctl-reset').addEventListener('click', () => {
+      ctl = { items: {} }; saveCtl();
+      sensEl.value = '1'; opaEl.value = '100'; showCtl();
+    });
+
+    // ---- the layout editor. The buttons are the game's own (their definitions come from web/shell.html), on a grid
+    const ED_COLS = 32;
+    const ED_TABS = [
+      ['World',     b => b.layouts.includes('world') && b.id !== 'aim' && b.id !== 'inv', true],
+      ['Bow',       b => ['aim', 'action', 'weapon', 'jump'].includes(b.id)],
+      ['More',      b => b.id === 'tools' || b.layouts.includes('wtools')],
+      ['Dialog',    b => b.layouts.some(l => ['talk', 'cutscene', 'choice', 'chapter'].includes(l))],
+      ['Menu',      b => b.layouts.includes('menu')],
+      ['Inventory', b => b.layouts.includes('inv')]
+    ];
+    const ed = { tab: 0, items: {}, sel: null, snap: true };
+    const edArea = $('ed-area'), edBtns = $('ed-btns');
+    const ckOf = id => TGROUP[id] || id;
+    const nameOf = id => id === 'stick' ? 'Stick' : (NAMES[ICON_OF[id] || id] || id);
+    function edCell() { return edArea.clientWidth / ED_COLS; }
+    function edPlace(el, x, y) { el.style.left = x + '%'; el.style.top = y + '%'; }
+    function edBuild() {
+      edBtns.innerHTML = '';
+      edArea.style.setProperty('--cell', edCell() + 'px');
+      edBtns.style.setProperty('--tpa', ctl.opacity > 0 ? ctl.opacity : 1);
+      const W = edArea.clientWidth, H = edArea.clientHeight;
+      const tab = ED_TABS[ed.tab], seen = new Set();
+      const mk = (ck, name, el, defX, defY) => {
+        const it = ed.items[ck];
+        el.dataset.ck = ck; el.dataset.name = name;
+        if (it) { edPlace(el, it.x, it.y); if (it.k) el.style.setProperty('--k', it.k); }
+        else edPlace(el, defX, defY);
+        el.style.transform = 'translate(-50%,-50%)';
+        el.classList.toggle('sel', ed.sel === ck);
+        el.addEventListener('pointerdown', edDown);
+        el.addEventListener('pointermove', edMove);
+        el.addEventListener('pointerup', edUp);
+        el.addEventListener('pointercancel', edUp);
+        el.addEventListener('contextmenu', e => e.preventDefault());
+      };
+      for (const [id, k, cls, pos] of defs) {
+        const b = { id, layouts: layoutsOf(id) };
+        if (!tab[1](b) || id === 'inv') continue;
+        const ck = ckOf(id);
+        if (seen.has(ck)) continue;
+        seen.add(ck);
+        const el = document.createElement('div');
+        el.className = 'tbtn ' + cls;
+        el.style.cssText = pos;
+        el.innerHTML = svgOf(ICON_OF[id] || id);
+        edBtns.appendChild(el);
+        // the default place of the button: measured, as the game's page puts it
+        const r = el.getBoundingClientRect(), a = edArea.getBoundingClientRect();
+        mk(ck, nameOf(id), el, (r.left + r.width / 2 - a.left) / W * 100, (r.top + r.height / 2 - a.top) / H * 100);
+      }
+      if (tab[2]) {
+        const el = document.createElement('div');
+        el.className = 'ed-stick';
+        edBtns.appendChild(el);
+        const m = Math.min(W, H);
+        mk('stick', 'Stick', el, 20 * m / W, (H - m * 0.24) / H * 100);
+      }
+      edSelect(ed.sel && edBtns.querySelector('[data-ck="' + ed.sel + '"]') ? ed.sel : null);
+    }
+    // the layouts of a button come from the definitions
+    const layoutsOf = id => defs.find(d => d[0] === id)[4].split(' ');
+    function edSelect(ck) {
+      ed.sel = ck;
+      edBtns.querySelectorAll('[data-ck]').forEach(e => e.classList.toggle('sel', e.dataset.ck === ck));
+      const el = ck && edBtns.querySelector('[data-ck="' + ck + '"]');
+      const k = $('ed-k');
+      $('ed-sel').textContent = el ? el.dataset.name : 'Tap a button';
+      k.disabled = !el;
+      const it = ck && ed.items[ck];
+      k.value = String(it && it.k ? it.k : 1);
+      $('ed-kv').textContent = Math.round(+k.value * 100) + '%';
+    }
+    // the item of a button in the layout being edited (made from where the button stands now)
+    function edItem(el) {
+      const ck = el.dataset.ck;
+      if (!ed.items[ck]) {
+        const W = edArea.clientWidth, H = edArea.clientHeight, r = el.getBoundingClientRect(), a = edArea.getBoundingClientRect();
+        ed.items[ck] = { x: +((r.left + r.width / 2 - a.left) / W * 100).toFixed(2), y: +((r.top + r.height / 2 - a.top) / H * 100).toFixed(2) };
+      }
+      return ed.items[ck];
+    }
+    let drag = null;
+    function edDown(e) {
+      e.preventDefault(); e.stopPropagation();
+      const el = e.currentTarget;
+      edSelect(el.dataset.ck);
+      const r = el.getBoundingClientRect();
+      drag = { id: e.pointerId, el, dx: e.clientX - (r.left + r.width / 2), dy: e.clientY - (r.top + r.height / 2) };
+      try { el.setPointerCapture(e.pointerId); } catch (err) {}
+    }
+    function edMove(e) {
+      if (!drag || e.pointerId !== drag.id) return;
+      const a = edArea.getBoundingClientRect(), W = a.width, H = a.height;
+      let px = e.clientX - drag.dx - a.left, py = e.clientY - drag.dy - a.top;
+      if (ed.snap) { const c = edCell(); px = Math.round(px / c) * c; py = Math.round(py / c) * c; }
+      px = Math.min(W - 6, Math.max(6, px)); py = Math.min(H - 6, Math.max(6, py));
+      const it = edItem(drag.el);
+      it.x = +(px / W * 100).toFixed(2); it.y = +(py / H * 100).toFixed(2);
+      edPlace(drag.el, it.x, it.y);
+    }
+    function edUp(e) { if (drag && e.pointerId === drag.id) drag = null; }
+    edArea.addEventListener('pointerdown', () => edSelect(null));
+    $('ed-k').addEventListener('input', () => {
+      const el = ed.sel && edBtns.querySelector('[data-ck="' + ed.sel + '"]');
+      if (!el) return;
+      const k = +$('ed-k').value, it = edItem(el);
+      it.k = k;
+      el.style.setProperty('--k', k);
+      $('ed-kv').textContent = Math.round(k * 100) + '%';
+    });
+    $('ed-snap').addEventListener('change', () => { ed.snap = $('ed-snap').checked; });
+    function edTabs() {
+      $('ed-tabs').innerHTML = ED_TABS.map((t, i) => '<button type="button" data-i="' + i + '"' + (i === ed.tab ? ' class="on"' : '') + '>' + t[0] + '</button>').join('');
+    }
+    $('ed-tabs').addEventListener('click', e => {
+      const b = e.target.closest('button');
+      if (!b) return;
+      ed.tab = +b.dataset.i; ed.sel = null; edTabs(); edBuild();
+    });
+    // the panel is moved by its title (it stands in the middle, where the game has the least buttons)
+    {
+      const panel = $('ed-panel'), head = $('ed-head');
+      let pd = null;
+      head.addEventListener('pointerdown', e => {
+        if (e.target.closest('button')) return;
+        const r = panel.getBoundingClientRect();
+        pd = { id: e.pointerId, dx: e.clientX - r.left, dy: e.clientY - r.top };
+        head.setPointerCapture(e.pointerId);
+      });
+      head.addEventListener('pointermove', e => {
+        if (!pd || e.pointerId !== pd.id) return;
+        panel.style.transform = 'none';
+        panel.style.left = Math.max(0, Math.min(innerWidth - 60, e.clientX - pd.dx)) + 'px';
+        panel.style.top = Math.max(0, Math.min(innerHeight - 40, e.clientY - pd.dy)) + 'px';
+      });
+      head.addEventListener('pointerup', () => { pd = null; });
+      head.addEventListener('pointercancel', () => { pd = null; });
+      $('ed-min').addEventListener('click', () => { panel.classList.toggle('min'); $('ed-min').innerHTML = panel.classList.contains('min') ? '+' : '&minus;'; });
+    }
+    function edOpen() {
+      ed.items = JSON.parse(JSON.stringify(ctl.items || {}));
+      ed.sel = null; ed.tab = 0;
+      $('editor').hidden = false;
+      Launcher.editor(true);
+      edTabs();
+      // the screen turns: the buttons are measured again when it has
+      edBuild();
+      setTimeout(edBuild, 300); setTimeout(edBuild, 800);
+    }
+    function edClose() {
+      $('editor').hidden = true;
+      Launcher.editor(false);
+    }
+    window.addEventListener('resize', () => { if (!$('editor').hidden) edBuild(); });
+    $('ed-open').addEventListener('click', edOpen);
+    $('ed-cancel').addEventListener('click', edClose);
+    $('ed-reset').addEventListener('click', () => { ed.items = {}; ed.sel = null; edBuild(); });
+    $('ed-save').addEventListener('click', () => { ctl.items = ed.items; saveCtl(); edClose(); });
+
     window.onResumed = () => refresh();
     refresh();
   </script>

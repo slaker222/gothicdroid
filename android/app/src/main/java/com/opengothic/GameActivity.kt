@@ -179,6 +179,10 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             }
         }
 
+        // the layout of the touch controls from the app's Controls tab (written by MainActivity)
+        @JavascriptInterface
+        fun controls(): String = try { File(filesDir, "controls.json").readText() } catch (e: Exception) { "{}" }
+
         // the phone's processor: "SoC name|cores|max MHz"
         @JavascriptInterface
         fun cpuInfo(): String = cpuDescription()
