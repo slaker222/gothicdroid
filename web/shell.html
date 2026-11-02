@@ -52,6 +52,31 @@
     const ask = async () => { try { if (navigator.wakeLock && document.visibilityState === 'visible' && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } } catch (e) {} };
     addEventListener('pointerdown', ask); document.addEventListener('visibilitychange', ask);
   })();
+  // 5) ?log: the page's console on the screen (an iPhone has no dev tools): open the game with ?log and send a screenshot / the copied text
+  if (/[?&]log\b/.test(location.search)) {
+    const lines = []; let box, pre;
+    const add = (k, a) => { const t = (k + ' ' + Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ')).slice(0, 1800); lines.push(t); if (pre) pre.textContent = lines.slice(-45).join('\n'); };
+    ['log', 'info', 'warn', 'error'].forEach(k => { const o = console[k]; console[k] = function () { add(k === 'log' || k === 'info' ? ' ' : k === 'warn' ? 'W' : 'E', arguments); return o.apply(console, arguments); }; });
+    addEventListener('error', e => add('E', ['JS error:', e.message, (e.filename || '').split('/').pop() + ':' + e.lineno]));
+    addEventListener('unhandledrejection', e => add('E', ['promise:', e.reason && (e.reason.message || e.reason)]));
+    const ui = () => {
+      box = document.createElement('div');
+      box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:rgba(0,0,0,.78);color:#9f9;font:9px/1.25 ui-monospace,Menlo,monospace;max-height:45vh;overflow:auto;pointer-events:none';
+      pre = document.createElement('pre'); pre.style.cssText = 'margin:0;padding:4px;white-space:pre-wrap;word-break:break-all'; box.appendChild(pre);
+      const b = document.createElement('button'); b.textContent = 'Copy log'; b.style.cssText = 'position:fixed;right:6px;bottom:6px;z-index:100000;padding:10px 14px;font-size:14px';
+      b.onclick = () => { const t = lines.join('\n'); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch (e) { b.textContent = 'Failed'; } ta.remove(); }); setTimeout(() => b.textContent = 'Copy log', 1500); };
+      document.body.appendChild(box); document.body.appendChild(b);
+      add(' ', ['UA', navigator.userAgent, 'dpr', devicePixelRatio, 'screen', screen.width + 'x' + screen.height, 'inner', innerWidth + 'x' + innerHeight]);
+      if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
+        if (!a) { add('E', ['no adapter']); return; }
+        add(' ', ['features:', [...a.features].join(',')]);
+        const l = {}; for (const k in a.limits) l[k] = a.limits[k]; add(' ', ['limits:', l]);
+        if (a.info) add(' ', ['adapter:', { vendor: a.info.vendor, architecture: a.info.architecture, device: a.info.device, description: a.info.description }]);
+        add(' ', ['canvas format:', navigator.gpu.getPreferredCanvasFormat()]);
+      }); else add('E', ['no navigator.gpu']);
+    };
+    if (document.body) ui(); else document.addEventListener('DOMContentLoaded', ui);
+  }
   </script>
   <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <meta property="og:type" content="website">
