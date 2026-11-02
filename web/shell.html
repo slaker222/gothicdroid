@@ -3736,6 +3736,20 @@ async function installChunks(m) {
       if (out.game) { try { localStorage.setItem('game', out.game === 'g2' ? '2' : '1'); } catch (e) {} }
       return out;
     })();
+
+    // The browser's Back button leads to the game list (/main): the first game page in a tab gets a second history entry, and Back to the first one opens that page.
+    // Not when the player came from /main already, not in the Android app, not in a frame, not twice in one tab.
+    (function () {
+      try {
+        if (window.top !== window || document.documentElement.classList.contains('native') || location.pathname === '/main') return;
+        if (sessionStorage.getItem('ogBack')) return;
+        sessionStorage.setItem('ogBack', '1');
+        let ref = ''; try { ref = new URL(document.referrer).pathname; } catch (e) {}
+        if (document.referrer && new URL(document.referrer).origin === location.origin && /^\/main(\.html)?$/.test(ref)) return;
+        history.pushState({ ogGame: 1 }, '', location.href);   // a second entry for the same page; Back to the first one opens /main
+        addEventListener('popstate', e => { if (!e.state || !e.state.ogGame) location.replace('/main'); });
+      } catch (e) {}
+    })();
     const GAME_ID = (() => {
       if (LINK_CHOICE.game) return LINK_CHOICE.game;
       let v = null;
@@ -4927,7 +4941,7 @@ function serveLoop() {
       lsSet('game', sel.value === 'g2' ? '2' : '1');
       const url = new URL(location.href);
       url.searchParams.delete('game');
-      location.href = url.href;
+      location.replace(url.href);
     }
 
     async function initLangBar() {
