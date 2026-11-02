@@ -811,8 +811,11 @@
     .ex-bar button svg { width: 18px; height: 18px; fill: currentColor; }
     .ex-bar button:active, .ex-roots button:active { border-color: var(--accent); }
     .ex-bar button:disabled { opacity: .4; }
-    .ex-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
-    .ex-bar button { justify-content: center; height: 46px; font-size: 14px; white-space: nowrap; }
+    .ex-bar { display: flex; flex-wrap: nowrap; gap: 6px; }
+    .ex-bar button { flex: 1 1 0; min-width: 0; flex-direction: column; justify-content: center; gap: 3px; height: 54px; padding: 0 2px; font-size: 11px; white-space: nowrap; }
+    .ex-bar button svg { width: 22px; height: 22px; }
+    #sheet .ex-btns { display: flex; gap: 10px; }
+    #sheet .ex-btns .wide { height: 52px; font-size: 16px; padding: 0 12px; }
     .ex-bar .sp { display: none; }
     .ex-bar .danger { color: var(--danger); }
     #ex-path { font-size: 12px; color: var(--dim); word-break: break-all; }
@@ -1504,8 +1507,8 @@
       if (n) {
         bar = btn('x-copy', 'copy', 'Copy') + btn('x-cut', 'cut', 'Cut') + (n === 1 ? btn('x-ren', 'ren', 'Rename') : '') + btn('x-del', 'del', 'Delete', 'danger') + '<span class="sp"></span>' + btn('x-all', 'all', 'All');
       } else {
-        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New folder') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', 'Refresh');
-        if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', 'Paste here (' + EX.clip.paths.length + ')');
+        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', 'Refresh');
+        if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', 'Paste (' + EX.clip.paths.length + ')');
       }
       $('ex-bar').innerHTML = bar;
       const on = (id, f) => { const e = $(id); if (e) e.addEventListener('click', f); };
@@ -1540,11 +1543,11 @@
       else exMsg('Busy', 'Another operation is still running.');
     }
     function exMsg(title, text, extra) {
-      box.innerHTML = '<div class="sh-head"><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p></div>' + (extra || '<button type="button" class="wide primary" id="ex-ok">OK</button>');
+      box.innerHTML = '<div class="sh-head"><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p></div>' + (extra || '<div class="ex-btns"><button type="button" class="wide primary" id="ex-ok">OK</button></div>');
       sheet.classList.add('open'); const ok = $('ex-ok'); if (ok) ok.onclick = () => sheet.classList.remove('open');
     }
     function exAsk(title, label, value, okText, cb) {
-      exMsg(title, label, '<input type="text" class="ex-in" id="ex-in" value="' + esc(value) + '" autocapitalize="off" autocomplete="off"><button type="button" class="wide primary" id="ex-yes">' + okText + '</button><button type="button" class="wide" id="ex-no">Cancel</button>');
+      exMsg(title, label, '<input type="text" class="ex-in" id="ex-in" value="' + esc(value) + '" autocapitalize="off" autocomplete="off"><div class="ex-btns"><button type="button" class="wide" id="ex-no">Cancel</button><button type="button" class="wide primary" id="ex-yes">' + okText + '</button></div>');
       const i = $('ex-in'); i.focus(); i.select();
       $('ex-no').onclick = () => sheet.classList.remove('open');
       $('ex-yes').onclick = () => { sheet.classList.remove('open'); cb(i.value); };
@@ -1554,7 +1557,7 @@
     function exDel() {
       const names = [...EX.sel];
       exMsg('Delete ' + names.length + ' item' + (names.length > 1 ? 's' : '') + '?', names.slice(0, 6).join(', ') + (names.length > 6 ? ', …' : '') + '\nThis cannot be undone.',
-        '<button type="button" class="wide primary" id="ex-yes" style="background:var(--danger);border-color:var(--danger)">Delete</button><button type="button" class="wide" id="ex-no">Cancel</button>');
+        '<div class="ex-btns"><button type="button" class="wide" id="ex-no">Cancel</button><button type="button" class="wide primary" id="ex-yes" style="background:var(--danger);border-color:var(--danger)">Delete</button></div>');
       $('ex-no').onclick = () => sheet.classList.remove('open');
       $('ex-yes').onclick = () => { sheet.classList.remove('open'); if (Launcher.fsDelete(JSON.stringify(names.map(full)))) exPoll(); };
     }
@@ -1573,7 +1576,7 @@
     const edDirty = () => ta.value !== ED.orig;
     function edClose(force) {
       if (!force && edDirty()) {
-        exMsg('Unsaved changes', 'Close without saving?', '<button type="button" class="wide primary" id="ex-yes" style="background:var(--danger);border-color:var(--danger)">Discard</button><button type="button" class="wide" id="ex-no">Keep editing</button>');
+        exMsg('Unsaved changes', 'Close without saving?', '<div class="ex-btns"><button type="button" class="wide" id="ex-no">Keep editing</button><button type="button" class="wide primary" id="ex-yes" style="background:var(--danger);border-color:var(--danger)">Discard</button></div>');
         $('ex-no').onclick = () => sheet.classList.remove('open');
         $('ex-yes').onclick = () => { sheet.classList.remove('open'); edClose(true); };
         return;
