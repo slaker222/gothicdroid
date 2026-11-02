@@ -276,6 +276,12 @@ Java_com_opengothic_MainActivity_nativeIsGameRunning(JNIEnv*, jobject) {
   return static_cast<jboolean>(s_gameRunning.load());
 }
 
+// the game asked to quit (menu "Exit"): the activity then goes back to the app's main menu
+JNIEXPORT jboolean JNICALL
+Java_com_opengothic_GameActivity_nativeExitRequested(JNIEnv*, jobject) {
+  return static_cast<jboolean>(Tempest::AndroidApi::exitRequested());
+}
+
 JNIEXPORT jboolean JNICALL
 Java_com_opengothic_GameActivity_nativeIsGameRunning(JNIEnv*, jobject) {
   return static_cast<jboolean>(s_gameRunning.load());

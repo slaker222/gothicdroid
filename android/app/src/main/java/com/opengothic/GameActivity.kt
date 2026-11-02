@@ -54,6 +54,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeOnTouch(action: Int, x: Float, y: Float, id: Int)
     private external fun nativeOnKey(action: Int, keyCode: Int)
     private external fun nativeIsGameRunning(): Boolean
+    private external fun nativeExitRequested(): Boolean
     private external fun nativeGetLastLog(): String
 
     private external fun nativeSettingGet(name: String): Int
@@ -195,12 +196,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         // "Exit": to the app's main menu. The game runs in its own process (":game", it cannot be started twice),
         // which ends with the screen; the main menu is the activity under it
         @JavascriptInterface
-        fun exitGame() {
-            runOnUiThread {
-                finish()
-                Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
-            }
-        }
+        fun exitGame() { runOnUiThread { leaveGame() } }
 
         @JavascriptInterface
         fun key(action: Int, code: String) = nativeWebKey(action, code)
@@ -257,10 +253,23 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
     }
 
+    private var exitWatch: Thread? = null
+    private fun leaveGame() {
+        finish()
+        Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
+    }
+
     override fun surfaceCreated(holder: SurfaceHolder) {
         Log.i(TAG, "GameActivity surfaceCreated: valid=${holder.surface.isValid}")
         surfaceHolder = holder
         nativeSetSurface(holder.surface, gameDir)
+        // the game's own menu "Exit" ends the engine loop: go back to the app's main menu
+        if (exitWatch == null) exitWatch = Thread {
+            while (true) {
+                try { Thread.sleep(250) } catch (e: InterruptedException) { return@Thread }
+                if (nativeExitRequested()) { Log.i(TAG, "game requested exit"); runOnUiThread { leaveGame() }; return@Thread }
+            }
+        }.also { it.isDaemon = true; it.start() }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
