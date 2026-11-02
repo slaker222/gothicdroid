@@ -282,6 +282,19 @@ class MainActivity : AppCompatActivity() {
         return if (rel.isEmpty()) base else "$base/$rel"
     }
 
+    // "Explore" tab: the app's own folder (Gothic1/2/3) and the shared storage
+    private val fs = FsOps {
+        listOfNotNull(getExternalFilesDir(null)?.let { "App" to it }, "Storage" to Environment.getExternalStorageDirectory())
+    }
+    private var importDir = ""
+    private val importer = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+        if (uris.isNullOrEmpty()) return@registerForActivityResult
+        fs.importStreams(importDir, uris.map { u ->
+            val name = contentResolver.query(u, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: (u.lastPathSegment ?: "file")
+            name to { contentResolver.openInputStream(u) }
+        })
+    }
+
     private var pickFor = 1
     private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
         val p = uri?.let { pathOfTree(it) }
@@ -437,6 +450,27 @@ class MainActivity : AppCompatActivity() {
             }
             return a.toString()
         }
+
+        @JavascriptInterface
+        fun fsRoots(): String = fs.rootsJson()
+        @JavascriptInterface
+        fun fsList(path: String): String = fs.list(path)
+        @JavascriptInterface
+        fun fsState(): String = fs.state()
+        @JavascriptInterface
+        fun fsCancel() = fs.cancel()
+        @JavascriptInterface
+        fun fsPaste(paths: String, dst: String, move: Boolean): Boolean = fs.paste(JSONArray(paths).let { a -> List(a.length()) { a.getString(it) } }, dst, move)
+        @JavascriptInterface
+        fun fsDelete(paths: String): Boolean = fs.delete(JSONArray(paths).let { a -> List(a.length()) { a.getString(it) } })
+        @JavascriptInterface
+        fun fsMkdir(parent: String, name: String): String = fs.mkdir(parent, name)
+        @JavascriptInterface
+        fun fsRename(path: String, name: String): String = fs.rename(path, name)
+        @JavascriptInterface
+        fun fsSize(path: String): Long = fs.size(path)
+        @JavascriptInterface
+        fun fsImport(dst: String) { importDir = dst; runOnUiThread { importer.launch(arrayOf("*/*")) } }
 
         @JavascriptInterface
         fun scanning(): Boolean = scanning

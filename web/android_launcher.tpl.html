@@ -89,11 +89,41 @@
     .game button.icon svg { margin: 0; }
     .game button:disabled { opacity: .4; }
     .game button.folder, .game button.dl { flex: none; width: 96px; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
+
+    /* Explore: a file manager */
+    #tab-explore { gap: 10px; }
+    .ex-roots { display: flex; gap: 8px; }
+    .ex-roots button, .ex-bar button { font: inherit; font-size: 13px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; height: 38px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; flex: none; }
+    .ex-roots button.on { color: var(--accent); border-color: var(--accent); }
+    .ex-bar button svg { width: 18px; height: 18px; fill: currentColor; }
+    .ex-bar button:active, .ex-roots button:active { border-color: var(--accent); }
+    .ex-bar button:disabled { opacity: .4; }
+    .ex-bar { display: flex; gap: 8px; flex-wrap: wrap; }
+    .ex-bar .sp { flex: 1; }
+    .ex-bar .danger { color: var(--danger); }
+    #ex-path { font-size: 12px; color: var(--dim); word-break: break-all; }
+    #ex-prog { display: none; background: #1d1d1d; border: 1px solid var(--accent); border-radius: 8px; padding: 10px 12px; font-size: 13px; }
+    #ex-prog.on { display: flex; gap: 10px; align-items: center; justify-content: space-between; }
+    #ex-prog span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #ex-list { display: flex; flex-direction: column; background: #181818; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+    .ex-row { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-bottom: 1px solid #242424; cursor: pointer; -webkit-user-select: none; user-select: none; min-height: 52px; }
+    .ex-row:last-child { border-bottom: 0; }
+    .ex-row:active { background: rgba(255,255,255,.06); }
+    .ex-row.sel { background: rgba(255,200,80,.14); }
+    .ex-row svg { width: 26px; height: 26px; flex: none; fill: var(--dim); }
+    .ex-row.dir svg { fill: var(--accent); }
+    .ex-row .nm { flex: 1; min-width: 0; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ex-row .meta { font-size: 11px; color: var(--dim); }
+    .ex-empty { padding: 26px; text-align: center; color: var(--dim); font-size: 14px; }
+    .ex-chk { width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--dim); flex: none; display: none; }
+    #tab-explore.selmode .ex-chk { display: block; }
+    .ex-row.sel .ex-chk { background: var(--accent); border-color: var(--accent); }
+    #sheet .ex-in { width: 100%; }
     #sheet { position: fixed; inset: 0; background: rgba(0,0,0,.62); display: none; align-items: flex-end; z-index: 50; }
     #sheet.open { display: flex; }
     #sheet .box { width: 100%; max-width: 640px; margin: 0 auto; background: #1b1b1b; border: 1px solid var(--line); border-bottom: 0; border-radius: 18px 18px 0 0; padding: 22px 18px 24px; display: flex; flex-direction: column; gap: 18px; max-height: 92vh; overflow-y: auto; }
     #sheet .sh-head h2 { font-size: 21px; font-weight: 600; color: var(--accent); }
-    #sheet .sh-head p { font-size: 13px; color: var(--dim); margin-top: 3px; }
+    #sheet .sh-head p { white-space: pre-wrap; word-break: break-word; font-size: 13px; color: var(--dim); margin-top: 3px; }
     #sheet .sh-label { font-size: 11px; letter-spacing: .09em; text-transform: uppercase; color: var(--dim); margin-bottom: 7px; }
     #sheet .field-row { display: flex; gap: 8px; }
     #sheet input[type=text] { flex: 1; min-width: 0; font: inherit; font-size: 15px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; padding: 0 12px; height: 44px; }
@@ -145,7 +175,7 @@
       #nav button { flex-direction: row; justify-content: center; gap: 8px; padding: 6px 0; font-size: 13px; }
       #nav button svg { width: 20px; height: 20px; }
       .tab { gap: 10px; }
-      #tab-controls, #tab-about { max-width: 720px; margin: 0 auto; width: 100%; }
+      #tab-controls, #tab-about, #tab-explore { max-width: 720px; margin: 0 auto; width: 100%; }
     }
   </style>
   <script src="touch_editor.js"></script>
@@ -162,6 +192,15 @@
     </div>
     <div class="games" id="games"></div>
     <div class="card" id="settings-card"><h2 id="settings-title">Settings</h2>{{PANEL}}</div>
+   </div>
+
+   <div class="tab" id="tab-explore">
+    <div class="page-title">Explore</div>
+    <div class="ex-roots" id="ex-roots"></div>
+    <div id="ex-path"></div>
+    <div class="ex-bar" id="ex-bar"></div>
+    <div id="ex-prog"><span id="ex-prog-t"></span><button type="button" id="ex-prog-x">Cancel</button></div>
+    <div id="ex-list"></div>
    </div>
 
    <div class="tab" id="tab-controls">
@@ -211,6 +250,7 @@
 
   <nav id="nav">
     <button type="button" data-tab="main" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>Main</button>
+    <button type="button" data-tab="explore"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>Explore</button>
     <button type="button" data-tab="controls"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>Controls</button>
     <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>About</button>
   </nav>
@@ -467,13 +507,125 @@
       l.textContent = Launcher.log(); l.style.display = 'block';
     });
     $('log-copy').addEventListener('click', () => Launcher.copyLog());
-    // ---- the bottom bar: Main / Controls / About
+
+    // ---- Explore: a small file manager for the game folders (the app's folder and the shared storage)
+    const EX = { roots: [], root: 0, path: '', items: [], sel: new Set(), clip: null, last: -1, sig: -1 };
+    const I = {
+      dir: '<svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>',
+      file: '<svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 7V3.5L18.5 9H13z"/></svg>',
+      up: '<svg viewBox="0 0 24 24"><path d="M4 12l1.4 1.4L11 7.8V20h2V7.8l5.6 5.6L20 12l-8-8-8 8z"/></svg>',
+      add: '<svg viewBox="0 0 24 24"><path d="M20 6h-8l-2-2H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 8h-3v3h-2v-3h-3v-2h3V9h2v3h3v2z"/></svg>',
+      imp: '<svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5z"/></svg>',
+      copy: '<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>',
+      cut: '<svg viewBox="0 0 24 24"><path d="M9.6 7.4A3 3 0 1 0 7.5 9.5L10 12l-2.5 2.5a3 3 0 1 0 1.4 1.4L12 12.8l7 7h3v-1L9.6 7.4zM6 8a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm0 12a1 1 0 1 1 0-2 1 1 0 0 1 0 2zm6-7.5a.5.5 0 1 1 0-1 .5.5 0 0 1 0 1zM19 3l-6 6 2 2 7-7V3h-3z"/></svg>',
+      paste: '<svg viewBox="0 0 24 24"><path d="M19 2h-4.2c-.4-1.2-1.5-2-2.8-2s-2.4.8-2.8 2H5c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm7 18H5V4h2v3h10V4h2v16z"/></svg>',
+      del: '<svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>',
+      ren: '<svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>',
+      all: '<svg viewBox="0 0 24 24"><path d="M18 7l-1.41-1.41-6.34 6.34 1.41 1.41L18 7zm4.24-1.41L11.66 16.17 7.48 12l-1.41 1.41L11.66 19l12-12-1.42-1.41zM.41 13.41L6 19l1.41-1.41L1.83 12 .41 13.41z"/></svg>',
+      ref: '<svg viewBox="0 0 24 24"><path d="M17.65 6.35A8 8 0 1 0 19.73 14h-2.08A6 6 0 1 1 12 6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>'
+    };
+    const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    const fmt = n => n < 1024 ? n + ' B' : n < 1048576 ? (n / 1024).toFixed(1) + ' KB' : n < 1073741824 ? (n / 1048576).toFixed(1) + ' MB' : (n / 1073741824).toFixed(2) + ' GB';
+    const rootPath = () => (EX.roots[EX.root] || {}).path || '';
+    const full = n => EX.path + '/' + n;
+    function exOpen(path) {
+      let r;
+      try { r = JSON.parse(Launcher.fsList(path)); } catch (e) { r = { error: String(e) }; }
+      if (r.error && !r.items) { exMsg('Error', r.error); return; }
+      EX.path = r.path; EX.items = r.items || []; EX.sel.clear();
+      exRender(r.error);
+    }
+    function exInit() {
+      try { EX.roots = JSON.parse(Launcher.fsRoots()); } catch (e) { EX.roots = []; }
+      $('ex-roots').innerHTML = EX.roots.map((r, i) => '<button type="button" data-i="' + i + '">' + esc(r.name) + '</button>').join('');
+      $('ex-roots').querySelectorAll('button').forEach(b => b.addEventListener('click', () => { EX.root = +b.dataset.i; exOpen(rootPath()); }));
+      if (EX.roots.length) exOpen(EX.roots[0].path);
+    }
+    function btn(id, icon, label, cls) { return '<button type="button" id="' + id + '"' + (cls ? ' class="' + cls + '"' : '') + '>' + I[icon] + label + '</button>'; }
+    function exRender(note) {
+      const tab = $('tab-explore'), n = EX.sel.size;
+      tab.classList.toggle('selmode', n > 0);
+      $('ex-roots').querySelectorAll('button').forEach(b => b.classList.toggle('on', +b.dataset.i === EX.root));
+      $('ex-path').textContent = EX.path + (note ? '  —  ' + note : '');
+      const atRoot = EX.path === rootPath();
+      let bar = '';
+      if (n) {
+        bar = btn('x-copy', 'copy', 'Copy') + btn('x-cut', 'cut', 'Cut') + (n === 1 ? btn('x-ren', 'ren', 'Rename') : '') + btn('x-del', 'del', 'Delete', 'danger') + '<span class="sp"></span>' + btn('x-all', 'all', 'All');
+      } else {
+        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New folder') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', '') ;
+        if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', 'Paste here (' + EX.clip.paths.length + ')');
+      }
+      $('ex-bar').innerHTML = bar;
+      const on = (id, f) => { const e = $(id); if (e) e.addEventListener('click', f); };
+      on('x-up', exUp); on('x-ref', () => exOpen(EX.path)); on('x-new', exNew); on('x-imp', () => Launcher.fsImport(EX.path)); on('x-paste', exPaste);
+      on('x-copy', () => exClip(false)); on('x-cut', () => exClip(true)); on('x-del', exDel); on('x-ren', exRen);
+      on('x-all', () => { EX.items.forEach(it => EX.sel.add(it.n)); exRender(); });
+      if (atRoot && $('x-up')) $('x-up').disabled = true;
+      const l = $('ex-list');
+      if (!EX.items.length) { l.innerHTML = '<div class="ex-empty">Empty folder</div>'; return; }
+      l.innerHTML = EX.items.map((it, i) => '<div class="ex-row ' + (it.d ? 'dir' : '') + (EX.sel.has(it.n) ? ' sel' : '') + '" data-i="' + i + '"><span class="ex-chk"></span>' + (it.d ? I.dir : I.file) +
+        '<span class="nm">' + esc(it.n) + '</span><span class="meta">' + (it.d ? it.s + ' items' : fmt(it.s)) + '</span></div>').join('');
+      l.querySelectorAll('.ex-row').forEach(r => {
+        const it = EX.items[+r.dataset.i]; let timer = null, longed = false;
+        r.addEventListener('touchstart', () => { longed = false; timer = setTimeout(() => { longed = true; exToggle(it.n); }, 450); }, { passive: true });
+        const stop = () => clearTimeout(timer);
+        r.addEventListener('touchmove', stop, { passive: true }); r.addEventListener('touchend', stop); r.addEventListener('touchcancel', stop);
+        r.addEventListener('click', () => {
+          if (longed) { longed = false; return; }
+          if (EX.sel.size) exToggle(it.n);
+          else if (it.d) exOpen(full(it.n));
+        });
+      });
+    }
+    function exToggle(n) { EX.sel.has(n) ? EX.sel.delete(n) : EX.sel.add(n); exRender(); }
+    function exUp() { if (EX.path !== rootPath()) exOpen(EX.path.replace(/\/[^\/]*$/, '') || rootPath()); }
+    function exClip(move) { EX.clip = { paths: [...EX.sel].map(full), move }; EX.sel.clear(); exRender(); }
+    function exPaste() {
+      if (!EX.clip) return;
+      if (Launcher.fsPaste(JSON.stringify(EX.clip.paths), EX.path, EX.clip.move)) { if (EX.clip.move) EX.clip = null; exPoll(); }
+      else exMsg('Busy', 'Another operation is still running.');
+    }
+    function exMsg(title, text, extra) {
+      box.innerHTML = '<div class="sh-head"><h2>' + esc(title) + '</h2><p>' + esc(text) + '</p></div>' + (extra || '<button type="button" class="wide primary" id="ex-ok">OK</button>');
+      sheet.classList.add('open'); const ok = $('ex-ok'); if (ok) ok.onclick = () => sheet.classList.remove('open');
+    }
+    function exAsk(title, label, value, okText, cb) {
+      exMsg(title, label, '<input type="text" class="ex-in" id="ex-in" value="' + esc(value) + '" autocapitalize="off" autocomplete="off"><button type="button" class="wide primary" id="ex-yes">' + okText + '</button><button type="button" class="wide" id="ex-no">Cancel</button>');
+      const i = $('ex-in'); i.focus(); i.select();
+      $('ex-no').onclick = () => sheet.classList.remove('open');
+      $('ex-yes').onclick = () => { sheet.classList.remove('open'); cb(i.value); };
+    }
+    function exNew() { exAsk('New folder', 'Name of the folder', '', 'Create', v => { const e = Launcher.fsMkdir(EX.path, v); e ? exMsg('Error', e) : exOpen(EX.path); }); }
+    function exRen() { const n = [...EX.sel][0]; exAsk('Rename', n, n, 'Rename', v => { const e = Launcher.fsRename(full(n), v); e ? exMsg('Error', e) : exOpen(EX.path); }); }
+    function exDel() {
+      const names = [...EX.sel];
+      exMsg('Delete ' + names.length + ' item' + (names.length > 1 ? 's' : '') + '?', names.slice(0, 6).join(', ') + (names.length > 6 ? ', …' : '') + '\nThis cannot be undone.',
+        '<button type="button" class="wide primary" id="ex-yes" style="background:var(--danger);border-color:var(--danger)">Delete</button><button type="button" class="wide" id="ex-no">Cancel</button>');
+      $('ex-no').onclick = () => sheet.classList.remove('open');
+      $('ex-yes').onclick = () => { sheet.classList.remove('open'); if (Launcher.fsDelete(JSON.stringify(names.map(full)))) exPoll(); };
+    }
+    $('ex-prog-x').addEventListener('click', () => Launcher.fsCancel());
+    // a running job (copy / delete / import): shown until it ends, then the list is refreshed
+    let exTimer = null;
+    function exPoll() {
+      if (exTimer) return;
+      exTimer = setInterval(() => {
+        let st; try { st = JSON.parse(Launcher.fsState()); } catch (e) { return; }
+        $('ex-prog').classList.toggle('on', st.busy);
+        if (st.busy) { $('ex-prog-t').textContent = st.msg + (st.done ? '  ' + fmt(st.done) : ''); return; }
+        clearInterval(exTimer); exTimer = null; $('ex-prog').classList.remove('on');
+        if (EX.path) exOpen(EX.path);
+        if (st.err) exMsg('Failed', st.err);
+      }, 350);
+    }
+    // ---- the bottom bar: Main / Explore / Controls / About
     let curTab = 'main';
     function showTab(t) {
       curTab = t;
       document.querySelectorAll('.tab').forEach(e => e.classList.toggle('on', e.id === 'tab-' + t));
       document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.tab === t));
       window.scrollTo(0, 0); document.body.scrollTop = 0;
+      if (t === 'explore') { if (!EX.roots.length) exInit(); else exOpen(EX.path); exPoll(); }
     }
     document.querySelectorAll('#nav button').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
     // the system back button (MainActivity asks): closes the editor, a sheet, a window, then goes to Main
@@ -481,6 +633,7 @@
       if (TouchEditor.isOpen()) { TouchEditor.close(); return true; }
       if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
       if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
+      if (curTab === 'explore') { if (EX.sel.size) { EX.sel.clear(); exRender(); return true; } if (EX.path !== rootPath()) { exUp(); return true; } }
       if (curTab !== 'main') { showTab('main'); return true; }
       return false;
     };
@@ -524,7 +677,7 @@
       onSave: items => { ctl.items = items; saveCtl(); }
     }));
 
-    window.onResumed = () => refresh();
+    window.onResumed = () => { refresh(); if (curTab === 'explore' && EX.roots.length) exPoll(); };
     refresh();
   </script>
 </body>
