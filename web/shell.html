@@ -4633,8 +4633,8 @@ function serveLoop() {
           const sel = langSelection();
           const L = id => g_langIndex.languages.find(l => l.id === id);
           const text = L(sel.text), voice = L(sel.voice);
-          if (!text || !text.text || !voice || !voice.voice) throw new Error('no such language pack');
-          const steps = [g_langIndex.base, text.text, voice.voice];
+          if (!text || !text.text || (sel.voice !== 'none' && (!voice || !voice.voice))) throw new Error('no such language pack');
+          const steps = [g_langIndex.base, text.text].concat(sel.voice === 'none' ? [] : [voice.voice]);
           const total = steps.reduce((a, i) => a + i.size, 0);
           let before = 0;
           for (const info of steps) {
@@ -4914,7 +4914,8 @@ function serveLoop() {
                     prefs.map(c => list.find(l => l.id === c)).find(Boolean);
         return (hit || list[0] || {}).id;
       };
-      return { text: pick(text, s && s.text), voice: pick(voice, s && s.voice) };
+      // voice 'none' = "Without": no speech archives are downloaded
+      return { text: pick(text, s && s.text), voice: s && s.voice === 'none' ? 'none' : pick(voice, s && s.voice) };
     }
 
     // The game selector of the bar: both games are offered when the server has language packs of them.
@@ -4972,6 +4973,13 @@ function serveLoop() {
       const sel = st && lsGet(LANG_APPLY) !== '1' ? { text: st.text, voice: st.voice } : langSelection();
       const fill = (el, kind, cur) => {
         el.textContent = '';
+        if (kind === 'voice') {
+          const o = document.createElement('option');
+          o.value = 'none';
+          o.textContent = 'Without (0 MB)';
+          o.selected = cur === 'none';
+          el.appendChild(o);
+        }
         for (const l of g_langIndex.languages) {
           if (!l[kind]) continue;
           const o = document.createElement('option');
@@ -5024,7 +5032,8 @@ function serveLoop() {
           const L = id => g_langIndex.languages.find(l => l.id === id);
           const t = L(sel.text), v = L(sel.voice);
           const textChanged = curText !== sel.text, voiceChanged = st.voice !== sel.voice;
-          if ((!textChanged || (t && t.text)) && (!voiceChanged || (v && v.voice))) {
+          // to / from "Without": the game restarts (the speech archives are mounted)
+          if (!(voiceChanged && (st.voice === 'none' || sel.voice === 'none')) && (!textChanged || (t && t.text)) && (!voiceChanged || (v && v.voice))) {
             // The new packs are written next to the old files, which the running game holds: that has to fit
             // (SAVE_RESERVE stays free for savegames). If it does not, the game restarts and the previous
             // language is removed before the next one is installed.
@@ -5356,7 +5365,7 @@ function serveLoop() {
       try { vdir = await root.getDirectoryHandle(lv.dir); } catch (e) {}
       if (vdir) {
         const game = await opfsGameDir(true);
-        for (const p of st.files.voice) await removeGamePath(game, p);
+        for (const p of (st.files.voice || [])) await removeGamePath(game, p);
         for (const p of lv.files) {
           const parts = p.split('/');
           const name = parts.pop();
@@ -5446,12 +5455,14 @@ function serveLoop() {
       setStatus('Connecting...');
       try { if (navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
       try {
-        if (!text || !text.text || !voice || !voice.voice) throw new Error('no such language pack');
+        const noVoice = sel.voice === 'none';
+        if (!text || !text.text || (!noVoice && (!voice || !voice.voice))) throw new Error('no such language pack');
         const steps = [
           { key: 'base', info: g_langIndex.base, state: 'gothic-chunks-base.json' },
-          { key: 'text', info: text.text, state: 'gothic-chunks-text.json', lang: text.id },
-          { key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id }
+          { key: 'text', info: text.text, state: 'gothic-chunks-text.json', lang: text.id }
         ];
+        if (!noVoice) steps.push({ key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id });
+        else await removeRootEntry('gothic-chunks-voice.json');
         for (const s of steps) {
           const man = await fetchPackManifest(s.info);
           s.files = man.files.map(f => f.path);
@@ -5526,10 +5537,11 @@ function serveLoop() {
         // two languages side by side would both be mounted
         const removed = await pruneGameFiles(new Set(steps.flatMap(s => s.files)));
         if (removed) console.log('[SHELL] removed', removed, 'files of the previous language');
-        await writeRootJson(LANG_STATE, { text: text.id, voice: voice.id, files });
-        lsSet(LANG_SEL, JSON.stringify({ text: text.id, voice: voice.id }));
+        const voiceId = noVoice ? 'none' : voice.id;
+        await writeRootJson(LANG_STATE, { text: text.id, voice: voiceId, files });
+        lsSet(LANG_SEL, JSON.stringify({ text: text.id, voice: voiceId }));
         document.getElementById('lang-note').textContent = '';
-        await finishInstall({ source: 'language packs ' + text.id + '/' + voice.id, archiveBytes: total },
+        await finishInstall({ source: 'language packs ' + text.id + '/' + voiceId, archiveBytes: total },
                             { files: count, bytes, download: total });
       } catch (err) {
         if (isStorageFailure(err)) await installInMemory(); else
