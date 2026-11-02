@@ -16,6 +16,7 @@ else
 fi
 cp "$ROOT/web/landing.html" "$OUT/index.html"
 cp "$ROOT/web/gpucheck.html" "$OUT/gpucheck.html"   # диагностика WebGPU (на неё ссылается страница ошибки)
+cp "$ROOT/web/manifest.webmanifest" "$OUT/manifest.webmanifest"   # установка на экран «Домой» (iPhone/Android)
 cp "$ROOT"/dist-web/opengothic.{js,wasm,worker.js} "$OUT/"
 cp -rL "$ROOT/dist-web/img" "$OUT/img"
 cp _headers "$OUT/_headers"
