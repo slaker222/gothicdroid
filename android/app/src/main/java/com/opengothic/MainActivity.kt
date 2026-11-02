@@ -430,7 +430,7 @@ class MainActivity : AppCompatActivity() {
             for (g in gameList) {
                 val p = gamePath(g.id)
                 val o = JSONObject().put("id", g.id).put("title", g.title).put("path", p ?: JSONObject.NULL)
-                    .put("canDownload", g.id != 3)
+                    .put("canDownload", true)
                     .put("downloaded", isDownloaded(g.id))
                 if (p != null) o.put("vdf", vdfs(File(p)).size).put("manual", prefs().getString("path_${g.id}", null) == p)
                 a.put(o)
@@ -501,6 +501,18 @@ class MainActivity : AppCompatActivity() {
                 c.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             }
         }
+
+        // the icon of the app as a png data url (the About page)
+        @JavascriptInterface
+        fun appIcon(): String = try {
+            val d = packageManager.getApplicationIcon(packageName)
+            val bmp = android.graphics.Bitmap.createBitmap(192, 192, android.graphics.Bitmap.Config.ARGB_8888)
+            val c = android.graphics.Canvas(bmp)
+            d.setBounds(0, 0, 192, 192); d.draw(c)
+            val o = java.io.ByteArrayOutputStream()
+            bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, o)
+            "data:image/png;base64," + android.util.Base64.encodeToString(o.toByteArray(), android.util.Base64.NO_WRAP)
+        } catch (e: Exception) { "" }
 
         @JavascriptInterface
         fun version(): String = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
@@ -631,8 +643,10 @@ class MainActivity : AppCompatActivity() {
             }
             android.graphics.drawable.Icon.createWithAdaptiveBitmap(tile)
         } else android.graphics.drawable.Icon.createWithResource(this, android.R.drawable.sym_def_app_icon)
+        // not ACTION_MAIN: a launcher takes such an intent for the app's own icon and writes the app's name under it
         val intent = Intent(this, MainActivity::class.java).apply {
-            action = Intent.ACTION_MAIN
+            action = "com.gothic.droid.START_GAME"
+            data = Uri.parse("gothicdroid://game/$id")
             putExtra("game", id)
         }
         val info = android.content.pm.ShortcutInfo.Builder(this, "game$id")

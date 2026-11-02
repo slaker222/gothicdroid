@@ -86,7 +86,8 @@ class PackDownloader(private val server: String) {
         val rel = getJson(server.trim())
         if (rel.optString("format") != "gothic-release" || rel.optInt("version") != 1 || !rel.has("games"))
             throw Exception("not a release.json: $server")
-        val g = rel.getJSONObject("games").optJSONObject("g$game") ?: throw Exception("the release has no Gothic $game")
+        val g = rel.getJSONObject("games").optJSONObject("g$game")
+            ?: throw Exception(if (game == 3) "The Archolos pack is not published on the site yet: coming soon." else "the release has no Gothic $game")
         val langs = ArrayList<Lang>()
         val a = g.getJSONArray("languages")
         for (i in 0 until a.length()) {
