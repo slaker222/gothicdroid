@@ -5897,8 +5897,19 @@ function serveLoop() {
         else if (/Firefox|FxiOS/.test(ua))
           why = 'This Firefox has no WebGPU' + (/Android/.test(ua) ? ' (Firefox for Android does not offer it yet)' : '') +
                 '. Use Google Chrome.';
-        else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1))
-          why = 'WebGPU needs iOS/iPadOS 26 or newer (Safari). Update the system, or use Google Chrome on a computer or an Android phone.';
+        else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+          // only Safari 26+ has WebGPU: other iOS browsers (Chrome, Edge, in-app browsers of Telegram, Instagram ...) run on
+          // the system's web view without it; Safari says its own version in the UA (Version/26.x)
+          const sv = /Version\/(\d+)/.exec(ua), safari = !!sv && /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(ua);
+          if (safari && +sv[1] >= 26)
+            why = 'Safari ' + sv[1] + ' should have WebGPU, but it is switched off here. Check: <b>Settings &rarr; Apps &rarr; Safari &rarr; Advanced &rarr; Feature Flags &rarr; WebGPU</b> ' +
+                  'is on, Lockdown Mode is off, and the page is not opened in a private tab; then close the tab and open the page again.';
+          else if (!safari)
+            why = 'This browser (Chrome, Edge, or the browser inside another app) has no WebGPU on iPhone and iPad. Open this page in <b>Safari</b> ' +
+                  '(copy the address, or use the share menu &rarr; Open in Safari). It needs iOS/iPadOS 26 or newer.';
+          else
+            why = 'WebGPU needs iOS/iPadOS 26 or newer (Safari). This is Safari ' + (sv ? sv[1] : '') + ': update the system.';
+        }
         else if (/SamsungBrowser|EdgA|OPR|Opera|Brave|Vivaldi|DuckDuckGo|MiuiBrowser|UCBrowser|YaBrowser/.test(ua))
           why = 'This Chromium-based browser keeps WebGPU switched off. Open its flags page (chrome://flags, edge://flags, ' +
                 'opera://flags, brave://flags) and enable <b>Unsafe WebGPU Support</b> (#enable-unsafe-webgpu), then restart it; ' +
@@ -5917,9 +5928,13 @@ function serveLoop() {
       const order = gpuQ === 'low' ? [{ powerPreference: 'low-power' }, {}, { forceFallbackAdapter: true }]
                   : gpuQ === 'any' ? [{}, { powerPreference: 'low-power' }, { forceFallbackAdapter: true }]
                   : [{ powerPreference: 'high-performance' }, {}, { forceFallbackAdapter: true }];
-      for (const opt of order) {
-        try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
-        if (ad) break;
+      for (let round = 0; round < 3 && !ad; round++) {   // the GPU process of a phone sometimes answers "none" at the first try
+        if (round) await new Promise(r => setTimeout(r, 400 * round));
+        for (const opt of order) {
+          try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
+          if (ad) break;
+        }
+        if (!ad) console.warn('[SHELL] no WebGPU adapter, round ' + round);
       }
       if (!ad) {
         const android = /Android/.test(ua);
@@ -5953,6 +5968,7 @@ function serveLoop() {
     async function webgpuBlocked() {
       const why = await webgpuProblem();
       if (!why) return false;
+      console.error('[SHELL] WebGPU blocked: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
       window.__ogFatal = true;
       progressContainer.style.display = 'none';
       statusText.style.color = 'var(--danger)';
@@ -5966,6 +5982,7 @@ function serveLoop() {
     async function initWebGPU() {
       const why = await webgpuProblem();
       if (why) {
+        console.error('[SHELL] WebGPU unavailable: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
         const e = new Error(why.replace(/<[^>]+>/g, ''));
         e.html = why;
         throw e;
