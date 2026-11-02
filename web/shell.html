@@ -5,11 +5,61 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
   <link rel="icon" type="image/png" href="img/icon.png">
+  <meta name="theme-color" content="#000000">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GothicDroid">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="apple-touch-icon" href="img/icon.png">
+  <link rel="manifest" href="manifest.webmanifest">
+  <script>
+  // ---- iPhone / iPad Safari ----
+  // 1) older Safari has no FileSystemFileHandle.createWritable(): a worker writes the file with a sync access handle
+  (function () {
+    const P = window.FileSystemFileHandle && FileSystemFileHandle.prototype;
+    if (!P || P.createWritable) return;
+    let worker = null, seq = 0; const pend = new Map();
+    const src = 'onmessage=async e=>{const{id,fh,data}=e.data;try{const h=await fh.createSyncAccessHandle();try{h.truncate(0);let at=0;for(const c of data){h.write(c,{at});at+=c.byteLength}h.flush()}finally{h.close()}postMessage({id})}catch(err){postMessage({id,err:String(err&&err.message||err)})}}';
+    const getWorker = () => worker || (worker = (() => {
+      const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      w.onmessage = e => { const p = pend.get(e.data.id); pend.delete(e.data.id); e.data.err ? p.rej(new Error(e.data.err)) : p.res(); };
+      return w;
+    })());
+    const u8 = async d => d instanceof Blob ? new Uint8Array(await d.arrayBuffer()) : typeof d === 'string' ? new TextEncoder().encode(d) :
+      d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength));
+    P.createWritable = async function () {
+      const fh = this, chunks = [];
+      return {
+        async write(d) { if (d && d.type === 'write') d = d.data; chunks.push(await u8(d)); },
+        close() { return new Promise((res, rej) => { const id = ++seq; pend.set(id, { res, rej }); getWorker().postMessage({ id, fh, data: chunks.splice(0) }); }); },
+        async abort() { chunks.length = 0; }
+      };
+    };
+  })();
+  // 2) the visible height of the page (Safari's toolbars make var(--vh, 100vh) taller than the screen): --vh
+  (function () {
+    const set = () => document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01 * 100) + 'px');
+    set(); addEventListener('resize', set); addEventListener('orientationchange', () => setTimeout(set, 200));
+    if (window.visualViewport) visualViewport.addEventListener('resize', set);
+  })();
+  // 3) no pinch / double-tap zoom, no rubber-band scroll over the player
+  document.addEventListener('gesturestart', e => e.preventDefault());
+  document.addEventListener('gesturechange', e => e.preventDefault());
+  // 4) the screen stays on while the game is open (iOS 16.4+)
+  (function () {
+    let lock = null;
+    const ask = async () => { try { if (navigator.wakeLock && document.visibilityState === 'visible' && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } } catch (e) {} };
+    addEventListener('pointerdown', ask); document.addEventListener('visibilitychange', ask);
+  })();
+  </script>
   <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
   <meta property="og:description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <style>
+    html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+    #player, #player * { -webkit-touch-callout: none; }
     :root {
       --bg: #151515;
       --line: #3a3a3a;
@@ -46,7 +96,7 @@
 
     #player {
       position: relative;
-      width: min(100vw, calc((100vh - var(--about-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--about-h)) * 16 / 9));
       aspect-ratio: 16 / 9;
       background: #000;
       overflow: hidden;
@@ -56,7 +106,7 @@
     #lang-bar {
       --lang-h: 40px;
       height: var(--lang-h);
-      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9));
       display: flex;
       align-items: center;
       gap: 10px;
@@ -155,7 +205,7 @@
       .dn-info small { display: block; margin: 0; }
     }
     #lang-note { overflow: hidden; text-overflow: ellipsis; }
-    body.has-lang #player { width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9)); }
+    body.has-lang #player { width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9)); }
     /* strip under the player: progress of a voice language download */
     #voice-bar { display: none; }
     body.has-lang #voice-bar {
@@ -163,14 +213,14 @@
       align-items: center;
       gap: 10px;
       height: 30px;
-      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9));
       padding: 0 4px;
       color: var(--dim);
       white-space: nowrap;
     }
     #voice-bar.idle { visibility: hidden; }
     #legal {
-      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9));
       margin: 8px 0 16px;
       padding: 0 8px;
       font-size: 11px;
@@ -217,7 +267,7 @@
       inset: 0;
       z-index: 100;
       width: 100vw;
-      height: 100vh;
+      height: var(--vh, 100vh);
       aspect-ratio: auto;
     }
     body.window-mode > :not(#player):not(script) { display: none !important; }
@@ -712,8 +762,8 @@
     #player:fullscreen #fs-btn .icon-exit { display: block; }
 
     /* Android app: this page lies over the game's SurfaceView (web/make_android_ui.sh copies it to the app's assets) */
-    html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: 100vh; }
-    html.native #player { position: fixed; inset: 0; width: 100vw; height: 100vh; aspect-ratio: auto; background: transparent; }
+    html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: var(--vh, 100vh); }
+    html.native #player { position: fixed; inset: 0; width: 100vw; height: var(--vh, 100vh); aspect-ratio: auto; background: transparent; }
     html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
     html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
     html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #files-btn, html.native #files-menu,
@@ -3551,7 +3601,12 @@ async function installChunks(m) {
       apply();
     })();
 
+    // iPhone Safari has no Fullscreen API for a page element: the button is the window mode there (the page fills the screen;
+    // "Add to Home Screen" removes Safari's bars too)
+    const FS_OK = !!(player.requestFullscreen && document.fullscreenEnabled !== false);
+    if (!FS_OK) { const b = document.getElementById('fs-btn'); if (b) b.style.display = 'none'; }
     function toggleFullscreen() {
+      if (!FS_OK) { toggleWindowMode(); return; }
       if (!document.fullscreenElement) {
         player.requestFullscreen().catch(() => {});
       } else {

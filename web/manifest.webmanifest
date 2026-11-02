@@ -1,0 +1,12 @@
+{
+  "name": "GothicDroid",
+  "short_name": "GothicDroid",
+  "description": "Play Gothic 1 and Gothic 2 in the browser (OpenGothic, WebGPU)",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "landscape",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [{ "src": "img/icon.png", "sizes": "any", "type": "image/png", "purpose": "any" }]
+}
