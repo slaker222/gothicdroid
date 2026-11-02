@@ -273,6 +273,36 @@ def transform(words):
     return emit(header, out)
 
 
+def strip_clip_distances(text):
+    """WGSL without the clip_distances extension (Safari 26 has none; the VSM vertex shaders use it): the planes are dropped."""
+    m = re.search(r'struct VertexOutput \{(.*?)\n\}', text, re.S)
+    if not m:
+        return ''
+    members = [l for l in m.group(1).split('\n') if l.strip()]
+    idx = [i for i, l in enumerate(members) if 'clip_distances' in l]
+    if len(idx) != 1:
+        return ''
+    t = text.replace('enable clip_distances;\n', '')
+    t = re.sub(r'^[^\n]*@builtin\(clip_distances\)[^\n]*\n', '', t, flags=re.M)
+    t = re.sub(r',\s*array<f32, \d+>\(\)\)', ')', t)
+    t = re.sub(r'^[^\n]*\.gl_ClipDistance = [^\n]*;\n', '', t, flags=re.M)
+    cv = re.search(r'^\s*let (_e\d+) = \w+\.gl_ClipDistance;\n', t, re.M)
+    if cv:
+        t = t.replace(cv.group(0), '')
+    def drop(mm):
+        args, depth, cur = [], 0, ''
+        for ch in mm.group(1):
+            if ch in '(<': depth += 1
+            elif ch in ')>': depth -= 1
+            if ch == ',' and depth == 0: args.append(cur); cur = ''
+            else: cur += ch
+        args.append(cur)
+        del args[idx[0]]
+        return 'return VertexOutput(' + ','.join(args) + ');'
+    t = re.sub(r'return VertexOutput\((.*)\);', drop, t)
+    return t if 'clip_distances' not in t and 'gl_ClipDistance' not in t else ''
+
+
 def fixup_wgsl(text):
     """Post-process naga output for WGSL's stricter uniformity rules.
 
@@ -290,6 +320,8 @@ def fixup_wgsl(text):
     alt = text
     for name in re.findall(r'var<workgroup>\s+(\w+)\s*:\s*atomic<', text):
         alt = alt.replace('atomicLoad((&%s))' % name, 'workgroupUniformLoad((&%s))' % name)
+    if not alt or alt == text:
+        alt = strip_clip_distances(text) if 'clip_distances' in text else ''
     return text, (alt if alt != text else '')
 
 
