@@ -794,17 +794,17 @@
     .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
     .game button:active { border-color: var(--accent); }
-    .game button.play { flex: none; width: 96px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    .game button.play { flex: none; width: 68px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
     .game button.play:disabled { opacity: .35; }
     .game button.play.busy { opacity: 1; color: #fff; border-color: var(--line); padding: 0 2px; line-height: 1.15; white-space: nowrap; }
-    .game button.play.busy span { display: block; mix-blend-mode: difference; color: #fff; font-size: 10px; font-weight: 600; }
-    .game button.play.busy span b { display: block; font-size: 14px; }
+    .game button.play.busy span { display: block; mix-blend-mode: difference; color: #fff; font-size: 9px; font-weight: 600; }
+    .game button.play.busy span b { display: block; font-size: 13px; }
     .game button svg { width: 20px; height: 20px; fill: currentColor; vertical-align: middle; margin-right: 4px; }
     .game button.icon { padding: 9px 11px; display: flex; align-items: center; }
     .game button.icon svg { margin: 0; }
     .game button:disabled { opacity: .4; }
-    .game button.play, .game button.folder, .game button.dl { box-sizing: border-box; height: 56px; overflow: hidden; }
-    .game button.folder, .game button.dl { flex: none; width: 96px; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
+    .game button.play, .game button.folder, .game button.dl { box-sizing: border-box; height: 40px; overflow: hidden; }
+    .game button.folder, .game button.dl { flex: none; width: 88px; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
 
     /* Explore: a file manager */
     #tab-explore { gap: 10px; }
@@ -1306,8 +1306,8 @@
           const pct = st.total ? Math.min(100, st.done * 100 / st.total) : 0;
           play.classList.add('busy');
           play.style.background = 'linear-gradient(to right, #fff ' + pct + '%, #000 ' + pct + '%)';
-          play.innerHTML = '<span><b>' + Math.floor(pct) + '%</b>' + mb(st.done) + ' / ' + mb(st.total) + '<br>' + (dlSpeed / 1048576).toFixed(1) + ' MB/s</span>';
-          info.style.display = 'flex'; info.querySelector('.dl-text').textContent = '';
+          play.innerHTML = '<span><b>' + Math.floor(pct) + '%</b>' + Math.round(st.done / 1048576) + '/' + mb(st.total) + '</span>';
+          info.style.display = 'flex'; info.querySelector('.dl-text').textContent = (dlSpeed / 1048576).toFixed(1) + ' MB/s';
         } else {
           info.style.display = 'none';
           play.classList.remove('busy'); play.style.background = ''; play.textContent = 'Play';
