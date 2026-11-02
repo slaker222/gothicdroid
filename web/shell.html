@@ -5,16 +5,18 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
   <link rel="icon" type="image/png" href="img/icon.png">
-  <meta name="theme-color" content="#000000">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="GothicDroid">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
   <meta name="format-detection" content="telephone=no">
   <link rel="apple-touch-icon" href="img/icon.png">
-  <link rel="manifest" href="manifest.webmanifest">
   <script>
-  // ---- iPhone / iPad Safari ----
+  // ---- iPhone / iPad Safari: everything below that is not a feature test works only there ----
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (IOS) {
+    document.documentElement.classList.add('ios');
+    const l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest'; document.head.appendChild(l);
+  }
   // 1) older Safari has no FileSystemFileHandle.createWritable(): a worker writes the file with a sync access handle
   (function () {
     const P = window.FileSystemFileHandle && FileSystemFileHandle.prototype;
@@ -39,15 +41,18 @@
   })();
   // 2) the visible height of the page (Safari's toolbars make var(--vh, 100vh) taller than the screen): --vh
   (function () {
+    if (!IOS) return;
     const set = () => document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01 * 100) + 'px');
     set(); addEventListener('resize', set); addEventListener('orientationchange', () => setTimeout(set, 200));
     if (window.visualViewport) visualViewport.addEventListener('resize', set);
   })();
   // 3) no pinch / double-tap zoom, no rubber-band scroll over the player
-  document.addEventListener('gesturestart', e => e.preventDefault());
-  document.addEventListener('gesturechange', e => e.preventDefault());
+  if (IOS) {
+    document.addEventListener('gesturestart', e => e.preventDefault());
+    document.addEventListener('gesturechange', e => e.preventDefault());
+  }
   // 4) the screen stays on while the game is open (iOS 16.4+)
-  (function () {
+  if (IOS) (function () {
     let lock = null;
     const ask = async () => { try { if (navigator.wakeLock && document.visibilityState === 'visible' && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } } catch (e) {} };
     addEventListener('pointerdown', ask); document.addEventListener('visibilitychange', ask);
@@ -57,10 +62,9 @@
   //    ?gapidbg=N sets the engine's debug bits by hand (4 = no bundles, 0 = the normal path) to compare.
   (function () {
     const m = /[?&]gapidbg=(\d+)/.exec(location.search);
-    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
-    // Safari before 27 draws without textures from the cached bind groups (iPad, Safari 26.6, checked): 64 = they are created again for every draw
+    const ios = IOS;
     const sv = /Version\/(\d+)[\d.]*.*Safari\//.exec(navigator.userAgent), oldSafari = !!sv && !/Chrome|CriOS|FxiOS|Edg/.test(navigator.userAgent) && +sv[1] < 27;
-    if (m) window.__OG_GAPI_DEBUG = +m[1]; else window.__OG_GAPI_DEBUG = ios ? 4 | 64 | 128 : (oldSafari ? 64 : 0);   // iPhone / iPad: no bundles, bind groups for one frame, no explicit texture destroy (196, checked on Gothic 2)
+    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 64 | 128;   // iPhone / iPad: no bundles, bind groups for one frame, no explicit texture destroy (196, checked on Gothic 2)
     if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
     setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
@@ -137,7 +141,7 @@
   <meta property="og:title" content="GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
   <meta property="og:description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <style>
-    html, body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+    html.ios, html.ios body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
     #player, #player * { -webkit-touch-callout: none; }
     :root {
       --bg: #151515;
