@@ -47,3 +47,12 @@ web/.cert/
 cloudflare/public/
 cloudflare/node_modules/
 cloudflare/.wrangler/
+
+# Markdown docs and notes for the AI assistant (not published)
+*.md
+CLAUDE.md
+.claude/
+
+# Game download links (mirrors, archive URLs)
+web/release.json
+release*.json

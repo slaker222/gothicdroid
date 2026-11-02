@@ -4317,9 +4317,7 @@ function serveLoop() {
     // or a chunked pack (manifest.json, tools/pack_web.py; chunks next to it).
     // Further links are mirrors of the same pack, used when the first one fails.
     // Overridden by ?archive=<url>. The server must allow CORS.
-    const ARCHIVE_URLS = [
-      'https://example.invalid/removed'
-    ];
+    const ARCHIVE_URLS = [];   // links are in release.json (kept out of git) or ?archive=<url>
 
     // OPFS root entries next to the game directory
     const DL_ZIP = 'gothic-download' + GAME_SUF + '.zip';     // archive being downloaded
