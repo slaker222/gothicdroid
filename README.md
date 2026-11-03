@@ -4,6 +4,7 @@
 Gothic and Gothic II: Night of the Raven engine, to phones and browsers.
 
 - **Native Android build**: the game runs natively on Android with touch controls.
+  **Play on Android: [download the APK from Releases](https://github.com/slaker222/gothicdroid/releases)**
 - **Web version for Android, iPhone and PC**: play in the browser (WebGPU), nothing to install:
   **https://gothicplay.fun**
 
