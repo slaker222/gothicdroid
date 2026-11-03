@@ -12,6 +12,10 @@ Gothic and Gothic II: Night of the Raven engine, to phones and browsers.
 
 *Gothic on a phone with a Snapdragon 695 (touch controls, FPS counter in the top left corner).*
 
+![GothicDroid running on a phone with a MediaTek Helio G90T](docs/images/helio-g90t.jpg)
+
+*Gothic on a phone with a MediaTek Helio G90T.*
+
 ## Links
 
 - Web version: https://gothicplay.fun
