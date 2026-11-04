@@ -69,6 +69,43 @@
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
     setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
   })();
+  // 6) the device and the engine log go to the site's log (Cloudflare D1) so a problem on a phone can be read without the phone:
+  //    UA, screen, the WebGPU adapter (features, limits), warnings, errors and the key engine lines. No IP, no cookies, no names.
+  //    Only with ?log in the address (no ?log - nothing is sent). Only on the public site, not on localhost.
+  (function () {
+    if (!/[?&]log\b/.test(location.search)) return;
+    if (!/(^|\.)gothicplay\.fun$|\.workers\.dev$/.test(location.hostname)) return;
+    const sid = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => (b % 36).toString(36)).join('') + Date.now().toString(36);
+    const q = []; let dev = null, n = 0, perf = 0, sent = false;
+    const KEEP = /WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
+    const push = (k, a) => {
+      if (n > 2500) return;
+      let t = Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ');
+      if (k === ' ') { if (/\[PERF\]/.test(t)) { if (perf++ % 5) return; } else if (/DRAW_PERF|\[Gothic\]|zenkit|room not found|alias not|comb not|addNpc/.test(t)) return; else if (n > 300 && !KEEP.test(t)) return; }
+      n++; q.push([k, t.slice(0, 480), Date.now()]);
+    };
+    ['log', 'info', 'warn', 'error'].forEach(k => { const o = console[k]; console[k] = function () { push(k === 'log' || k === 'info' ? ' ' : k === 'warn' ? 'W' : 'E', arguments); return o.apply(console, arguments); }; });
+    addEventListener('error', e => push('E', ['JS error:', e.message, (e.filename || '').split('/').pop() + ':' + e.lineno]));
+    addEventListener('unhandledrejection', e => push('E', ['promise:', e.reason && (e.reason.message || e.reason)]));
+    const flush = () => {
+      if (!q.length && sent) return;
+      let k = 0, sz = 0; while (k < q.length && k < 200 && sz < 40000) sz += q[k++][1].length + 20;
+      const body = JSON.stringify({ sid, dev: sent ? undefined : dev || { ua: navigator.userAgent }, lines: q.splice(0, k) });
+      sent = true;
+      try { fetch('/__log', { method: 'POST', body, keepalive: body.length < 60000 }).catch(() => {}); } catch (e) {}
+    };
+    const base = { ua: navigator.userAgent, screen: screen.width + 'x' + screen.height, inner: innerWidth + 'x' + innerHeight, dpr: devicePixelRatio,
+                   touch: navigator.maxTouchPoints, mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null,
+                   page: location.pathname, lang: navigator.language, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) };
+    dev = base;
+    const start = () => { setInterval(flush, 2500); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }); addEventListener('pagehide', flush); };
+    if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
+      if (a) { const l = {}; for (const k in a.limits) l[k] = a.limits[k]; dev = Object.assign({}, base, { features: [...a.features], limits: l, adapter: a.info ? { vendor: a.info.vendor, architecture: a.info.architecture, device: a.info.device, description: a.info.description } : null, canvas: navigator.gpu.getPreferredCanvasFormat() }); }
+      else dev = Object.assign({}, base, { adapter: 'none' });
+      flush(); start();
+    }, () => { dev = Object.assign({}, base, { adapter: 'error' }); flush(); start(); });
+    else { dev = Object.assign({}, base, { adapter: 'no navigator.gpu' }); flush(); start(); }
+  })();
   // 5) ?log: the page's console on the screen (an iPhone has no dev tools): open the game with ?log and send a screenshot / the copied text
   if (/[?&]log\b/.test(location.search)) {
     const lines = []; let box, pre;
@@ -83,6 +120,7 @@
       const b = document.createElement('button'); b.textContent = 'Copy log'; b.style.cssText = 'position:fixed;right:6px;bottom:6px;z-index:100000;padding:10px 14px;font-size:14px';
       b.onclick = () => { const t = lines.join('\n'); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch (e) { b.textContent = 'Failed'; } ta.remove(); }); setTimeout(() => b.textContent = 'Copy log', 1500); };
       document.body.appendChild(box); document.body.appendChild(b);
+      add('W', ['NOTICE: with ?log this page SAVES this log (browser, screen, graphics adapter, game log; no IP, no personal data) on the site server to fix problems. Remove ?log to stop.']);
       add(' ', ['UA', navigator.userAgent, 'dpr', devicePixelRatio, 'screen', screen.width + 'x' + screen.height, 'inner', innerWidth + 'x' + innerHeight]);
       if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
         if (!a) { add('E', ['no adapter']); return; }
