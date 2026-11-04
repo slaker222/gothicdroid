@@ -118,8 +118,9 @@
     // after a pipeline change / before every draw);
     // plain ?cycle: draws of the lighting pass / the fog pass are dropped
     const seq = bgMode
-      ? [['4096 (rebind after pipeline change)', 4096], ['4096 + 2048', 4096 | 2048], ['4 + 4096', 4 | 4096], ['4 + 4096 + 2048', 4 | 4096 | 2048],
-         ['8192 + 4 (rebind every draw)', 8192 | 4], ['8192 + 2048', 8192 | 2048], ['4 + 8192 + 2048', 4 | 8192 | 2048], ['388 (default)', 388]]
+      ? [['4096 (known: some small textures)', 4096], ['8192 (rebind every draw, bundles on)', 8192], ['4096 + 8192 + 2048', 4096 | 8192 | 2048],
+         ['4096 + 128 + 256', 4096 | 128 | 256], ['4096 + 64', 4096 | 64], ['8192 + 64 + 128 + 256', 8192 | 64 | 128 | 256],
+         ['4096 + 1024 (no bg cache)', 4096 | 1024], ['8192 + 1024 + 128 + 256 + 2048', 8192 | 1024 | 128 | 256 | 2048]]
       : [['skip lighting draws 2+4 (ambient, sky)', [(1<<2)|(1<<4), 0]], ['skip draws 1+4 (direct, sky)', [(1<<1)|(1<<4), 0]],
          ['skip draws 3+4 (lights, sky)', [(1<<3)|(1<<4), 0]], ['skip draws 1+2+3 (only sky stays)', [(1<<1)|(1<<2)|(1<<3), 0]],
          ['skip sky + fog pass 9', [1<<4, 1<<9]], ['skip ambient + sky + fog pass 9', [(1<<2)|(1<<4), 1<<9]],
