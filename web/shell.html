@@ -65,6 +65,7 @@
     const ios = IOS;
     const sv = /Version\/(\d+)[\d.]*.*Safari\//.exec(navigator.userAgent), oldSafari = !!sv && !/Chrome|CriOS|FxiOS|Edg/.test(navigator.userAgent) && +sv[1] < 27;
     if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 128 | 256;   // iPhone / iPad: no bundles, no explicit texture destroy, texture views not kept between uses (388: textures right and ~60 FPS on iPad, Gothic 2)
+    if (/[?&]log\b/.test(location.search)) window.__OG_GAPI_DEBUG = (window.__OG_GAPI_DEBUG | 0) | 512;   // ?log: the engine also reads back the GPU-culled indirect draw buffer and logs it ([IND] lines)
     if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
     setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
@@ -77,7 +78,7 @@
     if (!/(^|\.)gothicplay\.fun$|\.workers\.dev$/.test(location.hostname)) return;
     const sid = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => (b % 36).toString(36)).join('') + Date.now().toString(36);
     const q = []; let dev = null, n = 0, perf = 0, sent = false;
-    const KEEP = /WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
+    const KEEP = /\[IND\]|WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
     const push = (k, a) => {
       if (n > 2500) return;
       let t = Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ');
