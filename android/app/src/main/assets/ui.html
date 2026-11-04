@@ -5,11 +5,178 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
   <link rel="icon" type="image/png" href="img/icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="GothicDroid">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="format-detection" content="telephone=no">
+  <link rel="apple-touch-icon" href="img/icon.png">
+  <script>
+  // ---- iPhone / iPad Safari: everything below that is not a feature test works only there ----
+  const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (IOS) {
+    document.documentElement.classList.add('ios');
+    const l = document.createElement('link'); l.rel = 'manifest'; l.href = 'manifest.webmanifest'; document.head.appendChild(l);
+  }
+  // 1) older Safari has no FileSystemFileHandle.createWritable(): a worker writes the file with a sync access handle
+  (function () {
+    const P = window.FileSystemFileHandle && FileSystemFileHandle.prototype;
+    if (!P || P.createWritable) return;
+    let worker = null, seq = 0; const pend = new Map();
+    const src = 'onmessage=async e=>{const{id,fh,data}=e.data;try{const h=await fh.createSyncAccessHandle();try{h.truncate(0);let at=0;for(const c of data){h.write(c,{at});at+=c.byteLength}h.flush()}finally{h.close()}postMessage({id})}catch(err){postMessage({id,err:String(err&&err.message||err)})}}';
+    const getWorker = () => worker || (worker = (() => {
+      const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+      w.onmessage = e => { const p = pend.get(e.data.id); pend.delete(e.data.id); e.data.err ? p.rej(new Error(e.data.err)) : p.res(); };
+      return w;
+    })());
+    const u8 = async d => d instanceof Blob ? new Uint8Array(await d.arrayBuffer()) : typeof d === 'string' ? new TextEncoder().encode(d) :
+      d instanceof ArrayBuffer ? new Uint8Array(d.slice(0)) : new Uint8Array(d.buffer.slice(d.byteOffset, d.byteOffset + d.byteLength));
+    P.createWritable = async function () {
+      const fh = this, chunks = [];
+      return {
+        async write(d) { if (d && d.type === 'write') d = d.data; chunks.push(await u8(d)); },
+        close() { return new Promise((res, rej) => { const id = ++seq; pend.set(id, { res, rej }); getWorker().postMessage({ id, fh, data: chunks.splice(0) }); }); },
+        async abort() { chunks.length = 0; }
+      };
+    };
+  })();
+  // 2) the visible height of the page (Safari's toolbars make var(--vh, 100vh) taller than the screen): --vh
+  (function () {
+    if (!IOS) return;
+    const set = () => document.documentElement.style.setProperty('--vh', (window.innerHeight * 0.01 * 100) + 'px');
+    set(); addEventListener('resize', set); addEventListener('orientationchange', () => setTimeout(set, 200));
+    if (window.visualViewport) visualViewport.addEventListener('resize', set);
+  })();
+  // 3) no pinch / double-tap zoom, no rubber-band scroll over the player
+  if (IOS) {
+    document.addEventListener('gesturestart', e => e.preventDefault());
+    document.addEventListener('gesturechange', e => e.preventDefault());
+  }
+  // 4) the screen stays on while the game is open (iOS 16.4+)
+  if (IOS) (function () {
+    let lock = null;
+    const ask = async () => { try { if (navigator.wakeLock && document.visibilityState === 'visible' && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => { lock = null; }); } } catch (e) {} };
+    addEventListener('pointerdown', ask); document.addEventListener('visibilitychange', ask);
+  })();
+  // 7) iPhone / iPad: Safari draws wrong (textures missing) with the engine's render bundles that replay the recorded draw calls
+  //    (right after any change of the graphics preset, which drops them, the picture is right): they are off there.
+  //    ?gapidbg=N sets the engine's debug bits by hand (4 = no bundles, 0 = the normal path) to compare.
+  (function () {
+    const m = /[?&]gapidbg=(\d+)/.exec(location.search);
+    const ios = IOS;
+    const sv = /Version\/(\d+)[\d.]*.*Safari\//.exec(navigator.userAgent), oldSafari = !!sv && !/Chrome|CriOS|FxiOS|Edg/.test(navigator.userAgent) && +sv[1] < 27;
+    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 128 | 256 | 16384;   // iPhone / iPad: no bundles, no explicit texture destroy, texture views not kept between uses (388: textures right and ~60 FPS on iPad, Gothic 2); 16384: the lighting / sky passes use a writable depth attachment and sample a copy of the depth (Safari 26 on iPhone 17 / Air / iPad Pro lost the read-only depth test: the ground was covered by the sky haze)
+    if (/[?&]log\b/.test(location.search)) window.__OG_GAPI_DEBUG = (window.__OG_GAPI_DEBUG | 0) | 512;   // ?log: the engine also reads back the GPU-culled indirect draw buffer and logs it ([IND] lines)
+    if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
+    if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
+    setTimeout(() => console.log('[SHELL] gapidbg=' + window.__OG_GAPI_DEBUG + (window.__ogNoAstc ? ' noastc' : '') + (window.__ogForceBC ? ' bc' : '') + ' safari=' + (sv ? sv[1] : '-') + ' q=' + location.search), 0);
+  })();
+  // 6) the device and the engine log go to the site's log (Cloudflare D1) so a problem on a phone can be read without the phone:
+  //    UA, screen, the WebGPU adapter (features, limits), warnings, errors and the key engine lines. No IP, no cookies, no names.
+  //    Only with ?log in the address (no ?log - nothing is sent). Only on the public site, not on localhost.
+  (function () {
+    if (!/[?&]log\b/.test(location.search)) return;
+    if (!/(^|\.)gothicplay\.fun$|\.workers\.dev$/.test(location.hostname)) return;
+    const sid = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => (b % 36).toString(36)).join('') + Date.now().toString(36);
+    const q = []; let dev = null, n = 0, perf = 0, sent = false;
+    const KEEP = /\[IND\]|\[PAY\]|\[TEX\]|\[DEPTH\]|\[PASS\]|\[CFG\]|WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
+    const push = (k, a) => {
+      if (n > 2500) return;
+      let t = Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ');
+      if (k === ' ') { if (/\[PERF\]/.test(t)) { if (perf++ % 5) return; } else if (/DRAW_PERF|\[Gothic\]|zenkit|room not found|alias not|comb not|addNpc/.test(t)) return; else if (n > 300 && !KEEP.test(t)) return; }
+      n++; q.push([k, t.slice(0, 480), Date.now()]);
+    };
+    ['log', 'info', 'warn', 'error'].forEach(k => { const o = console[k]; console[k] = function () { push(k === 'log' || k === 'info' ? ' ' : k === 'warn' ? 'W' : 'E', arguments); return o.apply(console, arguments); }; });
+    addEventListener('error', e => push('E', ['JS error:', e.message, (e.filename || '').split('/').pop() + ':' + e.lineno]));
+    addEventListener('unhandledrejection', e => push('E', ['promise:', e.reason && (e.reason.message || e.reason)]));
+    const flush = () => {
+      if (!q.length && sent) return;
+      let k = 0, sz = 0; while (k < q.length && k < 200 && sz < 40000) sz += q[k++][1].length + 20;
+      const body = JSON.stringify({ sid, dev: sent ? undefined : dev || { ua: navigator.userAgent }, lines: q.splice(0, k) });
+      sent = true;
+      try { fetch('/__log', { method: 'POST', body, keepalive: body.length < 60000 }).catch(() => {}); } catch (e) {}
+    };
+    const base = { ua: navigator.userAgent, screen: screen.width + 'x' + screen.height, inner: innerWidth + 'x' + innerHeight, dpr: devicePixelRatio,
+                   touch: navigator.maxTouchPoints, mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null,
+                   page: location.pathname, lang: navigator.language, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) };
+    dev = base;
+    const start = () => { setInterval(flush, 2500); document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') flush(); }); addEventListener('pagehide', flush); };
+    if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
+      if (a) { const l = {}; for (const k in a.limits) l[k] = a.limits[k]; dev = Object.assign({}, base, { features: [...a.features], limits: l, adapter: a.info ? { vendor: a.info.vendor, architecture: a.info.architecture, device: a.info.device, description: a.info.description } : null, canvas: navigator.gpu.getPreferredCanvasFormat() }); }
+      else dev = Object.assign({}, base, { adapter: 'none' });
+      flush(); start();
+    }, () => { dev = Object.assign({}, base, { adapter: 'error' }); flush(); start(); });
+    else { dev = Object.assign({}, base, { adapter: 'no navigator.gpu' }); flush(); start(); }
+  })();
+  // 8) ?log&cycle: one run tries several engine debug settings one after another (a label on the screen says which one is on now,
+  //    [CFG] lines in the log). Here: draw calls of some render passes are dropped (window.__OG_SKIP, bit N = pass N of the frame)
+  //    to see which pass hides the picture on iPhone (Safari 26). Short steps: a phone session on the site is about a minute.
+  if (/[?&]log\b/.test(location.search) && /[?&]cycle\b/.test(location.search)) (function () {
+    const bit = n => 1 << n;
+    const bgMode = /[?&]cycle=bg\b/.test(location.search);
+    // ?cycle=bg: engine debug bits one after another (4 = no bundles, 64 = bind group cache for one frame, 128 = no texture destroy,
+    // 256 = views not kept, 1024 = no bind group cache at all, 2048 = shaders sample a copy of the depth in read-only-depth passes, 4096 / 8192 = bind group and buffers set again
+    // after a pipeline change / before every draw, 16384 = writable depth attachment instead of read-only (+ copy),
+    // 32768 = stencilReadOnly with a read-only Depth32F, 65536 = clear value 0.5 for the read-only depth);
+    // plain ?cycle: draws of the lighting pass / the fog pass are dropped
+    const seq = bgMode
+      ? [['A: writable depth + copy (16384)', 388 | 16384], ['B1: stencilReadOnly (32768)', 388 | 32768], ['B2: clear 0.5 (65536)', 388 | 65536],
+         ['A, bundles on', 16384], ['B1, bundles on', 32768], ['A + 4096, bundles on', 16384 | 4096], ['388 (default)', 388]]
+      : [['skip lighting draws 2+4 (ambient, sky)', [(1<<2)|(1<<4), 0]], ['skip draws 1+4 (direct, sky)', [(1<<1)|(1<<4), 0]],
+         ['skip draws 3+4 (lights, sky)', [(1<<3)|(1<<4), 0]], ['skip draws 1+2+3 (only sky stays)', [(1<<1)|(1<<2)|(1<<3), 0]],
+         ['skip sky + fog pass 9', [1<<4, 1<<9]], ['skip ambient + sky + fog pass 9', [(1<<2)|(1<<4), 1<<9]],
+         ['skip fog pass 9 only', [0, 1<<9]], ['normal', [0, 0]]];
+    const PERIOD = 3000;   // ms per step: ~21-24 s (a phone session on the site is about a minute, ~30 s of it is the load)
+    let lab = null;
+    const show = t => { try { if (!lab) { lab = document.createElement('div'); lab.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:100001;background:rgba(0,0,0,.8);color:#ff6;font:700 15px ui-monospace,Menlo,monospace;padding:6px 10px;border-radius:6px;pointer-events:none'; document.body.appendChild(lab); } lab.textContent = t; } catch (e) {} };
+    let i = -1, started = false;
+    const step = () => {
+      i++;
+      if (i >= seq.length) { window.__OG_SKIP = 0; window.__OG_SKIPD = 0; window.__OG_SKIP6 = 0; if (bgMode) window.__OG_GAPI_DEBUG = 388 | 512; show('cycle done'); return; }
+      if (bgMode) window.__OG_GAPI_DEBUG = seq[i][1] | 512; else { window.__OG_SKIP6 = seq[i][1][0]; window.__OG_SKIP = seq[i][1][1]; }
+      const t = 'cfg ' + (i + 1) + '/' + seq.length + ': ' + seq[i][0];
+      console.log('[CFG] ' + t + ' v=' + JSON.stringify(seq[i][1]));
+      show(t);
+      setTimeout(step, PERIOD);
+    };
+    // starts when the game draws its world (a frame with many draws), not by the clock
+    const wait = setInterval(() => {
+      try { if (window.__ogDraws > 500 && !document.getElementById('og-video') && !started) { started = true; clearInterval(wait); setTimeout(step, 1500); } } catch (e) {}
+    }, 250);
+  })();
+  // 5) ?log: the page's console on the screen (an iPhone has no dev tools): open the game with ?log and send a screenshot / the copied text
+  if (/[?&]log\b/.test(location.search)) {
+    const lines = []; let box, pre;
+    const add = (k, a) => { const t = (k + ' ' + Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ')).slice(0, 1800); lines.push(t); if (pre) pre.textContent = lines.slice(-45).join('\n'); };
+    ['log', 'info', 'warn', 'error'].forEach(k => { const o = console[k]; console[k] = function () { add(k === 'log' || k === 'info' ? ' ' : k === 'warn' ? 'W' : 'E', arguments); return o.apply(console, arguments); }; });
+    addEventListener('error', e => add('E', ['JS error:', e.message, (e.filename || '').split('/').pop() + ':' + e.lineno]));
+    addEventListener('unhandledrejection', e => add('E', ['promise:', e.reason && (e.reason.message || e.reason)]));
+    const ui = () => {
+      box = document.createElement('div');
+      box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:rgba(0,0,0,.78);color:#9f9;font:9px/1.25 ui-monospace,Menlo,monospace;max-height:45vh;overflow:auto;pointer-events:none' + (/[?&]cycle\b/.test(location.search) ? ';display:none' : '');
+      pre = document.createElement('pre'); pre.style.cssText = 'margin:0;padding:4px;white-space:pre-wrap;word-break:break-all'; box.appendChild(pre);
+      const b = document.createElement('button'); b.textContent = 'Copy log'; b.style.cssText = 'position:fixed;right:6px;bottom:6px;z-index:100000;padding:10px 14px;font-size:14px';
+      b.onclick = () => { const t = lines.join('\n'); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch (e) { b.textContent = 'Failed'; } ta.remove(); }); setTimeout(() => b.textContent = 'Copy log', 1500); };
+      document.body.appendChild(box); document.body.appendChild(b);
+      add('W', ['NOTICE: with ?log this page SAVES this log (browser, screen, graphics adapter, game log; no IP, no personal data) on the site server to fix problems. Remove ?log to stop.']);
+      add(' ', ['UA', navigator.userAgent, 'dpr', devicePixelRatio, 'screen', screen.width + 'x' + screen.height, 'inner', innerWidth + 'x' + innerHeight]);
+      if (navigator.gpu) navigator.gpu.requestAdapter().then(a => {
+        if (!a) { add('E', ['no adapter']); return; }
+        add(' ', ['features:', [...a.features].join(',')]);
+        const l = {}; for (const k in a.limits) l[k] = a.limits[k]; add(' ', ['limits:', l]);
+        if (a.info) add(' ', ['adapter:', { vendor: a.info.vendor, architecture: a.info.architecture, device: a.info.device, description: a.info.description }]);
+        add(' ', ['canvas format:', navigator.gpu.getPreferredCanvasFormat()]);
+      }); else add('E', ['no navigator.gpu']);
+    };
+    if (document.body) ui(); else document.addEventListener('DOMContentLoaded', ui);
+  }
+  </script>
   <meta name="description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <meta property="og:type" content="website">
   <meta property="og:title" content="GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC">
   <meta property="og:description" content="Play Gothic 1 and Gothic 2 right in your browser, on Android and PC. This is a build of OpenGothic for the browser (WebAssembly + WebGPU). Unofficial fan project.">
   <style>
+    html.ios, html.ios body { overscroll-behavior: none; -webkit-text-size-adjust: 100%; }
+    #player, #player * { -webkit-touch-callout: none; }
     :root {
       --bg: #151515;
       --line: #3a3a3a;
@@ -46,7 +213,7 @@
 
     #player {
       position: relative;
-      width: min(100vw, calc((100vh - var(--about-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--about-h)) * 16 / 9));
       aspect-ratio: 16 / 9;
       background: #000;
       overflow: hidden;
@@ -56,7 +223,7 @@
     #lang-bar {
       --lang-h: 40px;
       height: var(--lang-h);
-      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9));
       display: flex;
       align-items: center;
       gap: 10px;
@@ -155,7 +322,7 @@
       .dn-info small { display: block; margin: 0; }
     }
     #lang-note { overflow: hidden; text-overflow: ellipsis; }
-    body.has-lang #player { width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9)); }
+    body.has-lang #player { width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9)); }
     /* strip under the player: progress of a voice language download */
     #voice-bar { display: none; }
     body.has-lang #voice-bar {
@@ -163,14 +330,14 @@
       align-items: center;
       gap: 10px;
       height: 30px;
-      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9));
       padding: 0 4px;
       color: var(--dim);
       white-space: nowrap;
     }
     #voice-bar.idle { visibility: hidden; }
     #legal {
-      width: min(100vw, calc((100vh - var(--chrome-h)) * 16 / 9));
+      width: min(100vw, calc((var(--vh, 100vh) - var(--chrome-h)) * 16 / 9));
       margin: 8px 0 16px;
       padding: 0 8px;
       font-size: 11px;
@@ -217,7 +384,7 @@
       inset: 0;
       z-index: 100;
       width: 100vw;
-      height: 100vh;
+      height: var(--vh, 100vh);
       aspect-ratio: auto;
     }
     body.window-mode > :not(#player):not(script) { display: none !important; }
@@ -712,8 +879,8 @@
     #player:fullscreen #fs-btn .icon-exit { display: block; }
 
     /* Android app: this page lies over the game's SurfaceView (web/make_android_ui.sh copies it to the app's assets) */
-    html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: 100vh; }
-    html.native #player { position: fixed; inset: 0; width: 100vw; height: 100vh; aspect-ratio: auto; background: transparent; }
+    html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: var(--vh, 100vh); }
+    html.native #player { position: fixed; inset: 0; width: 100vw; height: var(--vh, 100vh); aspect-ratio: auto; background: transparent; }
     html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
     html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
     html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #files-btn, html.native #files-menu,
@@ -3551,7 +3718,12 @@ async function installChunks(m) {
       apply();
     })();
 
+    // iPhone Safari has no Fullscreen API for a page element: the button is the window mode there (the page fills the screen;
+    // "Add to Home Screen" removes Safari's bars too)
+    const FS_OK = !!(player.requestFullscreen && document.fullscreenEnabled !== false);
+    if (!FS_OK) { const b = document.getElementById('fs-btn'); if (b) b.style.display = 'none'; }
     function toggleFullscreen() {
+      if (!FS_OK) { toggleWindowMode(); return; }
       if (!document.fullscreenElement) {
         player.requestFullscreen().catch(() => {});
       } else {
@@ -3638,6 +3810,20 @@ async function installChunks(m) {
       }
       if (out.game) { try { localStorage.setItem('game', out.game === 'g2' ? '2' : '1'); } catch (e) {} }
       return out;
+    })();
+
+    // The browser's Back button leads to the game list (/main): the first game page in a tab gets a second history entry, and Back to the first one opens that page.
+    // Not when the player came from /main already, not in the Android app, not in a frame; survives a reload.
+    (function () {
+      try {
+        if (window.top !== window || document.documentElement.classList.contains('native') || location.pathname === '/main') return;
+        const back = () => addEventListener('popstate', e => { if (!e.state || !e.state.ogGame) location.replace('/main'); });
+        if (history.state && history.state.ogGame) return back();   // reloaded: the entry is already there, only the handler is lost
+        let ref = ''; try { ref = new URL(document.referrer).pathname; } catch (e) {}
+        if (document.referrer && new URL(document.referrer).origin === location.origin && /^\/main(\.html)?$/.test(ref)) return;
+        history.pushState({ ogGame: 1 }, '', location.href);   // a second entry for the same page; Back to the first one opens /main
+        back();
+      } catch (e) {}
     })();
     const GAME_ID = (() => {
       if (LINK_CHOICE.game) return LINK_CHOICE.game;
@@ -4499,8 +4685,8 @@ function serveLoop() {
           const sel = langSelection();
           const L = id => g_langIndex.languages.find(l => l.id === id);
           const text = L(sel.text), voice = L(sel.voice);
-          if (!text || !text.text || !voice || !voice.voice) throw new Error('no such language pack');
-          const steps = [g_langIndex.base, text.text, voice.voice];
+          if (!text || !text.text || (sel.voice !== 'none' && (!voice || !voice.voice))) throw new Error('no such language pack');
+          const steps = [g_langIndex.base, text.text].concat(sel.voice === 'none' ? [] : [voice.voice]);
           const total = steps.reduce((a, i) => a + i.size, 0);
           let before = 0;
           for (const info of steps) {
@@ -4780,7 +4966,8 @@ function serveLoop() {
                     prefs.map(c => list.find(l => l.id === c)).find(Boolean);
         return (hit || list[0] || {}).id;
       };
-      return { text: pick(text, s && s.text), voice: pick(voice, s && s.voice) };
+      // voice 'none' = "Without": no speech archives are downloaded
+      return { text: pick(text, s && s.text), voice: s && s.voice === 'none' ? 'none' : pick(voice, s && s.voice) };
     }
 
     // The game selector of the bar: both games are offered when the server has language packs of them.
@@ -4829,7 +5016,7 @@ function serveLoop() {
       lsSet('game', sel.value === 'g2' ? '2' : '1');
       const url = new URL(location.href);
       url.searchParams.delete('game');
-      location.href = url.href;
+      location.replace(url.href);
     }
 
     async function initLangBar() {
@@ -4838,6 +5025,13 @@ function serveLoop() {
       const sel = st && lsGet(LANG_APPLY) !== '1' ? { text: st.text, voice: st.voice } : langSelection();
       const fill = (el, kind, cur) => {
         el.textContent = '';
+        if (kind === 'voice') {
+          const o = document.createElement('option');
+          o.value = 'none';
+          o.textContent = 'Without (0 MB)';
+          o.selected = cur === 'none';
+          el.appendChild(o);
+        }
         for (const l of g_langIndex.languages) {
           if (!l[kind]) continue;
           const o = document.createElement('option');
@@ -4890,7 +5084,8 @@ function serveLoop() {
           const L = id => g_langIndex.languages.find(l => l.id === id);
           const t = L(sel.text), v = L(sel.voice);
           const textChanged = curText !== sel.text, voiceChanged = st.voice !== sel.voice;
-          if ((!textChanged || (t && t.text)) && (!voiceChanged || (v && v.voice))) {
+          // to / from "Without": the game restarts (the speech archives are mounted)
+          if (!(voiceChanged && (st.voice === 'none' || sel.voice === 'none')) && (!textChanged || (t && t.text)) && (!voiceChanged || (v && v.voice))) {
             // The new packs are written next to the old files, which the running game holds: that has to fit
             // (SAVE_RESERVE stays free for savegames). If it does not, the game restarts and the previous
             // language is removed before the next one is installed.
@@ -5222,7 +5417,7 @@ function serveLoop() {
       try { vdir = await root.getDirectoryHandle(lv.dir); } catch (e) {}
       if (vdir) {
         const game = await opfsGameDir(true);
-        for (const p of st.files.voice) await removeGamePath(game, p);
+        for (const p of (st.files.voice || [])) await removeGamePath(game, p);
         for (const p of lv.files) {
           const parts = p.split('/');
           const name = parts.pop();
@@ -5312,12 +5507,14 @@ function serveLoop() {
       setStatus('Connecting...');
       try { if (navigator.storage.persist) await navigator.storage.persist(); } catch (e) {}
       try {
-        if (!text || !text.text || !voice || !voice.voice) throw new Error('no such language pack');
+        const noVoice = sel.voice === 'none';
+        if (!text || !text.text || (!noVoice && (!voice || !voice.voice))) throw new Error('no such language pack');
         const steps = [
           { key: 'base', info: g_langIndex.base, state: 'gothic-chunks-base.json' },
-          { key: 'text', info: text.text, state: 'gothic-chunks-text.json', lang: text.id },
-          { key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id }
+          { key: 'text', info: text.text, state: 'gothic-chunks-text.json', lang: text.id }
         ];
+        if (!noVoice) steps.push({ key: 'voice', info: voice.voice, state: 'gothic-chunks-voice.json', lang: voice.id });
+        else await removeRootEntry('gothic-chunks-voice.json');
         for (const s of steps) {
           const man = await fetchPackManifest(s.info);
           s.files = man.files.map(f => f.path);
@@ -5392,10 +5589,11 @@ function serveLoop() {
         // two languages side by side would both be mounted
         const removed = await pruneGameFiles(new Set(steps.flatMap(s => s.files)));
         if (removed) console.log('[SHELL] removed', removed, 'files of the previous language');
-        await writeRootJson(LANG_STATE, { text: text.id, voice: voice.id, files });
-        lsSet(LANG_SEL, JSON.stringify({ text: text.id, voice: voice.id }));
+        const voiceId = noVoice ? 'none' : voice.id;
+        await writeRootJson(LANG_STATE, { text: text.id, voice: voiceId, files });
+        lsSet(LANG_SEL, JSON.stringify({ text: text.id, voice: voiceId }));
         document.getElementById('lang-note').textContent = '';
-        await finishInstall({ source: 'language packs ' + text.id + '/' + voice.id, archiveBytes: total },
+        await finishInstall({ source: 'language packs ' + text.id + '/' + voiceId, archiveBytes: total },
                             { files: count, bytes, download: total });
       } catch (err) {
         if (isStorageFailure(err)) await installInMemory(); else
@@ -5751,8 +5949,19 @@ function serveLoop() {
         else if (/Firefox|FxiOS/.test(ua))
           why = 'This Firefox has no WebGPU' + (/Android/.test(ua) ? ' (Firefox for Android does not offer it yet)' : '') +
                 '. Use Google Chrome.';
-        else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1))
-          why = 'WebGPU needs iOS/iPadOS 26 or newer (Safari). Update the system, or use Google Chrome on a computer or an Android phone.';
+        else if (/iPhone|iPad|iPod/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) {
+          // only Safari 26+ has WebGPU: other iOS browsers (Chrome, Edge, in-app browsers of Telegram, Instagram ...) run on
+          // the system's web view without it; Safari says its own version in the UA (Version/26.x)
+          const sv = /Version\/(\d+)/.exec(ua), safari = !!sv && /Safari\//.test(ua) && !/CriOS|FxiOS|EdgiOS|OPiOS|GSA\//.test(ua);
+          if (safari && +sv[1] >= 26)
+            why = 'Safari ' + sv[1] + ' should have WebGPU, but it is switched off here. Check: <b>Settings &rarr; Apps &rarr; Safari &rarr; Advanced &rarr; Feature Flags &rarr; WebGPU</b> ' +
+                  'is on, Lockdown Mode is off, and the page is not opened in a private tab; then close the tab and open the page again.';
+          else if (!safari)
+            why = 'This browser (Chrome, Edge, or the browser inside another app) has no WebGPU on iPhone and iPad. Open this page in <b>Safari</b> ' +
+                  '(copy the address, or use the share menu &rarr; Open in Safari). It needs iOS/iPadOS 26 or newer.';
+          else
+            why = 'WebGPU needs iOS/iPadOS 26 or newer (Safari). This is Safari ' + (sv ? sv[1] : '') + ': update the system.';
+        }
         else if (/SamsungBrowser|EdgA|OPR|Opera|Brave|Vivaldi|DuckDuckGo|MiuiBrowser|UCBrowser|YaBrowser/.test(ua))
           why = 'This Chromium-based browser keeps WebGPU switched off. Open its flags page (chrome://flags, edge://flags, ' +
                 'opera://flags, brave://flags) and enable <b>Unsafe WebGPU Support</b> (#enable-unsafe-webgpu), then restart it; ' +
@@ -5771,9 +5980,13 @@ function serveLoop() {
       const order = gpuQ === 'low' ? [{ powerPreference: 'low-power' }, {}, { forceFallbackAdapter: true }]
                   : gpuQ === 'any' ? [{}, { powerPreference: 'low-power' }, { forceFallbackAdapter: true }]
                   : [{ powerPreference: 'high-performance' }, {}, { forceFallbackAdapter: true }];
-      for (const opt of order) {
-        try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
-        if (ad) break;
+      for (let round = 0; round < 3 && !ad; round++) {   // the GPU process of a phone sometimes answers "none" at the first try
+        if (round) await new Promise(r => setTimeout(r, 400 * round));
+        for (const opt of order) {
+          try { ad = await navigator.gpu.requestAdapter(opt); } catch (e) { console.warn('[SHELL] requestAdapter', opt, e); }
+          if (ad) break;
+        }
+        if (!ad) console.warn('[SHELL] no WebGPU adapter, round ' + round);
       }
       if (!ad) {
         const android = /Android/.test(ua);
@@ -5807,6 +6020,7 @@ function serveLoop() {
     async function webgpuBlocked() {
       const why = await webgpuProblem();
       if (!why) return false;
+      console.error('[SHELL] WebGPU blocked: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
       window.__ogFatal = true;
       progressContainer.style.display = 'none';
       statusText.style.color = 'var(--danger)';
@@ -5820,6 +6034,7 @@ function serveLoop() {
     async function initWebGPU() {
       const why = await webgpuProblem();
       if (why) {
+        console.error('[SHELL] WebGPU unavailable: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
         const e = new Error(why.replace(/<[^>]+>/g, ''));
         e.html = why;
         throw e;
