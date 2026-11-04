@@ -108,24 +108,29 @@
     else { dev = Object.assign({}, base, { adapter: 'no navigator.gpu' }); flush(); start(); }
   })();
   // 8) ?log&cycle: one run tries several engine debug settings one after another (a label on the screen says which one is on now,
-  //    [CFG] lines in the log) - for finding the setting with right pictures on a phone without many reloads
+  //    [CFG] lines in the log). Here: draw calls of some render passes are dropped (window.__OG_SKIP, bit N = pass N of the frame)
+  //    to see which pass hides the picture on iPhone (Safari 26). Short steps: a phone session on the site is about a minute.
   if (/[?&]log\b/.test(location.search) && /[?&]cycle\b/.test(location.search)) (function () {
-    const base = window.__OG_GAPI_DEBUG | 0;
-    const seq = [base, 0 | 512, 4 | 512, 4 | 64 | 512, 4 | 128 | 512, 4 | 256 | 512, 4 | 128 | 256 | 64 | 512, base];
-    const PERIOD = 25000, START = 40000;   // ms: first the page loads and the game starts
+    const bit = n => 1 << n;
+    const seq = [['normal', 0], ['skip pass 12 (ui)', bit(12)], ['skip pass 11 (to screen)', bit(11)], ['skip pass 10', bit(10)], ['skip pass 9', bit(9)],
+                 ['skip pass 8 (forward 99)', bit(8)], ['skip passes 8-10', bit(8) | bit(9) | bit(10)], ['skip pass 7', bit(7)], ['skip pass 6 (light)', bit(6)], ['normal', 0]];
+    const PERIOD = 6000, START = 22000;   // ms after the start of the page: the load of the game takes the first ~30 s
     let lab = null;
     const show = t => { try { if (!lab) { lab = document.createElement('div'); lab.style.cssText = 'position:fixed;left:6px;bottom:6px;z-index:100001;background:rgba(0,0,0,.8);color:#ff6;font:700 15px ui-monospace,Menlo,monospace;padding:6px 10px;border-radius:6px;pointer-events:none'; document.body.appendChild(lab); } lab.textContent = t; } catch (e) {} };
-    let i = -1;
+    let i = -1, started = false;
     const step = () => {
       i++;
-      if (i >= seq.length) { show('cycle done'); return; }
-      window.__OG_GAPI_DEBUG = seq[i];
-      const t = 'cfg ' + (i + 1) + '/' + seq.length + ': gapidbg=' + (seq[i] & ~512);
-      console.log('[CFG] ' + t);
+      if (i >= seq.length) { window.__OG_SKIP = 0; show('cycle done'); return; }
+      window.__OG_SKIP = seq[i][1];
+      const t = 'cfg ' + (i + 1) + '/' + seq.length + ': ' + seq[i][0];
+      console.log('[CFG] ' + t + ' skip=' + seq[i][1]);
       show(t);
       setTimeout(step, PERIOD);
     };
-    setTimeout(step, START);
+    // starts when the game draws its world (a frame with many draws), not by the clock
+    const wait = setInterval(() => {
+      try { if (window.__ogDraws > 500 && !document.getElementById('og-video') && !started) { started = true; clearInterval(wait); setTimeout(step, 5000); } } catch (e) {}
+    }, 500);
   })();
   // 5) ?log: the page's console on the screen (an iPhone has no dev tools): open the game with ?log and send a screenshot / the copied text
   if (/[?&]log\b/.test(location.search)) {
@@ -136,7 +141,7 @@
     addEventListener('unhandledrejection', e => add('E', ['promise:', e.reason && (e.reason.message || e.reason)]));
     const ui = () => {
       box = document.createElement('div');
-      box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:rgba(0,0,0,.78);color:#9f9;font:9px/1.25 ui-monospace,Menlo,monospace;max-height:45vh;overflow:auto;pointer-events:none';
+      box.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:99999;background:rgba(0,0,0,.78);color:#9f9;font:9px/1.25 ui-monospace,Menlo,monospace;max-height:45vh;overflow:auto;pointer-events:none' + (/[?&]cycle\b/.test(location.search) ? ';display:none' : '');
       pre = document.createElement('pre'); pre.style.cssText = 'margin:0;padding:4px;white-space:pre-wrap;word-break:break-all'; box.appendChild(pre);
       const b = document.createElement('button'); b.textContent = 'Copy log'; b.style.cssText = 'position:fixed;right:6px;bottom:6px;z-index:100000;padding:10px 14px;font-size:14px';
       b.onclick = () => { const t = lines.join('\n'); (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(() => { b.textContent = 'Copied'; }, () => { const ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); b.textContent = 'Copied'; } catch (e) { b.textContent = 'Failed'; } ta.remove(); }); setTimeout(() => b.textContent = 'Copy log', 1500); };
