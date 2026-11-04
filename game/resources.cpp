@@ -947,7 +947,15 @@ std::unique_ptr<Animation> Resources::implLoadAnimation(std::string name) {
   if(FileExt::hasExt(name,"MSB") || FileExt::hasExt(name,"MDS")) {
     zenkit::ModelScript mds;
     auto reader = entry->open_read();
-    mds.load(reader.get());
+    try {
+      mds.load(reader.get());
+      }
+    catch(const std::exception& err) {
+      // a broken animation script of a mod (a typo, an odd comment) must not abort the loading of the whole world:
+      // the original engine reads such files, the model just has no animations from it here
+      Log::e("unable to parse animation script \"", name, "\": ", err.what());
+      return nullptr;
+      }
     return std::unique_ptr<Animation>{new Animation(mds,name.substr(0,name.size()-4),false)};
     }
 
