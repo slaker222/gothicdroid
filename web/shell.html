@@ -78,7 +78,7 @@
     if (!/(^|\.)gothicplay\.fun$|\.workers\.dev$/.test(location.hostname)) return;
     const sid = Array.from(crypto.getRandomValues(new Uint8Array(10)), b => (b % 36).toString(36)).join('') + Date.now().toString(36);
     const q = []; let dev = null, n = 0, perf = 0, sent = false;
-    const KEEP = /\[IND\]|WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
+    const KEEP = /\[IND\]|\[PAY\]|WebGPU|error|fail|warn|device|texture|shader|memory|OOM|lost|exit|install|download|zip|opfs|storage|GothicDroid\]\s*(Init|Load|World|Start)/i;
     const push = (k, a) => {
       if (n > 2500) return;
       let t = Array.prototype.map.call(a, x => { try { return typeof x === 'string' ? x : JSON.stringify(x); } catch (e) { return String(x); } }).join(' ');
