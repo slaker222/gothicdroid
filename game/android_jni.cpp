@@ -105,8 +105,14 @@ static void runGameThread(std::string gameDir) {
     gameDir
   };
   if(!s_modArg.empty()) {
-    args.push_back("-game:" + s_modArg);
-    androidAppendLog(("Mod: " + s_modArg).c_str());
+    // the engine looks for the ini in <game>/system itself (CommandLine: nestedPath({"system", name})): only the file name goes there,
+    // "system/x.ini" made <game>/system/system/x.ini, the ini was not found and the mod's archives were not filtered by its language
+    std::string modIni = s_modArg;
+    const size_t slash = modIni.find_last_of("/\\");
+    if(slash != std::string::npos)
+      modIni = modIni.substr(slash + 1);
+    args.push_back("-game:" + modIni);
+    androidAppendLog(("Mod: " + modIni).c_str());
   }
 
   // debugging: more command line arguments (-nomenu, ...) from <game dir>/.og_args, split by blanks
