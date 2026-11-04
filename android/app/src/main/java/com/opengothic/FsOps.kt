@@ -52,29 +52,56 @@ class FsOps(private val roots: () -> List<Pair<String, File>>) {
         while (true) { f = File(dir, name.substring(0, dot) + " ($i)" + name.substring(dot)); if (!f.exists()) return f; i++ }
     }
 
-    private fun copyTree(src: File, dst: File) {
-        if (cancel) throw RuntimeException("Cancelled")
-        if (src.isDirectory) {
-            if (!dst.mkdirs() && !dst.isDirectory) throw RuntimeException("Cannot create ${dst.name}")
-            src.listFiles()?.forEach { copyTree(it, File(dst, it.name)) }
-        } else {
-            msg = src.name
-            src.inputStream().use { i -> dst.outputStream().use { o ->
+    /** where `name` goes inside `dir`: an existing entry with the same name (any letter case: Data = data) is used, so it gets replaced / merged */
+    private fun target(dir: File, name: String): File {
+        val f = File(dir, name)
+        if (f.exists()) return f
+        return dir.listFiles()?.firstOrNull { it.name.equals(name, ignoreCase = true) } ?: f
+    }
+
+    /** a stream into `dst`: written to a temporary file next to it, then it replaces the old file (an interrupted copy keeps the old one) */
+    private fun writeReplacing(dst: File, open: () -> java.io.InputStream) {
+        if (dst.isDirectory) dst.deleteRecursively()
+        val tmp = File(dst.parentFile, dst.name + ".ogpart")
+        try {
+            open().use { i -> tmp.outputStream().use { o ->
                 val b = ByteArray(1 shl 18)
                 while (true) { val n = i.read(b); if (n < 0) break; o.write(b, 0, n); done += n; if (cancel) throw RuntimeException("Cancelled") }
             } }
+            if (!tmp.renameTo(dst)) {
+                if (dst.exists() && !dst.delete()) throw RuntimeException("Cannot replace ${dst.name}")
+                if (!tmp.renameTo(dst)) throw RuntimeException("Cannot write ${dst.name}")
+            }
+        } finally { if (tmp.exists()) tmp.delete() }
+    }
+
+    /** a folder is merged into an existing one, a file replaces an existing file (of the same name in any letter case) */
+    private fun copyTree(src: File, dst: File) {
+        if (cancel) throw RuntimeException("Cancelled")
+        if (src.isDirectory) {
+            if (dst.exists() && !dst.isDirectory) dst.delete()
+            if (!dst.mkdirs() && !dst.isDirectory) throw RuntimeException("Cannot create ${dst.name}")
+            src.listFiles()?.forEach { copyTree(it, target(dst, it.name)) }
+        } else {
+            msg = src.name
+            writeReplacing(dst) { src.inputStream() }
         }
     }
 
-    /** copies / moves `names` (full paths) into the folder `dstDir`; a name that exists gets " (2)" */
+    /** copies / moves `names` (full paths) into the folder `dstDir`; a name that exists is REPLACED (folders are merged);
+     *  pasting into the folder the item is already in makes a copy named " (2)" */
     fun paste(srcs: List<String>, dstDir: String, move: Boolean): Boolean {
         val dst = canon(dstDir) ?: return false
         val files = srcs.mapNotNull { canon(it) }
         return job(if (move) "Moving…" else "Copying…") {
             for (s in files) {
                 if (dst.path == s.path || dst.path.startsWith(s.path + "/")) { if (s.isDirectory) throw RuntimeException("Cannot put a folder into itself: ${s.name}") }
-                val t = unique(dst, s.name)
-                if (move && s.renameTo(t)) continue
+                var t = target(dst, s.name)
+                if (t.exists() && t.canonicalPath == s.canonicalPath) {
+                    if (move) continue                  // moved onto itself: nothing to do
+                    t = unique(dst, s.name)             // the same folder: a copy, never a copy over itself
+                }
+                if (move && !t.exists() && s.renameTo(t)) continue
                 copyTree(s, t)
                 if (move) s.deleteRecursively()
             }
@@ -119,17 +146,15 @@ class FsOps(private val roots: () -> List<Pair<String, File>>) {
     /** total size of a file / folder, in bytes */
     fun size(path: String): Long { val f = canon(path) ?: return 0; return if (f.isDirectory) f.walkTopDown().filter { it.isFile }.sumOf { it.length() } else f.length() }
 
-    /** import: streams from the system picker into the folder */
+    /** import: streams from the system picker into the folder; a file of the same name is replaced */
     fun importStreams(dstDir: String, items: List<Pair<String, () -> java.io.InputStream?>>): Boolean {
         val dst = canon(dstDir) ?: return false
         return job("Importing…") {
             for ((name, open) in items) {
                 msg = name
-                val t = unique(dst, name.replace('/', '_'))
-                (open() ?: throw RuntimeException("Cannot read $name")).use { i -> t.outputStream().use { o ->
-                    val b = ByteArray(1 shl 18)
-                    while (true) { val n = i.read(b); if (n < 0) break; o.write(b, 0, n); done += n; if (cancel) { t.delete(); throw RuntimeException("Cancelled") } }
-                } }
+                val safe = name.replace('/', '_')
+                val t = target(dst, safe).let { if (it.isDirectory) unique(dst, safe) else it }   // never wipes a folder
+                writeReplacing(t) { open() ?: throw RuntimeException("Cannot read $name") }
             }
         }
     }
