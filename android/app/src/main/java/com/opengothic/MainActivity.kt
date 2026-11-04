@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
     // the files the engine itself tells them apart by (OU.DAT: Gothic 2, OU.BIN: Gothic 1), then the addon archives
     // and the exe, then the name of the folder
     private data class Game(val id: Int, val title: String)
-    private val gameList = listOf(Game(1, "Gothic 1"), Game(2, "Gothic 2"), Game(3, "Archolos"))
+    private val gameList = listOf(Game(1, "Gothic 1"), Game(2, "Gothic 2"), Game(3, "Archolos"), Game(4, "Diccuric"))
     @Volatile private var scanning = true
 
     private fun child(dir: File, name: String): File? {
@@ -183,8 +183,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     // the ini of the Archolos mod in a game folder (relative to it) or null. The engine starts a mod with -game:<ini>
-    private fun modIni(dir: File): String? {
+    private fun modIni(dir: File, id: Int = 3): String? {
         val sys = child(dir, "system") ?: return null
+        if (id == 4) {
+            // Diccuric (a mod of Gothic 1): system/diccuric_<lang>.ini and Data/ModVDF/diccuric.mod; Russian first, then English
+            val mod = child(dir, "Data")?.let { child(it, "ModVDF") }?.let { child(it, "diccuric.mod") }
+            if (mod == null) return null
+            val inis = sys.listFiles { f -> f.name.endsWith(".ini", ignoreCase = true) && f.name.startsWith("diccuric", ignoreCase = true) }?.toList()
+            if (inis.isNullOrEmpty()) return null
+            val pick = listOf("ru", "en", "de", "pl", "it", "cz").firstNotNullOfOrNull { l -> inis.firstOrNull { it.name.equals("diccuric_$l.ini", ignoreCase = true) } } ?: inis.first()
+            return "system/" + pick.name
+        }
         val ini = sys.listFiles { f -> f.name.endsWith(".ini", ignoreCase = true) &&
             (f.name.contains("archolos", true) || f.name.contains("myrtana", true)) }?.firstOrNull()
         if (ini != null) return "system/" + ini.name
@@ -218,6 +227,8 @@ class MainActivity : AppCompatActivity() {
             if (v != 0 && v !in found) found[v] = dir.path
             // Chronicles of Myrtana: Archolos is a mod of Gothic 2: its ini and archives lie in the game folder
             if (3 !in found && modIni(dir) != null) found[3] = dir.path
+            // Diccuric is a mod of Gothic 1: its ini and archives lie in the Gothic 1 folder
+            if (4 !in found && modIni(dir, 4) != null) found[4] = dir.path
         }
         // the app's own folder: games put there by the downloader
         getExternalFilesDir(null)?.let { base ->
@@ -366,7 +377,7 @@ class MainActivity : AppCompatActivity() {
         detectedGameDir = findGameDirectory()
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
-            if (id == 3) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir)) ?: "")
+            if (id == 3 || id == 4) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir), id) ?: "")
         }
         startActivity(intent)
     }
@@ -443,7 +454,7 @@ class MainActivity : AppCompatActivity() {
             for (g in gameList) {
                 val p = gamePath(g.id)
                 val o = JSONObject().put("id", g.id).put("title", g.title).put("path", p ?: JSONObject.NULL)
-                    .put("canDownload", true)
+                    .put("canDownload", g.id != 4)   // Diccuric is a mod: it is put into the Gothic 1 folder by hand
                     .put("downloaded", isDownloaded(g.id))
                 if (p != null) o.put("vdf", vdfs(File(p)).size).put("manual", prefs().getString("path_${g.id}", null) == p)
                 a.put(o)
@@ -661,7 +672,7 @@ class MainActivity : AppCompatActivity() {
             return false
         }
         val bmp = try {
-            assets.open(if (id == 3) "img/myrtana.jpg" else "img/icon_g$id.png").use { android.graphics.BitmapFactory.decodeStream(it) }
+            assets.open(if (id == 3) "img/myrtana.jpg" else "img/icon_g${if (id == 4) 1 else id}.png").use { android.graphics.BitmapFactory.decodeStream(it) }
         } catch (e: Exception) { null }
         val icon = if (bmp != null) {
             // the icon of the exe of the game, on a dark tile (adaptive icons crop the edges)
@@ -689,7 +700,7 @@ class MainActivity : AppCompatActivity() {
         }
         val info = android.content.pm.ShortcutInfo.Builder(this, "game$id")
             .setShortLabel(gameList.first { it.id == id }.title)
-            .setLongLabel(gameList.first { it.id == id }.let { if (it.id == 3) "Chronicles of Myrtana: Archolos" else it.title })
+            .setLongLabel(gameList.first { it.id == id }.let { if (it.id == 3) "Chronicles of Myrtana: Archolos" else if (it.id == 4) "Diccuric (Gothic 1 mod)" else it.title })
             .setIcon(icon)
             .setIntent(intent)
             .build()
