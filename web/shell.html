@@ -64,7 +64,7 @@
     const m = /[?&]gapidbg=(\d+)/.exec(location.search);
     const ios = IOS;
     const sv = /Version\/(\d+)[\d.]*.*Safari\//.exec(navigator.userAgent), oldSafari = !!sv && !/Chrome|CriOS|FxiOS|Edg/.test(navigator.userAgent) && +sv[1] < 27;
-    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 128 | 256;   // iPhone / iPad: no bundles, no explicit texture destroy, texture views not kept between uses (388: textures right and ~60 FPS on iPad, Gothic 2)
+    if (m) window.__OG_GAPI_DEBUG = +m[1]; else if (ios) window.__OG_GAPI_DEBUG = 4 | 128 | 256 | 16384;   // iPhone / iPad: no bundles, no explicit texture destroy, texture views not kept between uses (388: textures right and ~60 FPS on iPad, Gothic 2); 16384: the lighting / sky passes use a writable depth attachment and sample a copy of the depth (Safari 26 on iPhone 17 / Air / iPad Pro lost the read-only depth test: the ground was covered by the sky haze)
     if (/[?&]log\b/.test(location.search)) window.__OG_GAPI_DEBUG = (window.__OG_GAPI_DEBUG | 0) | 512;   // ?log: the engine also reads back the GPU-culled indirect draw buffer and logs it ([IND] lines)
     if (/[?&]noastc\b/.test(location.search)) window.__ogNoAstc = true;
     if (/[?&]bc\b/.test(location.search)) window.__ogForceBC = true;
