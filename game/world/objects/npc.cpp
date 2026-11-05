@@ -3284,11 +3284,12 @@ Item* Npc::takeItem(Item& item) {
       return nullptr;
       }
 
-  auto dpos = item.position()-position();
-  dpos.y-=translateY();
-  const Animation::Sequence* sq = setAnimAngGet(Npc::Anim::ItmGet,Pose::calcAniCombVert(dpos));
-  if(sq==nullptr)
-    return nullptr;
+    auto dpos = item.position()-position();
+    dpos.y-=translateY();
+    sq = setAnimAngGet(Npc::Anim::ItmGet,Pose::calcAniCombVert(dpos));
+    if(sq==nullptr)
+      return nullptr;
+    }
 
   std::unique_ptr<Item> ptr = owner.takeItem(item);
   if(ptr!=nullptr && ptr->isTorchBurn()) {
@@ -3304,13 +3305,18 @@ Item* Npc::takeItem(Item& item) {
   if(it==nullptr)
     return nullptr;
 
+  const std::string name  = quick ? std::string(it->displayName()) : std::string();
+  const auto        flag  = quick ? uint32_t(it->mainFlag()) : 0u;
+  const bool        gold  = quick && it->isGold();
+  const size_t      count = quick ? it->count() : 0;
   it = addItem(std::move(ptr));
   if(isPlayer() && it!=nullptr)
     owner.sendPassivePerc(*this,*this,*it,PERC_ASSESSTHEFT);
   if(quick && it!=nullptr)
     Plugins::addLoot(count>1 ? name+" x"+std::to_string(count) : name, Plugins::lootColor(flag,gold));
 
-  implAniWait(uint64_t(sq->totalTime()));
+  if(sq!=nullptr)
+    implAniWait(uint64_t(sq->totalTime()));
   return it;
   }
 
