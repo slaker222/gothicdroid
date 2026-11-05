@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Tempest/Widget>
+#include <atomic>
 #include <Tempest/Texture2d>
 #include <Tempest/Timer>
 
@@ -60,6 +61,14 @@ class InventoryMenu : public Tempest::Widget {
     void  quickSetOpen(bool on, int pos) { quickOpen = on; quickPos = float(pos)/1000.f; }
     void  quickUpdate();
     std::string quickJson() const;
+    // the dark soft backing under the slots (the page's option), painted in the ui layer under the icons
+    void  paintQuickBack(Tempest::Painter& p) const;
+    bool  quickBackDirty() { bool d = quickBackMoved; quickBackMoved = false; return d; }
+    // the layout of the row from the page (layout editor): visible slots 1..10, the centre of the row in 1/1000 of the
+    // window (-1: the default place, bottom middle), the size in % of the default one, the backing on / off.
+    // Set from the page's thread (Android), read by the game thread
+    // vert: the slots go down instead of to the right; split: two rows (columns when vertical), 8 -> 4 + 4
+    static std::atomic<int> quickCfgCols, quickCfgX, quickCfgY, quickCfgK, quickCfgBack, quickCfgVert, quickCfgSplit;
     // a finger on the inventory (the page forwards the touches): 0 down, 1 up, 2 move, 3 cancelled; x, y in
     // the window. A slot is selected by a touch, the second tap in a row uses it, holding it drops it
     void  webPointer(int type, int x, int y);
@@ -110,7 +119,7 @@ class InventoryMenu : public Tempest::Widget {
     InventoryRenderer         renderer;
 #if defined(OG_WEB_UI)
     // key: the number key (1..0) of a weapon or spell, -1: an item of the inventory (cls), used by a tap
-    struct QuickSlot { int key=-1, x=0, y=0, s=0; bool on=false; size_t cls=0; uint32_t count=1; int n=-1; const Item* item=nullptr; }; // n: arrows / scrolls left, -1 - not counted
+    struct QuickSlot { int key=-1, x=0, y=0, s=0, line=0; bool on=false; size_t cls=0; uint32_t count=1; int n=-1; const Item* item=nullptr; }; // n: arrows / scrolls left, -1 - not counted
     InventoryRenderer         quickRenderer;
     std::vector<QuickSlot>    quickSlots;
     std::vector<size_t>       quickSig;
@@ -119,6 +128,15 @@ class InventoryMenu : public Tempest::Widget {
     int                       quickFirst = 0, quickCols = 1, quickTotal = 0;
     float                     quickPos = 0;
     int                       quickX0 = 0, quickY = 0, quickSz = 0, quickPitch = 0;
+    int                       quickRowW = 0;
+    // the layout: vertical or not, rows (1..2), slots in the first row; the box of the slots (without the inventory block)
+    bool                      quickVert = false;
+    int                       quickLines = 1, quickPer = 4, quickBoxW = 0, quickBoxH = 0;
+    // the box of a row (it cuts the slots scrolling out of it)
+    void  quickLineBox(int line, int& x, int& y, int& w, int& h) const;
+    std::vector<int>          quickGeo;           // the place of the row and its slots: the icons are made again when it changes
+    bool                      quickBackMoved = false;
+    int                       quickBackState = 0;
     std::string               quickAll = "[]"; // all ten keys: [[key, has an item, in use], ...]
 
     struct TouchHold { bool on=false, wasSel=false; int pg=0; size_t idx=0; uint64_t t0=0; };

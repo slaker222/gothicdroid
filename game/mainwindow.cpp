@@ -344,6 +344,17 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
     }
 #if defined(OG_WEB_UI)
   {
+  // the quick bar of the touch controls (layout editor): kept by the page, not in Gothic.ini
+  static const struct { const char* name; std::atomic<int>* v; } quick[] = {
+    {"quickCols", &InventoryMenu::quickCfgCols}, {"quickX", &InventoryMenu::quickCfgX}, {"quickY", &InventoryMenu::quickCfgY},
+    {"quickK", &InventoryMenu::quickCfgK}, {"quickBack", &InventoryMenu::quickCfgBack},
+    {"quickVert", &InventoryMenu::quickCfgVert}, {"quickSplit", &InventoryMenu::quickCfgSplit},
+    };
+  for(auto& q:quick)
+    if(std::strcmp(name, q.name)==0) {
+      q.v->store(val);
+      return 1;
+      }
   // the plugins (the green button of the touch controls)
   if(std::strcmp(name, "plugAutoLoot")==0)   { Plugins::autoLoot  .store(val); return 1; }
   if(std::strcmp(name, "plugAuto")==0)       { Plugins::autoPick  .store(val); return 1; }
@@ -591,6 +602,9 @@ void MainWindow::paintEvent(PaintEvent& event) {
             drawBar(p,barHp, 10, h()-10, hp, AlignLeft | AlignBottom, int(pl->attribute(ATR_HITPOINTS)), int(pl->attribute(ATR_HITPOINTSMAX)));
           if(showManaBar)
             drawBar(p,barMana, w()-10, h()-10, mp, AlignRight | AlignBottom, int(pl->attribute(ATR_MANA)), int(pl->attribute(ATR_MANAMAX)));
+#if defined(OG_WEB_UI)
+          inventory.paintQuickBack(p);
+#endif
           if(showSwimBar) {
             uint32_t gl = pl->guild();
             auto     v  = float(pl->world().script().guildVal().dive_time[gl]);
@@ -1495,6 +1509,8 @@ uint64_t MainWindow::tick() {
   inventory.tick(dt);
 #if defined(OG_WEB_UI)
   inventory.quickUpdate();
+  if(inventory.quickBackDirty())
+    update();
 #endif
   Gothic::inst().tick(dt);
   if(Plugins::tick(dt))

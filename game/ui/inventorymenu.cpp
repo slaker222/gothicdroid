@@ -988,17 +988,23 @@ void InventoryMenu::quickUpdate() {
     }
   quickAll += "]";
 
-  // four slots in a row at the bottom, in the middle: clear of the stick and the buttons. The used
-  // items are a ring: the page turns it round by `quickPos` (fractions of a slot while it scrolls, the
-  // row shows one more slot then); the slots stay when they have no item
+  // 4..10 visible slots (the layout editor of the page; by default 4 in a row at the bottom, in the middle: clear of the
+  // stick and the buttons), in a row or a column, in one line or two (8 -> 4 + 4). The used items are a ring: the page
+  // turns it round by `quickPos` (fractions of a slot while it scrolls, every line shows one more slot then); a line
+  // shows the ring from its own place (the second one goes on after the first). All ten visible: no ring
   const int ww = w(), hh = h();
-  const int sz = std::max(24, int(float(hh)*0.12f));
+  const float k = float(std::clamp(quickCfgK.load(), 30, 300))/100.f;
+  const int sz = std::max(24, int(float(hh)*0.12f*k));
   const int gp = sz/6;
-  const int cols = 4;
-  quickCols  = cols;
   quickTotal = int(all.size());
+  const int cols = std::clamp(quickCfgCols.load(), 1, std::max(1, quickTotal>0 ? quickTotal : 10));
+  const bool ring = quickTotal>cols;
+  const bool vert = quickCfgVert.load()!=0;
+  const int lines = (quickCfgSplit.load()!=0 && cols>=2) ? 2 : 1;
+  const int per   = (cols+lines-1)/lines;
+  quickCols  = cols;
   float pos = 0;
-  if(quickTotal>0) {
+  if(quickTotal>0 && ring) {
     pos = std::fmod(quickPos, float(quickTotal));
     if(pos<0)
       pos += float(quickTotal);
@@ -1007,45 +1013,138 @@ void InventoryMenu::quickUpdate() {
   const float frac = pos-float(base);
   quickFirst = quickTotal>0 ? (base + (frac>=0.5f ? 1 : 0)) % quickTotal : 0;
   const int pitch = sz+gp;
-  const int x0 = (ww - (cols*sz + (cols-1)*gp))/2;
-  const int y  = hh - sz - int(float(hh)*0.035f);
-  quickX0 = x0; quickY = y; quickSz = sz; quickPitch = pitch;
-  std::vector<QuickSlot> slots(cols+1);
-  for(int i=0; i<=cols; ++i) {
-    auto& s = slots[size_t(i)];
-    if(quickTotal>0) {
-      auto& e = all[size_t((base+i)%quickTotal)];
-      s.key   = e.key;
-      s.item  = e.item;
-      s.cls   = e.cls;
-      s.on    = e.on;
-      s.n     = e.n;
+  const int lenMain  = per*sz + (per-1)*gp;
+  const int lenCross = lines*sz + (lines-1)*gp;
+  const int boxW = vert ? lenCross : lenMain;
+  const int boxH = vert ? lenMain  : lenCross;
+  // the inventory block: right of the first row, or under the first column
+  const int invW = vert ? 0 : pitch, invH = vert ? pitch : 0;
+  const int cx = quickCfgX.load(), cy = quickCfgY.load();
+  int x0 = 0, y = 0;
+  if(cx<0 || cy<0) {
+    if(!vert) {
+      x0 = (ww - boxW)/2;
+      y  = hh - boxH - int(float(hh)*0.035f);
+      } else {
+      x0 = int(float(hh)*0.035f);
+      y  = (hh - boxH)/2;
       }
-    s.x = x0 + int(float(i-0)*float(pitch) - frac*float(pitch) + 0.5f);
-    s.y = y;
-    s.s = sz;
+    }
+  if(cx>=0)
+    x0 = int(float(cx)/1000.f*float(ww)) - boxW/2;
+  if(cy>=0)
+    y  = int(float(cy)/1000.f*float(hh)) - boxH/2;
+  x0 = std::clamp(x0, 0, std::max(0, ww-boxW-invW));
+  y  = std::clamp(y,  0, std::max(0, hh-boxH-invH));
+  quickX0 = x0; quickY = y; quickSz = sz; quickPitch = pitch; quickRowW = lenMain;
+  quickVert = vert; quickLines = lines; quickPer = per; quickBoxW = boxW; quickBoxH = boxH;
+  std::vector<QuickSlot> slots;
+  for(int ln=0; ln<lines; ++ln) {
+    const int off = ln*per;
+    const int cnt = std::min(per, cols-off) + (ring ? 1 : 0);
+    for(int j=0; j<cnt; ++j) {
+      QuickSlot s;
+      if(quickTotal>0) {
+        auto& e = all[size_t((base+off+j)%quickTotal)];
+        s.key   = e.key;
+        s.item  = e.item;
+        s.cls   = e.cls;
+        s.on    = e.on;
+        s.n     = e.n;
+        }
+      const int main  = int(float(j)*float(pitch) - frac*float(pitch) + 0.5f);
+      const int cross = ln*pitch;
+      s.x    = x0 + (vert ? cross : main);
+      s.y    = y  + (vert ? main  : cross);
+      s.s    = sz;
+      s.line = ln;
+      slots.push_back(s);
+      }
     }
 
   std::vector<size_t> sig;
   for(auto& s:slots)
     sig.push_back(s.item!=nullptr ? s.cls*16u + size_t(s.key+1) : 0); // the count is not here: the icons do not change with it
-  const bool changed = (sig!=quickSig || ww!=quickW || hh!=quickH);
+  std::vector<int> geo = {x0, y, sz, cols, vert ? 1 : 0, lines};
+  const bool changed = (sig!=quickSig || ww!=quickW || hh!=quickH || geo!=quickGeo);
+  if(quickCfgBack.load()!=0) {
+    // the backing is in the ui layer: painted again when the slots move
+    bool moved = changed || slots.size()!=quickSlots.size();
+    for(size_t i=0; !moved && i<slots.size(); ++i)
+      moved = slots[i].x!=quickSlots[i].x || slots[i].y!=quickSlots[i].y || (slots[i].item!=nullptr)!=(quickSlots[i].item!=nullptr);
+    if(moved)
+      quickBackMoved = true;
+    }
+  quickGeo   = std::move(geo);
   quickSlots = std::move(slots);
-  quickRenderer.setClip(x0, y, cols*sz + (cols-1)*gp, sz);
+  {
+  // switched on / off, the bar shown / hidden: the backing is painted again (or wiped)
+  const int bs = (quickCfgBack.load()!=0 ? 1 : 0) | (quickVisible() ? 2 : 0) | (state==State::Closed ? 4 : 0);
+  if(bs!=quickBackState) {
+    quickBackState = bs;
+    quickBackMoved = true;
+    }
+  }
+  quickRenderer.setClip(x0, y, boxW, boxH);
   if(!changed) {
     size_t k = 0;   // the same icons: they only move
     for(auto& s:quickSlots)
       if(s.item!=nullptr)
-        quickRenderer.setItemX(k++, s.x);
+        quickRenderer.setItemPos(k++, s.x, s.y);
     return;
     }
   quickSig = std::move(sig);
   quickW   = ww;
   quickH   = hh;
   quickRenderer.reset();
+  size_t idx = 0;
   for(auto& s:quickSlots)
-    if(s.item!=nullptr)
+    if(s.item!=nullptr) {
       quickRenderer.drawItem(s.x,s.y,s.s,s.s,*s.item);
+      int bx, by, bw, bh;
+      quickLineBox(s.line, bx, by, bw, bh);
+      quickRenderer.setItemClip(idx++, bx, by, bw, bh);
+      }
+  }
+
+void InventoryMenu::quickLineBox(int line, int& x, int& y, int& w, int& h) const {
+  const int cnt   = std::max(1, std::min(quickPer, quickCols - line*quickPer));
+  const int len   = cnt*quickSz + (cnt-1)*(quickPitch-quickSz);
+  const int cross = line*quickPitch;
+  x = quickX0 + (quickVert ? cross : 0);
+  y = quickY  + (quickVert ? 0 : cross);
+  w = quickVert ? quickSz : len;
+  h = quickVert ? len : quickSz;
+  }
+
+std::atomic<int> InventoryMenu::quickCfgCols{4};
+std::atomic<int> InventoryMenu::quickCfgX{-1};
+std::atomic<int> InventoryMenu::quickCfgY{-1};
+std::atomic<int> InventoryMenu::quickCfgK{100};
+std::atomic<int> InventoryMenu::quickCfgBack{0};
+std::atomic<int> InventoryMenu::quickCfgVert{0};
+std::atomic<int> InventoryMenu::quickCfgSplit{0};
+
+void InventoryMenu::paintQuickBack(Tempest::Painter& p) const {
+  if(quickCfgBack.load()==0 || !quickVisible() || state!=State::Closed)
+    return;
+  // a dark square under every slot: it covers the whole slot, up to the frame (the corners too: the frame's line is drawn over
+  // it), so the icons stand out of a bright or busy picture. The middle is darker than the edge (three layers inset into the
+  // slot). Each slot is cut by the box of its row (the ring scrolls)
+  const int e = std::max(2, quickSz/10);
+  const struct { int in; float a; } layer[] = {{0, 0.30f}, {e, 0.18f}, {2*e, 0.14f}};
+  for(auto& s:quickSlots) {
+    int bx, by, bw, bh;
+    quickLineBox(s.line, bx, by, bw, bh);
+    for(auto& ly:layer) {
+      const int x0 = std::max(s.x + ly.in, bx), y0 = std::max(s.y + ly.in, by);
+      const int x1 = std::min(s.x + s.s - ly.in, bx+bw), y1 = std::min(s.y + s.s - ly.in, by+bh);
+      if(x1<=x0 || y1<=y0)
+        continue;
+      p.setBrush(Tempest::Color(0.f, 0.f, 0.f, ly.a));
+      p.drawRect(x0, y0, x1-x0, y1-y0);
+      }
+    }
   }
 
 std::string InventoryMenu::quickJson() const {
@@ -1054,6 +1153,8 @@ std::string InventoryMenu::quickJson() const {
          ",\"f\":" + std::to_string(quickFirst) + ",\"c\":" + std::to_string(quickCols) +
          ",\"t\":" + std::to_string(quickTotal) + ",\"x\":" + std::to_string(quickX0) +
          ",\"y\":" + std::to_string(quickY) + ",\"b\":" + std::to_string(quickSz) +
-         ",\"p\":" + std::to_string(quickPitch) + ",\"a\":" + quickAll + "}";
+         ",\"p\":" + std::to_string(quickPitch) + ",\"v\":" + (quickVert ? "1" : "0") +
+         ",\"l\":" + std::to_string(quickLines) + ",\"n\":" + std::to_string(quickPer) +
+         ",\"a\":" + quickAll + "}";
   }
 #endif

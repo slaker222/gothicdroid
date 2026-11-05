@@ -20,7 +20,10 @@ class InventoryRenderer {
     void drawItem(int x, int y, int w, int h, const Item &item);
     // moves a drawn item (the quick row scrolls); the clip rectangle (window pixels) cuts what is outside, w=0: none
     void setItemX(size_t idx, int x) { if(idx<items.size()) items[idx].x = x; }
+    void setItemPos(size_t idx, int x, int y) { if(idx<items.size()) { items[idx].x = x; items[idx].y = y; } }
     void setClip(int x, int y, int w, int h) { clipX=x; clipY=y; clipW=w; clipH=h; }
+    // a clip rectangle of its own (the quick bar in two rows: each row cuts its slots), w=0: the common one
+    void setItemClip(size_t idx, int x, int y, int w, int h) { if(idx<items.size()) { auto& i = items[idx]; i.cx=x; i.cy=y; i.cw=w; i.ch=h; } }
 
   private:
     struct PerFrame {
@@ -31,6 +34,7 @@ class InventoryRenderer {
       MeshObjects::Mesh  mesh;
       Tempest::Matrix4x4 viewMat;
       int x=0, y=0, w=0, h=0;
+      int cx=0, cy=0, cw=0, ch=0;
       };
 
     SceneGlobals     scene;
