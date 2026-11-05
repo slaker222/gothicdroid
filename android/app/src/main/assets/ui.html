@@ -3547,7 +3547,7 @@ async function installChunks(m) {
         document.body.classList.toggle('gp-on', on);
         if (on) { gpReleaseAll(); releaseAll(); }
       }
-      window.addEventListener('gamepadconnected', e => { console.log('[gamepad] connected: ' + e.gamepad.id); });
+      window.addEventListener('gamepadconnected', e => { console.log('[gamepad] connected: ' + e.gamepad.id); gpStart(); });
       window.addEventListener('gamepaddisconnected', () => { gpReleaseAll(); gpSetActive(false); gp.pad = null; });
       // a touch gives the screen back to the touch controls
       window.addEventListener('pointerdown', e => { if (e.pointerType === 'touch') gpSetActive(false); }, true);
@@ -3571,15 +3571,19 @@ async function installChunks(m) {
         }
       }
       const GP_DEAD = 0.25;
+      // the pad is read every frame only while one is connected: without a pad no animation frames are asked for
+      // (the page over the game drew 120 frames a second for nothing: the WebView took the cpu and the gpu)
+      let gpLoop = false;
+      function gpStart() { if (gpLoop) return; gpLoop = true; gp.last = performance.now(); requestAnimationFrame(gpPoll); }
       function gpPoll() {
-        requestAnimationFrame(gpPoll);
         const now = performance.now(), dt = Math.min(0.1, (now - gp.last) / 1000 || 0.016);
         gp.last = now;
         let pad = null;
         const pads = navigator.getGamepads ? navigator.getGamepads() : [];
         for (const p of pads) if (p && p.connected && p.buttons.length >= 10) { pad = p; break; }
         if (pad && gp.id !== pad.id) { gp.id = pad.id; console.log('[gamepad] using ' + pad.id + ', mapping "' + pad.mapping + '", ' + pad.buttons.length + ' buttons, ' + pad.axes.length + ' axes'); }
-        if (!pad) { if (gp.pad) { gpReleaseAll(); gpSetActive(false); gp.pad = null; } return; }
+        if (!pad) { if (gp.pad) { gpReleaseAll(); gpSetActive(false); gp.pad = null; } gpLoop = false; return; }
+        requestAnimationFrame(gpPoll);
         gp.pad = pad;
         // a button held through a layout change (A that ended a dialog) does nothing until it is released
         // pads of the "Android gamepad" kind (15 buttons, 8 axes, no standard mapping) number the buttons differently:
@@ -3713,7 +3717,12 @@ async function installChunks(m) {
         const wasd = { u: 'W', d: 'S', l: 'A', r: 'D' };
         gpTap(layout === 'inv' ? wasd[d] : arrows[d]);
       }
-      requestAnimationFrame(gpPoll);
+      gpStart();
+      // a pad connected without the event (some browsers): looked for once a second
+      setInterval(() => {
+        if (gpLoop || !navigator.getGamepads) return;
+        for (const p of navigator.getGamepads()) if (p && p.connected) { gpStart(); break; }
+      }, 1000);
       setInterval(update, 60);
       apply();
     })();

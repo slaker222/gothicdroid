@@ -555,6 +555,15 @@ void Renderer::prepareSky(Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldVi
     cmd.setPipeline(shaders.skyMultiScattering);
     cmd.draw(nullptr, 0, 3);
     }
+#if defined(__ANDROID__)
+  else {
+    // the view LUTs depend on the sun, the camera height and the drifting clouds, not on where the camera looks:
+    // on a phone they are made every second frame (the clouds move a pixel in many frames), ~1.5 ms of a weak gpu
+    static uint32_t skyFrame = 0;
+    if((++skyFrame & 1u)!=0)
+      return;
+    }
+#endif
 
   auto sz = Vec2(float(sky.viewLut.w()), float(sky.viewLut.h()));
   cmd.setFramebuffer({{sky.viewLut, Tempest::Discard, Tempest::Preserve}});

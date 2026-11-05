@@ -4628,6 +4628,9 @@ void Npc::syncBlobShadow() {
 void Npc::updateBlobShadow() {
   if(blobShadow.isEmpty() || !blobShadowDurty)
     return;
+  // out of the draw distance (its pose is not computed either): not seen, the rays wait until it comes nearer
+  if(!isPlayer() && visual.isFarPose())
+    return;
   blobShadowDurty = false;
 
   auto phys = owner.physic();
