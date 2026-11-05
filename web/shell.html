@@ -2277,7 +2277,7 @@ async function installChunks(m) {
         const c = window.ogTouch.cfg();
         TouchEditor.open(Object.assign(window.ogTouch.editorData(), {
           items: c.items, opacity: c.opacity, quick: c.quick,
-          // other keys work at once; a button made now appears when the game is started again
+          // keys and buttons of the player work at once
           onSave: (items, keys, custom, quick) => { c.items = items; c.keys = keys; c.custom = custom; c.quick = quick; window.ogTouch.save(); window.ogTouch.apply(); }
         }));
       });
@@ -2925,11 +2925,15 @@ async function installChunks(m) {
       const keyOfBtn = (id, dflt) => { const o = TC.keys && TC.keys[id]; return o && o.split('+').every(k => k in KEYS) ? o : dflt; };
       // buttons made by the player: [id, key, class, position, layouts]; the label is text
       const CUSTOM = {};
-      const customDefs = (Array.isArray(TC.custom) ? TC.custom : []).filter(c => c && c.id && c.key && c.key.split('+').every(k => k in KEYS)).map(c => {
-        CUSTOM[c.id] = c;
-        return [c.id, c.key, 'custom', 'left:50%;top:45%;transform:translate(-50%,-50%)', c.layouts || 'world'];
-      });
-      const buttons = defs.concat(customDefs).map(([id, k, cls, pos, layouts]) => {
+      const customList = () => {
+        for (const k in CUSTOM) delete CUSTOM[k];
+        return (Array.isArray(TC.custom) ? TC.custom : []).filter(c => c && c.id && c.key && c.key.split('+').every(k => k in KEYS)).map(c => {
+          CUSTOM[c.id] = c;
+          return [c.id, c.key, 'custom', 'left:50%;top:45%;transform:translate(-50%,-50%)', c.layouts || 'world'];
+        });
+      };
+      const customDefs = customList();
+      const makeButton = ([id, k, cls, pos, layouts]) => {
         const el = document.createElement('div');
         el.className = 'tbtn ' + cls;
         el.style.cssText = pos;
@@ -3005,12 +3009,31 @@ async function installChunks(m) {
         el.addEventListener('pointerleave', release);
         el.addEventListener('contextmenu', e => e.preventDefault());
         return b;
-      });
+      };
+      const buttons = defs.concat(customDefs).map(makeButton);
       const byId = Object.fromEntries(buttons.map(b => [b.id, b]));
+      // the buttons of the player can be made, changed and deleted while the game runs (the layout editor): the page follows TC.custom
+      function syncCustom() {
+        const want = customList(), ids = new Set(want.map(d => d[0]));
+        for (let i = buttons.length - 1; i >= 0; i--) {
+          const b = buttons[i];
+          if (!b.custom || ids.has(b.id)) continue;
+          (b.pressed || []).slice().reverse().forEach(k => key(k, false)); b.pressed = null;
+          (b.held || []).slice().reverse().forEach(k => key(k, false)); b.held = null;
+          b.el.remove(); buttons.splice(i, 1); delete byId[b.id];
+        }
+        for (const d of want) {
+          let b = byId[d[0]];
+          if (!b) { b = makeButton(d); buttons.push(b); byId[b.id] = b; continue; }
+          b.key = d[1]; b.layouts = d[4].split(' ');
+          if (b.el.firstChild) b.el.firstChild.textContent = CUSTOM[b.id].label || d[1].split('+').join(' + ');
+        }
+      }
       const tcItem = id => (TC.items || {})[TGROUP[id] || id];
       let lookSens = 1, stickCfg = null, stickK = 1;
       // the config can change while the game runs (the side menu): the buttons are put again
       function applyCfg(started) {
+        syncCustom();
         lookSens = Math.min(4, Math.max(0.2, +TC.sens || 1));
         if (TC.opacity >= 0.1 && TC.opacity <= 1) ui.style.setProperty('--tpa', String(TC.opacity)); else ui.style.removeProperty('--tpa');
         for (const b of buttons) {
