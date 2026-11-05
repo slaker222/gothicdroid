@@ -137,7 +137,7 @@ class MainActivity : AppCompatActivity() {
     // the files the engine itself tells them apart by (OU.DAT: Gothic 2, OU.BIN: Gothic 1), then the addon archives
     // and the exe, then the name of the folder
     private data class Game(val id: Int, val title: String)
-    private val gameList = listOf(Game(1, "Gothic 1"), Game(2, "Gothic 2"), Game(3, "Archolos"), Game(4, "Diccuric"))
+    private val gameList = listOf(Game(1, "Gothic 1"), Game(2, "Gothic 2"), Game(3, "Archolos"))
     @Volatile private var scanning = true
 
     private fun child(dir: File, name: String): File? {
@@ -183,17 +183,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     // the ini of the Archolos mod in a game folder (relative to it) or null. The engine starts a mod with -game:<ini>
-    private fun modIni(dir: File, id: Int = 3): String? {
+    private fun modIni(dir: File): String? {
         val sys = child(dir, "system") ?: return null
-        if (id == 4) {
-            // Diccuric (a mod of Gothic 1): system/diccuric_<lang>.ini and Data/ModVDF/diccuric.mod; Russian first, then English
-            val mod = child(dir, "Data")?.let { child(it, "ModVDF") }?.let { child(it, "diccuric.mod") }
-            if (mod == null) return null
-            val inis = sys.listFiles { f -> f.name.endsWith(".ini", ignoreCase = true) && f.name.startsWith("diccuric", ignoreCase = true) }?.toList()
-            if (inis.isNullOrEmpty()) return null
-            val pick = listOf("ru", "en", "de", "pl", "it", "cz").firstNotNullOfOrNull { l -> inis.firstOrNull { it.name.equals("diccuric_$l.ini", ignoreCase = true) } } ?: inis.first()
-            return "system/" + pick.name
-        }
         val ini = sys.listFiles { f -> f.name.endsWith(".ini", ignoreCase = true) &&
             (f.name.contains("archolos", true) || f.name.contains("myrtana", true)) }?.firstOrNull()
         if (ini != null) return "system/" + ini.name
@@ -227,8 +218,6 @@ class MainActivity : AppCompatActivity() {
             if (v != 0 && v !in found) found[v] = dir.path
             // Chronicles of Myrtana: Archolos is a mod of Gothic 2: its ini and archives lie in the game folder
             if (3 !in found && modIni(dir) != null) found[3] = dir.path
-            // Diccuric is a mod of Gothic 1: its ini and archives lie in the Gothic 1 folder
-            if (4 !in found && modIni(dir, 4) != null) found[4] = dir.path
         }
         // the app's own folder: games put there by the downloader
         getExternalFilesDir(null)?.let { base ->
@@ -306,6 +295,17 @@ class MainActivity : AppCompatActivity() {
         })
     }
 
+    // mods imported from a .zip: unpacked into the game folder, switched on / off on the card of the game (see ModStore)
+    private val modStore by lazy { ModStore(fs, File(getExternalFilesDir(null), "Mods")) { id -> gamePath(id)?.let { File(it) } } }
+    private var modImportGame = 1
+    private val modPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
+        val name = contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c -> if (c.moveToFirst()) c.getString(0) else null } ?: (uri.lastPathSegment ?: "mod.zip")
+        if (!modStore.importZip(modImportGame, name) { contentResolver.openInputStream(uri) })
+            Toast.makeText(this, "Another operation is still running", Toast.LENGTH_LONG).show()
+        webView?.evaluateJavascript("window.onModJob && onModJob()", null)
+    }
+
     private var pickFor = 1
     private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
         val p = uri?.let { pathOfTree(it) }
@@ -372,12 +372,74 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "Log copied to the clipboard! (${logText.length} chars)", Toast.LENGTH_SHORT).show()
     }
 
+    // ---- mods: an ini in <game>/system with [FILES] vdf=<archives>, whose archives lie in Data/ModVDF (or Data).
+    // The engine starts a mod with -game:<ini>; any such mod of the Gothic 1 / Gothic 2 folders is listed by the launcher
+    private data class ModInfo(val key: String, val game: Int, val dir: File, val ini: File, val title: String, val version: String)
+
+    // [SECTION] / key=value -> section (upper case) -> key (lower case) -> value. UTF-8, otherwise the ANSI page of the ini
+    private fun readIni(f: File): Map<String, Map<String, String>> {
+        val bytes = try { f.readBytes() } catch (e: Exception) { return emptyMap() }
+        val text = try {
+            Charsets.UTF_8.newDecoder().onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT).decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+        } catch (e: Exception) {
+            val ru = Regex("(^|[_.])ru([_.]|$)", RegexOption.IGNORE_CASE).containsMatchIn(f.name)
+            String(bytes, java.nio.charset.Charset.forName(if (ru) "windows-1251" else "windows-1252"))
+        }
+        val out = LinkedHashMap<String, LinkedHashMap<String, String>>()
+        var sec = ""
+        for (raw in text.lineSequence()) {
+            val l = raw.trim()
+            if (l.isEmpty() || l.startsWith(";") || l.startsWith("//")) continue
+            if (l.startsWith("[") && l.contains("]")) { sec = l.substring(1, l.indexOf(']')).trim().uppercase(); out.getOrPut(sec) { LinkedHashMap() }; continue }
+            val eq = l.indexOf('=')
+            if (eq > 0) out.getOrPut(sec) { LinkedHashMap() }[l.substring(0, eq).trim().lowercase()] = l.substring(eq + 1).trim()
+        }
+        return out
+    }
+
+    private fun findMods(): List<ModInfo> {
+        val mods = ArrayList<ModInfo>()
+        val seen = HashSet<String>()
+        for (id in 1..2) {
+            val dir = gamePath(id)?.let { File(it) } ?: continue
+            if (!seen.add(dir.canonicalPath)) continue
+            val sys = child(dir, "system") ?: continue
+            val data = child(dir, "Data") ?: continue
+            val modDirs = listOfNotNull(child(data, "ModVDF"), data)
+            val inis = sys.listFiles { f -> f.isFile && f.name.endsWith(".ini", ignoreCase = true) }?.sortedBy { it.name.lowercase() } ?: continue
+            for (ini in inis) {
+                // Archolos has its own card
+                if (ini.name.contains("archolos", true) || ini.name.contains("myrtana", true)) continue
+                val sections = readIni(ini)
+                val vdf = sections["FILES"]?.get("vdf")?.split(Regex("\\s+"))?.filter { it.isNotEmpty() } ?: continue
+                if (vdf.none { name -> modDirs.any { d -> child(d, name) != null } }) continue
+                val info = sections["INFO"]
+                val title = info?.get("title")?.takeIf { it.isNotBlank() } ?: ini.nameWithoutExtension
+                val ver = info?.get("version")?.takeIf { it.isNotBlank() } ?: ""
+                mods.add(ModInfo("$id/${ini.name}", id, dir, ini, title, ver))
+            }
+        }
+        return mods
+    }
+
+    private fun launchMod(m: ModInfo) {
+        // the settings of the page are the ones of the game the mod belongs to
+        prefs().edit().putInt("sel", m.game).apply()
+        detectedGameDir = m.dir.path
+        val intent = Intent(this, GameActivity::class.java).apply {
+            putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
+            putExtra(GameActivity.EXTRA_MOD, "system/" + m.ini.name)
+        }
+        startActivity(intent)
+    }
+
     private fun launchGame(id: Int = selectedGame()) {
         prefs().edit().putInt("sel", id).apply()
         detectedGameDir = findGameDirectory()
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
-            if (id == 3 || id == 4) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir), id) ?: "")
+            if (id == 3) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir)) ?: "")
         }
         startActivity(intent)
     }
@@ -454,7 +516,7 @@ class MainActivity : AppCompatActivity() {
             for (g in gameList) {
                 val p = gamePath(g.id)
                 val o = JSONObject().put("id", g.id).put("title", g.title).put("path", p ?: JSONObject.NULL)
-                    .put("canDownload", g.id != 4)   // Diccuric is a mod: it is put into the Gothic 1 folder by hand
+                    .put("canDownload", true)
                     .put("downloaded", isDownloaded(g.id))
                 if (p != null) o.put("vdf", vdfs(File(p)).size).put("manual", prefs().getString("path_${g.id}", null) == p)
                 a.put(o)
@@ -464,6 +526,31 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun fsRoots(): String = fs.rootsJson()
+
+        // the mods imported from a .zip: [{id, name, game, enabled, files}]
+        @JavascriptInterface
+        fun modsBound(): String {
+            val a = JSONArray()
+            for (m in modStore.list())
+                a.put(JSONObject().put("id", m.id).put("name", m.name).put("game", m.game).put("enabled", m.enabled).put("files", m.files.size)
+                    .put("inis", JSONArray(m.files.filter { it.startsWith("system/", true) && it.endsWith(".ini", true) }.map { it.substringAfterLast('/') })))
+            return a.toString()
+        }
+
+        // switches a mod on (unpacks it into the game folder) / off (packs it back into a zip and removes it): a job, see fsState
+        @JavascriptInterface
+        fun modSet(id: String, on: Boolean): Boolean = modStore.setEnabled(id, on)
+
+        // deletes a mod for good (its files, the packed zip, the entry): a job, see fsState
+        @JavascriptInterface
+        fun modDelete(id: String): Boolean = modStore.remove(id)
+
+        // asks for a .zip with the system picker and unpacks it into the folder of the game
+        @JavascriptInterface
+        fun modImport(game: Int) {
+            modImportGame = game
+            runOnUiThread { modPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*")) }
+        }
         @JavascriptInterface
         fun fsList(path: String): String = fs.list(path)
         @JavascriptInterface
@@ -575,6 +662,19 @@ class MainActivity : AppCompatActivity() {
         @JavascriptInterface
         fun start(id: Int) { runOnUiThread { launchGame(id) } }
 
+        // the mods found in the Gothic 1 / Gothic 2 folders (an ini with the archives of the mod)
+        @JavascriptInterface
+        fun mods(): String {
+            val a = JSONArray()
+            for (m in findMods())
+                a.put(JSONObject().put("key", m.key).put("game", m.game).put("title", m.title).put("version", m.version)
+                    .put("ini", m.ini.name).put("path", m.dir.path))
+            return a.toString()
+        }
+
+        @JavascriptInterface
+        fun startMod(key: String) { findMods().firstOrNull { it.key == key }?.let { runOnUiThread { launchMod(it) } } }
+
         // ---- the link to release.json of the site (the same manifest as the browser version) and the download.
         // A link that does not end with .json is the server of the PC (web/serve.py), see PackDownloader.
         private val defaultServer = "https://gothicplay.fun/release.json"
@@ -672,7 +772,7 @@ class MainActivity : AppCompatActivity() {
             return false
         }
         val bmp = try {
-            assets.open(if (id == 3) "img/myrtana.jpg" else "img/icon_g${if (id == 4) 1 else id}.png").use { android.graphics.BitmapFactory.decodeStream(it) }
+            assets.open(if (id == 3) "img/myrtana.jpg" else "img/icon_g$id.png").use { android.graphics.BitmapFactory.decodeStream(it) }
         } catch (e: Exception) { null }
         val icon = if (bmp != null) {
             // the icon of the exe of the game, on a dark tile (adaptive icons crop the edges)
@@ -700,7 +800,7 @@ class MainActivity : AppCompatActivity() {
         }
         val info = android.content.pm.ShortcutInfo.Builder(this, "game$id")
             .setShortLabel(gameList.first { it.id == id }.title)
-            .setLongLabel(gameList.first { it.id == id }.let { if (it.id == 3) "Chronicles of Myrtana: Archolos" else if (it.id == 4) "Diccuric (Gothic 1 mod)" else it.title })
+            .setLongLabel(gameList.first { it.id == id }.let { if (it.id == 3) "Chronicles of Myrtana: Archolos" else it.title })
             .setIcon(icon)
             .setIntent(intent)
             .build()

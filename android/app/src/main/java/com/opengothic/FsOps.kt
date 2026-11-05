@@ -5,7 +5,7 @@ import org.json.JSONObject
 import java.io.File
 
 /** File operations of the "Explore" tab. Paths are limited to the given roots; long jobs run on one worker thread. */
-class FsOps(private val roots: () -> List<Pair<String, File>>) {
+class FsOps(private val roots: () -> List<Pair<String, File>>) : ModJobs {
     @Volatile var busy = false; private set
     @Volatile private var msg = ""
     @Volatile private var err = ""
@@ -33,7 +33,11 @@ class FsOps(private val roots: () -> List<Pair<String, File>>) {
     fun state(): String = JSONObject().put("busy", busy).put("msg", msg).put("err", err).put("done", done).put("n", finished).toString()
     fun cancel() { cancel = true }
 
-    private fun job(title: String, body: () -> Unit): Boolean {
+    override fun note(msg: String) { this.msg = msg }
+    override fun addDone(n: Long) { done += n }
+    override val cancelled: Boolean get() = cancel
+
+    override fun job(title: String, body: () -> Unit): Boolean {
         if (busy) return false
         busy = true; cancel = false; msg = title; err = ""; done = 0
         Thread {
