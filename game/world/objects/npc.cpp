@@ -16,6 +16,7 @@
 #include "utils/fileext.h"
 #include "camera.h"
 #include "gothic.h"
+#include "plugins.h"
 #include "resources.h"
 
 using namespace Tempest;
@@ -3273,11 +3274,15 @@ Item* Npc::takeItem(Item& item) {
   if(item.isTorchBurn() && (isUsingTorch() || weaponState()!=WeaponState::NoWeapon))
     return nullptr;
 
-  auto state = bodyStateMasked();
-  if(state!=BS_STAND && state!=BS_SNEAK) {
-    setAnim(Anim::Idle);
-    return nullptr;
-    }
+  // the plugin AutoQuickLoot: the player takes a thing at once, no animation
+  const bool quick = isPlayer() && Plugins::autoLoot.load()!=0;
+  const Animation::Sequence* sq = nullptr;
+  if(!quick) {
+    auto state = bodyStateMasked();
+    if(state!=BS_STAND && state!=BS_SNEAK) {
+      setAnim(Anim::Idle);
+      return nullptr;
+      }
 
   auto dpos = item.position()-position();
   dpos.y-=translateY();
@@ -3302,6 +3307,8 @@ Item* Npc::takeItem(Item& item) {
   it = addItem(std::move(ptr));
   if(isPlayer() && it!=nullptr)
     owner.sendPassivePerc(*this,*this,*it,PERC_ASSESSTHEFT);
+  if(quick && it!=nullptr)
+    Plugins::addLoot(count>1 ? name+" x"+std::to_string(count) : name, Plugins::lootColor(flag,gold));
 
   implAniWait(uint64_t(sq->totalTime()));
   return it;

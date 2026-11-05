@@ -46,6 +46,7 @@ class InventoryMenu : public Tempest::Widget {
     bool  ransack(Npc& pl,Npc& tr);
     void  open(Npc& pl,Interactive& chest);
     State isOpen() const;
+    bool  quickLoot(Npc& pl, const Inventory& inv, Npc* body, Interactive* ch);
     bool  isActive() const;
     void  onWorldChanged();
 

@@ -15,6 +15,8 @@ class GthFont final {
     GthFont& operator = (GthFont&&)      = default;
 
     int  pixelSize() const;
+    // the same font in another colour (the glyph texture is white, the brush tints it)
+    GthFont tinted(const Tempest::Color& c) const { GthFont f(*this); f.color = c; return f; }
     void setScale(float s);
 
     void drawText(Tempest::Painter& p, int x, int y, int w, int h, std::string_view txt, Tempest::AlignFlag align, int firstLine=0) const;
