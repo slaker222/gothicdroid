@@ -24,7 +24,16 @@ void InventoryRenderer::draw(Tempest::Encoder<CommandBuffer>& cmd, float sx, flo
   auto& pso = Shaders::inst().inventory;
   if(clipW>0)
     cmd.setScissor(int(float(clipX)*sx), int(float(clipY)*sy), int(float(clipW)*sx+1.f), int(float(clipH)*sy+1.f));
+  bool own = false;
   for(auto& i:items) {
+    if(i.cw>0) {
+      cmd.setScissor(int(float(i.cx)*sx), int(float(i.cy)*sy), int(float(i.cw)*sx+1.f), int(float(i.ch)*sy+1.f));
+      own = true;
+      }
+    else if(own && clipW>0) {
+      cmd.setScissor(int(float(clipX)*sx), int(float(clipY)*sy), int(float(clipW)*sx+1.f), int(float(clipH)*sy+1.f));
+      own = false;
+      }
     cmd.setViewport(int(float(i.x)*sx+0.5f), int(float(i.y)*sy+0.5f), int(float(i.w)*sx+0.5f), int(float(i.h)*sy+0.5f));
     for(size_t r=0;r<i.mesh.nodesCount();++r) {
       auto  n = i.mesh.node(r);
