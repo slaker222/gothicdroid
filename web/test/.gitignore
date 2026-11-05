@@ -2,3 +2,8 @@ node_modules/
 package-lock.json
 profile*/
 out/
+
+# browser profiles and scratch of the profiling runs
+g2prof/
+prof2/
+tmp/

@@ -56,3 +56,9 @@ CLAUDE.md
 # Game download links (mirrors, archive URLs)
 web/release.json
 release*.json
+
+# build logs and Python caches
+/build.log
+/build-android.log
+/gradle.log
+__pycache__/
