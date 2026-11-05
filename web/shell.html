@@ -3500,6 +3500,8 @@ async function installChunks(m) {
           setLabel(byId.action, a);
           // the weapon button lights up while a weapon is out
           setLabel(byId.weapon, drawn ? 'weaponOff' : 'weapon');
+        if (g_runtimeUp && !quickSent) sendQuickCfg();
+        if (g_runtimeUp) sendPlug();
           setLabel(byId.jump, dive ? 'up' : swim ? 'dive' : 'jump');
         }
         if (layout === 'inv') {
