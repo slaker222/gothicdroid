@@ -140,6 +140,18 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_ui_state() {
   return g_webMain!=nullptr ? g_webMain->webUiState() : 0;
   }
 
+// the app is leaving the screen (Android onStop): 1 - an autosave has started, 0 - nothing to save now
+extern "C" EMSCRIPTEN_KEEPALIVE int og_autosave() {
+  if(!g_webSettingsReady || g_webMain==nullptr)
+    return 0;
+  return g_webMain->autoSave() ? 1 : 0;
+  }
+
+// 1 while a save / load runs (the app waits for it before it goes to the background)
+extern "C" EMSCRIPTEN_KEEPALIVE int og_save_busy() {
+  return Gothic::inst().checkLoading()!=Gothic::LoadState::Idle ? 1 : 0;
+  }
+
 // tool bar of the page: quick save (1) and quick load (2); the F5 / F9 keys do other things
 // in marvin mode, the buttons always save and load
 extern "C" EMSCRIPTEN_KEEPALIVE void og_quick(int kind) {
@@ -828,6 +840,20 @@ void MainWindow::tickMouse(uint64_t dt) {
 // 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats);
 // 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it);
 // 29 sneaking is on; 30 the graphics options menu is open; 31 the ranged weapon in hand has ammunition
+// the app goes to the background (Android: the process may be killed there): the quick save slot, only
+// where a save is possible at all (no dialog, no cutscene, no loading, not dead). true: the save has started
+bool MainWindow::autoSave() {
+  auto& g = Gothic::inst();
+  if(!g.isInGameAndAlive() || g.isPause() || g.checkLoading()!=Gothic::LoadState::Idle)
+    return false;
+  if(dialogs.isActive())
+    return false;
+  if(auto w = g.world(); w!=nullptr && w->currentCs()!=nullptr)
+    return false;
+  g.save("save_slot_0.sav","Autosave");
+  return g.checkLoading()==Gothic::LoadState::Saving;
+  }
+
 int MainWindow::webUiState() const {
   int s = 0;
   auto& gothic = Gothic::inst();
