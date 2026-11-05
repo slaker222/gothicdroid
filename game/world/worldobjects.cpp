@@ -473,6 +473,8 @@ void WorldObjects::updateAnimation(uint64_t dt) {
     i.updateAnimation(dt);
     });
 #endif
+  for(auto& i:npcArr)
+    i->updateBlobShadow();
   }
 
 bool WorldObjects::isTargeted(Npc& dst) {
