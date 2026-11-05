@@ -2938,7 +2938,7 @@ async function installChunks(m) {
         if (CUSTOM[id]) {
           b.custom = true;
           el.innerHTML = '<span class="clabel"></span>';
-          el.firstChild.textContent = CUSTOM[id].label || '';
+          el.firstChild.textContent = CUSTOM[id].label || k.split('+').join(' + ');
         }
         // Gothic strikes and blocks with key combinations: Shift held, then a
         // direction (W strikes, S blocks). With a weapon out the action button

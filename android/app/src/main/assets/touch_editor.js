@@ -49,16 +49,16 @@
     #ted-keyrow .sr .kl { width: 22px; font-size: 16px; text-align: center; }
     #ted-keyrow .sr button:first-of-type { flex: 1; }
     #ted-hold { display: flex; align-items: center; gap: 6px; color: #ddd; white-space: nowrap; }
-    #ted-hold[hidden] { display: none; }
+    #ted-keyrow .sp { flex: 1; }
+    #ted-keyrow button.del { min-width: 0; color: #ff7a7a; }
     #ted-keyrow[hidden], #ted-cust[hidden] { display: none; }
     #ted-keyrow .kl { color: #999; }
-    #ted-keyrow button, #ted-cust button { font: inherit; font-size: 13px; font-weight: 600; min-width: 64px; padding: 6px 12px; color: #fff; background: #2a2a2a; border: 1px solid #555; border-radius: 8px; cursor: pointer; }
+    #ted-keyrow button { font: inherit; font-size: 13px; font-weight: 600; min-width: 64px; padding: 6px 12px; color: #fff; background: #2a2a2a; border: 1px solid #555; border-radius: 8px; cursor: pointer; }
     #ted-keyrow button.mod { border-color: #ffd54a; color: #ffd54a; }
     #ted-keyrow button:disabled { color: #777; border-style: dashed; }
     #ted-keyrow button.x { min-width: 0; color: #999; }
     #ted-cust { display: flex; gap: 8px; }
     #ted-cust input { flex: 1; min-width: 0; font: inherit; padding: 6px 10px; color: #fff; background: #1e1e1e; border: 1px solid #555; border-radius: 8px; }
-    #ted-cust button { color: #ff7a7a; }
     #ted-add { color: #ffd54a !important; font-size: 14px !important; font-weight: 600; border: 1px solid #ffd54a !important; border-radius: 8px; padding: 3px 12px !important; margin-right: 8px; }
     #ted-kp { position: absolute; inset: 0; z-index: 5; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; }
     #ted-kp[hidden] { display: none; }
@@ -84,8 +84,8 @@
       <div id="ted-body">
         <div id="ted-tabs"></div>
         <div id="ted-size"><span id="ted-sel">Tap a button</span><input type="range" id="ted-k" min="0.5" max="2" step="0.05" value="1" disabled><output id="ted-kv">100%</output></div>
+        <div id="ted-cust" hidden><input id="ted-lab" type="text" maxlength="8" placeholder="Text on the button" autocapitalize="off" autocomplete="off"></div>
         <div id="ted-keyrow" hidden></div>
-        <div id="ted-cust" hidden><input id="ted-lab" type="text" maxlength="8" placeholder="Text on the button" autocapitalize="off" autocomplete="off"><label id="ted-hold"><input type="checkbox" id="ted-holdc"> Hold</label><button type="button" id="ted-del">Delete</button></div>
         <label class="snap"><input type="checkbox" id="ted-snap" checked> Snap to the grid</label>
         <div id="ted-hint">Drag a button to move it, tap it to change its key. Add makes a button of your own. Drag this window by its title.</div>
         <div class="row"><button id="ted-reset">Reset</button><button id="ted-cancel">Cancel</button><button id="ted-save" class="primary">Save</button></div>
@@ -135,6 +135,7 @@
       if (el) { el.firstChild.textContent = c.label || keyText(c.key); el.dataset.name = c.label || keyText(c.key); $('ted-sel').textContent = el.dataset.name; }
     });
     $('ted-keyrow').addEventListener('change', e => {
+      if (e.target.id === 'ted-holdc') { const c = selCustom(); if (c) c.hold = e.target.checked; return; }
       const f = { 'ted-qback': 'back', 'ted-qvert': 'vert', 'ted-qsplit': 'split' }[e.target.id];
       if (!f) return;
       st.quick[f] = e.target.checked;
@@ -142,15 +143,14 @@
       // another shape: the bar keeps its place when it was moved, otherwise it goes to the default place of the new shape
       build();
     });
-    $('ted-holdc').addEventListener('change', () => { const c = selCustom(); if (c) c.hold = $('ted-holdc').checked; });
-    $('ted-del').addEventListener('click', () => {
-      const c = selCustom();
-      if (!c) return;
-      st.custom = st.custom.filter(x => x !== c); delete st.items[c.id]; st.sel = null; build();
-    });
     $('ted-keyrow').addEventListener('click', e => {
       const b = e.target.closest('button');
       if (!b) return;
+      if (b.id === 'ted-del') {
+        const c = selCustom();
+        if (c) { st.custom = st.custom.filter(x => x !== c); delete st.items[c.id]; st.sel = null; build(); }
+        return;
+      }
       if (b.dataset.reset) { delete st.keys[b.dataset.reset]; showKey(); return; }
       if (b.dataset.q) { st.quick.cols = Math.min(10, Math.max(4, quickCols() + +b.dataset.q)); build(); return; }
       if (b.dataset.id) chooseKey(b.dataset.id, b.dataset.dflt, +b.dataset.max, b.dataset.title);
@@ -287,7 +287,7 @@
   function showKey() {
     const row = $('ted-keyrow'), ck = st.sel, c = selCustom();
     $('ted-cust').hidden = !c;
-    if (c) { $('ted-lab').value = c.label || ''; $('ted-holdc').checked = !!c.hold; }
+    if (c) $('ted-lab').value = c.label || '';
     row.classList.toggle('col', ck === 'stick');
     if (!ck) { row.hidden = true; return; }
     row.hidden = false;
@@ -315,7 +315,7 @@
     const el = $('ted-btns').querySelector('[data-ck="' + ck + '"]'), id = el && el.dataset.id;
     if (!id) { row.hidden = true; return; }
     if ((o.SPECIAL || []).includes(id)) { row.innerHTML = '<span class="kl">Key</span><button type="button" disabled>special button</button>'; return; }
-    row.innerHTML = kb(id, el.dataset.name, 3, 'Key');
+    row.innerHTML = kb(id, el.dataset.name, 3, 'Key') + (c ? '<span class="sp"></span><label id="ted-hold"><input type="checkbox" id="ted-holdc"' + (c.hold ? ' checked' : '') + '> Hold</label><button type="button" class="del" id="ted-del">Delete</button>' : '');
   }
   // the picker of the keys (several are pressed together)
   const KGROUPS = [
@@ -362,7 +362,11 @@
     const id = 'u' + Date.now().toString(36);
     pickKey('Key of the new button', '', 3, k => {
       st.custom.push({ id, label: '', key: k, layouts: TAB_LAYOUTS[st.tab] });
-      st.items[id] = { x: 50, y: 45 };
+      // not under the window of the editor: the new button is put into the free part of the screen, where its text is seen
+      const a = $('ted-area').getBoundingClientRect(), r = $('ted-panel').getBoundingClientRect();
+      const left = r.left - a.left, right = a.right - r.right;
+      const x = left >= right ? left / 2 : r.right - a.left + right / 2;
+      st.items[id] = { x: +Math.min(92, Math.max(8, x / a.width * 100)).toFixed(2), y: 45 };
       st.sel = id; build();
     });
   }
