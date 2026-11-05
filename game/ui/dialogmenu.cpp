@@ -10,6 +10,7 @@
 #include "world/objects/npc.h"
 #include "gothic.h"
 #include "inventorymenu.h"
+#include "menuroot.h"
 #include "resources.h"
 
 using namespace Tempest;
@@ -533,6 +534,34 @@ void DialogMenu::onSelect() {
     }
   }
 
+// the answer under a point (the same layout as paintChoice)
+bool DialogMenu::choiceAt(const Tempest::Point& pos, size_t& id) const {
+  const float scale = Gothic::interfaceScale(this);
+  const int   padd  = int(20*scale);
+  const int   dw    = std::min(w(),int(600*scale));
+
+  std::vector<int> hs(choice.size());
+  int dh = padd*2;
+  for(size_t i=0;i<choice.size();++i){
+    hs[i] = Resources::dialogFont(scale).textSize(dw-padd, choice[i].title).h;
+    dh   += hs[i];
+    }
+  const int y = h()-dh-int(20*scale);
+  const int x = (w()-dw)/2;
+  if(pos.x<x || pos.x>=x+dw || pos.y<y || pos.y>=y+dh)
+    return false;
+  int top = y+padd+padd;
+  for(size_t i=0;i<choice.size();++i) {
+    const int bottom = (i+1==choice.size()) ? y+dh : top+hs[i];
+    if(pos.y<bottom) {
+      id = i;
+      return true;
+      }
+    top += hs[i];
+    }
+  return false;
+  }
+
 void DialogMenu::mouseDownEvent(MouseEvent &event) {
   if(state==State::Idle || trade.isOpen()!=InventoryMenu::State::Closed){
     event.ignore();
@@ -540,6 +569,14 @@ void DialogMenu::mouseDownEvent(MouseEvent &event) {
     }
 
   if(event.button==MouseEvent::ButtonLeft) {
+    // touch controls: the answer under the finger is chosen, a tap beside the answers does nothing
+    if(MenuRoot::touchPointer() && isChoiceMenuActive()) {
+      size_t id = 0;
+      if(!choiceAt(event.pos(),id))
+        return;
+      dlgSel = id;
+      update();
+      }
     onSelect();
     }
   if(event.button==MouseEvent::ButtonRight) {
