@@ -687,6 +687,31 @@
     .tbtn svg { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 2;
                 stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
     .tbtn.cheat { border-color: #f2c200; color: #ffe066; }
+    .tbtn.plug { border-color: #3ddc6a; color: #8dffa8; background: rgba(30, 110, 55, 0.55); }
+    /* the plugins window (the green button of the tool bar) */
+    #plug-box { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); }
+    #plug-box[hidden] { display: none; }
+    #plug-win { width: min(440px, 92%); max-height: 92%; overflow-y: auto; padding: 12px 14px; color: #eee; background: #14201a; border: 1px solid #3ddc6a; border-radius: 12px; font: 14px/1.3 sans-serif; }
+    #plug-win h3 { margin: 0 0 8px; font-size: 16px; color: #8dffa8; }
+    #plug-win label.pl { display: flex; gap: 10px; align-items: flex-start; padding: 8px 4px; border-top: 1px solid #25402f; cursor: pointer; }
+    #plug-win label.pl input { width: 22px; height: 22px; flex: none; accent-color: #3ddc6a; margin-top: 1px; }
+    #plug-win label.pl b { display: block; font-weight: 600; }
+    #plug-win label.pl small { display: block; color: #9bb; font-size: 12px; }
+    #plug-win .pl-head { display: flex; align-items: center; gap: 10px; padding: 8px 4px 4px; border-top: 1px solid #25402f; }
+    #plug-win .pl-head input { width: 22px; height: 22px; flex: none; accent-color: #3ddc6a; }
+    #plug-win .pl-head span { flex: 1; } #plug-win .pl-head b { display: block; font-weight: 600; } #plug-win .pl-head small { display: block; color: #9bb; font-size: 12px; }
+    #plug-win .pl-exp { font: inherit; font-size: 12px; padding: 5px 10px; color: #8dffa8; background: transparent; border: 1px solid #2f5a40; border-radius: 14px; cursor: pointer; flex: none; }
+    #plug-win .pl-set { padding: 2px 4px 8px 32px; } #plug-win .pl-set[hidden] { display: none; }
+    #plug-win .pl-set label { display: flex; gap: 10px; align-items: flex-start; padding: 4px 0; cursor: pointer; } #plug-win .pl-set label input { width: 20px; height: 20px; accent-color: #3ddc6a; flex: none; }
+    #plug-win .pl-set small { display: block; color: #9bb; font-size: 12px; }
+    .plug-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 4px 0; }
+    .plug-chips > b { width: 100%; font-weight: 600; font-size: 13px; }
+    .plug-chips button { font: inherit; padding: 6px 12px; color: #ddd; background: #1d3326; border: 1px solid #2f5a40; border-radius: 14px; cursor: pointer; }
+    .plug-chips button.on { color: #000; background: #8dffa8; border-color: #8dffa8; }
+    #plug-speed { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 4px; border-top: 1px solid #25402f; align-items: center; }
+    #plug-speed button { font: inherit; padding: 6px 12px; color: #ddd; background: #1d3326; border: 1px solid #2f5a40; border-radius: 14px; cursor: pointer; }
+    #plug-speed button.on { color: #000; background: #8dffa8; border-color: #8dffa8; }
+    #plug-close { width: 100%; margin-top: 8px; height: 38px; font: inherit; font-weight: 600; color: #000; background: #8dffa8; border: 0; border-radius: 10px; cursor: pointer; }
     .tbtn.hidden { display: none; }
     /* strike button: the arrows show the directions, the one struck lights up */
     .tbtn.strike svg { width: 86%; height: 86%; }
@@ -2820,11 +2845,13 @@ async function installChunks(m) {
         ['log',    'N',     'small', 'left:59cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // camera: first / third person (the game's F key), left of the cheat buttons
         ['camera', 'F',     'small', 'left:69.5cqmin;top:calc(36px + 1cqmin)',              'wtools'],
-        ['cheat',  '',      'small cheat', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['console','F2',    'small cheat', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['fly',    'F8',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['kfast',  'K',     'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
-        ['possess','O',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['cheat',  '',      'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        // the plugins (a parody of Union): a green button left of the cheat one, opens the list with the check boxes
+        ['plugins','',      'small plug', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['console','F2',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['fly',    'F8',    'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['kfast',  'K',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
+        ['possess','O',     'small cheat', 'left:122cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         // dialog
         ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
         ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
@@ -2895,6 +2922,7 @@ async function installChunks(m) {
                              // buttons that act on the page or the engine instead of pressing a key
                              if (b.id === 'tools') { setTools(!toolsOpen); update(); return; }
                              if (b.id === 'cheat') { ogSet('marvin', 1); update(); return; }
+                             if (b.id === 'plugins') { plugOpen(); return; }
                              if (b.id === 'qsave' || b.id === 'qload') {
                                if (g_runtimeUp) Module.ccall('og_quick', null, ['number'], [b.id === 'qsave' ? 1 : 2]);
                                return;
@@ -2968,11 +2996,75 @@ async function installChunks(m) {
         if (started && !stick) stickHome();
       }
       applyCfg(false);
+      // ---- the plugins: AutoQuickLoot (the loot at once, coloured by categories), ScreenInfo (day / time, numbers on the bars),
+      // the game speed (x1 by default). Kept in the controls' config (the app) or in localStorage (a browser)
+      const PLUG_SPEEDS = [1, 2, 3, 5, 10], PLUG_RADII = [1, 2, 3, 5];
+      const plug = () => {
+        if (!TC.plugins) {
+          try { TC.plugins = JSON.parse(localStorage.getItem('og_plugins') || 'null'); } catch (e) {}
+          if (!TC.plugins || typeof TC.plugins !== 'object') TC.plugins = {};
+        }
+        const p = TC.plugins;
+        p.loot = p.loot ? 1 : 0; p.info = p.info ? 1 : 0; p.auto = p.auto ? 1 : 0;
+        p.speed = PLUG_SPEEDS.includes(p.speed) ? p.speed : 1;
+        p.radius = PLUG_RADII.includes(p.radius) ? p.radius : 2;
+        return p;
+      };
+      let plugSent = '';
+      function sendPlug() {
+        if (!g_runtimeUp) { plugSent = ''; return; }
+        const p = plug(), sig = [p.loot, p.info, p.speed, p.auto, p.radius].join(',');
+        if (sig === plugSent) return;
+        ogSet('plugAutoLoot', p.loot); ogSet('plugScreenInfo', p.info); ogSet('plugTimeScale', p.speed * 100); ogSet('plugAuto', p.auto); ogSet('plugAutoRadius', p.radius);
+        plugSent = sig;
+      }
+      function plugSave() {
+        sendPlug();
+        try { localStorage.setItem('og_plugins', JSON.stringify(plug())); } catch (e) {}
+        if (window.ogTouch) window.ogTouch.save();
+      }
+      let plugEl = null, plugAt = 0;
+      const chips = (id, title, vals, unit) => '<div class="plug-chips" id="' + id + '"><b>' + title + '</b>' + vals.map(v => '<button type="button" data-v="' + v + '">' + (unit === 'x' ? 'x' + v : v + ' ' + unit) + '</button>').join('') + '</div>';
+      function plugOpen() {
+        if (!plugEl) {
+          plugEl = document.createElement('div');
+          plugEl.id = 'plug-box'; plugEl.hidden = true;
+          plugEl.innerHTML = '<div id="plug-win"><h3>Plugins</h3>' +
+            '<div class="pl-head"><input type="checkbox" data-k="loot"><span><b>AutoQuickLoot</b><small>Take everything from a body, a chest or the ground at once, no animation. What is taken is written on the screen, the colour is the category.</small></span><button type="button" class="pl-exp" data-x="loot">Settings &#9662;</button></div>' +
+            '<div class="pl-set" id="plug-s-loot" hidden><label><input type="checkbox" data-k="auto"><span>Auto<small>Things and dead bodies near you are taken by themselves, no button. Things that belong to somebody are left.</small></span></label>' +
+              chips('plug-radius', 'Radius of Auto', PLUG_RADII, 'm') + '</div>' +
+            '<div class="pl-head"><input type="checkbox" data-k="info"><span><b>ScreenInfo</b><small>The day and the time in the top left corner; the numbers (50/100) on the health and mana bars, yours and the one in focus.</small></span><button type="button" class="pl-exp" data-x="info">Settings &#9662;</button></div>' +
+            '<div class="pl-set" id="plug-s-info" hidden>' + chips('plug-speed', 'Game speed', PLUG_SPEEDS, 'x') + '</div>' +
+            '<button type="button" id="plug-close">Close</button></div>';
+          (document.getElementById('player') || document.body).appendChild(plugEl);
+          const stop = e => e.stopPropagation();
+          ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach(n => plugEl.addEventListener(n, stop));
+          plugEl.addEventListener('change', e => { const k = e.target.dataset && e.target.dataset.k; if (k) { plug()[k] = e.target.checked ? 1 : 0; plugSave(); } });
+          plugEl.querySelector('#plug-speed').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().speed = +b.dataset.v; plugShow(); plugSave(); });
+          plugEl.querySelector('#plug-radius').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().radius = +b.dataset.v; plugShow(); plugSave(); });
+          plugEl.querySelectorAll('.pl-exp').forEach(b => b.addEventListener('click', () => {
+            const box = plugEl.querySelector('#plug-s-' + b.dataset.x); box.hidden = !box.hidden;
+            b.innerHTML = box.hidden ? 'Settings &#9662;' : 'Settings &#9652;';
+          }));
+          plugEl.querySelector('#plug-close').addEventListener('click', () => { plugEl.hidden = true; });
+          // the finger that has opened the window lifts over it: that is not a tap on the background
+          plugEl.addEventListener('click', e => { if (e.target === plugEl && Date.now() - plugAt > 600) plugEl.hidden = true; });
+        }
+        plugShow();
+        plugAt = Date.now();
+        plugEl.hidden = false;
+      }
+      function plugShow() {
+        const p = plug();
+        plugEl.querySelectorAll('input[data-k]').forEach(i => { i.checked = !!p[i.dataset.k]; });
+        plugEl.querySelectorAll('#plug-speed button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.speed));
+        plugEl.querySelectorAll('#plug-radius button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.radius));
+      }
       window.ogTouch = {
         cfg: () => TC,
         apply: () => applyCfg(true),
         save: () => { try { AndroidBridge.setControls(JSON.stringify(TC)); } catch (e) {} },
-        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF })
+        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'plugins', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: TC.keys || {}, custom: TC.custom || [] })
       };
       // minimal line icons (24x24); the name is also the button's tooltip
       // TOUCH-ICONS-BEGIN
@@ -3014,6 +3106,7 @@ async function installChunks(m) {
         qsave: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 18v-6.5M9.5 14l2.5-2.5 2.5 2.5"/>',
         qload: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 11.5V18M9.5 15.5L12 18l2.5-2.5"/>',
         cheat:  '<path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 20 12 16.5 6.5 20 8 13.5 3 9l6.5-.5z"/>',
+        plugins:'<path d="M9 3v4M15 3v4M6 7h12v5a6 6 0 0 1-12 0zM12 18v3"/>',
         console:'<path d="M3 5h18v14H3zM7 9l3 3-3 3M12 15h5"/>',
         kfast: '<text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">K</text>',
         fly: '<text x="12" y="16" text-anchor="middle" font-size="10.5" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">F8</text>',
@@ -3026,7 +3119,7 @@ async function installChunks(m) {
         aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', take10: 'Take 10', dive: 'Dive', up: 'Surface', block: 'Block',
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
-        camera: 'Camera: first / third person (F)', tools: 'More', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
+        camera: 'Camera: first / third person (F)', tools: 'More', plugins: 'Plugins', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
         console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
       // the icon each button shows unless the situation picks another one
       const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', inv: 'inv', log: 'log',
@@ -3034,7 +3127,7 @@ async function installChunks(m) {
         pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
         aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
-        tools: 'tools', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
+        tools: 'tools', plugins: 'plugins', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
         possess: 'possess' };
       // TOUCH-ICONS-END
       stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');

@@ -13,6 +13,7 @@
 #include "utils/gthfont.h"
 #include "utils/keycodec.h"
 #include "gothic.h"
+#include "plugins.h"
 #include "resources.h"
 
 using namespace Tempest;
@@ -167,6 +168,8 @@ bool InventoryMenu::ransack(Npc &pl, Npc &tr) {
   auto it = tr.inventory().iterator(Inventory::T_Ransack);
   if(!it.isValid())
     return false;
+  if(Plugins::autoLoot.load()!=0)
+    return quickLoot(pl,tr.inventory(),&tr,nullptr);
   state  = State::Ransack;
   player = &pl;
   trader = &tr;
@@ -188,6 +191,9 @@ void InventoryMenu::open(Npc &pl, Interactive &ch) {
   if(pl.isDown())
     return;
   const bool needToPicklock = ch.needToLockpick(pl);
+  // the plugin: a chest that opens (not a locked one) is emptied at once, without the animation and the window
+  if(Plugins::autoLoot.load()!=0 && !(needToPicklock && !ch.isCracked()) && quickLoot(pl,ch.inventory(),nullptr,&ch))
+    return;
   if(!pl.setInteraction(&ch))
     return;
 
@@ -205,6 +211,33 @@ void InventoryMenu::open(Npc &pl, Interactive &ch) {
   pageOth.reset(new InvPage(ch.inventory()));
   adjustScroll();
   update();
+  }
+
+// the plugin AutoQuickLoot: everything that can be taken from a body (from == nullptr for a chest) or a chest goes to the
+// player at once; every thing is written on the screen in the colour of its category. body: the dead one, ch: the chest;
+// false: nothing to take
+bool InventoryMenu::quickLoot(Npc& pl, const Inventory& inv, Npc* body, Interactive* ch) {
+  struct Taken { size_t cls; size_t count; std::string name; uint32_t flag; bool gold; };
+  std::vector<Taken> list;
+  const auto type = body!=nullptr ? Inventory::T_Ransack : Inventory::T_Inventory;
+  for(auto it=inv.iterator(type); it.isValid(); ++it) {
+    if(it.count()==0)
+      continue;
+    list.push_back({it->clsId(),it.count(),std::string(it->displayName()),uint32_t(it->mainFlag()),it->isGold()});
+    }
+  if(list.empty())
+    return false;
+  for(auto& t:list) {
+    if(body!=nullptr)
+      pl.addItem(t.cls,*body,t.count); else
+      pl.addItem(t.cls,*ch,t.count);
+    std::string txt = t.name;
+    if(t.count>1)
+      txt += " x" + std::to_string(t.count);
+    Plugins::addLoot(std::move(txt),Plugins::lootColor(t.flag,t.gold));
+    }
+  Gothic::inst().emitGlobalSound("INV_CHANGE");
+  return true;
   }
 
 InventoryMenu::State InventoryMenu::isOpen() const {

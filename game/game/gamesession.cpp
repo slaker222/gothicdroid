@@ -15,6 +15,7 @@
 #include "serialize.h"
 #include "camera.h"
 #include "gothic.h"
+#include "plugins.h"
 
 using namespace Tempest;
 
@@ -336,7 +337,8 @@ void GameSession::tick(uint64_t dt) {
   wrld->scaleTime(dt);
 
   // apply ztime multiplyer
-  dt = dt*timeMul + timeMulFract;
+  // the plugin "game speed" (x1 = 100 %) goes on top of the multiplier of the scripts / the console
+  dt = dt*(timeMul*uint64_t(std::max(10,std::min(2000,Plugins::timeScale.load())))/100) + timeMulFract;
   timeMulFract = dt%1000;
   dt /= 1000;
 

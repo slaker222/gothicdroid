@@ -29,6 +29,7 @@
 
 #include "commandline.h"
 #include "gothic.h"
+#include "plugins.h"
 #if defined(__ANDROID__)
 #include "gapi/vulkan/vpipelinelogger.h"
 #include "system/api/androidapi.h"
@@ -341,6 +342,16 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
     MenuRoot::setTouchPointer(val!=0);
     return 1;
     }
+#if defined(OG_WEB_UI)
+  {
+  // the plugins (the green button of the touch controls)
+  if(std::strcmp(name, "plugAutoLoot")==0)   { Plugins::autoLoot  .store(val); return 1; }
+  if(std::strcmp(name, "plugAuto")==0)       { Plugins::autoPick  .store(val); return 1; }
+  if(std::strcmp(name, "plugAutoRadius")==0) { Plugins::autoRadius.store(std::max(1,std::min(10,val))); return 1; }
+  if(std::strcmp(name, "plugScreenInfo")==0) { Plugins::screenInfo.store(val); return 1; }
+  if(std::strcmp(name, "plugTimeScale")==0)  { Plugins::timeScale .store(std::max(10,std::min(2000,val))); return 1; }
+  }
+#endif
   if(g_webSettingsReady && std::strcmp(name, "marvin")==0) {
     // the cheat code "marvin" of the main menu, for the page's tool bar
     Gothic::inst().setMarvinEnabled(val!=0);
@@ -577,9 +588,9 @@ void MainWindow::paintEvent(PaintEvent& event) {
           bool showSwimBar   = (opt.showSwimBar==2) || (opt.showSwimBar==1 && pl->isDive());
 
           if(showHealthBar)
-            drawBar(p,barHp, 10, h()-10, hp, AlignLeft | AlignBottom);
+            drawBar(p,barHp, 10, h()-10, hp, AlignLeft | AlignBottom, int(pl->attribute(ATR_HITPOINTS)), int(pl->attribute(ATR_HITPOINTSMAX)));
           if(showManaBar)
-            drawBar(p,barMana, w()-10, h()-10, mp, AlignRight | AlignBottom);
+            drawBar(p,barMana, w()-10, h()-10, mp, AlignRight | AlignBottom, int(pl->attribute(ATR_MANA)), int(pl->attribute(ATR_MANAMAX)));
           if(showSwimBar) {
             uint32_t gl = pl->guild();
             auto     v  = float(pl->world().script().guildVal().dive_time[gl]);
@@ -657,6 +668,23 @@ void MainWindow::paintEvent(PaintEvent& event) {
       string_frm clockT(int(hour),":",int(min));
       fnt.drawText(p,w()-fnt.textSize(clockT).w-5,fnt.pixelSize()+5,clockT);
       }
+    }
+
+  if(world!=nullptr && world->view()) {
+    auto& fnt = Resources::font(scale);
+    if(Plugins::screenInfo.load()!=0 && !dialogs.isActive()) {
+      // the plugin ScreenInfo: the day and the time in the top left corner
+      auto t = world->time();
+      char buf[64]={};
+      std::snprintf(buf,sizeof(buf),"Day %d  %02d:%02d",int(t.day())+1,int(t.hour()),int(t.minute()));
+      int y = fnt.pixelSize()+5;
+      if(Gothic::inst().doFrate())
+        y += fnt.pixelSize()+4;
+      fnt.tinted(Color(0.f,0.f,0.f,0.9f)).drawText(p,6,y+1,buf);
+      fnt.tinted(Color(1.f,0.95f,0.7f,1.f)).drawText(p,5,y,buf);
+      }
+    // the plugin AutoQuickLoot: what was taken, by the categories' colours
+    Plugins::paintLoot(p,fnt,w(),int(float(h())*0.3f));
     }
 
   if(Gothic::inst().doVobBox() && !Gothic::inst().isDesktop()) {
@@ -1104,7 +1132,7 @@ void MainWindow::paintFocus(Painter& p, const Focus& focus, const Matrix4x4& vp)
 
   if(focus.npc!=nullptr && !focus.npc->isDead()) {
     float hp = float(focus.npc->attribute(ATR_HITPOINTS))/float(focus.npc->attribute(ATR_HITPOINTSMAX));
-    drawBar(p,barHp, w()/2,10, hp, AlignHCenter|AlignTop);
+    drawBar(p,barHp, w()/2,10, hp, AlignHCenter|AlignTop, int(focus.npc->attribute(ATR_HITPOINTS)), int(focus.npc->attribute(ATR_HITPOINTSMAX)));
     }
 
   const int foc = Gothic::settingsGetI("GAME","highlightMeleeFocus");
@@ -1175,7 +1203,7 @@ void MainWindow::paintFocus(Painter& p, Rect rect) {
   p.drawRect(rect.x+rect.w-w,rect.y+rect.h-h,w,h, w,h, w2,h2);
   }
 
-void MainWindow::drawBar(Painter &p, const Tempest::Texture2d* bar, int x, int y, float v, AlignFlag flg) {
+void MainWindow::drawBar(Painter &p, const Tempest::Texture2d* bar, int x, int y, float v, AlignFlag flg, int cur, int max) {
   if(barBack==nullptr || bar==nullptr)
     return;
   const float scale   = Gothic::interfaceScale(this);
@@ -1201,6 +1229,17 @@ void MainWindow::drawBar(Painter &p, const Tempest::Texture2d* bar, int x, int y
   p.setBrush(*bar);
   p.drawRect(x+int(pd),y+dy,int(float(destW-pd*2)*v),int(destHin),
              0,0,bar->w(),bar->h());
+
+  if(cur>=0 && Plugins::screenInfo.load()!=0) {
+    // the plugin ScreenInfo: "50/100" on the bar itself
+    auto& fnt = Resources::font(scale*0.75f);
+    std::string txt = std::to_string(cur)+"/"+std::to_string(std::max(max,cur));
+    auto sz = fnt.textSize(txt);
+    int  tx = x+(int(destW)-sz.w)/2;
+    int  ty = y+(int(destH)+sz.h)/2;
+    fnt.tinted(Color(0.f,0.f,0.f,0.9f)).drawText(p,tx+1,ty+1,txt);
+    fnt.tinted(Color(1.f,1.f,1.f,1.f)).drawText(p,tx,ty,txt);
+    }
   }
 
 void MainWindow::drawMsg(Tempest::Painter& p) {
@@ -1370,6 +1409,40 @@ void MainWindow::onMarvinKey() {
     }
   }
 
+// the plugin AutoQuickLoot, "auto": the things on the ground and the dead bodies near the player are taken by themselves
+void MainWindow::tickAutoLoot(uint64_t dt) {
+  if(Plugins::autoLoot.load()==0 || Plugins::autoPick.load()==0)
+    return;
+  autoLootAcc += dt;
+  if(autoLootAcc<250)
+    return;
+  autoLootAcc = 0;
+  auto world = Gothic::inst().world();
+  auto pl    = world==nullptr ? nullptr : world->player();
+  if(pl==nullptr || dialogs.isActive() || inventory.isActive() || world->isCutsceneLock() || Gothic::inst().isInDialog())
+    return;
+  if(pl->isDown() || pl->isDead() || pl->isUnconscious() || pl->interactive()!=nullptr || pl->isSwim() || pl->isDive() || pl->isInAir())
+    return;
+  const float r = float(Plugins::autoRadius.load())*100.f;
+  const auto  p = pl->position();
+  std::vector<Item*> items;
+  world->detectItem(p,r,[&](Item& it){
+    // not what belongs to somebody (a theft) and not at another floor
+    if(it.handle().owner!=0 || it.handle().owner_guild!=0 || std::fabs(it.position().y-p.y)>150.f)
+      return;
+    items.push_back(&it);
+    });
+  for(auto it:items)
+    pl->takeItem(*it);
+  std::vector<Npc*> bodies;
+  world->detectNpc(p,r,[&](Npc& n){
+    if(!n.isPlayer() && n.isDead() && std::fabs(n.position().y-p.y)<150.f)
+      bodies.push_back(&n);
+    });
+  for(auto n:bodies)
+    inventory.quickLoot(*pl,n->inventory(),n,nullptr);
+  }
+
 uint64_t MainWindow::tick() {
   auto time = Application::tickCount();
   auto dt   = time-lastTick;
@@ -1424,6 +1497,9 @@ uint64_t MainWindow::tick() {
   inventory.quickUpdate();
 #endif
   Gothic::inst().tick(dt);
+  if(Plugins::tick(dt))
+    update();
+  tickAutoLoot(dt);
   player.tickFocus();
 
   if(dialogs.isActive())
