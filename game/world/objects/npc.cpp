@@ -4626,8 +4626,9 @@ void Npc::syncBlobShadow() {
   }
 
 void Npc::updateBlobShadow() {
-  if(blobShadow.isEmpty() || durtyTranform==0)
+  if(blobShadow.isEmpty() || !blobShadowDurty)
     return;
+  blobShadowDurty = false;
 
   auto phys = owner.physic();
   // the collision box of the skeleton: the same for all the humans, unlike the visual bounds (armor, weapons)
@@ -4702,7 +4703,10 @@ void Npc::updateAnimationEvents(uint64_t dt) {
   if(isPlayer() && camera!=nullptr && camera->isFree())
     dt = 0;
 
-  updateBlobShadow();
+  // the circle is placed later on the main thread (WorldObjects::updateAnimation): landRay rebuilds the
+  // bullet broadphase when it changed (a dead npc, a looted body) - from several workers at once it broke the heap
+  if(durtyTranform!=0 && !blobShadow.isEmpty())
+    blobShadowDurty = true;
 
   {
   // swimming on the surface: the body is on the water, not in it
