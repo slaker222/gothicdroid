@@ -239,11 +239,17 @@ class MainActivity : AppCompatActivity() {
         return found
     }
 
+    // Android 13+: the progress notification of the download needs the permission (the download runs without it)
+    private fun askNotifications() {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            runOnUiThread { ActivityCompat.requestPermissions(this, arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7) }
+        }
+    }
+
     private fun prefs() = getSharedPreferences("opengothic_launcher", Context.MODE_PRIVATE)
 
     private var scanned: Map<Int, String> = emptyMap()
-    private var dl: PackDownloader? = null
-    private var dlGame = 0
 
     // the folder of a game: the one the player chose, or the one found on the phone
     private fun gamePath(id: Int): String? {
@@ -713,7 +719,7 @@ class MainActivity : AppCompatActivity() {
         // deletes the copy the app downloaded; the page asks the player first
         @JavascriptInterface
         fun deleteGame(id: Int) {
-            if (dl?.running == true || !isDownloaded(id)) return
+            if (DownloadService.running() || !isDownloaded(id)) return
             Thread {
                 appCopy(id).deleteRecursively()
                 prefs().edit().remove("path_$id").apply()
@@ -724,34 +730,21 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun download(id: Int, text: String, voice: String): Boolean {
-            if (dl?.running == true) return false
-            val d = PackDownloader(server())
-            dl = d
-            dlGame = id
+            if (DownloadService.running()) return false
+            askNotifications()
             val target = File(getExternalFilesDir(null), "Gothic$id")
-            runOnUiThread { window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-            Thread {
-                d.install(id, text, voice, target)
-                runOnUiThread { window.clearFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
-                if (d.finished) {
-                    // the game is in the folder of the app now: the next start uses it
-                    prefs().edit().putString("path_$id", target.path).apply()
-                    scanned = scanned + (id to target.path)
-                }
-                runOnUiThread { webView?.evaluateJavascript("window.onResumed && onResumed()", null) }
-            }.start()
-            return true
+            return DownloadService.start(applicationContext, server(), id, text, voice, target)
         }
 
         @JavascriptInterface
         fun dlState(): String {
-            val d = dl ?: return JSONObject().put("running", false).toString()
-            return JSONObject().put("game", dlGame).put("running", d.running).put("finished", d.finished).put("error", d.error)
+            val d = DownloadService.current ?: return JSONObject().put("running", false).toString()
+            return JSONObject().put("game", DownloadService.game).put("running", d.running).put("finished", d.finished).put("error", d.error)
                 .put("phase", d.phase).put("done", d.done.get()).put("total", d.total).toString()
         }
 
         @JavascriptInterface
-        fun cancelDownload() { dl?.cancel() }
+        fun cancelDownload() { DownloadService.current?.cancel() }
 
         // the languages installed in the folder of a game: {text, voice} or "" (a game put there by hand)
         @JavascriptInterface

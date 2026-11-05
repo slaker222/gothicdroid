@@ -65,6 +65,8 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativePerfInfo(): String
     private external fun nativeFrameTimes(): String
     private external fun nativeQuick(kind: Int)
+    private external fun nativeAutoSave(): Int
+    private external fun nativeSaveBusy(): Int
     private external fun nativeQuests(): String
     private external fun nativeVideoTake(): String
     private external fun nativeVideoDone()
@@ -236,6 +238,24 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onResume() {
         super.onResume()
         hideSystemBars()
+    }
+
+    // the app leaves the screen (home, the screen is off, another app): Android may end the process of the game there,
+    // so the game is saved first (the quick save slot, named "Autosave"). The surface lives until onStop returns,
+    // the engine keeps drawing meanwhile: wait for the end of the save, but not longer than a few seconds
+    override fun onStop() {
+        try {
+            val started = !isFinishing && nativeIsGameRunning() && nativeAutoSave() == 1
+            Log.i(TAG, "onStop: autosave ${if (started) "started" else "not possible now"}")
+            if (started) {
+                val end = System.currentTimeMillis() + 7000
+                while (nativeSaveBusy() == 1 && System.currentTimeMillis() < end) Thread.sleep(50)
+                Log.i(TAG, "autosave: ${if (nativeSaveBusy() == 1) "still running" else "done"}")
+            }
+        } catch (e: Throwable) {
+            Log.w(TAG, "autosave: ${e.message}")
+        }
+        super.onStop()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

@@ -27,6 +27,8 @@ extern "C" int og_frames();
 extern "C" const char* og_perf_info();
 extern "C" const char* og_frame_times();
 extern "C" void og_quick(int kind);
+extern "C" int og_autosave();
+extern "C" int og_save_busy();
 extern "C" const char* og_quests();
 extern "C" const char* og_video_take();
 extern "C" void og_video_done();
@@ -332,6 +334,12 @@ Java_com_opengothic_GameActivity_nativeFrameTimes(JNIEnv* env, jobject) { return
 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeUiState(JNIEnv*, jobject) { return og_ui_state(); }
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeAutoSave(JNIEnv*, jobject) { return og_autosave(); }
+
+JNIEXPORT jint JNICALL
+Java_com_opengothic_GameActivity_nativeSaveBusy(JNIEnv*, jobject) { return og_save_busy(); }
 
 JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeQuick(JNIEnv*, jobject, jint kind) { og_quick(kind); }
