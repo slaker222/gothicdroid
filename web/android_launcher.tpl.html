@@ -235,7 +235,7 @@
       <div class="ctl-row">
         <div class="lab"><span>Button transparency</span><output id="opa-val">100%</output></div>
         <input type="range" class="big" id="opa" min="10" max="100" step="5" value="100">
-        <div class="pv" id="pv"><i class="big" id="pv0"></i><i id="pv1"></i><i id="pv2"></i></div>
+        <div id="pv"></div>
       </div>
     </div>
     <div class="card">
@@ -269,6 +269,7 @@
    </div>
   </div>
 
+   </div>
   <nav id="nav">
     <button type="button" data-tab="main" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>Main</button>
     <button type="button" data-tab="explore"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>Explore</button>
@@ -726,12 +727,13 @@
     const saveCtl = () => { try { Launcher.setControls(JSON.stringify(ctl)); } catch (e) {} };
     const sensEl = $('sens'), opaEl = $('opa');
     const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
-    $('pv0').innerHTML = svgOf('action'); $('pv1').innerHTML = svgOf('jump'); $('pv2').innerHTML = svgOf('weapon');
+    // the picture of the current layout (the same one the editor shows), drawn again after every change
+    const drawPv = () => { try { TouchEditor.preview($('pv'), { defs, ICONS, ICON_OF, TGROUP, items: ctl.items, custom: ctl.custom, quick: ctl.quick, opacity: +opaEl.value / 100,
+      bg: 'linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), url(img/g2.png) center / cover' }); } catch (e) {} };
     function showCtl() {
       $('sens-val').textContent = (+sensEl.value).toFixed(2);
       $('opa-val').textContent = opaEl.value + '%';
-      $('pv').style.setProperty('--o', opaEl.value / 100);
-      document.querySelectorAll('#pv i').forEach(i => { i.style.opacity = opaEl.value / 100; });
+      drawPv();
     }
     sensEl.value = String(ctl.sens > 0 ? ctl.sens : 1);
     opaEl.value = String(Math.round((ctl.opacity > 0 ? ctl.opacity : 1) * 100));
@@ -741,16 +743,17 @@
     sensEl.addEventListener('change', () => { ctl.sens = +(+sensEl.value).toFixed(2); saveCtl(); });
     opaEl.addEventListener('change', () => { ctl.opacity = +opaEl.value / 100; saveCtl(); });
     $('ctl-reset').addEventListener('click', () => {
-      ctl = { items: {} }; saveCtl();
+      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick }; saveCtl();
       sensEl.value = '1'; opaEl.value = '100'; showCtl();
     });
 
     // ---- the layout editor (web/touch_editor.js, the same one the game's side menu opens)
     $('ed-open').addEventListener('click', () => TouchEditor.open({
-      defs, ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity,
+      defs, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: ctl.keys, custom: ctl.custom,
+      ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity, quick: ctl.quick,
       bg: 'linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover',
       orient: on => Launcher.editor(on),
-      onSave: items => { ctl.items = items; saveCtl(); }
+      onSave: (items, keys, custom, quick) => { ctl.items = items; ctl.keys = keys; ctl.custom = custom; ctl.quick = quick; saveCtl(); drawPv(); }
     }));
 
     window.onResumed = () => { refresh(); if (curTab === 'explore' && EX.roots.length) exPoll(); };
@@ -758,3 +761,4 @@
   </script>
 </body>
 </html>
+    {{TOUCHKEYS}}
