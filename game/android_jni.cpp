@@ -40,6 +40,7 @@ extern "C" void og_input_look(int dx, int dy);
 static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
+static int               s_loadSlot = -1;   // >=0: the game starts with -save <slot> (the autosave after the process was killed)
 static std::string       s_modArg;   // -game:<ini> of a mod (Archolos), set by the activity before the surface
 static std::mutex        s_logMutex;
 static std::string       s_recentLog;
@@ -115,6 +116,12 @@ static void runGameThread(std::string gameDir) {
       modIni = modIni.substr(slash + 1);
     args.push_back("-game:" + modIni);
     androidAppendLog(("Mod: " + modIni).c_str());
+  }
+
+  if(s_loadSlot >= 0) {
+    args.push_back("-save");
+    args.push_back(std::to_string(s_loadSlot));
+    androidAppendLog(("Load the autosave: slot " + std::to_string(s_loadSlot)).c_str());
   }
 
   // debugging: more command line arguments (-nomenu, ...) from <game dir>/.og_args, split by blanks
@@ -334,6 +341,9 @@ Java_com_opengothic_GameActivity_nativeFrameTimes(JNIEnv* env, jobject) { return
 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeUiState(JNIEnv*, jobject) { return og_ui_state(); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetLoadSlot(JNIEnv*, jobject, jint slot) { s_loadSlot = slot; }
 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeAutoSave(JNIEnv*, jobject) { return og_autosave(); }

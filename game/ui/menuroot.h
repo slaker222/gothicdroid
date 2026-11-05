@@ -17,6 +17,7 @@ class MenuRoot : public Tempest::Widget {
 
     // the page's touch controls are on: a tap chooses the item under the finger; off: a click is Enter
     static void setTouchPointer(bool on);
+    static bool touchPointer();
 
     void setMainMenu();
     void setMenu(std::string_view menu, KeyCodec::Action key = KeyCodec::Escape);

@@ -50,6 +50,7 @@ class DialogMenu : public Tempest::Widget {
     void mouseWheelEvent(Tempest::MouseEvent& event) override;
 
     void onSelect();
+    bool choiceAt(const Tempest::Point& pos, size_t& id) const;
     void setupSettings();
 
   private:

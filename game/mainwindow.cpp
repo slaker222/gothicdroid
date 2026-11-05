@@ -59,6 +59,7 @@ namespace {
 bool g_webSettingsReady = false;
 MainWindow* g_webMain   = nullptr;
 bool g_webTimingDirty   = true;
+std::atomic<int> g_autoSave{0};      // the autosave of the app that goes to the background, see MainWindow::autoSaveStep
 std::atomic<unsigned> g_frames{0};   // frames the engine has drawn: the page's FPS counter (the app has no canvas to count)
 
 #if defined(__EMSCRIPTEN__)
@@ -140,16 +141,17 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_ui_state() {
   return g_webMain!=nullptr ? g_webMain->webUiState() : 0;
   }
 
-// the app is leaving the screen (Android onStop): 1 - an autosave has started, 0 - nothing to save now
+// the app is leaving the screen (Android onStop): asks the game thread for an autosave; og_save_busy tells how it goes
 extern "C" EMSCRIPTEN_KEEPALIVE int og_autosave() {
   if(!g_webSettingsReady || g_webMain==nullptr)
     return 0;
-  return g_webMain->autoSave() ? 1 : 0;
+  g_autoSave.store(1);
+  return 1;
   }
 
-// 1 while a save / load runs (the app waits for it before it goes to the background)
+// 1 requested / 2 running / 3 written / 4 not possible, 0 no request
 extern "C" EMSCRIPTEN_KEEPALIVE int og_save_busy() {
-  return Gothic::inst().checkLoading()!=Gothic::LoadState::Idle ? 1 : 0;
+  return g_autoSave.load();
   }
 
 // tool bar of the page: quick save (1) and quick load (2); the F5 / F9 keys do other things
@@ -420,7 +422,9 @@ MainWindow::MainWindow(Device& device)
   g_webMain          = this;
 #endif
 #if defined(__ANDROID__)
+  swGen = Tempest::AndroidApi::nativeWindowGeneration();
   Tempest::AndroidApi::setDeviceLostHandler(&onGpuDeviceLost);
+  Tempest::AndroidApi::setIdleHook([](){ if(g_webMain!=nullptr) g_webMain->autoSaveStep(); });
 #endif
 
   if(Gothic::inst().version().game==2)
@@ -727,6 +731,9 @@ void MainWindow::paintEvent(PaintEvent& event) {
   }
 
 void MainWindow::resizeEvent(SizeEvent&) {
+#if defined(__ANDROID__)
+  swGen = AndroidApi::nativeWindowGeneration();
+#endif
   for(auto& i:fence)
     i.wait();
   swapchain.reset();
@@ -840,18 +847,43 @@ void MainWindow::tickMouse(uint64_t dt) {
 // 23 sneaking learned; 24 the player carries a map; 25 new chapter screen; 26 marvin mode (cheats);
 // 27 the focused npc can be talked to (ASSESSTALK, not a beast); 28 slow walk mode (Left Shift toggles it);
 // 29 sneaking is on; 30 the graphics options menu is open; 31 the ranged weapon in hand has ammunition
-// the app goes to the background (Android: the process may be killed there): the quick save slot, only
-// where a save is possible at all (no dialog, no cutscene, no loading, not dead). true: the save has started
-bool MainWindow::autoSave() {
+// The autosave of the app that goes to the background (Android: the process may be killed there): the hidden slot 99
+// (the menu has no such slot, the quick save of the player stays as it is; the app loads it with "-save 99" if the process
+// was killed). The state is shared with the app's UI thread, the work is done by the game thread (autoSaveStep):
+// 0 nothing, 1 requested, 2 the save runs, 3 the file is written, 4 not possible now (a dialog, a cutscene, loading, ...)
+// It needs neither a window nor a frame: the app may have lost the surface already, the picture of the slot is empty.
+void MainWindow::autoSaveStep() {
+  if(g_autoSave.load()!=1)
+    return;
   auto& g = Gothic::inst();
-  if(!g.isInGameAndAlive() || g.isPause() || g.checkLoading()!=Gothic::LoadState::Idle)
-    return false;
-  if(dialogs.isActive())
-    return false;
-  if(auto w = g.world(); w!=nullptr && w->currentCs()!=nullptr)
-    return false;
-  g.save("save_slot_0.sav","Autosave");
-  return g.checkLoading()==Gothic::LoadState::Saving;
+  auto  w = g.world();
+  if(!g.isInGameAndAlive() || g.isPause() || g.checkLoading()!=Gothic::LoadState::Idle || dialogs.isActive() ||
+     (w!=nullptr && w->currentCs()!=nullptr)) {
+    g_autoSave.store(4);
+    return;
+    }
+  auto sz = Gothic::options().saveGameImageSize;
+  if(sz.w<=0 || sz.h<=0)
+    sz = Tempest::Size(160,120);
+  Tempest::Pixmap pm(uint32_t(sz.w),uint32_t(sz.h),Tempest::TextureFormat::RGBA8);
+  std::memset(pm.data(),0,size_t(sz.w)*size_t(sz.h)*4);
+
+  g_autoSave.store(2);
+  Tempest::Log::i("MainWindow::autoSave slot 99");
+  g.startSave(Tempest::Texture2d(),[pm](std::unique_ptr<GameSession>&& game){
+    if(!game) {
+      g_autoSave.store(4);
+      return std::move(game);
+      }
+    Tempest::WFile f("save_slot_99.sav");
+    Serialize      s(f);
+    game->save(s,"Autosave",pm);
+    Tempest::Log::i("MainWindow::autoSave written");
+    g_autoSave.store(3);
+    return std::move(game);
+    });
+  if(g.checkLoading()==Gothic::LoadState::Idle)
+    g_autoSave.store(4);   // a load / save runs already: nothing was started
   }
 
 int MainWindow::webUiState() const {
@@ -1484,6 +1516,7 @@ void MainWindow::tickAutoLoot(uint64_t dt) {
   }
 
 uint64_t MainWindow::tick() {
+  autoSaveStep();
   auto time = Application::tickCount();
   auto dt   = time-lastTick;
   // NOTE: limit to ~200 FPS in game logic to avoid math issues
@@ -1903,6 +1936,16 @@ void MainWindow::render(){
     if(!todo.empty())
       Gothic::flushSettings();
     }
+#endif
+
+#if defined(__ANDROID__)
+    // the app came back from the background: android gave a new window. Its size is the same as before, so the
+    // window does not send a resize (Widget::resize ignores the same size) and the swapchain of the lost surface stayed:
+    // SIGSEGV in VDevice::submit. The swapchain is made again here, between two frames
+    if(swGen!=AndroidApi::nativeWindowGeneration()) {
+      SizeEvent e(uint32_t(this->w()),uint32_t(this->h()));
+      resizeEvent(e);
+      }
 #endif
 
     static bool once=true;

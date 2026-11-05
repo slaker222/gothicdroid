@@ -155,6 +155,10 @@ void MenuRoot::setTouchPointer(bool on) {
 #endif
   }
 
+bool MenuRoot::touchPointer() {
+  return g_touchPointer;
+  }
+
 void MenuRoot::mouseDownEvent(MouseEvent& event) {
   if(current!=nullptr) {
     if(event.button==Event::ButtonRight) {

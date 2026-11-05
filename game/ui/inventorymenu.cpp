@@ -559,11 +559,19 @@ void InventoryMenu::webPointer(int type, int x, int y) {
   int    pg  = 0;
   size_t idx = 0;
   const bool onSlot = slotAt(x,y,pg,idx);
+  const int  sh     = std::max(1,slotSize().h);
 
   if(type==0) {
-    hold = TouchHold();
-    if(!onSlot)
+    hold   = TouchHold();
+    swDown = true;
+    swipe  = false;
+    swY    = y;
+    swAcc  = 0;
+    if(!onSlot) {
+      if(pageOth!=nullptr)
+        page = uint8_t(x<w()/2 ? 0 : 1);   // a swipe from the empty place scrolls the list on that side
       return;
+      }
     if(pageOth!=nullptr)
       page = uint8_t(pg);
     auto& sel = activePageSel();
@@ -582,13 +590,47 @@ void InventoryMenu::webPointer(int type, int x, int y) {
     holdTimer.stop();
     // a tap uses the slot; released while the frame fills up it only cancels the drop
     const bool use = hold.on && hold.wasSel && onSlot && pg==hold.pg && idx==hold.idx &&
-                     Application::tickCount()-hold.t0<holdShowMs;
-    hold = TouchHold();
+                     Application::tickCount()-hold.t0<holdShowMs && !swipe;
+    hold   = TouchHold();
+    swDown = false;
+    swipe  = false;
     if(use)
       onItemAction(Item::NSLOT);   // the second tap in a row
     adjustScroll();
     }
   else if(type==2) {
+    if(swDown) {
+      const int dy = y-swY;
+      if(!swipe && std::abs(dy)>=sh/3) {
+        // the finger drags the list: neither use nor drop
+        swipe = true;
+        hold  = TouchHold();
+        holdTimer.stop();
+        tapPg = -1;
+        }
+      if(swipe) {
+        swAcc += dy;
+        swY    = y;
+        auto&  pg2  = activePage();
+        auto&  sel  = activePageSel();
+        const size_t wc   = std::max<size_t>(columsCount,1);
+        const size_t hc   = std::max<size_t>(rowsCount(),1);
+        const size_t rows = (pg2.size()+wc-1)/wc;
+        const size_t maxS = rows>hc ? rows-hc : 0;
+        // the finger goes up: the list goes up, the rows below come
+        while(swAcc<=-sh) { swAcc += sh; if(sel.scroll<maxS) ++sel.scroll; else swAcc = 0; }
+        while(swAcc>= sh) { swAcc -= sh; if(sel.scroll>0)    --sel.scroll; else swAcc = 0; }
+        // the selection stays in the visible rows
+        const size_t col = sel.sel%wc, row = sel.sel/wc;
+        size_t       nr  = std::min(std::max(row,sel.scroll),sel.scroll+hc-1);
+        if(nr!=row) {
+          size_t ns = nr*wc+col;
+          if(pg2.size()>0 && ns>=pg2.size())
+            ns = pg2.size()-1;
+          sel.sel = ns;
+          }
+        }
+      }
     if(hold.on && !(onSlot && pg==hold.pg && idx==hold.idx)) {
       // the finger left the slot: neither use nor drop
       hold = TouchHold();
@@ -596,7 +638,9 @@ void InventoryMenu::webPointer(int type, int x, int y) {
       }
     }
   else {
-    hold = TouchHold();
+    hold   = TouchHold();
+    swDown = false;
+    swipe  = false;
     holdTimer.stop();
     }
   update();

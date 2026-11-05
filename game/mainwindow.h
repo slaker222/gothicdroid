@@ -54,7 +54,7 @@ class MainWindow : public Tempest::Window {
 #if defined(OG_WEB_UI)
     // web touch controls (web/shell.html): what the player is doing, camera look
     int   webUiState() const;
-    bool  autoSave();
+    void  autoSaveStep();
     void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
     std::string webQuickSlots() const { return inventory.quickJson(); }
     void  webQuickPanel(bool open, int first) { inventory.quickSetOpen(open, first); }
@@ -147,6 +147,7 @@ class MainWindow : public Tempest::Window {
     Tempest::Fence         fence   [Resources::MaxFramesInFlight];
     Tempest::CommandBuffer commands[Resources::MaxFramesInFlight];
     uint8_t                cmdId = 0;
+    uint32_t             swGen = 0;   // Android: the generation of the window the swapchain was made for
 
     Tempest::Texture2d        background;
     const Tempest::Texture2d* loadBox=nullptr;

@@ -26,6 +26,8 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     companion object {
         private const val TAG = "OpenGothic"
         const val EXTRA_GAME_DIR = "extra_game_dir"
+        const val AUTOSAVE_SLOT = 99               // save_slot_99.sav: the hidden slot of MainWindow::autoSave
+        const val RESUME_MARK = ".og_resume"       // in the game folder: the game was saved on onStop and not closed since
         const val EXTRA_MOD = "extra_mod"   // the ini of a mod in the game folder (Archolos), "" - none
 
         init {
@@ -65,6 +67,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativePerfInfo(): String
     private external fun nativeFrameTimes(): String
     private external fun nativeQuick(kind: Int)
+    private external fun nativeSetLoadSlot(slot: Int)
     private external fun nativeAutoSave(): Int
     private external fun nativeSaveBusy(): Int
     private external fun nativeQuests(): String
@@ -96,6 +99,16 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
         nativeSetMod(intent.getStringExtra(EXTRA_MOD) ?: "")
+        // the process was killed in the background after an autosave (the marker is there): the game goes on from it.
+        // The marker goes at once: a save that cannot be loaded must not make a loop of restarts
+        val marker = File(gameDir, RESUME_MARK)
+        if (marker.exists()) {
+            marker.delete()
+            if (File(gameDir, "save_slot_$AUTOSAVE_SLOT.sav").isFile) {
+                Log.i(TAG, "the process was killed in the background: loading the autosave")
+                nativeSetLoadSlot(AUTOSAVE_SLOT)
+            }
+        }
 
         // Global uncaught exception logger
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
@@ -237,20 +250,24 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onResume() {
         super.onResume()
+        // back from the background with the process alive: nothing to restore
+        try { File(gameDir, RESUME_MARK).delete() } catch (e: Exception) {}
         hideSystemBars()
     }
 
     // the app leaves the screen (home, the screen is off, another app): Android may end the process of the game there,
-    // so the game is saved first (the quick save slot, named "Autosave"). The surface lives until onStop returns,
-    // the engine keeps drawing meanwhile: wait for the end of the save, but not longer than a few seconds
+    // so the game is saved first (the hidden slot 99, "Autosave") and a marker is left in the game folder. If the process
+    // is killed, the next start of the game (also the one Android makes when the player comes back) loads the slot
     override fun onStop() {
         try {
-            val started = !isFinishing && nativeIsGameRunning() && nativeAutoSave() == 1
-            Log.i(TAG, "onStop: autosave ${if (started) "started" else "not possible now"}")
-            if (started) {
+            if (!isFinishing && nativeIsGameRunning() && nativeAutoSave() == 1) {
+                // the game thread does it (it needs no window: here the surface is already gone): 1 asked, 2 runs, 3 written, 4 not possible
                 val end = System.currentTimeMillis() + 7000
-                while (nativeSaveBusy() == 1 && System.currentTimeMillis() < end) Thread.sleep(50)
-                Log.i(TAG, "autosave: ${if (nativeSaveBusy() == 1) "still running" else "done"}")
+                var st = nativeSaveBusy()
+                while ((st == 1 || st == 2) && System.currentTimeMillis() < end) { Thread.sleep(50); st = nativeSaveBusy() }
+                Log.i(TAG, "onStop: autosave " + when (st) { 3 -> "written"; 4 -> "not possible now"; else -> "not finished" })
+                // the marker only after a finished save: a save that was cut off is not loaded
+                if (st == 3) File(gameDir, RESUME_MARK).writeText("1")
             }
         } catch (e: Throwable) {
             Log.w(TAG, "autosave: ${e.message}")
@@ -275,6 +292,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private var exitWatch: Thread? = null
     private fun leaveGame() {
+        try { File(gameDir, RESUME_MARK).delete() } catch (e: Exception) {}
         finish()
         Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
     }
