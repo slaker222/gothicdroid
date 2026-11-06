@@ -567,14 +567,20 @@ void InventoryMenu::webPointer(int type, int x, int y) {
     swipe  = false;
     swY    = y;
     swAcc  = 0;
+    swRestore = false;
     if(!onSlot) {
       if(pageOth!=nullptr)
         page = uint8_t(x<w()/2 ? 0 : 1);   // a swipe from the empty place scrolls the list on that side
       return;
       }
+    swPrevPage = page;
+    swRestore  = true;
     if(pageOth!=nullptr)
       page = uint8_t(pg);
     auto& sel = activePageSel();
+    swPrevSel  = sel.sel;
+    swPrevPg   = tapPg;
+    swPrevTap  = tapIdx;
     hold.on     = true;
     hold.wasSel = (tapPg==pg && tapIdx==idx);
     tapPg       = pg;
@@ -591,12 +597,14 @@ void InventoryMenu::webPointer(int type, int x, int y) {
     // a tap uses the slot; released while the frame fills up it only cancels the drop
     const bool use = hold.on && hold.wasSel && onSlot && pg==hold.pg && idx==hold.idx &&
                      Application::tickCount()-hold.t0<holdShowMs && !swipe;
+    const bool wasSwipe = swipe;
     hold   = TouchHold();
     swDown = false;
     swipe  = false;
     if(use)
       onItemAction(Item::NSLOT);   // the second tap in a row
-    adjustScroll();
+    if(!wasSwipe)
+      adjustScroll();
     }
   else if(type==2) {
     if(swDown) {
@@ -606,7 +614,12 @@ void InventoryMenu::webPointer(int type, int x, int y) {
         swipe = true;
         hold  = TouchHold();
         holdTimer.stop();
-        tapPg = -1;
+        // the slot the finger went down on is not chosen: the old selection comes back
+        if(swRestore) {
+          activePageSel().sel = swPrevSel;
+          tapPg  = swPrevPg;
+          tapIdx = swPrevTap;
+          }
         }
       if(swipe) {
         swAcc += dy;
@@ -620,15 +633,6 @@ void InventoryMenu::webPointer(int type, int x, int y) {
         // the finger goes up: the list goes up, the rows below come
         while(swAcc<=-sh) { swAcc += sh; if(sel.scroll<maxS) ++sel.scroll; else swAcc = 0; }
         while(swAcc>= sh) { swAcc -= sh; if(sel.scroll>0)    --sel.scroll; else swAcc = 0; }
-        // the selection stays in the visible rows
-        const size_t col = sel.sel%wc, row = sel.sel/wc;
-        size_t       nr  = std::min(std::max(row,sel.scroll),sel.scroll+hc-1);
-        if(nr!=row) {
-          size_t ns = nr*wc+col;
-          if(pg2.size()>0 && ns>=pg2.size())
-            ns = pg2.size()-1;
-          sel.sel = ns;
-          }
         }
       }
     if(hold.on && !(onSlot && pg==hold.pg && idx==hold.idx)) {
