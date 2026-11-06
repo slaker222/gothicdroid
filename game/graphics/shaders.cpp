@@ -70,6 +70,9 @@ void Shaders::compileShaders() {
   copyBuf = computeShader("copy.comp.sprv");
   copyImg = computeShader("copy_img.comp.sprv");
   copy    = postEffect("copy");
+#if defined(__ANDROID__)
+  copyRot = postEffect("copy_rot");
+#endif
 
   patch   = computeShader("patch.comp.sprv");
 
