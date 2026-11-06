@@ -77,6 +77,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeQuickPanel(open: Int, first: Int)
     private external fun nativePointer(type: Int, x: Int, y: Int)
     private external fun nativeLook(dx: Int, dy: Int)
+    private external fun nativeZoom(steps: Int)
     private external fun nativeWebKey(action: Int, code: String)
 
     private lateinit var surfaceView: SurfaceView
@@ -191,6 +192,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 "og_quickpanel" -> { nativeQuickPanel(a.getInt(0), a.getInt(1)); "0" }
                 "og_pointer" -> { nativePointer(a.getInt(0), a.getInt(1), a.getInt(2)); "0" }
                 "og_input_look" -> { nativeLook(a.getInt(0), a.getInt(1)); "0" }
+                "og_input_zoom" -> { nativeZoom(a.getInt(0)); "0" }
                 else -> "-1"
             }
         }

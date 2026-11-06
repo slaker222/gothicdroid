@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include "camera.h"
 #include "resources.h"
 
@@ -56,6 +57,7 @@ class MainWindow : public Tempest::Window {
     int   webUiState() const;
     void  autoSaveStep();
     void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
+    void  webZoom(int steps) { webZoomSteps += steps; }   // pinch: camera distance, like the mouse wheel
     std::string webQuickSlots() const { return inventory.quickJson(); }
     void  webQuickPanel(bool open, int first) { inventory.quickSetOpen(open, first); }
     void  webPointer(int type, int x, int y) { inventory.webPointer(type, x, y); }
@@ -69,6 +71,7 @@ class MainWindow : public Tempest::Window {
   private:
 #if defined(OG_WEB_UI)
     Tempest::Point webLookDelta;
+    std::atomic<int> webZoomSteps{0};
 #endif
     void paintEvent     (Tempest::PaintEvent& event) override;
     void resizeEvent    (Tempest::SizeEvent & event) override;

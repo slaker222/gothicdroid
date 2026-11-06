@@ -3173,6 +3173,8 @@ async function installChunks(m) {
         stickHome();
       }
       let lookId = null, lookX = 0, lookY = 0;
+      // pinch: a second finger in the look area changes the camera distance (the mouse wheel)
+      let pinchId = null, pinchX = 0, pinchY = 0, pinchDist = 0, pinchAcc = 0;
       // fingers down while the layout is not the world one (a dialog started under
       // the stick finger, the touch began before the dialog ended): they take over
       // the stick / look as soon as the world layout is back, no new touch needed
@@ -3189,6 +3191,9 @@ async function installChunks(m) {
           stickMove(x - sx, y - sy);
         } else if (lookId === null) {
           lookId = id; lookX = cx; lookY = cy;
+        } else if (pinchId === null) {
+          pinchId = id; pinchX = cx; pinchY = cy; pinchAcc = 0;
+          pinchDist = Math.hypot(pinchX - lookX, pinchY - lookY);
         }
         try { look.setPointerCapture(id); } catch (err) {}
       }
@@ -3211,6 +3216,17 @@ async function installChunks(m) {
         if (stick && e.pointerId === stick.id) {
           const r = ui.getBoundingClientRect();
           stickMove(e.clientX - r.left - stick.x, e.clientY - r.top - stick.y);
+        } else if (pinchId !== null && (e.pointerId === lookId || e.pointerId === pinchId)) {
+          if (e.pointerId === lookId) { lookX = e.clientX; lookY = e.clientY; }
+          else { pinchX = e.clientX; pinchY = e.clientY; }
+          const d = Math.hypot(pinchX - lookX, pinchY - lookY);
+          pinchAcc += d - pinchDist; pinchDist = d;
+          const stepPx = 8;   // css pixels per zoom step (one wheel notch)
+          const n = Math.trunc(pinchAcc / stepPx);
+          if (n !== 0) {
+            pinchAcc -= n * stepPx;
+            if (g_runtimeUp) Module.ccall('og_input_zoom', null, ['number'], [n]);   // fingers apart = closer
+          }
         } else if (e.pointerId === lookId) {
           const dx = e.clientX - lookX, dy = e.clientY - lookY;
           lookX = e.clientX; lookY = e.clientY;
@@ -3256,7 +3272,11 @@ async function installChunks(m) {
       }
       const lookUp = e => {
         if (stick && e.pointerId === stick.id) { stickTap(stick); stickEnd(); }
-        if (e.pointerId === lookId) lookId = null;
+        if (e.pointerId === pinchId) pinchId = null;
+        else if (e.pointerId === lookId) {
+          lookId = null;
+          if (pinchId !== null) { lookId = pinchId; lookX = pinchX; lookY = pinchY; pinchId = null; }   // the other finger carries on
+        }
       };
       // the layout leaves the world: the fingers on the stick and the look area stay
       // in line to be picked up again
@@ -3264,7 +3284,7 @@ async function installChunks(m) {
         if (stick) pending.set(stick.id, { x: stick.x + (parseFloat(stickEl.style.getPropertyValue('--tx')) || 0) * stickK + ui.getBoundingClientRect().left,
                                            y: stick.y + (parseFloat(stickEl.style.getPropertyValue('--ty')) || 0) * stickK + ui.getBoundingClientRect().top });
         if (lookId !== null) pending.set(lookId, { x: lookX, y: lookY });
-        lookId = null;
+        lookId = null; pinchId = null;
       }
       look.addEventListener('pointerup', lookUp);
       look.addEventListener('pointercancel', lookUp);
