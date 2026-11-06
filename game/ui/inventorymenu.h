@@ -143,6 +143,9 @@ class InventoryMenu : public Tempest::Widget {
     TouchHold                 hold;
     bool                      swDown = false, swipe = false;   // a finger is down / it scrolls the list
     int                       swY = 0, swAcc = 0;
+    size_t                    swPrevSel = 0, swPrevTap = 0;   // the selection before the finger went down
+    bool                      swRestore = false;
+    int                       swPrevPg = -1, swPrevPage = 0;
     int                       tapPg = -1;  // the slot selected by the last tap (the one a second tap uses)
     size_t                    tapIdx = 0;
     Tempest::Timer            holdTimer;   // repaints the filling frame, drops the item when it is full
