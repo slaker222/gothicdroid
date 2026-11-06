@@ -32,6 +32,8 @@ class Renderer final {
     Tempest::Attachment screenshoot(uint8_t frameId);
 
     // render resolution in percent of the screen (the stats overlay)
+    // the size the game draws in: the swapchain's, with the width and the height swapped when its images are turned
+    Tempest::Size swapchainSize() const;
     int  renderPercent() const { return int(internalResolutionScale()*100.f+0.5f); }
 
   private:
@@ -162,6 +164,7 @@ class Renderer final {
     Tempest::Attachment       sceneLinear;
     Tempest::ZBuffer          zbuffer, shadowMap[Resources::ShadowLayers];
     Tempest::ZBuffer          zbufferUi;
+    Tempest::Attachment       rotTarget; // android pre-rotation: the frame (landscape), copied turned into the swapchain
 
     Tempest::Attachment       sceneOpaque;
     Tempest::Attachment       sceneDepth;

@@ -37,6 +37,7 @@ class Shaders {
     Tempest::ComputePipeline copyImg;
     Tempest::ComputePipeline patch;
     Tempest::RenderPipeline  copy;
+    Tempest::RenderPipeline  copyRot; // android pre-rotation: the frame turned into the swapchain image
     Tempest::RenderPipeline  stash;
     Tempest::RenderPipeline  bink;
 

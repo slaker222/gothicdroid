@@ -739,7 +739,7 @@ void MainWindow::resizeEvent(SizeEvent&) {
   swapchain.reset();
   renderer.resetSwapchain();
   if(auto camera = Gothic::inst().camera())
-    camera->setViewport(swapchain.w(),swapchain.h());
+    camera->setViewport(uint32_t(renderer.swapchainSize().w),uint32_t(renderer.swapchainSize().h));
 
   const bool fs = SystemApi::isFullscreen(hwnd());
   auto rect = SystemApi::windowClientRect(hwnd());
@@ -991,7 +991,7 @@ void MainWindow::onSettings() {
 #endif
   // the world draw distance is the camera's far plane
   if(auto camera = Gothic::inst().camera())
-    camera->setViewport(swapchain.w(), swapchain.h());
+    camera->setViewport(uint32_t(renderer.swapchainSize().w),uint32_t(renderer.swapchainSize().h));
 #endif
   }
 

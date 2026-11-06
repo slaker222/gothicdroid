@@ -144,10 +144,17 @@ void Renderer::resetSwapchain() {
     cmaa2.indirectBuffer             = device.ssbo(nullptr, sizeof(DispatchIndirectCommand) + sizeof(DrawIndirectCommand));
     }
 
+  const auto     sw     = swapchainSize();
   zbuffer = device.zbuffer(zBufferFormat,w,h);
-  if(w!=swapchain.w() || h!=swapchain.h())
-    zbufferUi = device.zbuffer(zBufferFormat, swapchain.w(), swapchain.h()); else
+  if(int(w)!=sw.w || int(h)!=sw.h)
+    zbufferUi = device.zbuffer(zBufferFormat, uint32_t(sw.w), uint32_t(sw.h)); else
     zbufferUi = ZBuffer();
+#if defined(__ANDROID__)
+  // the swapchain images are in the panel's orientation: the frame is made here and copied turned at the end
+  if(swapchain.rotation()!=0)
+    rotTarget = device.attachment(TextureFormat::RGBA8, uint32_t(sw.w), uint32_t(sw.h)); else
+    rotTarget = Attachment();
+#endif
 
   uint32_t pw = nextPot(w);
   uint32_t ph = nextPot(h);
@@ -287,7 +294,7 @@ void Renderer::setupSettings() {
          " fogQuality=", int(sky.quality),
          " zCloudShadowScale=", settings.zCloudShadowScale,
          " zFogRadial=", settings.zFogRadial,
-         " w=", swapchain.w(), " h=", swapchain.h(),
+         " w=", swapchainSize().w, " h=", swapchainSize().h, " rotation=", swapchain.rotation(),
          " internalRes=", internalResolution().w, "x", internalResolution().h);
   }
 
@@ -591,7 +598,13 @@ void Renderer::prepareSky(Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldVi
 void Renderer::draw(Encoder<CommandBuffer>& cmd, uint8_t cmdId, size_t imgId,
                     VectorImage::Mesh& uiLayer, VectorImage::Mesh& numOverlay,
                     InventoryMenu& inventory, VideoWidget& video) {
+#if defined(__ANDROID__)
+  const bool rotate = !rotTarget.isEmpty() && swapchain.rotation()!=0 &&
+                      uint32_t(rotTarget.w())==swapchain.h() && uint32_t(rotTarget.h())==swapchain.w();
+  auto& result = rotate ? rotTarget : swapchain[imgId];
+#else
   auto& result = swapchain[imgId];
+#endif
 
   if(!video.isActive()) {
     draw(result, cmd, cmdId);
@@ -629,6 +642,18 @@ void Renderer::draw(Encoder<CommandBuffer>& cmd, uint8_t cmdId, size_t imgId,
     cmd.setDebugMarker("Inventory-counters");
     numOverlay.draw(cmd);
     }
+
+#if defined(__ANDROID__)
+  if(rotate) {
+    struct Push { int32_t w, h, rotation; } push = {rotTarget.w(), rotTarget.h(), int32_t(swapchain.rotation())};
+    cmd.setFramebuffer({{swapchain[imgId], Tempest::Discard, Tempest::Preserve}});
+    cmd.setDebugMarker("Pre-rotation");
+    cmd.setBinding(0, rotTarget, Sampler::nearest());
+    cmd.setPushData(push);
+    cmd.setPipeline(shaders.copyRot);
+    cmd.draw(nullptr, 0, 3);
+    }
+#endif
   }
 
 void Renderer::dbgDraw(Tempest::Painter& p) {
@@ -2546,16 +2571,24 @@ float Renderer::internalResolutionScale() const {
   return lowResScale();
   }
 
+Size Renderer::swapchainSize() const {
+  if(swapchain.rotation()==90 || swapchain.rotation()==270)
+    return Size(int(swapchain.h()), int(swapchain.w()));
+  return Size(int(swapchain.w()), int(swapchain.h()));
+  }
+
 Size Renderer::internalResolution() const {
+  const auto     sz = swapchainSize();
+  const uint32_t sw = uint32_t(sz.w), sh = uint32_t(sz.h);
   if(settings.vidResIndex==0)
-     return Size(int(swapchain.w()), int(swapchain.h()));
+     return Size(int(sw), int(sh));
   if(settings.vidResIndex==1)
-    return Size(int(3*swapchain.w()/4), int(3*swapchain.h()/4));
+    return Size(int(3*sw/4), int(3*sh/4));
   if(settings.vidResIndex==2)
-    return Size(int(swapchain.w()/2), int(swapchain.h()/2));
+    return Size(int(sw/2), int(sh/2));
   if(settings.vidResIndex==3)
-    return Size(int(swapchain.w()*2/5), int(swapchain.h()*2/5));
+    return Size(int(sw*2/5), int(sh*2/5));
   const float k = lowResScale();
-  return Size(std::max(1, int(float(swapchain.w())*k)), std::max(1, int(float(swapchain.h())*k)));
+  return Size(std::max(1, int(float(sw)*k)), std::max(1, int(float(sh)*k)));
   }
 
