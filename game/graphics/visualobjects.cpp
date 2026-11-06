@@ -165,7 +165,7 @@ VisualObjects::VisualObjects(const SceneGlobals& scene, const std::pair<Vec3, Ve
 VisualObjects::~VisualObjects() {
   }
 
-void VisualObjects::updateInstance(size_t id, Matrix4x4* pos) {
+void VisualObjects::updateInstance(size_t id, Matrix4x4* pos, bool windOnly) {
   auto& obj = objects[id];
   if(obj.type==DrawCommands::Landscape)
     return;
@@ -178,11 +178,15 @@ void VisualObjects::updateInstance(size_t id, Matrix4x4* pos) {
 
   auto cId  = obj.clusterId;
   auto npos = Vec3(obj.pos[3][0], obj.pos[3][1], obj.pos[3][2]);
-  if(clustersMem[cId].pos != npos) {
+  const bool moved = (clustersMem[cId].pos != npos);
+  if(moved) {
     clustersMem[cId].pos = npos;
     clustersMem.markClusters(cId);
     }
-  expandBounds(id);
+  // the wind sways the matrix only: the sphere is where it was, and the box of the command already holds it (static
+  // boxes only grow, the dynamic ones are filled again right after a reset) - the same expand again changes nothing
+  if(moved || !windOnly)
+    expandBounds(id);
   }
 
 void VisualObjects::updateRtAs(size_t id) {
@@ -606,7 +610,7 @@ void VisualObjects::preFrameUpdateWind() {
     pos[1][0] += scene.windDir.x*a;
     pos[1][2] += scene.windDir.y*a;
 
-    updateInstance(id, &pos);
+    updateInstance(id, &pos, true);
     }
   }
 

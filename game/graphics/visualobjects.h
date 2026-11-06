@@ -149,7 +149,7 @@ class VisualObjects final {
     void     setAsGhost(size_t i, bool g);
 
     void     notifyTlas(const Material& m, RtScene::Category cat);
-    void     updateInstance(size_t id, Tempest::Matrix4x4* pos = nullptr);
+    void     updateInstance(size_t id, Tempest::Matrix4x4* pos = nullptr, bool windOnly = false);
     void     updateRtAs(size_t id);
 
     void     dbgDraw(Tempest::Painter& p, Tempest::Vec2 wsz, const Camera& cam, const DrawClusters::Cluster& cx);
