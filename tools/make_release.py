@@ -30,7 +30,7 @@ import json
 import os
 import sys
 
-GAMES = {'gothic1': 'g1', 'gothic2': 'g2'}
+GAMES = {'gothic1': 'g1', 'gothic2': 'g2', 'archolos': 'g3'}
 
 
 def main():
