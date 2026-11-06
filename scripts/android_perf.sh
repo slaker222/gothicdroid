@@ -17,6 +17,7 @@
 #   ANDROID_SERIAL  какой телефон, если подключено несколько (adb devices)
 #   TIMERS=1   включить таймеры проходов GPU (по умолчанию выключены: стоят ~2,7 FPS, без них нет строки GPU passes)
 #   WARM, SAMPLE    прогрев и окно замера в секундах (20 и 30)
+#   ARGS       аргументы запуска (по умолчанию "-nomenu -novideo": новая игра; "-save 99 -novideo" — загрузить слот 99)
 #
 # Скрипт сам: делает копию Gothic.ini / debug.cfg владельца, в конце ЗАКРЫВАЕТ ИГРУ, удаляет .og_args и возвращает
 # настройки обратно (так же при Ctrl+C).
@@ -47,7 +48,7 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
-adb shell "echo '-nomenu -novideo' > $D/.og_args"
+adb shell "echo '${ARGS:--nomenu -novideo}' > $D/.og_args"
 
 for spec in "$@"; do
   name=${spec%%|*}; rest=${spec#*|}; kvs=${rest%%|*}; dbg=""
