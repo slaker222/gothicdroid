@@ -26,6 +26,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     companion object {
         private const val TAG = "OpenGothic"
         const val EXTRA_GAME_DIR = "extra_game_dir"
+        const val EXTRA_SKY_DIR = "extra_sky_dir"   // folder with the sky pack (g1, g2) for the sky setting
         const val AUTOSAVE_SLOT = 99               // save_slot_99.sav: the hidden slot of MainWindow::autoSave
         const val RESUME_MARK = ".og_resume"       // in the game folder: the game was saved on onStop and not closed since
         const val EXTRA_MOD = "extra_mod"   // the ini of a mod in the game folder (Archolos), "" - none
@@ -49,6 +50,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private external fun nativeSetSurface(surface: Surface, gameDir: String)
+    private external fun nativeSetSkyDir(dir: String)
     private external fun nativeSetMod(mod: String)
     private external fun nativeSurfaceChanged(width: Int, height: Int)
     private external fun nativeSetDensity(density: Float)
@@ -100,6 +102,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
         nativeSetMod(intent.getStringExtra(EXTRA_MOD) ?: "")
+        nativeSetSkyDir(intent.getStringExtra(EXTRA_SKY_DIR) ?: "")
         // the process was killed in the background after an autosave (the marker is there): the game goes on from it.
         // The marker goes at once: a save that cannot be loaded must not make a loop of restarts
         val marker = File(gameDir, RESUME_MARK)

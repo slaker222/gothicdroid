@@ -86,6 +86,7 @@ class WorldView {
     MeshObjects::Mesh   addSplashView();
     void                addWaterRipple(const Tempest::Vec3& pos, float strength) { sGlobal.addRipple(pos,strength); }
     const Sky&          sky() const { return gSky; }
+    void                reloadSky() { gSky.reload(); }
     const Landscape&    landscape() const { return land; }
     const LightGroup&   lights() const { return gLights; }
     const DrawClusters& clusters() const;

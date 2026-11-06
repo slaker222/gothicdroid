@@ -42,6 +42,7 @@ static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
 static int               s_loadSlot = -1;   // >=0: the game starts with -save <slot> (the autosave after the process was killed)
+static std::string       s_skyArg;   // folder with the sky pack (g1/, g2/) for the sky setting (OG_SKY_PACK_DIR)
 static std::string       s_modArg;   // -game:<ini> of a mod (Archolos), set by the activity before the surface
 static std::mutex        s_logMutex;
 static std::string       s_recentLog;
@@ -112,6 +113,10 @@ static void runGameThread(std::string gameDir) {
 
   });
 
+  if(!s_skyArg.empty())
+    setenv("OG_SKY_PACK_DIR", s_skyArg.c_str(), 1);
+  else
+    unsetenv("OG_SKY_PACK_DIR");
   std::vector<std::string> args = {
     "Gothic2Notr",
     "-g",
@@ -338,6 +343,13 @@ Java_com_opengothic_GameActivity_nativeSetMod(JNIEnv* env, jobject, jstring jMod
   const char* c = env->GetStringUTFChars(jMod, nullptr);
   s_modArg = c;
   env->ReleaseStringUTFChars(jMod, c);
+}
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetSkyDir(JNIEnv* env, jobject, jstring jDir) {
+  const char* c = env->GetStringUTFChars(jDir, nullptr);
+  s_skyArg = c;
+  env->ReleaseStringUTFChars(jDir, c);
 }
 
 JNIEXPORT jint JNICALL
