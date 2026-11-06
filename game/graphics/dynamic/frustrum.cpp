@@ -153,3 +153,17 @@ Frustrum::Ret Frustrum::testBbox(const Tempest::Vec3& min, const Tempest::Vec3& 
     }
   return ret;
   }
+
+bool Frustrum::isOutside(const Tempest::Vec3& min, const Tempest::Vec3& max) const {
+  // the same sums as dmax in testBbox, in the same order: the same answer to the last bit
+  for(int i=0; i<6; i++) {
+    float dmax =
+          std::max(min.x * f[i][0], max.x * f[i][0])
+        + std::max(min.y * f[i][1], max.y * f[i][1])
+        + std::max(min.z * f[i][2], max.z * f[i][2])
+        + f[i][3];
+    if(dmax<0)
+      return true;
+    }
+  return false;
+  }
