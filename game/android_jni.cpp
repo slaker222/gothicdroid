@@ -46,6 +46,7 @@ static std::mutex        s_logMutex;
 static std::string       s_recentLog;
 static std::string       s_logFilePath = "/sdcard/Gothic2/opengothic_log.txt";
 static std::atomic_bool  s_gameRunning{false};
+static FILE*             s_logFile = nullptr; // opengothic_log.txt, open while the game runs
 
 void androidAppendLog(const char* text) {
   if(text == nullptr || text[0] == '\0')
@@ -57,11 +58,14 @@ void androidAppendLog(const char* text) {
   s_recentLog += text;
   s_recentLog += "\n";
 
-  FILE* f = fopen(s_logFilePath.c_str(), "a");
-  if(f != nullptr) {
-    fputs(text, f);
-    fputc('\n', f);
-    fclose(f);
+  // the file stays open: an open and a close for every line went through the FUSE of the shared storage (a few lines every
+  // ten frames, ~ms of the game thread); fflush hands every line to the kernel as fclose did
+  if(s_logFile == nullptr)
+    s_logFile = fopen(s_logFilePath.c_str(), "a");
+  if(s_logFile != nullptr) {
+    fputs(text, s_logFile);
+    fputc('\n', s_logFile);
+    fflush(s_logFile);
   }
 }
 
@@ -73,8 +77,13 @@ void androidAppendLog(const char* text) {
 static void runGameThread(std::string gameDir) {
   s_gameRunning.store(true);
   opengothic_debug_set_game_dir(gameDir.c_str()); // debug.cfg and logs of this game, not of the first Gothic2 folder
-  s_logFilePath = gameDir + "/opengothic_log.txt";
   {
+    std::lock_guard<std::mutex> lk(s_logMutex);
+    if(s_logFile != nullptr) {
+      fclose(s_logFile);
+      s_logFile = nullptr;
+    }
+    s_logFilePath = gameDir + "/opengothic_log.txt";
     FILE* f = fopen(s_logFilePath.c_str(), "w");
     if(f) fclose(f);
   }

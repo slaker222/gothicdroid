@@ -256,10 +256,10 @@ bool DrawCommands::DrawCmd::isOutsideOf(const Frustrum& f) const {
     return false;
   if(unbounded!=0 || boundsMin.x>boundsMax.x)
     return false;
-  if(f.testBbox(boundsMin,boundsMax)==Frustrum::T_Invisible)
+  if(f.isOutside(boundsMin,boundsMax))
     return true;
   for(auto& i:cells)
-    if(f.testBbox(i.mn,i.mx)!=Frustrum::T_Invisible)
+    if(!f.isOutside(i.mn,i.mx))
       return false;
   return true;
   }

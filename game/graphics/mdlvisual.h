@@ -161,6 +161,8 @@ class MdlVisual final {
 
     Tempest::Matrix4x4             pos;
     MeshObjects::Mesh              view;
+    // bounds().rConservative for isFarPose (the bounds of the body and head meshes: they change only with the meshes), -1 = not known
+    mutable float                  farPoseR = -1.f;
 
     MeshAttach                     head, sword, bow, shield;
     MeshAttach                     ammunition, stateItm;

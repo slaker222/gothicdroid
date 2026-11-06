@@ -18,6 +18,8 @@ class Frustrum {
       T_Full,
       };
     Ret  testBbox (const Tempest::Vec3& min, const Tempest::Vec3& max) const;
+    // testBbox(min,max)==T_Invisible, without the partial/full part
+    bool isOutside(const Tempest::Vec3& min, const Tempest::Vec3& max) const;
 
     float              f[6][4] = {};
     Tempest::Matrix4x4 mat;

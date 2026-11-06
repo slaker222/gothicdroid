@@ -79,6 +79,7 @@ void MdlVisual::setVisualBody(World& owner, MeshObjects::Mesh&& body) {
 // Mdl_SetVisualBody
 void MdlVisual::setVisualBody(Npc& npc, MeshObjects::Mesh &&h, MeshObjects::Mesh &&body, int32_t version) {
   bind(head,std::move(h),"BIP01 HEAD");
+  farPoseR = -1.f;
   implSetBody(&npc,npc.world(),std::move(body),version);
   head.view.setAsGhost(hnpcFlagGhost);
   head.view.setFatness(npc.fatness());
@@ -132,6 +133,7 @@ void MdlVisual::implSetBody(Npc* npc, World& world, MeshObjects::Mesh&& body, co
     syncAttaches();
     }
   view = std::move(body);
+  farPoseR = -1.f;
   view.setAsGhost(hnpcFlagGhost);
   view.setFatness(npc==nullptr ? 0 : npc->fatness());
   view.setSkeleton(skeleton);
@@ -557,7 +559,9 @@ bool MdlVisual::isFarPose() const {
   float lim = g_farPose.dist + margin;
   if(d2<=lim*lim)
     return false;
-  const float r = bounds().rConservative;
+  if(farPoseR<0)
+    farPoseR = bounds().rConservative;
+  const float r = farPoseR;
   lim = g_farPose.dist*std::max(1.f, r/250.f) + margin;
   return d2>lim*lim;
   }

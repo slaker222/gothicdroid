@@ -89,11 +89,14 @@ Workers::Workers() {
 #else
   // web: a thread is a Web Worker from a pool of fixed size, start only as
   // many as tasks are handed out (maxThreads)
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+  // android: no more than one batch ever runs on (maxThreads), the other threads only woke up on every batch (notify_all)
+  // and went to sleep again
   const size_t count = maxThreads();
 #else
   const size_t count = MAX_THREADS;
 #endif
+  thCount = count;
   for(size_t id=0; id<count; ++id) {
     th[id] = std::thread([this,id]() noexcept {
       threadFunc(id);
@@ -109,10 +112,11 @@ Workers::~Workers() {
 #else
   running  = false;
   workSet  = nullptr;
-  workSize = MAX_THREADS;
+  workSize = thCount;
   execWork(minWorkSize<void,void>());
   for(auto& i:th)
-    i.join();
+    if(i.joinable())
+      i.join();
 #endif
   }
 

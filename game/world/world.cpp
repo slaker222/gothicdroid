@@ -423,12 +423,31 @@ void World::tickBarrierZones() {
   const float    touch  = 30;    // the body of a character, units (cm)
   float          nearD  = 1e30f;
 
+  // the box of every zone grown by the touch distance: a point outside of it is at least `touch` away from the zone
+  // (the distance to the quad is not less than the distance to its box), the exact distance is not needed there
+  struct Box { float x0, z0, x1, z1; };
+  std::vector<Box> boxes(zones.size());
+  for(size_t i=0; i<zones.size(); ++i) {
+    auto& z = zones[i];
+    auto& b = boxes[i];
+    b.x0 = std::min(std::min(z.x[0],z.x[1]),std::min(z.x[2],z.x[3])) - touch;
+    b.x1 = std::max(std::max(z.x[0],z.x[1]),std::max(z.x[2],z.x[3])) + touch;
+    b.z0 = std::min(std::min(z.z[0],z.z[1]),std::min(z.z[2],z.z[3])) - touch;
+    b.z1 = std::max(std::max(z.z[0],z.z[1]),std::max(z.z[2],z.z[3])) + touch;
+    }
+
   for(size_t i=0; i<wobj.npcCount(); ++i) {
     auto& npc = wobj.npc(i);
     if(npc.isDead())
       continue;
     const auto p = npc.position();
-    for(auto& z:zones) {
+    for(size_t zi=0; zi<zones.size(); ++zi) {
+      auto& z = zones[zi];
+      if(&npc!=pl) {
+        auto& b = boxes[zi];
+        if(p.x<b.x0 || p.x>b.x1 || p.z<b.z0 || p.z>b.z1)
+          continue;
+        }
       const float d = z.distance(p.x,p.z);
       if(&npc==pl)
         nearD = std::min(nearD,d);
