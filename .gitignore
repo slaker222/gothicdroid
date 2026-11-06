@@ -62,3 +62,6 @@ release*.json
 /build-android.log
 /gradle.log
 __pycache__/
+
+# sky textures of the games (tools/extract_sky.py)
+android/app/src/main/assets/sky/

@@ -429,12 +429,36 @@ class MainActivity : AppCompatActivity() {
         return mods
     }
 
+    // the sky pack (assets/sky/g1, g2: the sky textures of both games, tools/extract_sky.py) is copied to the app's folder once
+    // per version of the app: the engine reads plain files. Null: the app was built without the pack
+    private fun skyPackDir(): String? {
+        return try {
+            val dst = File(filesDir, "sky")
+            val mark = File(dst, ".version")
+            val ver = packageManager.getPackageInfo(packageName, 0).let { "${it.versionName}/${it.lastUpdateTime}" }
+            if (mark.exists() && mark.readText() == ver) return dst.path
+            var n = 0
+            for (g in arrayOf("g1", "g2")) {
+                val names = assets.list("sky/$g") ?: continue
+                File(dst, g).mkdirs()
+                for (f in names) {
+                    assets.open("sky/$g/$f").use { i -> File(dst, "$g/$f").outputStream().use { o -> i.copyTo(o) } }
+                    n++
+                }
+            }
+            if (n == 0) return null
+            mark.writeText(ver)
+            dst.path
+        } catch (e: Exception) { null }
+    }
+
     private fun launchMod(m: ModInfo) {
         // the settings of the page are the ones of the game the mod belongs to
         prefs().edit().putInt("sel", m.game).apply()
         detectedGameDir = m.dir.path
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
+            skyPackDir()?.let { putExtra(GameActivity.EXTRA_SKY_DIR, it) }
             putExtra(GameActivity.EXTRA_MOD, "system/" + m.ini.name)
             putExtra(GameActivity.EXTRA_GAME_VERSION, m.game)
         }
@@ -446,6 +470,7 @@ class MainActivity : AppCompatActivity() {
         detectedGameDir = findGameDirectory()
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
+            skyPackDir()?.let { putExtra(GameActivity.EXTRA_SKY_DIR, it) }
             if (id == 3) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir)) ?: "")
             // the engine is told which game it is (Archolos is a mod of Gothic 2): its own guess by the files
             // took a German or Polish Gothic 2 (OU.BIN, no OU.DAT) for Gothic 1
@@ -473,6 +498,7 @@ class MainActivity : AppCompatActivity() {
         "blood" to Setting("INTERNAL", "webBlood", 0),
         "fog" to Setting("INTERNAL", "webFog", 0),
         "sun" to Setting("INTERNAL", "webSun", 0),
+        "sky" to Setting("INTERNAL", "webSky", 0),
         "barrier" to Setting("INTERNAL", "webBarrier", 0),
         "barrierVol" to Setting("INTERNAL", "webBarrierVol", 100),
         "barrierZoneShow" to Setting("INTERNAL", "webBarrierZoneShow", 0)

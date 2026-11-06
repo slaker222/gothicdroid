@@ -1049,6 +1049,11 @@
           <option value="0">High</option><option value="1">Low</option><option value="2">Off</option>
         </select>
       </label>
+      <label class="set-row skyrow" style="display:none" title="The clouds, sun and moon of the game that runs (default), or of Gothic 1 / Gothic 2 (the app carries both). Gothic 2 Blue: the clear bright blue sky of the New World of Gothic 2, in any world. Applies at once">Sky
+        <select data-set="sky">
+          <option value="0">As in the game</option><option value="1">Gothic 1</option><option value="2">Gothic 2</option><option value="3">Gothic 2 Blue</option>
+        </select>
+      </label>
       <label class="set-row g1only" title="Classic: the barrier shows for 45 seconds when the game starts, dissolves, and comes back for 45 seconds every 36 minutes. Constant: always there. Off: no barrier. The slider is the volume of its hum and thunder (Gothic 1 only)">Barrier
         <span class="barrier-ctl">
           <select data-set="barrier">
@@ -2339,6 +2344,8 @@ async function installChunks(m) {
         panel.classList.toggle('disabled', !ok);
         // the barrier is only in Gothic 1
         if (ok) panel.querySelectorAll('.g1only').forEach(e => { e.style.display = ogGet('gameVersion') === 2 ? 'none' : ''; });
+        // the sky of both games: only where the app carries the sky pack (the Android app; not the web)
+        if (ok) panel.querySelectorAll('.skyrow').forEach(e => { e.style.display = ogGet('skyOther') > 0 ? '' : 'none'; });
         note.textContent = ok ? '' :
                            err ? 'Settings are unavailable: ' + err : 'Start the game to change settings.';
         if (!ok) return;

@@ -112,6 +112,11 @@ class Resources final {
     static auto                      fallbackImage() -> const Tempest::StorageImage&;
     static Tempest::Texture2d        loadTextureUncached(std::string_view name, bool forceMips = false);
     static const Tempest::Texture2d* loadTexture(std::string_view name, bool forceMips = false);
+    // the sky pack (the sky setting): the compiled sky textures of Gothic 1 (game=1) and Gothic 2 (game=2) that the app carries itself
+    // (tools/extract_sky.py -> assets/sky/g1, g2). The folder with g1/ and g2/ comes from the OG_SKY_PACK_DIR environment variable;
+    // null / false if the pack or the texture is not there
+    static const Tempest::Texture2d* loadSkyTexture(int game, std::string_view name, bool forceMips = false);
+    static bool                      hasSkyPack(int game);
     static const Tempest::Texture2d* loadTexture(Tempest::Color color);
     // a DXT1 texture that was decoded to RGBA8 (the device has no BC): it still has no alpha channel to speak of
     static bool                      isDxt1Decoded(const Tempest::Texture2d* tex);
@@ -200,10 +205,11 @@ class Resources final {
     int64_t               vdfTimestamp(const std::u16string& name);
     void                  detectVdf(std::vector<Archive>& ret, const std::u16string& root);
 
-    Tempest::Texture2d*   implLoadTexture(std::string_view cname, bool forceMips);
+    Tempest::Texture2d*   implLoadTexture(std::string_view cname, bool forceMips, const zenkit::Vfs* vfs = nullptr);
+    void                  mountSkyPack(int game);
     std::unordered_set<const Tempest::Texture2d*> dxt1Decoded;
     bool                  lastDxt1Decoded = false;
-    Tempest::Texture2d    implLoadTextureUncached(std::string_view name, bool forceMips);
+    Tempest::Texture2d    implLoadTextureUncached(std::string_view name, bool forceMips, const zenkit::Vfs* vfs = nullptr);
     void                  implFinishTextMount();
     void                  restoreOriginals(const std::set<std::string>& paths);
     Tempest::Texture2d    implLoadTextureUncached(std::string_view name, zenkit::Read& data, bool forceMips);
@@ -256,6 +262,9 @@ class Resources final {
     std::unique_ptr<Dx8::DirectMusic> dxMusic;
     DmLoader*                         dmLoader = nullptr;
     zenkit::Vfs                       gothicAssets;
+    zenkit::Vfs                       skyAssets[2];    // the sky pack of Gothic 1 and Gothic 2, see loadSkyTexture
+    bool                              skyTried[2] = {};
+    bool                              skyOk[2]    = {};
 
     std::vector<uint8_t>              fBuff, ddsBuf;
     Tempest::IndexBuffer<uint16_t>    cube;

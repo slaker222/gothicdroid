@@ -1,6 +1,9 @@
 #include "resources.h"
 
+#include <filesystem>
 #include <fstream>
+#include <cstdlib>
+#include <tuple>
 #include <functional>
 #include <cstring>
 
@@ -603,18 +606,20 @@ int64_t Resources::vdfTimestamp(const std::u16string& name) {
     }
   }
 
-Tempest::Texture2d* Resources::implLoadTexture(std::string_view cname, bool forceMips) {
+Tempest::Texture2d* Resources::implLoadTexture(std::string_view cname, bool forceMips, const zenkit::Vfs* vfs) {
   if(cname.empty())
     return nullptr;
 
   //TODO: __cpp_lib_generic_unordered_lookup
   std::string name = std::string(cname);
+  if(vfs!=nullptr)
+    name = "\x01sky" + std::to_string(vfs==&skyAssets[0] ? 1 : 2) + "/" + name; // the games have textures of the same names
   auto it=texCache.find(name);
   if(it!=texCache.end())
     return it->second.get();
 
   lastDxt1Decoded = false;
-  auto tex = implLoadTextureUncached(cname, forceMips);
+  auto tex = implLoadTextureUncached(cname, forceMips, vfs);
   const bool dxt1Dec = lastDxt1Decoded;
   if(!tex.isEmpty()) {
     std::unique_ptr<Texture2d> t{new Texture2d(std::move(tex))};
@@ -628,16 +633,17 @@ Tempest::Texture2d* Resources::implLoadTexture(std::string_view cname, bool forc
   return nullptr;
   }
 
-Texture2d Resources::implLoadTextureUncached(std::string_view name, bool forceMips) {
+Texture2d Resources::implLoadTextureUncached(std::string_view name, bool forceMips, const zenkit::Vfs* vfsPtr) {
   if(name.empty())
     return Texture2d();
+  const zenkit::Vfs& vfs = vfsPtr!=nullptr ? *vfsPtr : Resources::vdfsIndex();
 
   if(FileExt::hasExt(name,"TGA")) {
     auto nameAlt = std::string(name);
     nameAlt.resize(nameAlt.size() + 2);
     std::memcpy(&nameAlt[0]+nameAlt.size()-6, "-C.TEX", 6);
 
-    if(const auto* entry = Resources::vdfsIndex().find(nameAlt)) {
+    if(const auto* entry = vfs.find(nameAlt)) {
       zenkit::Texture tex;
 
       auto reader = entry->open_read();
@@ -671,7 +677,7 @@ Texture2d Resources::implLoadTextureUncached(std::string_view name, bool forceMi
       }
     }
 
-  if(auto* entry = Resources::vdfsIndex().find(name)) {
+  if(auto* entry = vfs.find(name)) {
     auto reader = entry->open_read();
     return implLoadTextureUncached(name, *reader, forceMips);
     }
@@ -1065,6 +1071,49 @@ GthFont &Resources::implLoadFont(std::string_view name, FontType type, const flo
   f->setScale(scale);
   gothicFnt[key] = std::move(ptr);
   return *f;
+  }
+
+void Resources::mountSkyPack(int game) {
+  const int i = game-1;
+  if(i<0 || i>1 || skyTried[i])
+    return;
+  skyTried[i] = true;
+  const char* env = std::getenv("OG_SKY_PACK_DIR");
+  if(env==nullptr || *env=='\0')
+    return;
+  try {
+    const std::filesystem::path dir = std::filesystem::path(env) / (game==1 ? "g1" : "g2");
+    if(!std::filesystem::is_directory(dir)) {
+      Log::e("sky: no sky pack of Gothic ",game," in ",env);
+      return;
+      }
+    skyAssets[i].mkdir("/sky");
+    skyAssets[i].mount_host(dir, "/sky", zenkit::VfsOverwriteBehavior::ALL);
+    skyOk[i] = skyAssets[i].find("SKYDAY_LAYER0_A0-C.TEX")!=nullptr;
+    Log::i("sky: the sky pack of Gothic ",game,skyOk[i] ? " is mounted (" : " is empty (",dir.string(),")");
+    }
+  catch(const std::exception& err) {
+    Log::e("sky: the sky pack of Gothic ",game," is not readable: ",err.what());
+    }
+  }
+
+bool Resources::hasSkyPack(int game) {
+  if(game<1 || game>2)
+    return false;
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  inst->mountSkyPack(game);
+  return inst->skyOk[game-1];
+  }
+
+const Texture2d* Resources::loadSkyTexture(int game, std::string_view name, bool forceMips) {
+  if(game<1 || game>2)
+    return nullptr;
+  std::lock_guard<std::recursive_mutex> g(inst->sync);
+  inst->mountSkyPack(game);
+  if(!inst->skyOk[game-1])
+    return nullptr;
+  // the key of the cache has the game in it: the two games have textures of the same names
+  return inst->implLoadTexture(name,forceMips,&inst->skyAssets[game-1]);
   }
 
 Texture2d Resources::loadTextureUncached(std::string_view name, bool forceMips) {

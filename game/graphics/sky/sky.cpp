@@ -4,6 +4,7 @@
 #include <Tempest/CommandBuffer>
 #include <Tempest/Platform>
 #include <Tempest/Fence>
+#include <Tempest/Log>
 
 #include <cctype>
 #include <strings.h>
@@ -50,14 +51,35 @@ Sky::Sky(const SceneGlobals& scene, const World& world)
   :scene(scene) {
   auto wname  = world.name();
   auto dot    = wname.rfind('.');
-  auto name   = dot==std::string::npos ? wname : wname.substr(0,dot);
+  worldName   = dot==std::string::npos ? wname : wname.substr(0,dot);
+  GSunIntensity  = DirectSunLux;
+  GMoonIntensity = DirectMoonLux;
+  loadTextures();
+  }
+
+// the clouds, the sun and the moon: of the game that runs or, by the setting webSky, of the other one
+void Sky::loadTextures() {
+  const std::string& name = worldName;
+  // webSky: 0 = the sky of the game that runs (default), 1 = Gothic 1, 2 = Gothic 2, 3 = Gothic 2 blue (the clear bright sky
+  // of the New World of Gothic 2 over any world). The sky of the other game comes from the sky pack of the app
+  // (Resources::loadSkyTexture); not there - the sky of the running game
+  const int curGame = Gothic::inst().version().game;
+  const int mode    = Gothic::settingsGetI("INTERNAL","webSky");
+  const int want    = (mode==1 || mode==2) ? mode : (mode==3 ? 2 : curGame);
+  blue    = mode==3;
+  other   = (want!=curGame || blue) && Resources::hasSkyPack(want);
+  skyGame = want;
+  if(!other)
+    blue = false;
+  if(want!=curGame && !other)
+    Tempest::Log::e("sky: the sky of Gothic ",want," was asked for, but the app has no sky pack: the sky of Gothic ",curGame," is used");
+  else if(other)
+    Tempest::Log::i("sky: the sky of Gothic ",want," over Gothic ",curGame," (world ",name,")");
+
   for(size_t i=0; i<2; ++i) {
     clouds[0].lay[i] = skyTexture(name,true, i);
     clouds[1].lay[i] = skyTexture(name,false,i);
     }
-
-  GSunIntensity  = DirectSunLux;
-  GMoonIntensity = DirectMoonLux;
 
   /*
     zSunName=unsun5.tga
@@ -67,8 +89,17 @@ Sky::Sky(const SceneGlobals& scene, const World& world)
     zMoonSize=400
     zMoonAlpha=255
     */
-  sunImg       = Resources::loadTexture(Gothic::settingsGetS("SKY_OUTDOOR","zSunName"));
-  moonImg      = Resources::loadTexture(Gothic::settingsGetS("SKY_OUTDOOR","zMoonName"));
+  sunImg       = nullptr;
+  moonImg      = nullptr;
+  if(other) {
+    sunImg  = Resources::loadSkyTexture(skyGame,Gothic::settingsGetS("SKY_OUTDOOR","zSunName"));
+    moonImg = Resources::loadSkyTexture(skyGame,Gothic::settingsGetS("SKY_OUTDOOR","zMoonName"));
+    }
+  if(sunImg==nullptr)
+    sunImg  = Resources::loadTexture(Gothic::settingsGetS("SKY_OUTDOOR","zSunName"));
+  if(moonImg==nullptr)
+    moonImg = Resources::loadTexture(Gothic::settingsGetS("SKY_OUTDOOR","zMoonName"));
+  barrierImg = nullptr;
   if(Gothic::inst().version().game==1 && strcasecmp(std::string(name).c_str(),"WORLD")==0) {
     auto t = Resources::loadTexture("BARRIERE.TGA");
     if(t!=&Resources::fallbackTexture())
@@ -170,6 +201,15 @@ Vec2 Sky::cloudsOffset(int layer) const {
   }
 
 const Texture2d* Sky::skyTexture(std::string_view name, bool day, size_t id) {
+  if(other) {
+    // the sky of the other game: the layers of the world's name (Gothic 2 has them for its worlds), then the sky of the
+    // Khorinis world for a Gothic 2 sky over a Gothic 1 world, then the common ones
+    std::string_view names[] = {blue ? std::string_view("NEWWORLD") : std::string_view(name), skyGame==2 ? std::string_view("OLDWORLD") : std::string_view(""), ""};
+    for(auto n:names)
+      if(auto t = implSkyTexture(n,day,id,true))
+        if(t!=&Resources::fallbackBlack())
+          return t;
+    }
   if(auto t = implSkyTexture(name,day,id))
     return t;
   if(auto t = implSkyTexture("",day,id))
@@ -177,7 +217,7 @@ const Texture2d* Sky::skyTexture(std::string_view name, bool day, size_t id) {
   return &Resources::fallbackBlack();
   }
 
-const Texture2d* Sky::implSkyTexture(std::string_view name, bool day, size_t id) {
+const Texture2d* Sky::implSkyTexture(std::string_view name, bool day, size_t id, bool fromOther) {
   string_frm tex("");
   if(name.empty()) {
     if(day)
@@ -191,6 +231,10 @@ const Texture2d* Sky::implSkyTexture(std::string_view name, bool day, size_t id)
   for(auto& i:tex)
     i = char(std::toupper(i));
 
+  if(fromOther) {
+    auto o = Resources::loadSkyTexture(skyGame, tex, true);
+    return o!=nullptr ? o : &Resources::fallbackBlack();
+    }
   auto r = Resources::loadTexture(tex, true);
   if(r==&Resources::fallbackTexture())
     return &Resources::fallbackBlack(); //format error

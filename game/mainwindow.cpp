@@ -82,6 +82,7 @@ const WebSetting g_webSettings[] = {
   {"blood",       "INTERNAL", "webBlood",           false},
   {"fog",         "INTERNAL", "webFog",             false},
   {"sun",         "INTERNAL", "webSun",             false},
+  {"sky",         "INTERNAL", "webSky",             false},   // 0 as in the game, 1 Gothic 1, 2 Gothic 2 (next world load)
   {"barrier",     "INTERNAL", "webBarrier",         false},
   {"barrierVol",  "INTERNAL", "webBarrierVol",      false},
   {"barrierZoneShow","INTERNAL","webBarrierZoneShow",false},
@@ -312,6 +313,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
     return Gothic::inst().isMarvinEnabled() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
     return int(Gothic::inst().version().game); // save slots: 15 in Gothic 1, 20 in Gothic 2
+  if(g_webSettingsReady && std::strcmp(name, "skyOther")==0)
+    return Resources::hasSkyPack(1) && Resources::hasSkyPack(2) ? 1 : 0;   // the app carries the skies of both games
   auto s = findWebSetting(name);
   if(s==nullptr || !g_webSettingsReady)
     return -1;
@@ -1946,6 +1949,15 @@ void MainWindow::render(){
           }
         }
       Gothic::settingsEndBatch();
+      // the sky setting works at once: the textures of the clouds, the sun and the moon are chosen again (the gpu is idle)
+      for(auto& p:todo)
+        if(p.first=="sky") {
+          if(auto wv = Gothic::inst().worldView()) {
+            wv->reloadSky();
+            renderer.resetSkyLut();
+            }
+          break;
+          }
       }
     if(!todo.empty())
       Gothic::flushSettings();
