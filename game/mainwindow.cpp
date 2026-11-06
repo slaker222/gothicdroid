@@ -265,6 +265,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE void og_input_look(int dx, int dy) {
     g_webMain->webLook(dx, dy);
   }
 
+// touch controls: pinch changes the camera distance (steps > 0: closer)
+extern "C" EMSCRIPTEN_KEEPALIVE void og_input_zoom(int steps) {
+  if(g_webMain!=nullptr)
+    g_webMain->webZoom(steps);
+  }
+
 #endif // __EMSCRIPTEN__
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_frames() {
@@ -792,6 +798,14 @@ void MainWindow::processMouse(MouseEvent& event, bool enable) {
 
 void MainWindow::tickMouse(uint64_t dt) {
   auto camera = Gothic::inst().camera();
+#if defined(OG_WEB_UI)
+  if(int z = webZoomSteps.exchange(0)) {
+    if(camera!=nullptr && !dialogs.hasContent() && !Gothic::inst().isPause() && !camera->isCutscene()) {
+      for(; z>0; --z) camera->changeZoom( 1);   // fingers apart = closer (wheel up)
+      for(; z<0; ++z) camera->changeZoom(-1);
+      }
+    }
+#endif
   if(dialogs.hasContent() || Gothic::inst().isPause() || camera==nullptr || camera->isCutscene()) {
     dMouse = Point();
 #if defined(OG_WEB_UI)

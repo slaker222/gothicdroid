@@ -36,6 +36,7 @@ extern "C" const char* og_quickslots();
 extern "C" void og_quickpanel(int open, int first);
 extern "C" void og_pointer(int type, int x, int y);
 extern "C" void og_input_look(int dx, int dy);
+extern "C" void og_input_zoom(int steps);
 
 static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
@@ -377,6 +378,9 @@ Java_com_opengothic_GameActivity_nativePointer(JNIEnv*, jobject, jint type, jint
 
 JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeLook(JNIEnv*, jobject, jint dx, jint dy) { og_input_look(dx, dy); }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeZoom(JNIEnv*, jobject, jint steps) { og_input_zoom(steps); }
 
 JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeWebKey(JNIEnv* env, jobject, jint action, jstring jCode) {
