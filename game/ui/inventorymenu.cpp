@@ -225,6 +225,12 @@ bool InventoryMenu::quickLoot(Npc& pl, const Inventory& inv, Npc* body, Interact
       continue;
     list.push_back({it->clsId(),it.count(),std::string(it->displayName()),uint32_t(it->mainFlag()),it->isGold()});
     }
+  // the plugin setting "weapons": what the dead one holds in the hands and on the back is not offered by the game
+  if(body!=nullptr && Plugins::takeWeapons.load()!=0) {
+    for(auto it=inv.iterator(Inventory::T_Inventory); it.isValid(); ++it)
+      if(it.isEquipped() && (it->mainFlag() & (ITM_CAT_NF|ITM_CAT_FF)) && it.count()>0)
+        list.push_back({it->clsId(),it.count(),std::string(it->displayName()),uint32_t(it->mainFlag()),false});
+    }
   if(list.empty())
     return false;
   for(auto& t:list) {

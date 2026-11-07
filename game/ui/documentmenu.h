@@ -37,8 +37,11 @@ class DocumentMenu : public Tempest::Widget {
       };
 
     void show(const Show& doc);
-    bool isActive() const { return active; }
+    // the full window blocks the game; the small map (the plugin MiniMap) does not
+    bool isActive() const { return active && !mini; }
     void close();
+    // the click is on the cross over the small map
+    bool miniCrossHit(const Tempest::Point& pos) const;
     void tick(uint64_t dt);
 
     void keyDownEvent(Tempest::KeyEvent &e);
@@ -52,5 +55,7 @@ class DocumentMenu : public Tempest::Widget {
     const KeyCodec&           keycodec;
     const Tempest::Texture2d* cursor = nullptr;
     bool                      active = false;
+    bool                      mini   = false;
+    Tempest::Rect             crossRect;
   };
 

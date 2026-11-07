@@ -313,6 +313,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
     return Gothic::inst().isMarvinEnabled() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
     return int(Gothic::inst().version().game); // save slots: 15 in Gothic 1, 20 in Gothic 2
+  if(std::strcmp(name, "minimapCross")==0)
+    return Plugins::miniCross.load();   // the small map is open: where its cross is (the page puts a button over it)
   if(g_webSettingsReady && std::strcmp(name, "skyOther")==0)
 #if defined(__ANDROID__)
     return 1;   // the app downloads the skies of both games when they are chosen (the page, AndroidBridge.skyEnsure)
@@ -386,6 +388,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
   if(std::strcmp(name, "plugAutoLoot")==0)   { Plugins::autoLoot  .store(val); return 1; }
   if(std::strcmp(name, "plugAuto")==0)       { Plugins::autoPick  .store(val); return 1; }
   if(std::strcmp(name, "plugAutoRadius")==0) { Plugins::autoRadius.store(std::max(1,std::min(10,val))); return 1; }
+  if(std::strcmp(name, "plugSteal")==0)      { Plugins::steal     .store(val); return 1; }
+  if(std::strcmp(name, "plugWeapons")==0)    { Plugins::takeWeapons.store(val); return 1; }
+  if(std::strcmp(name, "plugMiniMap")==0)    { Plugins::miniMap   .store(val); return 1; }
+  if(std::strcmp(name, "minimapClose")==0)   { Plugins::miniClose .store(1);   return 1; }
   if(std::strcmp(name, "plugScreenInfo")==0) { Plugins::screenInfo.store(val); return 1; }
   if(std::strcmp(name, "plugTimeScale")==0)  { Plugins::timeScale .store(std::max(10,std::min(2000,val))); return 1; }
   }
@@ -762,6 +768,10 @@ void MainWindow::resizeEvent(SizeEvent&) {
   }
 
 void MainWindow::mouseDownEvent(MouseEvent &event) {
+  if(document.miniCrossHit(event.pos())) {
+    document.close();   // the cross over the small map
+    return;
+    }
   if(event.button<sizeof(mouseP))
     mouseP[event.button]=true;
   player.onKeyPressed(keycodec.tr(event),KeyEvent::K_NoKey);
@@ -1521,7 +1531,10 @@ void MainWindow::tickAutoLoot(uint64_t dt) {
   std::vector<Item*> items;
   world->detectItem(p,r,[&](Item& it){
     // not what belongs to somebody (a theft) and not at another floor
-    if(it.handle().owner!=0 || it.handle().owner_guild!=0 || std::fabs(it.position().y-p.y)>150.f)
+    // (the plugin setting "steal" allows the theft)
+    if(Plugins::steal.load()==0 && (it.handle().owner!=0 || it.handle().owner_guild!=0))
+      return;
+    if(std::fabs(it.position().y-p.y)>150.f)
       return;
     items.push_back(&it);
     });
@@ -1593,6 +1606,8 @@ uint64_t MainWindow::tick() {
     update();
 #endif
   Gothic::inst().tick(dt);
+  if(Plugins::miniClose.exchange(0)!=0)
+    document.close();   // only the small map is open without blocking the game
   if(Plugins::tick(dt))
     update();
   tickAutoLoot(dt);
@@ -1835,6 +1850,7 @@ void MainWindow::onVideo(std::string_view fname) {
 void MainWindow::onStartLoading() {
   player   .clearInput();
   inventory.onWorldChanged();
+  document .close();
   dialogs  .onWorldChanged();
   }
 

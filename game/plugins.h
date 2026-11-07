@@ -21,6 +21,11 @@ struct Plugins final {
   static inline std::atomic<int> autoLoot   {0};     // take the loot of a body / a chest at once, no animation, no window
   static inline std::atomic<int> autoPick   {0};     // ... and without a button: things and bodies near the player are taken by themselves
   static inline std::atomic<int> autoRadius {2};     // metres
+  static inline std::atomic<int> steal      {0};     // auto also takes what belongs to somebody (a theft); off: such things are left
+  static inline std::atomic<int> takeWeapons{0};     // the weapons a dead one holds (equipped, the game does not offer them) are taken too
+  static inline std::atomic<int> miniMap    {0};     // the plugin MiniMap: a map opens as a small window in the top right corner, the game goes on
+  static inline std::atomic<int> miniClose  {0};     // set by the page (the cross over the small map): closes it
+  static inline std::atomic<int> miniCross  {0};     // where the cross is (the centre, permille of the window: x | y<<10), 0 - no small map
   static inline std::atomic<int> screenInfo {0};     // the day and the time in the corner, the numbers on the bars
   static inline std::atomic<int> timeScale  {100};   // the speed of the game time, percent (x1 = 100)
 
@@ -73,14 +78,14 @@ struct Plugins final {
     return true;
     }
 
-  // the taken things, newest at the bottom, right under the right edge; they fade out in the last second
-  static void paintLoot(Tempest::Painter& p, const GthFont& fnt, int w, int y) {
+  // the taken things, newest at the bottom, at the left edge; they fade out in the last second
+  static void paintLoot(Tempest::Painter& p, const GthFont& fnt, int /*w*/, int y) {
     std::lock_guard<std::mutex> lk(mutex());
     for(auto& l:lines()) {
       auto  c  = l.color;
       float a  = std::min(1.f,l.ttl);
       auto  sz = fnt.textSize(l.text);
-      int   x  = w-10-sz.w;
+      int   x  = 10;
       fnt.tinted(Tempest::Color(0.f,0.f,0.f,a*0.8f)).drawText(p,x+1,y+1,l.text);
       fnt.tinted(Tempest::Color(c.r(),c.g(),c.b(),a)).drawText(p,x,y,l.text);
       y += sz.h+2;
