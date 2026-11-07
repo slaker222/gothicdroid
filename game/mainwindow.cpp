@@ -82,6 +82,7 @@ const WebSetting g_webSettings[] = {
   {"blood",       "INTERNAL", "webBlood",           false},
   {"fog",         "INTERNAL", "webFog",             false},
   {"sun",         "INTERNAL", "webSun",             false},
+  {"sunset",      "INTERNAL", "webSunset",          false},   // 0 soft (default), 1 vivid (the engine as it was)
   {"sky",         "INTERNAL", "webSky",             false},   // 0 as in the game, 1 Gothic 1, 2 Gothic 2 (next world load)
   {"barrier",     "INTERNAL", "webBarrier",         false},
   {"barrierVol",  "INTERNAL", "webBarrierVol",      false},

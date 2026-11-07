@@ -44,7 +44,7 @@ vec4 clouds(vec3 at, float nightPhase, vec3 highlight,
   return color;
   }
 
-vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, vec3 view, float nightPhase,
+vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, vec3 view, float nightPhase, float soft,
                  vec2 dxy0, vec2 dxy1,
                  in sampler2D dayL1,   in sampler2D dayL0,
                  in sampler2D nightL1, in sampler2D nightL0) {
@@ -52,10 +52,26 @@ vec3 applyClouds(vec3 skyColor, in sampler2D skyLUT, vec3 plPos, vec3 sunDir, ve
   // TODO: http://killzone.dl.playstation.net/killzone/horizonzerodawn/presentations/Siggraph15_Schneider_Real-Time_Volumetric_Cloudscapes_of_Horizon_Zero_Dawn.pdf
   // fake cloud scattering inspired by Henyey-Greenstein model
   vec3 lum  = vec3(0);
-  lum += textureSkyLUT(skyLUT, plPos, vec3( view.x, view.y*0.0, view.z), sunDir);
-  lum += textureSkyLUT(skyLUT, plPos, vec3(-view.x, view.y*0.0, view.z), sunDir);
-  lum += textureSkyLUT(skyLUT, plPos, vec3(-view.x, view.y*0.0,-view.z), sunDir);
-  lum += textureSkyLUT(skyLUT, plPos, vec3( view.x, view.y*0.0,-view.z), sunDir);
+  if(soft>0.5) {
+    // Sunset: soft. The mean light of the horizon: 8 directions evenly around it (22.5 degrees off the sun). The vivid
+    // way below takes it in the azimuth of the view and its three mirror images: at sunset the narrow bright spot at
+    // the horizon becomes eight sharp rays (the sun's azimuth and three false ones) that meet at the zenith as a star.
+    // The same texels for every pixel
+    vec2  sh   = sunDir.xz;
+    float sl   = length(sh);
+    sh = (sl>1e-4) ? sh/sl : vec2(1,0);
+    for(int i=0; i<8; ++i) {
+      const float a = (float(i)+0.5)*(M_PI/4.0);
+      const vec2  d = vec2(sh.x*cos(a) - sh.y*sin(a), sh.x*sin(a) + sh.y*cos(a));
+      lum += textureSkyLUT(skyLUT, plPos, vec3(d.x, 0, d.y), sunDir);
+      }
+    lum *= 0.5;   // the vivid sum is of 4 samples
+    } else {
+    lum += textureSkyLUT(skyLUT, plPos, vec3( view.x, view.y*0.0, view.z), sunDir);
+    lum += textureSkyLUT(skyLUT, plPos, vec3(-view.x, view.y*0.0, view.z), sunDir);
+    lum += textureSkyLUT(skyLUT, plPos, vec3(-view.x, view.y*0.0,-view.z), sunDir);
+    lum += textureSkyLUT(skyLUT, plPos, vec3( view.x, view.y*0.0,-view.z), sunDir);
+    }
   //return lum;
 
   vec4 cloud = clouds((plPos + view*L)*0.01, nightPhase, lum,

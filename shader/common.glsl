@@ -17,6 +17,9 @@ const vec3  WaterAlbedo = vec3(0.8,0.9,1.0);
 
 // in vanilla game night time attenuated as rgb{18 16 60}
 const float GMoonIntensity = 0.36;
+// the sky view LUT keeps its values multiplied by this (a power of two: exact in float). On phones the LUT is RGBA16F
+// (RGBA32F cannot be filtered there): the moonlit night sky (~1e-7) would be below what a half float holds
+const float SkyLutScale    = 8192.0;
 const vec3  NightAmbient   = vec3(0.3, 0.26, 1)*GMoonIntensity;
 
 const vec3  GGroundAlbedo = vec3(0.3);
@@ -162,7 +165,7 @@ vec3 textureSkyLUT(in sampler2D skyLUT, const vec3 viewPos, vec3 rayDir, vec3 su
   // Non-linear mapping of altitude angle. See Section 5.3 of the paper.
   float v  = 0.5 + 0.5*sign(altitudeAngle)*sqrt(abs(altitudeAngle)*2.0/M_PI);
   vec2  uv = vec2(azimuthAngle / (2.0*M_PI), v);
-  return textureLod(skyLUT, uv, 0).rgb;
+  return textureLod(skyLUT, uv, 0).rgb/SkyLutScale;
   }
 
 // Sample i-th point from Hammersley point set of NumSamples points total.

@@ -475,6 +475,7 @@ class MainActivity : AppCompatActivity() {
         "blood" to Setting("INTERNAL", "webBlood", 0),
         "fog" to Setting("INTERNAL", "webFog", 0),
         "sun" to Setting("INTERNAL", "webSun", 0),
+        "sunset" to Setting("INTERNAL", "webSunset", 0),
         "sky" to Setting("INTERNAL", "webSky", 0),
         "barrier" to Setting("INTERNAL", "webBarrier", 0),
         "barrierVol" to Setting("INTERNAL", "webBarrierVol", 100),

@@ -95,7 +95,7 @@ vec3 applyClouds(vec3 skyColor) {
   if(scene.clipInfo.z < 99999.0 && pos1.y < 0.0)
     return skyColor;
   vec3  viewDir  = normalize(pos1);
-  return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, viewDir, night,
+  return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, viewDir, night, scene.sunsetSoft,
                      scene.cloudsDir.xy, scene.cloudsDir.zw,
                      textureDayL1,textureDayL0, textureNightL1,textureNightL0);
   }

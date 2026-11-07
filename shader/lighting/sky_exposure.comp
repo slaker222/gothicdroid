@@ -96,7 +96,14 @@ void main() {
     const float vmin     = uintBitsToFloat(minSkyLuminance);
 
     const vec3  pos      = vec3(0, RPlanet+1, 0);
-    const vec3  tr       = textureLUT(tLUT, pos, scene.sunDir).rgb;
+    vec3        tr       = textureLUT(tLUT, pos, scene.sunDir).rgb;
+    {
+    // soft sunset: near the horizon the light through the atmosphere is deep orange and the exposure makes it bright:
+    // its saturation goes down to 45% while the sun is below ~15 degrees (the day is as it was)
+    const float low = (1.0 - smoothstep(0.0, 0.25, scene.sunDir.y)) * scene.sunsetSoft;
+    const float l   = dot(tr, vec3(0.2125, 0.7154, 0.0721));
+    tr = mix(tr, mix(vec3(l), tr, 0.45), low);
+    }
     const float cldVal   = textureLod(cloudsLUT, vec2(scene.isNight,0), 0).a;
     const float clouds   = (1.0 - pow(cldVal, 4));
     // const float clouds   = max(1.0 - exp(-cldVal*2), 0.01);

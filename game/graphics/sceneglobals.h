@@ -128,7 +128,7 @@ class SceneGlobals final {
       float                           fogScale      = 1;
       float                           sunRays       = 0;
       float                           swampWater    = 0;
-      float                           swampPad[3]   = {};
+      float                           swampPad[3]   = {};   // [0] water physics, [1] sunset soft (scene.glsl: waterFx, sunsetSoft)
       Tempest::Vec4                   swampRect     = {0,0,0,0};
       Tempest::Vec4                   ripples[8]    = {}; // web water physics: (x, z, age in seconds, strength), strength 0 = unused
       };

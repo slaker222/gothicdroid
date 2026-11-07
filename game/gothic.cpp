@@ -1103,6 +1103,8 @@ void Gothic::setupSettings() {
   fogScale = worldM>0 ? std::clamp(float(worldM)/1100.f, 0.02f, 1.f) : 1.f;
   // webSun: 0 = disc + halo + light shafts (default), 1 = the same without the shafts, 2 = off
   sunMode  = std::clamp(settingsGetI("INTERNAL","webSun"), 0, 2);
+  // webSunset: 0 = soft (default): the light of the low sun is less saturated, 1 = vivid: the bright orange of the engine
+  sunsetMode = std::clamp(settingsGetI("INTERNAL","webSunset"), 0, 1);
   // webBarrier: 0 = classic (default), 1 = always, 2 = off; webBarrierVol: percent of the sound volume, 20..100 (not set = 100)
   barrierMode = std::clamp(settingsGetI("INTERNAL","webBarrier"), 0, 2);
   const int vol = settingsGetI("INTERNAL","webBarrierVol");

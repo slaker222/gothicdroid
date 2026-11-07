@@ -29,7 +29,7 @@ vec3 applyClouds(vec3 skyColor, vec3 refl) {
   float night    = scene.isNight;
   vec3  plPos    = vec3(0,RPlanet,0);
 
-  return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, refl, night,
+  return applyClouds(skyColor, skyLUT, plPos, scene.sunDir, refl, night, scene.sunsetSoft,
                      scene.cloudsDir.xy, scene.cloudsDir.zw,
                      textureDayL1,textureDayL0, textureNightL1,textureNightL0);
   }
@@ -62,8 +62,9 @@ void main() {
   vec3  sunDir      = vec3(0.0, sin(sunAltitude), -cos(sunAltitude));
   vec3  rayDir      = vec3(cosAltitude*sin(azimuthAngle), sin(altitudeAngle), -cosAltitude*cos(azimuthAngle));
 
-  vec3 sky = textureLod(skyLUT, uv, 0).rgb;
+  vec3 sky = textureLod(skyLUT, uv, 0).rgb/SkyLutScale;
   sky = applyClouds(sky, rayDir);
 
-  outColor = vec4(sky, 1.0);
+  // read by textureSkyLUT (exposure, irradiance, water, GI) like the view LUT: kept multiplied by SkyLutScale too
+  outColor = vec4(sky*SkyLutScale, 1.0);
   }
