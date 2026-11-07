@@ -423,7 +423,9 @@ void Resources::loadVdfs(const std::vector<std::u16string>& modvdfs, bool modFil
 
   for(auto& i:archives) {
     try {
+#if !defined(__EMSCRIPTEN__)
       auto in = zenkit::Read::from(i.name);
+#endif
 #ifdef __IOS__
       // causes OOM on iPhone7
       if(i.name.find(u"Speech")!=std::string::npos)

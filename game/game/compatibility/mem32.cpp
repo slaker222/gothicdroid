@@ -346,6 +346,8 @@ Mem32::Region* Mem32::implAllocAt(ptr32_t address, uint32_t size) {
       p2.address+=size;
       p2.size   -=size;
       region.insert(region.begin()+ptrdiff_t(i+1),p2);
+      // the block must be exactly `size` bytes: callers calloc(rgn->size), it was the whole free tail (up to 2GB)
+      region[i].size = size;
       }
 
     return &region[i];
