@@ -314,7 +314,11 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
     return int(Gothic::inst().version().game); // save slots: 15 in Gothic 1, 20 in Gothic 2
   if(g_webSettingsReady && std::strcmp(name, "skyOther")==0)
-    return Resources::hasSkyPack(1) && Resources::hasSkyPack(2) ? 1 : 0;   // the app carries the skies of both games
+#if defined(__ANDROID__)
+    return 1;   // the app downloads the skies of both games when they are chosen (the page, AndroidBridge.skyEnsure)
+#else
+    return 0;
+#endif
   auto s = findWebSetting(name);
   if(s==nullptr || !g_webSettingsReady)
     return -1;

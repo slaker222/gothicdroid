@@ -63,5 +63,5 @@ release*.json
 /gradle.log
 __pycache__/
 
-# sky textures of the games (tools/extract_sky.py)
+# sky textures of the games (tools/extract_sky.py; they lie in R2 sky/, the app downloads them)
 android/app/src/main/assets/sky/

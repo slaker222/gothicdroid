@@ -429,28 +429,9 @@ class MainActivity : AppCompatActivity() {
         return mods
     }
 
-    // the sky pack (assets/sky/g1, g2: the sky textures of both games, tools/extract_sky.py) is copied to the app's folder once
-    // per version of the app: the engine reads plain files. Null: the app was built without the pack
-    private fun skyPackDir(): String? {
-        return try {
-            val dst = File(filesDir, "sky")
-            val mark = File(dst, ".version")
-            val ver = packageManager.getPackageInfo(packageName, 0).let { "${it.versionName}/${it.lastUpdateTime}" }
-            if (mark.exists() && mark.readText() == ver) return dst.path
-            var n = 0
-            for (g in arrayOf("g1", "g2")) {
-                val names = assets.list("sky/$g") ?: continue
-                File(dst, g).mkdirs()
-                for (f in names) {
-                    assets.open("sky/$g/$f").use { i -> File(dst, "$g/$f").outputStream().use { o -> i.copyTo(o) } }
-                    n++
-                }
-            }
-            if (n == 0) return null
-            mark.writeText(ver)
-            dst.path
-        } catch (e: Exception) { null }
-    }
+    // the sky pack (the sky setting) is downloaded by the game's page when the player chooses a sky (SkyPack.kt):
+    // the engine gets the folder it goes to
+    private fun skyPackDir(): String? = SkyPack.dir(this).also { it.mkdirs() }.path
 
     private fun launchMod(m: ModInfo) {
         // the settings of the page are the ones of the game the mod belongs to
