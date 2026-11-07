@@ -59,8 +59,11 @@ class ObjVisual {
       const ProtoMesh*  proto = nullptr;
       };
 
+    // the model lives in the heap: MdlVisual is ~1.7 KB, the union was as big for every static mesh of the world
+    // (Archolos: ~43k StaticObj of 2 KB each)
+    using MdlPtr = std::unique_ptr<Mdl>;
     union {
-      Mdl        mdl;
+      MdlPtr     mdl;
       Mesh       mesh;
       PfxEmitter pfx;
       VobBundle  bundle;

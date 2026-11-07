@@ -23,6 +23,7 @@ ObjVisual::ObjVisual(ObjVisual&& other) {
       break;
     case M_Mesh:
       mesh = std::move(other.mesh);
+      break;
     case M_Pfx:
       pfx = std::move(other.pfx);
       break;
@@ -46,6 +47,7 @@ ObjVisual& ObjVisual::operator =(ObjVisual&& other) {
       break;
     case M_Mesh:
       mesh = std::move(other.mesh);
+      break;
     case M_Pfx:
       pfx = std::move(other.pfx);
       break;
@@ -62,12 +64,12 @@ ObjVisual::~ObjVisual() {
 
 void ObjVisual::save(Serialize& fout, const Interactive& mob) const {
   if(type==M_Mdl)
-    return mdl.view.save(fout,mob);
+    return mdl->view.save(fout,mob);
   }
 
 void ObjVisual::load(Serialize& fin, Interactive& mob) {
   if(type==M_Mdl)
-    return mdl.view.load(fin,mob);
+    return mdl->view.load(fin,mob);
   }
 
 void ObjVisual::cleanup() {
@@ -75,7 +77,7 @@ void ObjVisual::cleanup() {
     case M_None:
       break;
     case M_Mdl:
-      mdl.~Mdl();
+      mdl.~MdlPtr();
       break;
     case M_Mesh:
       mesh.~Mesh();
@@ -98,7 +100,7 @@ void ObjVisual::setType(Type t) {
     case M_None:
       break;
     case M_Mdl:
-      new(&mdl) Mdl();
+      new(&mdl) MdlPtr(new Mdl());
       break;
     case M_Mesh:
       new (&mesh) Mesh();
@@ -166,19 +168,19 @@ void ObjVisual::setVisual(const zenkit::VirtualObject& vob, World& world, bool s
       if(!view)
         return;
       setType(M_Mdl);
-      mdl.proto = view;
-      mdl.view.setYTranslationEnable(false);
-      mdl.view.setVisual(view->skeleton.get());
+      mdl->proto = view;
+      mdl->view.setYTranslationEnable(false);
+      mdl->view.setVisual(view->skeleton.get());
 
       if(vob.show_visual) {
         if((view->skeleton==nullptr || view->skeleton->animation()==nullptr) && enableCollision)
-          mdl.view.setVisualBody(world,world.addStaticView(view,true)); else
-          mdl.view.setVisualBody(world,world.addView(view));
+          mdl->view.setVisualBody(world,world.addStaticView(view,true)); else
+          mdl->view.setVisualBody(world,world.addView(view));
         }
 
       if(vob.show_visual && enableCollision) {
-        mdl.physic = PhysicMesh(*view,*world.physic(),true);
-        mdl.physic.setSkeleton(view->skeleton.get());
+        mdl->physic = PhysicMesh(*view,*world.physic(),true);
+        mdl->physic.setSkeleton(view->skeleton.get());
         }
       break;
       }
@@ -215,8 +217,8 @@ void ObjVisual::setObjMatrix(const Tempest::Matrix4x4& obj) {
     case M_None:
       break;
     case M_Mdl:
-      mdl.view.setObjMatrix(obj,true);
-      mdl.physic.setObjMatrix(obj);
+      mdl->view.setObjMatrix(obj,true);
+      mdl->physic.setObjMatrix(obj);
       break;
     case M_Mesh:
       mesh.view.setObjMatrix(obj);
@@ -233,7 +235,7 @@ void ObjVisual::setObjMatrix(const Tempest::Matrix4x4& obj) {
 
 void ObjVisual::setSlotItem(MeshObjects::Mesh&& itm, std::string_view slot) {
   if(type==M_Mdl)
-    mdl.view.setSlotItem(std::move(itm), slot);
+    mdl->view.setSlotItem(std::move(itm), slot);
   }
 
 void ObjVisual::setInteractive(Interactive* it) {
@@ -242,7 +244,7 @@ void ObjVisual::setInteractive(Interactive* it) {
     case M_Pfx:
       break;
     case M_Mdl:
-      mdl.physic.setInteractive(it);
+      mdl->physic.setInteractive(it);
       break;
     case M_Mesh:
       mesh.physic.setInteractive(it);
@@ -255,22 +257,22 @@ void ObjVisual::setInteractive(Interactive* it) {
 
 const Animation::Sequence* ObjVisual::startAnimAndGet(std::string_view name, uint64_t tickCount, bool force) {
   if(type==M_Mdl) {
-    return mdl.view.startAnimAndGet(name,tickCount,force);
+    return mdl->view.startAnimAndGet(name,tickCount,force);
     }
   return nullptr;
   }
 
 bool ObjVisual::isAnimExist(std::string_view name) const {
   if(type==M_Mdl)
-    return mdl.view.isAnimExist(name);
+    return mdl->view.isAnimExist(name);
   return false;
   }
 
 bool ObjVisual::updateAnimation(Npc* npc, Interactive* mobsi, World& world, uint64_t dt, bool force) {
   if(type==M_Mdl) {
-    bool ret = mdl.view.updateAnimation(npc,mobsi,world,dt,force);
+    bool ret = mdl->view.updateAnimation(npc,mobsi,world,dt,force);
     if(ret)
-      mdl.view.syncAttaches();
+      mdl->view.syncAttaches();
     return ret;
     }
   return false;
@@ -278,14 +280,14 @@ bool ObjVisual::updateAnimation(Npc* npc, Interactive* mobsi, World& world, uint
 
 void ObjVisual::processAnimEvents(Npc* npc, Interactive* mobsi, World& world, uint64_t dt) {
   if(type==M_Mdl)
-    mdl.view.processAnimEvents(npc,mobsi,world,dt);
+    mdl->view.processAnimEvents(npc,mobsi,world,dt);
   }
 
 bool ObjVisual::updatePose(World& world, bool force) {
   if(type==M_Mdl) {
-    bool ret = mdl.view.updatePose(world,force);
+    bool ret = mdl->view.updatePose(world,force);
     if(ret)
-      mdl.view.syncAttaches();
+      mdl->view.syncAttaches();
     return ret;
     }
   return false;
@@ -293,20 +295,20 @@ bool ObjVisual::updatePose(World& world, bool force) {
 
 void ObjVisual::processLayers(World& world) {
   if(type==M_Mdl) {
-    mdl.view.processLayers(world);
+    mdl->view.processLayers(world);
     }
   }
 
 void ObjVisual::syncPhysics() {
   if(type==M_Mdl)
-    mdl.physic.setPose(mdl.view.pose());
+    mdl->physic.setPose(mdl->view.pose());
   if(type==M_Mesh)
     ;//mesh.physic.setObjMatrix(mesh.view.);
   }
 
 const ProtoMesh* ObjVisual::protoMesh() const {
   if(type==M_Mdl)
-    return mdl.proto;
+    return mdl->proto;
   if(type==M_Mesh)
     return mesh.proto;
   return nullptr;
@@ -314,7 +316,7 @@ const ProtoMesh* ObjVisual::protoMesh() const {
 
 const Tempest::Matrix4x4& ObjVisual::bone(size_t i) const {
   if(type==M_Mdl)
-    return mdl.view.pose().bone(i);
+    return mdl->view.pose().bone(i);
   static const Tempest::Matrix4x4 m;
   return m;
   }

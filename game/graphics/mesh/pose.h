@@ -148,9 +148,12 @@ class Pose final {
     float                           headRotX = 0, headRotY = 0;
 
     size_t                          numBones = 0;
-    SampleStatus                    hasSamples[Resources::MAX_NUM_SKELETAL_NODES] = {};
-    zenkit::AnimationSample         base      [Resources::MAX_NUM_SKELETAL_NODES] = {};
-    zenkit::AnimationSample         prev      [Resources::MAX_NUM_SKELETAL_NODES] = {};
+    // per bone of the skeleton (numBones): a pose exists for every model object of the world (chests, doors, ...),
+    // most of them have a few bones; fixed arrays of MAX_NUM_SKELETAL_NODES were ~5.7 KB of them per pose
+    std::vector<SampleStatus>            hasSamples;
+    std::vector<zenkit::AnimationSample> base;
+    std::vector<zenkit::AnimationSample> prev;
+    void                                 resizeSamples();
     Tempest::Matrix4x4              tr        [Resources::MAX_NUM_SKELETAL_NODES] = {};
     Tempest::Matrix4x4              pos;
   };

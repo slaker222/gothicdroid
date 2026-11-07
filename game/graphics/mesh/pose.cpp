@@ -101,12 +101,14 @@ void Pose::save(Serialize &fout) {
   fout.write(itemUseSt,itemUseDestSt);
   fout.write(headRotX,headRotY);
 
-  for(auto& i:hasSamples)
-    fout.write(uint8_t(i));
-  for(auto& i:base)
-    fout.write(i);
-  for(auto& i:prev)
-    fout.write(i);
+  // the save keeps MAX_NUM_SKELETAL_NODES entries per array, as with the fixed arrays
+  const zenkit::AnimationSample none = {};
+  for(size_t i=0; i<Resources::MAX_NUM_SKELETAL_NODES; ++i)
+    fout.write(uint8_t(i<hasSamples.size() ? hasSamples[i] : S_None));
+  for(size_t i=0; i<Resources::MAX_NUM_SKELETAL_NODES; ++i)
+    fout.write(i<base.size() ? base[i] : none);
+  for(size_t i=0; i<Resources::MAX_NUM_SKELETAL_NODES; ++i)
+    fout.write(i<prev.size() ? prev[i] : none);
   for(auto& i:tr)
     fout.write(i);
   }
@@ -143,12 +145,25 @@ void Pose::load(Serialize &fin, const AnimationSolver& solver) {
   needToUpdate = true;
 
   numBones = skeleton==nullptr ? 0 : skeleton->nodes.size();
-  for(auto& i:hasSamples)
-    fin.read(reinterpret_cast<uint8_t&>(i));
-  for(auto& i:base)
-    fin.read(i);
-  for(auto& i:prev)
-    fin.read(i);
+  resizeSamples();
+  for(size_t i=0; i<Resources::MAX_NUM_SKELETAL_NODES; ++i) {
+    uint8_t v = 0;
+    fin.read(v);
+    if(i<hasSamples.size())
+      hasSamples[i] = SampleStatus(v);
+    }
+  for(size_t i=0; i<Resources::MAX_NUM_SKELETAL_NODES; ++i) {
+    zenkit::AnimationSample v = {};
+    fin.read(v);
+    if(i<base.size())
+      base[i] = v;
+    }
+  for(size_t i=0; i<Resources::MAX_NUM_SKELETAL_NODES; ++i) {
+    zenkit::AnimationSample v = {};
+    fin.read(v);
+    if(i<prev.size())
+      prev[i] = v;
+    }
   for(auto& i:tr)
     fin.read(i);
   }
@@ -192,6 +207,7 @@ void Pose::setSkeleton(const Skeleton* sk) {
     }
   for(auto& i:hasSamples)
     i = S_None;
+  resizeSamples();
   trY          = skeleton->rootTr.y;
   needToUpdate = true;
   if(lay.size()>0) //TODO
@@ -487,7 +503,7 @@ void Pose::implMkSkeleton(const Matrix4x4 &mt) {
     size_t parent = nodes[i].parent;
 #if defined(__wasm_simd128__)
     const Matrix4x4& pm = parent<Resources::MAX_NUM_SKELETAL_NODES ? tr[parent] : mt;
-    if(hasSamples[i]) {
+    if(i<numBones && hasSamples[i]) {
       float mat[16];
       mkRows(mat, base[i]);
       mulTo(tr[i], pm, mat);
@@ -495,7 +511,7 @@ void Pose::implMkSkeleton(const Matrix4x4 &mt) {
       mulTo(tr[i], pm, nodes[i].tr[0]);
       }
 #else
-    auto   mat    = hasSamples[i] ? mkMatrix(base[i]) : nodes[i].tr;
+    auto   mat    = (i<numBones && hasSamples[i]) ? mkMatrix(base[i]) : nodes[i].tr;
 
     if(parent<Resources::MAX_NUM_SKELETAL_NODES)
       tr[i] = tr[parent]*mat; else
@@ -517,7 +533,7 @@ void Pose::implMkSkeleton(const Tempest::Matrix4x4 &mt, size_t parent) {
   for(size_t i=0;i<nodes.size();++i){
     if(nodes[i].parent!=parent)
       continue;
-    auto mat = hasSamples[i] ? mkMatrix(base[i]) : nodes[i].tr;
+    auto mat = (i<numBones && hasSamples[i]) ? mkMatrix(base[i]) : nodes[i].tr;
     tr[i] = mt*mat;
     implMkSkeleton(tr[i],i);
     }
@@ -597,7 +613,7 @@ void Pose::onRemoveLayer(const Pose::Layer &l) {
     isFlyCombined--;
 
   for(auto id:l.seq->data->nodeIndex)
-    if(hasSamples[id]==S_Valid)
+    if(id<numBones && hasSamples[id]==S_Valid)
       hasSamples[id] = S_Old;
 
   for(auto& lx : lay) {
@@ -852,7 +868,7 @@ const Tempest::Matrix4x4 Pose::rootNode() const {
   if(id>=nodes.size())
     return Matrix4x4::mkIdentity();
 
-  auto ret = hasSamples[id] ? mkMatrix(base[id]) : nodes[id].tr;
+  auto ret = (id<numBones && hasSamples[id]) ? mkMatrix(base[id]) : nodes[id].tr;
   return ret;
   }
 
@@ -981,4 +997,13 @@ void Pose::removeIf(T &t, F f) {
       }
     }
   t.resize(ret);
+  }
+
+void Pose::resizeSamples() {
+  // only grows: the stale samples of a bone that is not set stay S_None, as with the fixed arrays
+  if(hasSamples.size()<numBones) {
+    hasSamples.resize(numBones, S_None);
+    base      .resize(numBones);
+    prev      .resize(numBones);
+    }
   }
