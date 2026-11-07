@@ -287,7 +287,8 @@ void CollisionWorld::tick(uint64_t dt) {
             auto mt = reinterpret_cast<const PhysicVbo*>(s->getMeshInterface());
 
             int part = (obj==a ? pt.m_partId1 : pt.m_partId0);
-            matId = mt->materialId(size_t(part));
+            int tri  = (obj==a ? pt.m_index1  : pt.m_index0);
+            matId = mt->materialId(part,tri);
             }
 
           if(auto ptr = reinterpret_cast<::Item*>(obj->getUserPointer())) {

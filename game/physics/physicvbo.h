@@ -22,8 +22,9 @@ class PhysicVbo : public btTriangleIndexVertexArray {
 
     void                    addIndex(const std::vector<uint32_t>& index, size_t iboOff, size_t iboLen, zenkit::MaterialGroup material);
     void                    addIndex(const std::vector<uint32_t>& index, size_t iboOff, size_t iboLen, zenkit::MaterialGroup material, const char* sector);
-    zenkit::MaterialGroup   materialId(size_t segment) const;
-    auto                    sectorName(size_t segment) const -> const char*;
+    // part and triangle as Bullet reports them (LocalShapeInfo m_shapePart/m_triangleIndex, manifold m_partId/m_index)
+    zenkit::MaterialGroup   materialId(int part, int triangle) const;
+    auto                    sectorName(int part, int triangle) const -> const char*;
     bool                    useQuantization() const;
     bool                    isEmpty() const;
 
@@ -41,7 +42,21 @@ class PhysicVbo : public btTriangleIndexVertexArray {
       int                   size;
       zenkit::MaterialGroup mat;
       const char*           sector=nullptr;
+      int                   triInPart = 0; // the first triangle of the segment in its part
       };
+
+    // Bullet parts: runs of segments that follow each other in the index buffer, one btIndexedMesh each.
+    // A part per segment made more than 1024 parts in a big world (Archolos), and then the bvh can not be
+    // quantized (10 bits for the part in a node): 64 instead of 16 bytes per node, 120 MB for the land
+    struct Part {
+      size_t                first = 0;     // segments [first, first+count)
+      size_t                count = 0;
+      size_t                off   = 0;     // in id
+      int                   size  = 0;     // triangles
+      };
+    void                    rebuildParts();
+    const Segment*          findSegment(int part, int triangle) const;
+    std::vector<Part>             parts;
 
     std::vector<btVector3>        vStorage;
     const std::vector<btVector3>& vert;

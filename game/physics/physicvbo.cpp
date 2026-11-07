@@ -1,5 +1,7 @@
 #include "physicvbo.h"
 
+#include <algorithm>
+
 #include "graphics/mesh/submesh/packedmesh.h"
 #include "collisionworld.h"
 
@@ -50,46 +52,85 @@ void PhysicVbo::addIndex(const std::vector<uint32_t>& index, size_t iboOff, size
   }
 
 void PhysicVbo::addSegment(size_t indexSize, size_t offset, zenkit::MaterialGroup material, const char* sector) {
-  btIndexedMesh meshIndex={};
-  meshIndex.m_numTriangles = int(indexSize/3);
-  meshIndex.m_numVertices  = int32_t(vert.size());
-
-  meshIndex.m_indexType           = PHY_INTEGER;
-  meshIndex.m_triangleIndexBase   = reinterpret_cast<const uint8_t*>(&id[0]);
-  meshIndex.m_triangleIndexStride = 3 * sizeof(id[0]);
-
-  meshIndex.m_vertexBase          = reinterpret_cast<const uint8_t*>(&vert[0]);
-  meshIndex.m_vertexStride        = sizeof(btVector3);
-
-  m_indexedMeshes.push_back(meshIndex);
-
   Segment sgm;
   sgm.off    = offset;
   sgm.size   = int(indexSize/3);
   sgm.mat    = material;
   sgm.sector = sector;
   segments.push_back(sgm);
+  rebuildParts();
   }
 
-zenkit::MaterialGroup PhysicVbo::materialId(size_t segment) const {
-  if(segment<segments.size())
-    return segments[segment].mat;
+void PhysicVbo::rebuildParts() {
+  // the triangle index of a quantized bvh node has 31-MAX_NUM_PARTS_IN_BITS bits
+  constexpr int maxTri = (1 << (31 - MAX_NUM_PARTS_IN_BITS)) - 1;
+  parts.clear();
+  for(size_t i=0; i<segments.size(); ++i) {
+    auto& sg = segments[i];
+    if(!parts.empty()) {
+      auto& p = parts.back();
+      if(p.off + size_t(p.size)*3==sg.off && p.size + sg.size<=maxTri) {
+        sg.triInPart = p.size;
+        p.size  += sg.size;
+        p.count += 1;
+        continue;
+        }
+      }
+    Part p;
+    p.first = i;
+    p.count = 1;
+    p.off   = sg.off;
+    p.size  = sg.size;
+    sg.triInPart = 0;
+    parts.push_back(p);
+    }
+
+  m_indexedMeshes.resize(int(parts.size()));
+  for(size_t i=0; i<parts.size(); ++i) {
+    btIndexedMesh meshIndex={};
+    meshIndex.m_numTriangles        = parts[i].size;
+    meshIndex.m_numVertices         = int32_t(vert.size());
+    meshIndex.m_indexType           = PHY_INTEGER;
+    meshIndex.m_triangleIndexBase   = reinterpret_cast<const uint8_t*>(id.data() + parts[i].off);
+    meshIndex.m_triangleIndexStride = 3 * sizeof(id[0]);
+    meshIndex.m_vertexBase          = reinterpret_cast<const uint8_t*>(vert.data());
+    meshIndex.m_vertexStride        = sizeof(btVector3);
+    m_indexedMeshes[int(i)] = meshIndex;
+    }
+  }
+
+const PhysicVbo::Segment* PhysicVbo::findSegment(int part, int triangle) const {
+  if(part<0 || size_t(part)>=parts.size())
+    return nullptr;
+  auto& p = parts[size_t(part)];
+  auto  b = segments.begin() + std::ptrdiff_t(p.first);
+  auto  e = b + std::ptrdiff_t(p.count);
+  // the last segment that starts at or before the triangle
+  auto  it = std::upper_bound(b, e, triangle, [](int t, const Segment& s){ return t<s.triInPart; });
+  if(it==b)
+    return nullptr;
+  return &*(it-1);
+  }
+
+zenkit::MaterialGroup PhysicVbo::materialId(int part, int triangle) const {
+  if(auto sg = findSegment(part,triangle))
+    return sg->mat;
   return zenkit::MaterialGroup::UNDEFINED;
   }
 
-const char* PhysicVbo::sectorName(size_t segment) const {
-  if(segment<segments.size())
-    return segments[segment].sector;
+const char* PhysicVbo::sectorName(int part, int triangle) const {
+  if(auto sg = findSegment(part,triangle))
+    return sg->sector;
   return nullptr;
   }
 
 bool PhysicVbo::useQuantization() const {
   constexpr int maxParts = (1 << MAX_NUM_PARTS_IN_BITS);
   constexpr int maxTri   = (1 << (31 - MAX_NUM_PARTS_IN_BITS));
-  if(segments.size()>maxParts)
+  if(parts.size()>maxParts)
     return false;
-  for(auto& i:segments)
-    if(i.size>maxTri)
+  for(auto& i:parts)
+    if(i.size>=maxTri)
       return false;
   return true;
   }
@@ -99,13 +140,9 @@ bool PhysicVbo::isEmpty() const {
   }
 
 void PhysicVbo::adjustMesh(){
-  for(int i=0;i<m_indexedMeshes.size();++i) {
-    btIndexedMesh& meshIndex=m_indexedMeshes[i];
-    Segment&       sg       =segments[size_t(i)];
-
-    meshIndex.m_triangleIndexBase = reinterpret_cast<const uint8_t*>(&id[sg.off]);
-    meshIndex.m_numTriangles      = sg.size;
-    }
+  // id may have been reallocated
+  for(size_t i=0; i<parts.size(); ++i)
+    m_indexedMeshes[int(i)].m_triangleIndexBase = reinterpret_cast<const uint8_t*>(id.data() + parts[i].off);
   }
 
 std::string_view PhysicVbo::validateSectorName(std::string_view name) const {
