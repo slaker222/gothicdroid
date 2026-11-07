@@ -1,5 +1,6 @@
 #include "mainwindow.h"
 
+#include <cstdio>
 #include <Tempest/Except>
 #include <Tempest/Painter>
 
@@ -907,9 +908,14 @@ void MainWindow::autoSaveStep() {
       g_autoSave.store(4);
       return std::move(game);
       }
-    Tempest::WFile f("save_slot_99.sav");
-    Serialize      s(f);
-    game->save(s,"Autosave",pm);
+    // into a temporary file first: Android may end the process in the middle of the write (a big world takes seconds),
+    // a cut off file would replace the last good autosave (and the resume could not load it)
+    {
+      Tempest::WFile f("save_slot_99.sav.tmp");
+      Serialize      s(f);
+      game->save(s,"Autosave",pm);
+    }
+    std::rename("save_slot_99.sav.tmp","save_slot_99.sav");
     Tempest::Log::i("MainWindow::autoSave written");
     g_autoSave.store(3);
     return std::move(game);
@@ -1827,15 +1833,22 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
     if(!game)
       return std::move(game);
 
+#if defined(__EMSCRIPTEN__)
     Tempest::WFile f(slot);
     Serialize      s(f);
-#if defined(__EMSCRIPTEN__)
     // web: the screenshot is read back asynchronously, it arrives by now
     Tempest::Pixmap shot = pm;
     Tempest::WebGapi::takeReadback(shot);
     game->save(s,name,shot);
 #else
-    game->save(s,name,pm);
+    // a temporary file first, then renamed: a write that is cut off (the process is ended) keeps the old slot
+    const std::string tmp = slot + ".tmp";
+    {
+      Tempest::WFile f(tmp);
+      Serialize      s(f);
+      game->save(s,name,pm);
+    }
+    std::rename(tmp.c_str(),slot.c_str());
 #endif
     Tempest::Log::i("MainWindow::saveGame successfully wrote slot: ", slot);
 
