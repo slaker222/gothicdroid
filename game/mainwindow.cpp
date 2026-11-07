@@ -1991,6 +1991,10 @@ void MainWindow::render(){
     // window does not send a resize (Widget::resize ignores the same size) and the swapchain of the lost surface stayed:
     // SIGSEGV in VDevice::submit. The swapchain is made again here, between two frames
     if(swGen!=AndroidApi::nativeWindowGeneration()) {
+      // the autosave made in the background is finished first (its onWorldLoaded rebuilds the renderer): done after
+      // the new swapchain, every few frames came out black until the game was restarted
+      if(Gothic::inst().checkLoading()==Gothic::LoadState::Finalize)
+        Gothic::inst().finishLoading();
       SizeEvent e(uint32_t(this->w()),uint32_t(this->h()));
       resizeEvent(e);
       }
