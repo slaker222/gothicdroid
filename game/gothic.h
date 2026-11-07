@@ -52,6 +52,8 @@ class Gothic final {
       bool     doVirtualShadow   = false;
       bool     doSoftwareShadow  = false;
       bool     doSoftwareRT      = false;
+      // web compatibility renderer (WebGL 2): no compute, the world is drawn by the simple path
+      bool     webgl2            = false;
       uint32_t swRenderingPreset = 0;
 
       uint32_t aaPreset          = 0;

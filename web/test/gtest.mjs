@@ -31,6 +31,7 @@
 //   --gputime          GPU time per pass (timestamp queries): run script reads window.__gpuAgg()
 //   --manual           turn the page's automatic graphics settings off (gfxManual) for stable measurements
 //   --log              print the game's console
+//   --glsrc            WebGL 2 renderer (--url=...?renderer=webgl2): print the GLSL of the gl_* shaders
 //
 // Prints one JSON line with the results.
 import puppeteer from 'puppeteer-core';
@@ -102,7 +103,7 @@ let draws = 0, lastPerf = 0;
 const perf = [], errors = [];
 page.on('console', m => {
   const t = m.text();
-  const d = t.match(/\[WebGPU\] frame \d+: .*draws=(\d+)/);
+  const d = t.match(/\[Web(?:GPU|GL)\] frame \d+: .*draws=(\d+)/);
   if (d) draws = +d[1];
   if (t.includes('[PERF]')) {
     lastPerf = Date.now();
@@ -115,6 +116,7 @@ page.on('console', m => {
 page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 
 if (args.manual) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('gfxManual', '1'); } catch (e) {} });
+if (args.glsrc) await page.evaluateOnNewDocument(() => { window.__OG_GL_SRC = 1; });
 if (args.gputime) await page.evaluateOnNewDocument(fs.readFileSync(path.join(HERE, 'gputime.js'), 'utf8'));
 // count the frames the engine renders (one canvas texture each)
 await page.evaluateOnNewDocument(() => {

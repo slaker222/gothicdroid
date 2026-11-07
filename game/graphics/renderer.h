@@ -65,6 +65,9 @@ class Renderer final {
     Tempest::StorageImage&  usesImage2d(Tempest::StorageImage& ret, Tempest::TextureFormat frm, uint32_t w, uint32_t h, bool mips = false);
     Tempest::StorageImage&  usesImage2d(Tempest::StorageImage& ret, Tempest::TextureFormat frm, Tempest::Size sz, bool mips = false);
     Tempest::StorageImage&  usesImage3d(Tempest::StorageImage& ret, Tempest::TextureFormat frm, uint32_t w, uint32_t h, uint32_t d, bool mips = false);
+    // WebGL 2 renderer: the world at the render resolution (stretched onto the screen by glBlit)
+    Tempest::Attachment      glColor;
+    Tempest::RenderPipeline  glBlit;
     Tempest::ZBuffer&       usesZBuffer(Tempest::ZBuffer&      ret, Tempest::TextureFormat frm, uint32_t w, uint32_t h);
     Tempest::StorageBuffer& usesSsbo(Tempest::StorageBuffer& ret, size_t size);
     Tempest::StorageBuffer& usesScratch(Tempest::StorageBuffer& ret, size_t size);
@@ -87,6 +90,7 @@ class Renderer final {
     void drawRtsm         (Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldView& view);
     void drawRtsmOmni     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldView& view);
     void drawSwr          (Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldView& view);
+    void drawWebGL         (Tempest::Attachment& result, Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId);
     void drawGBuffer      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId, WorldView& view);
     void drawGWater       (Tempest::Encoder<Tempest::CommandBuffer>& cmd, WorldView& view);
     void drawShadowMap    (Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId, WorldView& view);

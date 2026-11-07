@@ -23,6 +23,7 @@
 
 #if defined(__EMSCRIPTEN__)
 #include <Tempest/WebGapi>
+#include <Tempest/WebGLApi>
 #endif
 
 #if defined(__IOS__)
@@ -61,6 +62,12 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
     case CommandLine::DirectX12:
 #if defined(_MSC_VER) && defined(TEMPEST_BUILD_DIRECTX12)
       return std::make_unique<Tempest::DirectX12Api>(flg);
+#else
+      break;
+#endif
+    case CommandLine::WebGL2:
+#if defined(__EMSCRIPTEN__)
+      return std::make_unique<Tempest::WebGLApi>(flg);
 #else
       break;
 #endif

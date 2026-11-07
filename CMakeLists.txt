@@ -42,6 +42,7 @@ elseif(EMSCRIPTEN)
   endif()
   target_link_options(${PROJECT_NAME} PRIVATE
     "-sUSE_WEBGPU=1"
+    "-sMAX_WEBGL_VERSION=2"
     "-sALLOW_MEMORY_GROWTH=1"
     "-sMAXIMUM_MEMORY=4GB"
     "-sSTACK_SIZE=5MB"

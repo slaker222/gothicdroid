@@ -289,6 +289,7 @@ VisualObjects::Item VisualObjects::get(const AnimMesh& mesh, const Material& mat
   if(obj.isEmpty())
     return Item(); // null command
   obj.animPtr     = anim.offsetId<Matrix4x4>();
+  obj.animCount   = uint32_t(anim.size()/sizeof(Matrix4x4));
   obj.objInstance = instanceMem.alloc(sizeof(InstanceDesc));
   clustersMem[obj.clusterId].instanceId = obj.objInstance.offsetId<InstanceDesc>();
 
@@ -849,3 +850,9 @@ void VisualObjects::dbgDrawBBox(Tempest::Painter& p, Tempest::Vec2 wsz, const Ca
   */
   }
 
+
+void VisualObjects::drawWebGL(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const Frustrum& f, const GlScene::View& v) {
+  if(glScene==nullptr)
+    glScene.reset(new GlScene());
+  glScene->draw(cmd, *this, f, v);
+  }

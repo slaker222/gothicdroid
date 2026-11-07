@@ -419,6 +419,13 @@ add_shader(sw_rendering_tbr.comp  software_rendering/sw_rendering_tbr.comp)
 add_shader(sw_light.comp          software_rendering/sw_light.comp)
 add_shader(vbuffer_blit.frag      software_rendering/vbuffer_blit.frag)
 
+# web: WebGL 2 compatibility renderer (game/graphics/glscene.cpp)
+add_shader(gl_obj.vert               webgl/gl_obj.vert)
+add_shader(gl_skin.vert              webgl/gl_obj.vert -DSKINING)
+add_shader(gl_obj.frag               webgl/gl_obj.frag)
+add_shader(gl_obj_at.frag            webgl/gl_obj.frag -DATEST)
+add_shader(gl_blit.frag              webgl/gl_blit.frag)
+
 add_custom_command(
   OUTPUT     ${HEADER} ${CPP}
   DEPENDS    ${OPENGOTHIC_SHADERS_SPRV}
@@ -439,3 +446,4 @@ set_target_properties(
     ${PROJECT_NAME} PROPERTIES
     PUBLIC_HEADER ${HEADER}
     )
+

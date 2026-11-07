@@ -21,7 +21,8 @@ class CommandLine {
 
     enum GraphicBackend : uint8_t {
       Vulkan,
-      DirectX12
+      DirectX12,
+      WebGL2,
       };
     auto                graphicsApi() const -> GraphicBackend;
     std::u16string_view rootPath() const;

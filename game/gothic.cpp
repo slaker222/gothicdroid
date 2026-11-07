@@ -94,6 +94,7 @@ Gothic::Gothic() {
   setBenchmarkMode(CommandLine::inst().isBenchmarkMode());
 
   auto& gpu = Resources::device().properties();
+  opts.webgl2 = (std::strcmp(gpu.name,"WebGL2")==0);
   if(gpu.raytracing.rayQuery) {
     opts.doRayQuery = CommandLine::inst().isRayQuery();
     opts.doRtGi     = opts.doRayQuery && CommandLine::inst().isRtGi();

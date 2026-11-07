@@ -4,6 +4,9 @@
 #include "drawclusters.h"
 #include "drawcommands.h"
 #include "instancestorage.h"
+#include "glscene.h"
+
+#include <memory>
 
 #include <unordered_set>
 
@@ -86,6 +89,8 @@ class VisualObjects final {
     void drawShadow     (Tempest::Encoder<Tempest::CommandBuffer>& cmd, int layer);
     void drawVsm        (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
     void drawHiZ        (Tempest::Encoder<Tempest::CommandBuffer>& cmd);
+    // WebGL 2 compatibility renderer
+    void drawWebGL      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const Frustrum& f, const GlScene::View& v);
 
     bool updateRtScene(RtScene& out);
 
@@ -114,6 +119,7 @@ class VisualObjects final {
       uint32_t            iboOff    = 0;
       uint32_t            iboLen    = 0;
       uint32_t            animPtr   = 0;
+      uint32_t            animCount = 0; // bones (skinned objects)
       DrawBuckets::Id     bucketId;
       uint16_t            cmdId     = uint16_t(-1);
       uint32_t            clusterId = 0;
@@ -169,6 +175,9 @@ class VisualObjects final {
     std::unordered_set<size_t> objectsDynamic; // moves every frame: movable, animated, morphing (their command bounds are made again each frame)
     std::unordered_set<size_t> objectsFree;
 
+    std::unique_ptr<GlScene>   glScene;
+
     friend class Item;
+    friend class GlScene;
   };
 

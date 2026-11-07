@@ -14,6 +14,7 @@
 #include "world/objects/npc.h"
 #include "gapi/vulkan/vpipelinelogger.h"
 #include "utils/string_frm.h"
+#include "shader.h"
 
 // render resolution by vidResIndex; 0..7 are the old steps (kept for saved settings), 8.. are the finer ones
 static const float resScaleTable[] = {1.f,0.75f,0.5f,0.4f,0.3f,0.25f,0.2f,0.15f,
@@ -700,11 +701,66 @@ void Renderer::dbgDraw(Tempest::Painter& p) {
     }
   }
 
+void Renderer::drawWebGL(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, uint8_t fId) {
+  // WebGL 2 compatibility renderer: the textured world on a sky coloured clear, nothing else
+  auto wview  = Gothic::inst().worldView();
+  auto camera = Gothic::inst().camera();
+  updateCamera(*camera);
+
+  Frustrum f;
+  f.make(viewProj, result.w(), result.h());
+  wview->preFrameUpdate(*camera,Gothic::inst().world()->tickCount(),fId);
+
+  const Vec3  ldir = wview->mainLight().dir();
+  const float day  = std::clamp(ldir.y*2.f + 0.3f, 0.f, 1.f);
+  GlScene::View v;
+  v.viewProj     = viewProj;
+  v.camPos       = camera->originLwc();
+  v.sunDir       = ldir;
+  v.sunIntensity = day;
+  v.tickCount    = Gothic::inst().world()->tickCount();
+  v.drawDistance  = DrawCommands::drawDistance();
+  v.worldDistance = DrawCommands::worldDistance();
+
+  const Vec4 sky = Vec4(0.47f, 0.62f, 0.80f, 1.f)*(0.15f + 0.85f*day);
+  // the zbuffer has the render resolution: a smaller one than the target (the swapchain) means the world is drawn
+  // into glColor and stretched; a target of that size (a save game picture, see screenshoot) gets it directly
+  const bool scaled = (zbuffer.w()!=result.w() || zbuffer.h()!=result.h());
+  if(scaled && (glColor.w()!=zbuffer.w() || glColor.h()!=zbuffer.h()))
+    glColor = Resources::device().attachment(TextureFormat::RGBA8, uint32_t(zbuffer.w()), uint32_t(zbuffer.h()));
+  auto& target = scaled ? glColor : result;
+  cmd.setFramebuffer({{target, Vec4(sky.x, sky.y, sky.z, 1.f), Tempest::Preserve}}, {zbuffer, 1.f, Tempest::Discard});
+  cmd.setDebugMarker("WebGL world");
+  wview->drawWebGL(cmd, f, v);
+  wview->postFrameupdate();
+
+  if(scaled) {
+    if(glBlit.isEmpty()) {
+      auto& device = Resources::device();
+      RenderState st;
+      st.setZWriteEnabled(false);
+      st.setCullFaceMode(RenderState::CullMode::NoCull);
+      auto sv = GothicShader::get("triangle_uv.vert.sprv");
+      auto sf = GothicShader::get("gl_blit.frag.sprv");
+      glBlit = device.pipeline(Triangles, st, device.shader(sv.data,sv.len), device.shader(sf.data,sf.len));
+      }
+    cmd.setFramebuffer({{result, Tempest::Discard, Tempest::Preserve}});
+    cmd.setDebugMarker("WebGL upscale");
+    cmd.setBinding(0, glColor, Sampler::bilinear(ClampMode::ClampToEdge));
+    cmd.setPipeline(glBlit);
+    cmd.draw(nullptr, 0, 3);
+    }
+  }
+
 void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, uint8_t fId) {
   auto wview  = Gothic::inst().worldView();
   auto camera = Gothic::inst().camera();
   if(wview==nullptr || camera==nullptr) {
     cmd.setFramebuffer({{result, Vec4(), Tempest::Preserve}});
+    return;
+    }
+  if(Gothic::options().webgl2) {
+    drawWebGL(result, cmd, fId);
     return;
     }
 

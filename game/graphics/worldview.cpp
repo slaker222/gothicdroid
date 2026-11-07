@@ -151,6 +151,10 @@ void WorldView::drawGBuffer(Tempest::Encoder<CommandBuffer>& cmd, uint8_t fId) {
   pfxGroup.drawGBuffer(cmd, fId);
   }
 
+void WorldView::drawWebGL(Tempest::Encoder<CommandBuffer>& cmd, const Frustrum& f, const GlScene::View& v) {
+  visuals.drawWebGL(cmd, f, v);
+  }
+
 bool WorldView::hasWater() const {
   return visuals.hasWater();
   }

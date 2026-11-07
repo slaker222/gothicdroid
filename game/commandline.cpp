@@ -105,6 +105,9 @@ CommandLine::CommandLine(int argc, const char** argv) {
     else if(arg=="-dx12") {
       graphics = GraphicBackend::DirectX12;
       }
+    else if(arg=="-webgl2") {
+      graphics = GraphicBackend::WebGL2;
+      }
     else if(arg=="-validation" || arg=="-v") {
       isDebug  = true;
       }

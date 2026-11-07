@@ -910,6 +910,15 @@
     #settings-panel .set-note:empty { display: none; }
     #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
+    #settings-panel.disabled .set-row.keep { opacity: 1; pointer-events: auto; }
+    /* WebGL 2 compatibility renderer: effects it does not draw are hidden */
+    html:not(.webgl) #gl-presets,
+    html.webgl #gfx-presets, html.webgl #settings-panel .set-row:has([data-set="shadows"]),
+    html.webgl #settings-panel .set-row:has([data-set="waterQuality"]), html.webgl #settings-panel .set-row:has([data-set="waterPhysics"]),
+    html.webgl #settings-panel .set-row:has([data-set="reflections"]), html.webgl #settings-panel .set-row:has([data-set="ssao"]),
+    html.webgl #settings-panel .set-row:has([data-set="fog"]), html.webgl #settings-panel .set-row:has([data-set="sun"]),
+    html.webgl #settings-panel .set-row:has([data-set="sunset"]), html.webgl #settings-panel .set-row:has([data-set="sky"]),
+    html.webgl #settings-panel .set-row:has([data-set="blood"]) { display: none !important; }
     #player:fullscreen #fs-btn .icon-enter { display: none; }
     #player:fullscreen #fs-btn .icon-exit { display: block; }
 
@@ -994,6 +1003,16 @@
         <button type="button" data-preset="classic" title="Like the original: circle shadows, 80 m objects, 200 m world, simple water, no reflections or occlusion">Classic</button>
         <button type="button" data-preset="ultra" title="Everything at the maximum and on">Ultra</button>
       </div>
+      <div class="presets" id="gl-presets">
+        <button type="button" data-preset="ultralow" title="Resolution 40%, objects 40 m">Ultra low</button>
+        <button type="button" data-preset="low" title="Resolution 60%, objects 40 m">Low</button>
+        <button type="button" data-preset="classic" title="Resolution 80%, objects 80 m">Classic</button>
+      </div>
+      <label class="set-row keep" title="WebGPU: the full renderer. WebGL 2: for devices without WebGPU. The game is saved and comes back after the page reloads">Renderer
+        <select id="renderer-sel">
+          <option value="webgpu">WebGPU</option><option value="webgl2">WebGL 2 (simple)</option>
+        </select>
+      </label>
       <label class="set-row" title="Frame rate limit, from 25 up to the display refresh rate (the right end: frames follow the monitor, no limit)">FPS limit
         <span class="fps-slider"><input type="range" id="fps-limit" min="25" max="60" step="1" value="60"><output id="fps-limit-val">60</output></span>
       </label>
@@ -2103,16 +2122,21 @@ async function installChunks(m) {
         bootBg.classList.add('gone');
         setTimeout(() => bootBg.remove(), 900);
       };
+      const countFrame = () => {
+        frames++;
+        const now = performance.now();
+        if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
+        if (window.ogPerfPush && stats.last) window.ogPerfPush(now - stats.last);
+        stats.last = now;
+        stats.count++;
+        if (stats.count === 4 && bootBg.isConnected) hideBootBg();
+      };
+      // WebGL 2 renderer: the engine calls it at every present
+      window.ogGlFrame = countFrame;
       if (window.GPUCanvasContext) {
         const orig = GPUCanvasContext.prototype.getCurrentTexture;
         GPUCanvasContext.prototype.getCurrentTexture = function() {
-          frames++;
-          const now = performance.now();
-          if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
-          if (window.ogPerfPush && stats.last) window.ogPerfPush(now - stats.last);
-          stats.last = now;
-          stats.count++;
-          if (stats.count === 4 && bootBg.isConnected) hideBootBg();
+          countFrame();
           return orig.apply(this, arguments);
         };
       }
@@ -2340,6 +2364,52 @@ async function installChunks(m) {
       });
       // the engine answers once the game window exists
       const ready = () => ogGet('shadows') >= 0;
+      // renderer choice: the engine picks it at start only, a change reloads the page
+      const rsel = document.getElementById('renderer-sel');
+      function syncRenderer() {
+        let r = 'webgpu';
+        try { r = window.ogRenderer ? window.ogRenderer() : 'webgpu'; } catch (e) {}
+        rsel.value = r;
+        const gl2 = r === 'webgl2';
+        let has = false; try { has = hasWebGL2(); } catch (e) {}
+        rsel.querySelector('option[value="webgl2"]').disabled = !has && !gl2;
+        document.documentElement.classList.toggle('webgl', gl2);
+      }
+      // A change saves the game into the hidden slot 99 (og_autosave), reloads the page with the other renderer and
+      // loads that slot at the start (sessionStorage ogResume -> "-save 99"): the player comes back where he was
+      function reloadForRenderer() {
+        // ?renderer= in the address would override the saved choice
+        try { const u = new URL(location.href); u.searchParams.delete('renderer'); location.href = u.toString(); } catch (e) { location.reload(); }
+      }
+      rsel.addEventListener('change', async () => {
+        const v = rsel.value;
+        try { localStorage.setItem('renderer', v); } catch (e) {}
+        rsel.blur();
+        let running = false;
+        try { running = ready(); } catch (e) {}
+        if (!running) { reloadForRenderer(); return; }
+        let st = 0;
+        try { if (g_runtimeUp && Module.ccall('og_autosave', 'number', [], [])) st = 1; } catch (e) {}
+        rsel.disabled = true;
+        const t0 = Date.now();
+        while (st === 1 || st === 2) {
+          await new Promise(r => setTimeout(r, 100));
+          try { st = Module.ccall('og_save_busy', 'number', [], []); } catch (e) { st = 4; }
+          if (Date.now() - t0 > 20000) st = 4;
+        }
+        if (st === 3) {
+          // the file goes to OPFS asynchronously: wait for every pending write
+          try { await Promise.all([...GameFS.persistQueue.values()]); } catch (e) {}
+          try { sessionStorage.setItem('ogResume', '99'); } catch (e) {}
+          reloadForRenderer();
+          return;
+        }
+        rsel.disabled = false;
+        if (confirm('The game cannot be saved right now (dialog, cutscene or loading). Switch the renderer anyway? ' +
+                    'The progress since the last save is lost. Cancel: it switches at the next start.'))
+          reloadForRenderer();
+      });
+      syncRenderer();
       function markPreset() {
         let cur = '';
         try {
@@ -2348,9 +2418,13 @@ async function installChunks(m) {
           if (!cur && localStorage.getItem('gfxManual') !== '1') cur = 'classic';
         } catch (e) {}
         document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === cur));
+        let gl = '';
+        try { gl = localStorage.getItem('gfxPresetGl') || ''; } catch (e) {}
+        document.querySelectorAll('#gl-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === gl));
       }
       markPreset();
       function load() {
+        syncRenderer();
         let ok = false, err = '';
         try { ok = ready(); }
         catch (e) { ok = false; err = String((e && (e.message || e.name)) || e); console.warn('[settings] unavailable:', e); }
@@ -2468,6 +2542,23 @@ async function installChunks(m) {
         const p = PRESETS[b.dataset.preset];
         for (const k in p) { try { ogSet(k, p[k]); } catch (err) {} }
         try { localStorage.setItem('gfxPreset', b.dataset.preset); } catch (err) {}
+        markPreset();
+        load();
+        b.blur();
+      });
+      // WebGL 2 presets: only render resolution and object draw distance do something there
+      const GL_PRESETS = {
+        ultralow: { resScale: 3,  drawDist: 3 },   // 40%, 40 m
+        low:      { resScale: 14, drawDist: 3 },   // 60%, 40 m
+        classic:  { resScale: 11, drawDist: 2 },   // 80%, 80 m
+      };
+      document.getElementById('gl-presets').addEventListener('click', e => {
+        const b = e.target.closest('[data-preset]');
+        if (!b || panel.classList.contains('disabled')) return;
+        try { localStorage.setItem('gfxManual', '1'); } catch (err) {}
+        const p = GL_PRESETS[b.dataset.preset];
+        for (const k in p) { try { ogSet(k, p[k]); } catch (err) {} }
+        try { localStorage.setItem('gfxPresetGl', b.dataset.preset); } catch (err) {}
         markPreset();
         load();
         b.blur();
@@ -2591,6 +2682,8 @@ async function installChunks(m) {
         for (;;) {
           if (manual()) return;
           const fps = await measure();
+          // WebGL 2 mode has none of these settings to lower (useWebGL is defined later in the page)
+          try { if (useWebGL()) return; } catch (e) {}
           if (fps === null) { slow = 0; await sleep(1000); continue; }
           if (fps >= LOW) { slow = 0; continue; }
           if (++slow < 2) continue; // two slow windows in a row, not a hiccup
@@ -6333,9 +6426,30 @@ function serveLoop() {
       } catch (e) {}
       return null;
     }
+    // Renderer: WebGPU (default) or the WebGL 2 compatibility renderer (textures and models only).
+    // The choice: ?renderer=webgl2|webgpu, else localStorage 'renderer'; without WebGPU the page falls back to WebGL 2.
+    let g_forceWebGL = false;
+    function rendererChoice() {
+      const q = new URLSearchParams(location.search).get('renderer');
+      if (q === 'webgl2' || q === 'webgpu') return q;
+      try { if (localStorage.getItem('renderer') === 'webgl2') return 'webgl2'; } catch (e) {}
+      return 'webgpu';
+    }
+    function hasWebGL2() {
+      try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
+    }
+    function useWebGL() { return g_forceWebGL || rendererChoice() === 'webgl2'; }
+    window.ogRenderer = () => useWebGL() ? 'webgl2' : 'webgpu';
+
     async function webgpuBlocked() {
+      if (useWebGL()) return false;
       const why = await webgpuProblem();
       if (!why) return false;
+      if (hasWebGL2()) {
+        console.warn('[SHELL] WebGPU unusable, falling back to WebGL 2: ' + why.replace(/<[^>]+>/g, '').slice(0, 200));
+        g_forceWebGL = true;
+        return false;
+      }
       console.error('[SHELL] WebGPU blocked: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
       window.__ogFatal = true;
       progressContainer.style.display = 'none';
@@ -6437,7 +6551,7 @@ function serveLoop() {
       if (bootBg_isUp()) { bootStatusText.textContent = 'Starting the engine...'; bootStatus.style.display = 'flex'; }
       console.log("Starting GothicDroid engine...");
       try {
-        if (!Module.preinitializedWebGPUDevice)
+        if (!useWebGL() && !Module.preinitializedWebGPUDevice)
           await initWebGPU();
         // ?nomenu skips the main menu and boots straight into the world
         // (used by automated tests; regular users get the normal menu)
@@ -6448,6 +6562,12 @@ function serveLoop() {
         const args = ["-g", GAME_ROOT, GAME_ID === 'g1' ? "-g1" : "-g2"];
         if (IS_ARCHOLOS) args.push("-game:" + ARCHOLOS_INI);   // the engine looks for it in <game>/system
         if (noMenu) args.push("-nomenu");
+        if (useWebGL()) { args.push("-webgl2"); console.log('[SHELL] renderer: WebGL 2'); }
+        // the renderer was switched in the game: back into the slot saved just before the reload
+        try {
+          const resume = sessionStorage.getItem('ogResume');
+          if (resume) { sessionStorage.removeItem('ogResume'); if (!noMenu) { args.push("-save", resume); console.log('[SHELL] resume slot ' + resume); } }
+        } catch (e) {}
         const ret = Module.callMain(args);
         window.__callMainReturned = { ret: ret, t: Date.now() };
         console.log("[SHELL] callMain returned ret=" + ret);

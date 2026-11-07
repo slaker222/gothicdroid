@@ -52,6 +52,8 @@ class InstanceStorage {
     Id   alloc(const size_t size);
     bool realloc(Id& id, const size_t size);
     auto ssbo () const -> const Tempest::StorageBuffer&;
+    // what the instances hold now (the WebGL 2 renderer reads the bones from it)
+    auto cpu  () const -> const std::vector<uint8_t>& { return dataCpu; }
     bool commit(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t fId);
     void join();
 
