@@ -65,3 +65,10 @@ __pycache__/
 
 # sky textures of the games (tools/extract_sky.py; they lie in R2 sky/, the app downloads them)
 android/app/src/main/assets/sky/
+
+# Archolos language packs: local build scripts (not published)
+tools/archolos_delta.py
+tools/build_archolos.py
+tools/build_archolos_langs.py
+tools/pack_archolos.py
+tools/steam_archolos_langs.sh
