@@ -5,6 +5,8 @@ plugins {
 
 def versionFile = new File(project.rootDir, "version.txt")
 def appVersionName = versionFile.exists() ? versionFile.text.trim() : "0.01"
+// 0.38 -> 38, 1.02 -> 102: a newer version always has a bigger code (Android updates over the old app)
+def appVersionCode = { def p = appVersionName.tokenize('.'); (p[0] as int) * 100 + (p.size() > 1 ? (p[1] as int) : 0) }()
 
 android {
     namespace 'com.opengothic'
@@ -18,7 +20,7 @@ android {
         applicationId "com.gothic.droid"
         minSdk 29
         targetSdk 34
-        versionCode 1
+        versionCode appVersionCode
         versionName appVersionName
 
         ndk {
