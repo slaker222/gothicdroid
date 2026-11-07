@@ -2876,6 +2876,8 @@ async function installChunks(m) {
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
         ['aim',    'Shift', '',      'right:28cqmin;bottom:24cqmin',           'world'],
+        // after a transformation spell: back to the human shape (the game's Enter)
+        ['human',  'Enter', '',      'right:42cqmin;bottom:8cqmin',            'world'],
         ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
         ['inv',    'Tab',   'small', 'left:calc(50% + 31cqmin);bottom:2.5cqmin',                       'world'],
         ['stats',  'B',     'small', 'left:16cqmin;top:calc(36px + 1cqmin)',               'world'],
@@ -3233,6 +3235,7 @@ async function installChunks(m) {
         kfast: '<text x="12" y="16" text-anchor="middle" font-size="11" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">K</text>',
         fly: '<text x="12" y="16" text-anchor="middle" font-size="10.5" font-weight="700" font-family="Roboto, Arial, sans-serif" fill="currentColor" stroke="none">F8</text>',
         possess:'<path d="M7 8h11l-3-3M17 16H6l3 3"/>',
+        human:  '<circle cx="12" cy="4.5" r="2.5"/><path d="M12 7.5v7M12 9L6 12M12 9l6 3M12 14.5l-4 6.5M12 14.5l4 6.5"/>',
         trade:  '<circle cx="9" cy="9" r="5"/><path d="M14.5 6.5a5 5 0 1 1-6 8"/>',
         up1:    '<path d="M6 15l6-6 6 6"/>', down1: '<path d="M6 9l6 6 6-6"/>',
         left1:  '<path d="M15 6l-6 6 6 6"/>', right1: '<path d="M9 6l6 6-6 6"/>',
@@ -3242,7 +3245,7 @@ async function installChunks(m) {
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
         camera: 'Camera: first / third person (F)', tools: 'More', plugins: 'Plugins', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
-        console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
+        console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', human: 'Back to human', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
       // the icon each button shows unless the situation picks another one
       const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', inv: 'inv', log: 'log',
         stats: 'stats', map: 'map', menu: 'menu', skip: 'skip', dUp: 'up1', dDown: 'down1', select: 'ok',
@@ -3250,7 +3253,7 @@ async function installChunks(m) {
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
         aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
         tools: 'tools', plugins: 'plugins', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
-        possess: 'possess' };
+        possess: 'possess', human: 'human' };
       // TOUCH-ICONS-END
       stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');
       function setLabel(b, icon) {
@@ -3727,6 +3730,7 @@ async function installChunks(m) {
           if (b.id === 'cheat' && marvinOn) show = false;
           if (b.id === 'action' && layout === 'world' && act === 'action') show = false;
           if (b.id === 'aim' && !bowOut) show = false;
+          if (b.id === 'human' && !(st & (1 << 15))) show = false;      // not transformed
           if (b.id === 'action' && bowOut && !aimReady()) show = false; // the shot waits for the drawn bow
           if (b.id === 'block' && !(drawn && weapon <= 3)) show = false; // fists and melee weapons
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
