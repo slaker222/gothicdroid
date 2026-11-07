@@ -25,6 +25,12 @@
     #nav button { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 0 8px; font: inherit; font-size: 11px; letter-spacing: .04em; color: var(--dim); background: none; border: 0; border-top: 2px solid transparent; margin-top: -1px; cursor: pointer; }
     #nav button svg { width: 24px; height: 24px; fill: currentColor; }
     #nav button.on { color: var(--accent); border-top-color: var(--accent); }
+    /* the phone held upright: a slightly bigger bottom bar */
+    @media (orientation: portrait) {
+      #nav button { padding: 13px 0 12px; font-size: 12px; gap: 4px; }
+      #nav button svg { width: 28px; height: 28px; }
+      #wrap { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+    }
     #nav button:active { background: rgba(255,255,255,.06); }
     .page-title { font-size: 22px; font-weight: 600; color: var(--accent); }
     /* controls tab */
@@ -100,7 +106,9 @@
     .game h3 { font-size: 20px; font-weight: 600; color: var(--accent); }
     .game .dl-info { font-size: 13px; color: var(--dim); display: none; align-items: center; gap: 8px; }
     .game .dl-info button { font: inherit; font-size: 12px; padding: 2px 8px; }
-    .game .path { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); margin: 4px 0 12px; word-break: break-all; min-height: 17px; }
+    .game .path { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); margin: 4px 0 0; word-break: break-all; }
+    .game .path:empty { display: none; }
+    .game .btns { margin-top: 10px; }
     .game .path.err { color: var(--danger); }
     .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
@@ -191,6 +199,20 @@
     #sheet .go:active { background: #bbb; }
     #sheet .link { font: inherit; font-size: 14px; color: var(--dim); background: transparent; border: 0; padding: 4px; cursor: pointer; align-self: center; }
     .langs span { cursor: pointer; }
+    .langs .gear { display: flex; align-items: center; padding: 2px 6px; }
+    .langs .gear svg { width: 16px; height: 16px; fill: currentColor; }
+    /* the settings of a game: a window over the main page, opened by the gear on the picture of its card */
+    #gset { position: fixed; inset: 0; z-index: 46; background: rgba(0,0,0,.62); display: flex; align-items: center; justify-content: center;
+            padding: max(12px, env(safe-area-inset-top, 0px)) 12px max(12px, env(safe-area-inset-bottom, 0px)); }
+    #gset[hidden] { display: none; }
+    #gset #settings-card { width: 100%; max-width: 640px; max-height: 100%; overflow-y: auto; border-radius: 12px; }
+    #gset .gs-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; position: sticky; top: -12px; margin: -12px -14px 0; padding: 10px 14px 6px; background: #1b1b1b; z-index: 3; }
+    #gset .gs-head h2 { margin: 0; }
+    #gset-x { flex: none; width: 36px; height: 36px; font: inherit; font-size: 24px; line-height: 1; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+    #gset-x:active { border-color: var(--accent); }
+    #gset-path { font: 12px/1.4 ui-monospace, monospace; color: var(--dim); word-break: break-all; margin: 2px 0 10px; }
+    #gset-path:empty { display: none; }
+    #gset #settings-more { display: none; }
     .hint { font-size: 12px; color: var(--dim); margin-top: 8px; }
     #settings-panel { position: static; display: block; width: auto; max-width: none; max-height: none; background: transparent; border: 0; padding: 0; overflow: visible; }
     #settings-panel .set-row { font-size: 15px; padding: 7px 0; }
@@ -229,7 +251,7 @@
   <div id="wrap">
    <div class="tab on" id="tab-main">
     <div class="topbar">
-      <h1>GothicDroid<small>Android</small></h1>
+      <h1>GothicDroid</h1>
       <div class="support">
         <button type="button" class="donate" onclick="openDonate()"><svg class="dn-gift" viewBox="0 0 24 24" style="fill:none;stroke:currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13M12 8C10 8 7.5 7.3 7.5 5.4 7.5 3.5 10.6 3.6 12 8zM12 8c2 0 4.5-.7 4.5-2.6 0-1.9-3.1-1.8-4.5 2.6z"/></svg>Donate</button>
         <button type="button" class="join" onclick="Launcher.openUrl('https://discord.gg/CFnpSBVsbU')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.2.5a18 18 0 0 0-6.4 0L8.6 3a19.8 19.8 0 0 0-4.9 1.4C.6 9-.2 13.5.2 18a19.9 19.9 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14.2 14.2 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.9 19.9 0 0 0 6-3c.5-5.2-.8-9.7-3.5-13.6zM8.5 15.3c-1.200 0-2.100-1.100-2.100-2.400s.9-2.400 2.100-2.400 2.100 1.100 2.100 2.400-.9 2.400-2.100 2.400zm7 0c-1.200 0-2.100-1.100-2.100-2.400s.9-2.400 2.100-2.400 2.100 1.100 2.100 2.400-.9 2.400-2.100 2.400z"/></svg>Join</button>
@@ -237,7 +259,10 @@
     </div>
     <div id="mod-prog"><span id="mod-prog-t"></span><button type="button" id="mod-prog-x">Cancel</button></div>
     <div class="games" id="games"></div>
-    <div class="card" id="settings-card"><h2 id="settings-title">Settings</h2>{{PANEL}}</div>
+    <div id="gset" hidden><div class="card" id="settings-card">
+      <div class="gs-head"><h2 id="settings-title">Settings</h2><button type="button" id="gset-x" aria-label="Close" title="Close">&times;</button></div>
+      <div id="gset-path"></div>
+      {{PANEL}}</div></div>
    </div>
 
    <div class="tab" id="tab-explore">
@@ -268,7 +293,6 @@
       <p class="hint" style="margin:0 0 12px">Move the buttons on a grid and change their size. The game picture is sideways, so the screen turns.</p>
       <div class="btn-row"><button class="wide primary" id="ed-open">Edit layout</button><button class="wide" id="ctl-reset">Reset all</button></div>
     </div>
-   </div>
    </div>
 
    <div class="tab about" id="tab-about">
@@ -361,7 +385,8 @@
         if (found) { badge.textContent = 'Installed'; badge.classList.add('ok'); }
         else if (scanning) { badge.innerHTML = 'Searching<span class="dots"></span>'; }
         else badge.textContent = 'Not found';
-        el.querySelector('.path').textContent = found ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : (scanning ? '' : 'Choose the folder with Data/*.vdf');
+        // the folder of the game is shown in its settings window (the gear), the card only says when there is none
+        el.querySelector('.path').textContent = found ? '' : (scanning ? '' : 'Choose the folder with Data/*.vdf');
         el.querySelector('.modtab').addEventListener('click', () => {
           if (modsOpen.has(g.id)) modsOpen.delete(g.id); else modsOpen.add(g.id);
           el.querySelector('.modpanel').hidden = !modsOpen.has(g.id);
@@ -393,11 +418,19 @@
             el.querySelectorAll('.langs span').forEach(c => c.addEventListener('click', e => { e.stopPropagation(); openSheet(g, c.dataset.kind); }));
           }
         } catch (e) {}
+        // the gear left of the languages: the settings of this game (graphics and its folder)
+        if (found) {
+          const gear = document.createElement('span');
+          gear.className = 'gear'; gear.title = 'Settings'; gear.innerHTML = ICON_GEAR;
+          gear.addEventListener('click', e => { e.stopPropagation(); openSettings(g.id); });
+          el.querySelector('.langs').prepend(gear);
+        }
         root.appendChild(el);
       }
       let foundMods = []; try { foundMods = JSON.parse(Launcher.mods()); } catch (e) {}
       const g = games.find(x => x.id === sel) || games[0];
       $('settings-title').textContent = 'Settings: ' + g.title;
+      $('gset-path').textContent = g.path ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : '';
       // the barrier is only in Gothic 1
       document.querySelectorAll('#settings-panel .g1only').forEach(e => { e.style.display = g.id === 1 ? '' : 'none'; });
       load();
@@ -455,6 +488,14 @@
       fillMods(box.querySelector('.mods-bound'), g, fm);
       sheet.classList.add('open');
       $('ex-ok').onclick = () => sheet.classList.remove('open');
+    }
+    const ICON_GEAR = '<svg viewBox="0 0 24 24"><path d="M19.14 12.94a7.07 7.07 0 0 0 .06-.94 7.07 7.07 0 0 0-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.49.49 0 0 0-.59-.22l-2.39.96a7.03 7.03 0 0 0-1.62-.94l-.36-2.54a.48.48 0 0 0-.48-.41h-3.84a.48.48 0 0 0-.48.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.49.49 0 0 0-.59.22L2.74 8.87a.48.48 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.48.48 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/></svg>';
+    // the settings window of a game: its settings are read for it (the selected game), its folder on top
+    function openSettings(id) {
+      Launcher.select(id);
+      refresh();
+      $('gset').hidden = false;
+      $('settings-card').scrollTop = 0;
     }
     const ICON_DOWN = '<svg viewBox="0 0 24 24"><path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z"/></svg>';
     const ICON_UP = '<svg viewBox="0 0 24 24"><path d="m7.41 15.41 4.59-4.58 4.59 4.58L18 14l-6-6-6 6z"/></svg>';
@@ -657,6 +698,8 @@
       for (const k in p) Launcher.set(k, p[k]);
       load();
     });
+    $('gset-x').addEventListener('click', () => { $('gset').hidden = true; });
+    $('gset').addEventListener('click', e => { if (e.target === $('gset')) $('gset').hidden = true; });
     $('log-show').addEventListener('click', () => {
       const l = $('log');
       if (l.style.display === 'block') { l.style.display = 'none'; return; }
@@ -708,12 +751,12 @@
       if (n) {
         bar = btn('x-copy', 'copy', 'Copy') + btn('x-cut', 'cut', 'Cut') + (n === 1 ? btn('x-ren', 'ren', 'Rename') : '') + btn('x-del', 'del', 'Delete', 'danger') + '<span class="sp"></span>' + btn('x-all', 'all', 'All');
       } else {
-        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New') + btn('x-imp', 'imp', 'Import') + btn('x-mod', 'imp', 'Import mod .zip') + btn('x-ref', 'ref', 'Refresh');
+        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', 'Refresh');
         if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', 'Paste (' + EX.clip.paths.length + ')');
       }
       $('ex-bar').innerHTML = bar;
       const on = (id, f) => { const e = $(id); if (e) e.addEventListener('click', f); };
-      on('x-up', exUp); on('x-ref', () => exOpen(EX.path)); on('x-new', exNew); on('x-imp', () => Launcher.fsImport(EX.path)); on('x-mod', exImportMod); on('x-paste', exPaste);
+      on('x-up', exUp); on('x-ref', () => exOpen(EX.path)); on('x-new', exNew); on('x-imp', () => Launcher.fsImport(EX.path)); on('x-paste', exPaste);
       on('x-copy', () => exClip(false)); on('x-cut', () => exClip(true)); on('x-del', exDel); on('x-ren', exRen);
       on('x-all', () => { EX.items.forEach(it => EX.sel.add(it.n)); exRender(); });
       if (atRoot && $('x-up')) $('x-up').disabled = true;
@@ -825,19 +868,6 @@
     }
     $('mod-prog-x').addEventListener('click', () => Launcher.fsCancel());
     window.onModJob = () => modPoll();
-    // Explore: a zip with a mod -> the game it belongs to -> unpacked into the game folder
-    function exImportMod() {
-      const names = { 1: 'Gothic 1', 2: 'Gothic 2' };
-      const rows = [1, 2].map(id => {
-        const g = games.find(x => x.id === id);
-        return '<button type="button" class="wide" data-g="' + id + '"' + (g && g.path ? '' : ' disabled') + '>' + names[id] +
-          '<br><small style="color:var(--dim)">' + esc(g && g.path ? g.path : 'not found') + '</small></button>';
-      }).join('');
-      exMsg('Import mod .zip', 'Choose the game the mod belongs to. The zip is unpacked into its folder; the tick on the card of the game switches the mod off (it is packed back into a zip) and on.',
-        '<div class="ex-btns" style="flex-direction:column">' + rows + '<button type="button" class="wide" id="ex-no">Cancel</button></div>');
-      $('ex-no').onclick = () => sheet.classList.remove('open');
-      box.querySelectorAll('button[data-g]').forEach(b => b.onclick = () => { sheet.classList.remove('open'); Launcher.modImport(+b.dataset.g); });
-    }
     function exPoll() {
       if (exTimer) return;
       exTimer = setInterval(() => {
@@ -863,6 +893,7 @@
     window.onBack = () => {
       if (TouchEditor.isOpen()) { TouchEditor.close(); return true; }
       if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
+      if (!$('gset').hidden) { $('gset').hidden = true; return true; }
       if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
       if ($('ex-edit').classList.contains('on')) { edClose(); return true; }
       if (curTab === 'explore') { if (EX.sel.size) { EX.sel.clear(); exRender(); return true; } if (EX.path !== rootPath()) { exUp(); return true; } }

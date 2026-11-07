@@ -247,6 +247,7 @@
       border-radius: 4px;
       padding: 3px 6px;
       font: inherit;
+      field-sizing: content;   /* as wide as the chosen language, not the longest one (Archolos has long names) */
     }
     #lang-bar .btn { padding: 3px 12px; }
     #lang-bar .back-link { display: inline-flex; align-items: center; gap: 5px; color: var(--text); text-decoration: none; font-weight: 600; padding: 3px 10px 3px 4px; border-radius: 4px; }
@@ -931,6 +932,7 @@
     <label>Game <select id="game-select" onchange="gameChosen()">
       <option value="g1">Gothic 1</option>
       <option value="g2">Gothic 2</option>
+      <option value="g3">Archolos</option>
     </select></label>
     <label id="lang-text-label" hidden>Text language <select id="lang-text" onchange="languagesChosen()"></select></label>
     <label id="lang-voice-label" hidden>Voice language <select id="lang-voice" onchange="languagesChosen()"></select></label>
@@ -4099,14 +4101,14 @@ async function installChunks(m) {
       const lang = v => (/^[a-z]{2}$/i.test(v || '') ? v.toLowerCase() : null);
       const url = new URL(location.href);
       const parts = decodeURIComponent(url.hash).replace(/^#\/?/, '').split('/').filter(Boolean);
-      const g = /^(?:g|gothic)?([12])$/i.exec(parts[0] || '');
+      const g = /^(?:g|gothic)?([123])$/i.exec(parts[0] || '');
       if (g) {
         out.game = 'g' + g[1];
         out.text = lang(parts[1]);
         out.voice = lang(parts[2]) || out.text;
       }
       const q = url.searchParams;
-      const qg = /^(?:g|gothic)?([12])$/i.exec(q.get('game') || '');
+      const qg = /^(?:g|gothic)?([123])$/i.exec(q.get('game') || '');
       if (qg) out.game = 'g' + qg[1];
       if (lang(q.get('text'))) out.text = lang(q.get('text'));
       if (lang(q.get('voice'))) out.voice = lang(q.get('voice'));
@@ -4116,7 +4118,7 @@ async function installChunks(m) {
         for (const k of ['game', 'text', 'voice', 'lang']) q.delete(k);
         try { history.replaceState(null, '', url.href); } catch (e) {}
       }
-      if (out.game) { try { localStorage.setItem('game', out.game === 'g2' ? '2' : '1'); } catch (e) {} }
+      if (out.game) { try { localStorage.setItem('game', out.game.slice(1)); } catch (e) {} }
       return out;
     })();
 
@@ -4137,14 +4139,18 @@ async function installChunks(m) {
       if (LINK_CHOICE.game) return LINK_CHOICE.game;
       let v = null;
       try { v = localStorage.getItem('game'); } catch (e) {}
-      return /2/.test(v || '') ? 'g2' : 'g1';
+      return /3/.test(v || '') ? 'g3' : /2/.test(v || '') ? 'g2' : 'g1';
     })();
-    document.getElementById('boot-bg').style.backgroundImage = 'url(img/' + GAME_ID + '.png)';   // img/g1.png, img/g2.png
-    // the tab shows the icon of the game (from the exe of the Windows version)
-    document.querySelector('link[rel="icon"]').href = 'img/icon_' + GAME_ID + '.png';
-    const GAME_SUF = GAME_ID === 'g2' ? '-g2' : '';   // added to the names of everything that belongs to one game
-    const GAME_ROOT = GAME_ID === 'g2' ? '/gothic2' : '/gothic';
-    const OPFS_ROOT_DIR = GAME_ID === 'g2' ? 'gothic2' : 'gothic';
+    // g3 = The Chronicles of Myrtana: Archolos, a mod of Gothic 2 (the engine runs it as Gothic 2 with -game:<its ini>)
+    const IS_ARCHOLOS = GAME_ID === 'g3';
+    const ARCHOLOS_INI = 'TheChroniclesOfMyrtana.ini';
+    // img/g1.png, img/g2.png, img/myrtana.jpg (the picture of the Archolos card)
+    document.getElementById('boot-bg').style.backgroundImage = 'url(img/' + (IS_ARCHOLOS ? 'myrtana.jpg' : GAME_ID + '.png') + ')';
+    // the tab shows the icon of the game (from the exe of the Windows version); Archolos runs Gothic2.exe
+    document.querySelector('link[rel="icon"]').href = 'img/icon_' + (IS_ARCHOLOS ? 'g2' : GAME_ID) + '.png';
+    const GAME_SUF = GAME_ID === 'g1' ? '' : '-' + GAME_ID;   // added to the names of everything that belongs to one game
+    const GAME_ROOT = GAME_ID === 'g1' ? '/gothic' : '/gothic' + GAME_ID.slice(1);
+    const OPFS_ROOT_DIR = GAME_ID === 'g1' ? 'gothic' : 'gothic' + GAME_ID.slice(1);
     const BRIDGE_CHUNK = 16 * 1024 * 1024; // 16MB transfer buffer for the lazy backend
 
     // Junk that must never be imported into the game storage.
@@ -5081,12 +5087,12 @@ function serveLoop() {
 
     async function downloadGame() {
       if (g_langIndex) return installLanguagePacks();
-      if (GAME_ID === 'g2') {
+      if (GAME_ID !== 'g1') {
         // the single archive (?archive=, game_web.zip) is Gothic 1
         progressContainer.style.display = 'none';
         showSourceButtons(false);
         statusText.style.color = 'var(--danger)';
-        statusText.innerText = 'Gothic 2 is not available on this server (no ' + langDir('g2') + '/languages.json). Pick Gothic 1 in the bar above.';
+        statusText.innerText = (IS_ARCHOLOS ? 'Archolos' : 'Gothic 2') + ' is not available on this server (no ' + langDir(GAME_ID) + '/languages.json). Pick Gothic 1 in the bar above.';
         return;
       }
       if (isolationBlocked()) return;
@@ -5155,7 +5161,7 @@ function serveLoop() {
     function lsSet(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
 
     // folder of the language packs of a game on the server (tools/pack_langs.py output)
-    function langDir(game) { return game === 'g2' ? 'lang_g2' : 'lang'; }
+    function langDir(game) { return game === 'g1' ? 'lang' : game === 'g2' ? 'lang_g2' : 'lang_archolos'; }
 
     // A pack of the index is {path, size, files}: a folder next to languages.json, or, from release.json,
     // {id, size, files, manifest: [links], chunks: [[links], ...]}: explicit links, one per mirror.
@@ -5241,6 +5247,8 @@ function serveLoop() {
       it: ['IT', 'SM', 'VA'],
       pl: ['PL'],
       cs: ['CZ'],
+      hu: ['HU'],
+      uk: ['UA'],
       es: ['ES', 'MX', 'AR', 'CO', 'CL', 'PE', 'VE', 'EC', 'GT', 'CU', 'BO', 'DO', 'HN', 'PY', 'SV', 'NI', 'CR', 'PA', 'UY', 'PR'],
       en: ['GB', 'US', 'AU', 'CA', 'NZ', 'IE'],
     };
@@ -5296,7 +5304,7 @@ function serveLoop() {
     async function initGameSelect() {
       const sel = document.getElementById('game-select');
       const has = {};
-      for (const g of ['g1', 'g2']) {
+      for (const g of ['g1', 'g2', 'g3']) {
         if (g_release) { has[g] = !!g_release.games[g]; continue; }
         try {
           const r = await fetch(new URL(langDir(g) + '/languages.json', location.href).href, { method: 'HEAD', cache: 'no-store' });
@@ -5305,7 +5313,7 @@ function serveLoop() {
       }
       for (const o of sel.options) o.disabled = !has[o.value] && o.value !== GAME_ID;
       sel.value = GAME_ID;
-      if (has.g1 && has.g2 || !has[GAME_ID]) {
+      if (Object.values(has).filter(Boolean).length > 1 || !has[GAME_ID]) {
         document.getElementById('lang-bar').hidden = false;
         document.body.classList.add('has-lang');
       } else {
@@ -5321,7 +5329,7 @@ function serveLoop() {
         sel.value = GAME_ID;
         return;
       }
-      lsSet('game', sel.value === 'g2' ? '2' : '1');
+      lsSet('game', sel.value.slice(1));
       const url = new URL(location.href);
       url.searchParams.delete('game');
       location.replace(url.href);
@@ -6437,7 +6445,8 @@ function serveLoop() {
         // relative paths (savegames, Gothic.ini) must land on the persistent
         // game mount, not on the in-memory root filesystem
         try { Module.FS.chdir(GAME_ROOT); } catch (e) {}
-        const args = ["-g", GAME_ROOT, GAME_ID === 'g2' ? "-g2" : "-g1"];
+        const args = ["-g", GAME_ROOT, GAME_ID === 'g1' ? "-g1" : "-g2"];
+        if (IS_ARCHOLOS) args.push("-game:" + ARCHOLOS_INI);   // the engine looks for it in <game>/system
         if (noMenu) args.push("-nomenu");
         const ret = Module.callMain(args);
         window.__callMainReturned = { ret: ret, t: Date.now() };
