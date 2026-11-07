@@ -111,7 +111,15 @@ Renderer::Renderer(Tempest::Swapchain& swapchain)
   sky.cloudsLut     = device.image2d   (sky.lutRGBAFormat,  2,  1);
   sky.transLut      = device.attachment(sky.lutRGBFormat, 256, 64);
   sky.multiScatLut  = device.attachment(sky.lutRGBFormat,  32, 32);
-  sky.viewLut       = device.attachment(Tempest::TextureFormat::RGBA32F, 128, 64);
+#if defined(__ANDROID__) || defined(__EMSCRIPTEN__)
+  // phones (Adreno) and WebGPU cannot filter RGBA32F: the sampler falls back to nearest and the sky showed rings and wedges
+  // around the sun (the cells of the 128x64 view LUT). RGBA16F is linear-filterable on every Vulkan device; the values
+  // are kept multiplied by SkyLutScale (shader/common.glsl), the moonlit night is too dark for a half float otherwise
+  const auto viewLutFormat = Tempest::TextureFormat::RGBA16F;
+#else
+  const auto viewLutFormat = Tempest::TextureFormat::RGBA32F;
+#endif
+  sky.viewLut       = device.attachment(viewLutFormat, 128, 64);
   sky.viewCldLut    = device.attachment(Tempest::TextureFormat::RGBA32F, 512, 256);
   sky.irradianceLut = device.image2d(TextureFormat::RGBA32F, 3,2);
 

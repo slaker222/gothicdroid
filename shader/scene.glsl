@@ -43,7 +43,7 @@ struct SceneDesc {
   float sunRays;      // light shafts from the sun: 1 = on
   float swampWater;   // web water quality ultra high: the swamp water (greener, slower) where the swamp mask says so
   float waterFx;      // web water physics on: the swamp bubbles and mud
-  float swampPad1;
+  float sunsetSoft;   // the setting "Sunset": 1 soft (default; no star of rays at the zenith, calmer light), 0 vivid
   float swampPad2;
   vec4  swampRect;    // world xz -> swamp mask uv: (min x, min z, 1/size x, 1/size z)
   vec4  ripples[8];   // water physics: (x, z, age in seconds, strength), strength 0 = unused

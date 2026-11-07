@@ -230,6 +230,7 @@ class Gothic final {
     float                                 webFogScale() const { return fogScale; }
     // web sun setting: 0 = disc with halo and light shafts, 1 = the same without the shafts, 2 = no sun
     int                                   webSunMode() const { return sunMode; }
+    int                                   webSunsetMode() const { return sunsetMode; }
     // web barrier setting: 0 = classic (45 s at the start, again every 36 minutes), 1 = always, 2 = off; sound volume 0.2..1
     int                                   webBarrierMode()   const { return barrierMode; }
     float                                 webBarrierVolume() const { return barrierVolume; }
@@ -347,6 +348,7 @@ class Gothic final {
     float                                   fogAmount      = 0;
     float                                   fogScale       = 1;
     int                                     sunMode        = 0;
+    int                                     sunsetMode     = 0;
     int                                     barrierMode    = 1;
     float                                   barrierVolume  = 1;
     std::vector<BarrierZone>                barrierZones;
