@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""Pull the sky textures of both games out of their Textures*.vdf into the app's assets (the "Sky" setting).
+"""Pull the sky textures of both games out of their Textures*.vdf (the "Sky" setting).
+The app does not carry them: upload <out>/g1, g2 to R2 (bucket gothic, keys sky/g1/<file>, sky/g2/<file>) and
+sky/manifest.json = {"g1": {file: size}, "g2": {...}}; the app downloads them when the sky is chosen (SkyPack.kt).
 
-    tools/extract_sky.py --g1 <Gothic 1 folder> --g2 <Gothic 2 folder> [--out android/app/src/main/assets/sky]
+    tools/extract_sky.py --g1 <Gothic 1 folder> --g2 <Gothic 2 folder> [--out sky_pack]
 
 The clouds (day / night, per world of Gothic 2), the sun and the moon go to <out>/g1 and <out>/g2 as the
 compiled *-C.TEX files the engine reads. The files are game data: the folder is in .gitignore, run the
@@ -31,8 +33,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--g1', required=True)
     ap.add_argument('--g2', required=True)
-    ap.add_argument('--out', default=os.path.join(os.path.dirname(os.path.abspath(__file__)), '..',
-                                                  'android', 'app', 'src', 'main', 'assets', 'sky'))
+    ap.add_argument('--out', default=os.path.join(os.getcwd(), 'sky_pack'))
     a = ap.parse_args()
     for tag, folder in (('g1', a.g1), ('g2', a.g2)):
         dst = os.path.join(a.out, tag)

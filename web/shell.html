@@ -1053,6 +1053,7 @@
         <select data-set="sky">
           <option value="0">As in the game</option><option value="1">Gothic 1</option><option value="2">Gothic 2</option><option value="3">Gothic 2 Blue</option>
         </select>
+        <span class="sky-st" style="font-size:12px;opacity:.8;margin-left:6px"></span>
       </label>
       <label class="set-row g1only" title="Classic: the barrier shows for 45 seconds when the game starts, dissolves, and comes back for 45 seconds every 36 minutes. Constant: always there. Off: no barrier. The slider is the volume of its hum and thunder (Gothic 1 only)">Barrier
         <span class="barrier-ctl">
@@ -2359,7 +2360,10 @@ async function installChunks(m) {
           else if (el.dataset.set === 'barrierVol') el.value = String(v < 20 ? 100 : v); // not set yet = full volume
           else el.value = String(v);
         });
+        // a sky chosen earlier: the textures are fetched once per session if they are not on the phone yet
+        if (!skyChecked) { skyChecked = true; const sk = panel.querySelector('[data-set="sky"]'); if (sk && +sk.value > 0) skyDownload(sk, +sk.value); }
       }
+      let skyChecked = false;
       // the game may still be starting when the menu opens: check again while it is open
       let retry = 0;
       function setOpen(open, centered) {
@@ -2413,8 +2417,31 @@ async function installChunks(m) {
         markPreset();
         const v = el.type === 'checkbox' ? (el.checked ? 1 : 0) : parseInt(el.value, 10);
         try { ogSet(el.dataset.set, v); } catch (e) {}
+        if (el.dataset.set === 'sky') skyDownload(el, v);
         el.blur(); // arrow keys go back to the game
       }));
+      // Android: the sky textures of the games are not in the app, they are downloaded from the server on first choice;
+      // when they are there the setting is applied again (the engine looks for the files then)
+      let skyTimer = 0;
+      function skyDownload(el, v) {
+        const st = el.closest('label').querySelector('.sky-st');
+        clearInterval(skyTimer);
+        st.textContent = '';
+        if (v === 0 || typeof AndroidBridge === 'undefined' || !AndroidBridge.skyEnsure) return;
+        try { AndroidBridge.skyEnsure(v); } catch (e) { return; }
+        const poll = () => {
+          let s = '';
+          try { s = String(AndroidBridge.skyStatus()); } catch (e) { s = 'error'; }
+          if (s === 'ready') {
+            clearInterval(skyTimer); st.textContent = '';
+            if (+el.value === v) ogSet('sky', v);
+          } else if (s.startsWith('loading')) st.textContent = 'Downloading ' + s.slice(8) + '%';
+          else if (s.startsWith('error')) { clearInterval(skyTimer); st.textContent = 'Download failed: ' + s.slice(6); }
+          else clearInterval(skyTimer);
+        };
+        skyTimer = setInterval(poll, 400);
+        poll();
+      }
       // graphics presets (Ultra low also lowers the textures)
       const PRESETS = {
         ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 80,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 3, texQuality: 1 },

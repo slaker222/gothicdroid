@@ -221,6 +221,14 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         @JavascriptInterface
         fun exitGame() { runOnUiThread { leaveGame() } }
 
+        // the sky setting: the textures of the other game come from the server once; the page asks for the download and
+        // watches `skyStatus` ("idle" / "loading <percent>" / "ready" / "error <text>")
+        @JavascriptInterface
+        fun skyEnsure(sky: Int) = SkyPack.ensure(applicationContext, sky)
+
+        @JavascriptInterface
+        fun skyStatus(): String = SkyPack.status
+
         @JavascriptInterface
         fun key(action: Int, code: String) = nativeWebKey(action, code)
     }

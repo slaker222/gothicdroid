@@ -1075,19 +1075,21 @@ GthFont &Resources::implLoadFont(std::string_view name, FontType type, const flo
 
 void Resources::mountSkyPack(int game) {
   const int i = game-1;
-  if(i<0 || i>1 || skyTried[i])
+  if(i<0 || i>1 || skyOk[i])
     return;
-  skyTried[i] = true;
+  // the app downloads the pack when the player chooses the sky (it can come after the game started): asked again until it is there
   const char* env = std::getenv("OG_SKY_PACK_DIR");
   if(env==nullptr || *env=='\0')
     return;
   try {
     const std::filesystem::path dir = std::filesystem::path(env) / (game==1 ? "g1" : "g2");
-    if(!std::filesystem::is_directory(dir)) {
-      Log::e("sky: no sky pack of Gothic ",game," in ",env);
+    if(!std::filesystem::is_regular_file(dir / "SKYDAY_LAYER0_A0-C.TEX"))
       return;
+    if(!skyTried[i]) {
+      skyTried[i] = true;
+      skyAssets[i].mkdir("/sky");
       }
-    skyAssets[i].mkdir("/sky");
+    // the files that came later are seen by a new mount
     skyAssets[i].mount_host(dir, "/sky", zenkit::VfsOverwriteBehavior::ALL);
     skyOk[i] = skyAssets[i].find("SKYDAY_LAYER0_A0-C.TEX")!=nullptr;
     Log::i("sky: the sky pack of Gothic ",game,skyOk[i] ? " is mounted (" : " is empty (",dir.string(),")");
