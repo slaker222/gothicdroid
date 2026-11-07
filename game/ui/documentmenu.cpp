@@ -5,6 +5,7 @@
 #include "utils/gthfont.h"
 #include "utils/keycodec.h"
 #include "gothic.h"
+#include "plugins.h"
 
 using namespace Tempest;
 
@@ -15,8 +16,15 @@ DocumentMenu::DocumentMenu(const KeyCodec& key)
   }
 
 void DocumentMenu::show(const DocumentMenu::Show &doc) {
+  const bool wantMini = Plugins::miniMap.load()!=0 && doc.showPlayer && !doc.pages.empty();
+  // the key of the map pressed again closes the small map
+  if(active && mini && wantMini) {
+    close();
+    return;
+    }
   document = doc;
   active   = true;
+  mini     = wantMini;
   update();
   }
 
@@ -24,9 +32,16 @@ void DocumentMenu::close() {
   if(!active)
     return;
   active=false;
+  mini  =false;
+  Plugins::miniCross.store(0);
+  update();
 
   if(auto pl = Gothic::inst().player())
     pl->setInteraction(nullptr);
+  }
+
+bool DocumentMenu::miniCrossHit(const Tempest::Point& pos) const {
+  return active && mini && crossRect.contains(pos);
   }
 
 void DocumentMenu::keyDownEvent(KeyEvent &e) {
@@ -61,7 +76,14 @@ void DocumentMenu::paintEvent(PaintEvent &e) {
 
   float k  = std::min(1.f,float(800.f+float(document.margins.xMargin()))*scale/std::max(mw,1.f));
 
+  float ms = 1.f;   // the small map: a part of the window, in the top right corner, under the page's top bar
   int   x  = (w()-int(k*mw))/2, y = (h()-int(mh))/2;
+  if(mini) {
+    ms = std::min(0.27f*float(w())/std::max(k*mw,1.f), 0.5f*float(h())/std::max(mh,1.f));
+    x  = w()-int(k*mw*ms)-int(0.08f*float(w()));   // left of the gear of the settings
+    y  = int(0.12f*float(h()));   // the bar of the player (FPS, the gear) is over the top of the window
+    }
+  const int x0 = x;
   auto  pl = Gothic::inst().player();
 
   Painter p(e);
@@ -82,8 +104,8 @@ void DocumentMenu::paintEvent(PaintEvent &e) {
     mgr.top    = int(float(mgr.top)   *scale);
     mgr.bottom = int(float(mgr.bottom)*scale);
 
-    const int w = int(k*scale*float(back->w()));
-    const int h = int(  scale*float(back->h()));
+    const int w = int(k*scale*ms*float(back->w()));
+    const int h = int(  scale*ms*float(back->h()));
 
     p.setBrush(*back);
     p.drawRect(x,y,w,h,
@@ -91,11 +113,12 @@ void DocumentMenu::paintEvent(PaintEvent &e) {
 
     p.setBrush(Color(0.04f,0.04f,0.04f,1));
 
-    fnt->drawText(p,x+mgr.left,
-                  y+mgr.top+fnt->pixelSize(),
-                  w - mgr.xMargin(),
-                  h - mgr.yMargin(),
-                  i.text, Tempest::AlignLeft);
+    if(!mini)
+      fnt->drawText(p,x+mgr.left,
+                    y+mgr.top+fnt->pixelSize(),
+                    w - mgr.xMargin(),
+                    h - mgr.yMargin(),
+                    i.text, Tempest::AlignLeft);
 
     if(document.showPlayer && cursor!=nullptr && pl!=nullptr) {
       auto  pos = pl->position();
@@ -109,9 +132,30 @@ void DocumentMenu::paintEvent(PaintEvent &e) {
       p.pushState();
       p.translate(cx,cy);
       p.rotate(-pl->rotation());
-      p.drawRect(-cursor->w()/2,-cursor->h()/2, cursor->w(),cursor->h());
+      // on the small map the arrow shrinks with it: a tenth of the map's height, never bigger than the native size
+      const float ck = mini ? std::min(1.f,0.1f*float(h)/float(std::max(cursor->h(),1))) : 1.f;
+      const int cw = int(float(cursor->w())*ck);
+      const int ch = int(float(cursor->h())*ck);
+      p.drawRect(-cw/2,-ch/2, cw,ch, 0,0,cursor->w(),cursor->h());
       p.popState();
       }
     x+=w;
+    }
+
+  if(mini) {
+    // the cross in the top left corner of the small map (clear of the buttons at the right edge): a click
+    // (the page puts a touch button over it) closes it
+    const int sz = std::max(24,int(0.06f*float(h())));
+    const int cx = x0, cy = y;
+    crossRect = Rect(cx,cy,sz,sz);
+    p.setBrush(Color(0.f,0.f,0.f,0.65f));
+    p.drawRect(cx,cy,sz,sz);
+    p.setBrush(Color(1.f,1.f,1.f,1.f));
+    const int t = std::max(2,sz/12), m = sz/4;
+    for(int i=0; i<sz-2*m; ++i) {
+      p.drawRect(cx+m+i-t/2,cy+m+i-t/2,t,t);
+      p.drawRect(cx+sz-m-i-t/2,cy+m+i-t/2,t,t);
+      }
+    Plugins::miniCross.store(std::max(1,(cx+sz/2)*1000/std::max(w(),1)) | (std::max(1,(cy+sz/2)*1000/std::max(h(),1))<<10));
     }
   }

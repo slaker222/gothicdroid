@@ -3105,7 +3105,7 @@ async function installChunks(m) {
           if (!TC.plugins || typeof TC.plugins !== 'object') TC.plugins = {};
         }
         const p = TC.plugins;
-        p.loot = p.loot ? 1 : 0; p.info = p.info ? 1 : 0; p.auto = p.auto ? 1 : 0;
+        p.loot = p.loot ? 1 : 0; p.info = p.info ? 1 : 0; p.auto = p.auto ? 1 : 0; p.steal = p.steal ? 1 : 0; p.weapons = p.weapons ? 1 : 0; p.mini = p.mini ? 1 : 0;
         p.speed = PLUG_SPEEDS.includes(p.speed) ? p.speed : 1;
         p.radius = PLUG_RADII.includes(p.radius) ? p.radius : 2;
         return p;
@@ -3113,9 +3113,10 @@ async function installChunks(m) {
       let plugSent = '';
       function sendPlug() {
         if (!g_runtimeUp) { plugSent = ''; return; }
-        const p = plug(), sig = [p.loot, p.info, p.speed, p.auto, p.radius].join(',');
+        const p = plug(), sig = [p.loot, p.info, p.speed, p.auto, p.radius, p.steal, p.weapons, p.mini].join(',');
         if (sig === plugSent) return;
         ogSet('plugAutoLoot', p.loot); ogSet('plugScreenInfo', p.info); ogSet('plugTimeScale', p.speed * 100); ogSet('plugAuto', p.auto); ogSet('plugAutoRadius', p.radius);
+        ogSet('plugSteal', p.steal); ogSet('plugWeapons', p.weapons); ogSet('plugMiniMap', p.mini);
         plugSent = sig;
       }
       function plugSave() {
@@ -3131,10 +3132,13 @@ async function installChunks(m) {
           plugEl.id = 'plug-box'; plugEl.hidden = true;
           plugEl.innerHTML = '<div id="plug-win"><h3>Plugins</h3>' +
             '<div class="pl-head"><input type="checkbox" data-k="loot"><span><b>AutoQuickLoot</b><small>Take everything from a body, a chest or the ground at once, no animation. What is taken is written on the screen, the colour is the category.</small></span><button type="button" class="pl-exp" data-x="loot">Settings &#9662;</button></div>' +
-            '<div class="pl-set" id="plug-s-loot" hidden><label><input type="checkbox" data-k="auto"><span>Auto<small>Things and dead bodies near you are taken by themselves, no button. Things that belong to somebody are left.</small></span></label>' +
+            '<div class="pl-set" id="plug-s-loot" hidden><label><input type="checkbox" data-k="auto"><span>Auto<small>Things and dead bodies near you are taken by themselves, no button. Things that belong to somebody are left (unless Steal is on).</small></span></label>' +
+              '<label><input type="checkbox" data-k="steal"><span>Steal<small>Auto also takes things that belong to somebody: you can be accused of theft. Off: such things are left.</small></span></label>' +
+              '<label><input type="checkbox" data-k="weapons"><span>Take weapons of NPCs<small>The weapons a dead one holds are taken from the body too (the game does not offer them).</small></span></label>' +
               chips('plug-radius', 'Radius of Auto', PLUG_RADII, 'm') + '</div>' +
             '<div class="pl-head"><input type="checkbox" data-k="info"><span><b>ScreenInfo</b><small>The day and the time in the top left corner; the numbers (50/100) on the health and mana bars, yours and the one in focus.</small></span><button type="button" class="pl-exp" data-x="info">Settings &#9662;</button></div>' +
             '<div class="pl-set" id="plug-s-info" hidden>' + chips('plug-speed', 'Game speed', PLUG_SPEEDS, 'x') + '</div>' +
+            '<div class="pl-head"><input type="checkbox" data-k="mini"><span><b>MiniMap</b><small>The map opens as a small window in the top right corner and you can walk; the cross over it (or the map key again) closes it.</small></span></div>' +
             '<button type="button" id="plug-close">Close</button></div>';
           (document.getElementById('player') || document.body).appendChild(plugEl);
           const stop = e => e.stopPropagation();
@@ -3160,6 +3164,24 @@ async function installChunks(m) {
         plugEl.querySelectorAll('#plug-speed button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.speed));
         plugEl.querySelectorAll('#plug-radius button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.radius));
       }
+      // MiniMap: the engine draws the small map with a cross; a touch button over the cross closes it
+      const mmClose = document.createElement('div');
+      mmClose.title = 'Close the map';
+      mmClose.style.cssText = 'position:absolute;display:none;width:11cqmin;height:11cqmin;transform:translate(-50%,-50%);z-index:30;touch-action:none;pointer-events:auto';
+      ui.appendChild(mmClose);
+      const mmHit = e => { e.preventDefault(); e.stopPropagation(); if (g_runtimeUp) ogSet('minimapClose', 1); };
+      mmClose.addEventListener('pointerdown', mmHit);
+      setInterval(() => {
+        let v = 0;
+        try { if (g_runtimeUp && document.body.classList.contains('touch-on')) v = ogGet('minimapCross'); } catch (e) {}
+        if (!(v > 0)) { mmClose.style.display = 'none'; return; }
+        const u = ui.getBoundingClientRect();
+        let r = canvas.getBoundingClientRect();
+        if (!(r.width > 10 && r.height > 10)) r = u;   // the app: the engine's surface is under the page, the page is the window
+        mmClose.style.left = (r.left - u.left + (v & 1023) / 1000 * r.width) + 'px';
+        mmClose.style.top = (r.top - u.top + ((v >> 10) & 1023) / 1000 * r.height) + 'px';
+        mmClose.style.display = 'block';
+      }, 250);
       window.ogTouch = {
         cfg: () => TC,
         apply: () => applyCfg(true),
