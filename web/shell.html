@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
+  <!-- the Android app: its class at once, before anything is drawn (the page of the site must not show for a moment) -->
+  <script>if (typeof AndroidBridge !== 'undefined') document.documentElement.classList.add('native');</script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>GothicDroid | Play Gothic 1 and Gothic 2 in your browser on Android and PC</title>
   <link rel="icon" type="image/png" href="img/icon.png">
@@ -188,6 +190,9 @@
       --chrome-h: calc(var(--about-h) + 70px); /* about + language bar + voice strip */
     }
 
+    /* no blue flash of the browser on a tap (Android WebView / Chrome), no focus ring left after a tap */
+    * { -webkit-tap-highlight-color: transparent; }
+    :focus:not(:focus-visible) { outline: none; }
     * {
       box-sizing: border-box;
       margin: 0;

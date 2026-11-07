@@ -18,6 +18,9 @@
       --chrome-h: calc(var(--about-h) + 70px); /* about + language bar + voice strip */
     }
 
+    /* no blue flash of the browser on a tap (Android WebView / Chrome), no focus ring left after a tap */
+    * { -webkit-tap-highlight-color: transparent; }
+    :focus:not(:focus-visible) { outline: none; }
     * {
       box-sizing: border-box;
       margin: 0;
