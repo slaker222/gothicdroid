@@ -441,6 +441,7 @@ class MainActivity : AppCompatActivity() {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
             skyPackDir()?.let { putExtra(GameActivity.EXTRA_SKY_DIR, it) }
             putExtra(GameActivity.EXTRA_MOD, "system/" + m.ini.name)
+            putExtra(GameActivity.EXTRA_GAME_VERSION, m.game)
         }
         startActivity(intent)
     }
@@ -452,6 +453,9 @@ class MainActivity : AppCompatActivity() {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
             skyPackDir()?.let { putExtra(GameActivity.EXTRA_SKY_DIR, it) }
             if (id == 3) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir)) ?: "")
+            // the engine is told which game it is (Archolos is a mod of Gothic 2): its own guess by the files
+            // took a German or Polish Gothic 2 (OU.BIN, no OU.DAT) for Gothic 1
+            putExtra(GameActivity.EXTRA_GAME_VERSION, if (id == 1) 1 else 2)
         }
         startActivity(intent)
     }
