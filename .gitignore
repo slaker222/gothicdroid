@@ -72,3 +72,8 @@ tools/build_archolos.py
 tools/build_archolos_langs.py
 tools/pack_archolos.py
 tools/steam_archolos_langs.sh
+
+# local measuring / test scripts (not needed by the app)
+scripts/archolos_perf.sh
+web/test/sky_times.mjs
+/deploy*.log
