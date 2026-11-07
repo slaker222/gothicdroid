@@ -326,6 +326,7 @@ class Npc final {
 
     void      startDive();
     void      transformBack();
+    bool      isTransformed() const { return transformSpl!=nullptr; }
 
     auto      dialogChoices(Npc &player, const std::vector<uint32_t> &except, bool includeImp) -> std::vector<GameScript::DlgChoice>;
 

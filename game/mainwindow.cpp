@@ -954,6 +954,8 @@ int MainWindow::webUiState() const {
       s |= 1<<9;
     if(pl->interactive()!=nullptr)
       s |= 1<<11;
+    if(pl->isTransformed())
+      s |= 1<<15;   // turned into a beast by a spell: the button "back to human"
     s |= (int(pl->weaponState()) & 7)<<12;
     const Focus f = player.focus();
     int fk = 0;
