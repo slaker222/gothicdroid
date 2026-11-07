@@ -29,6 +29,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         const val AUTOSAVE_SLOT = 99               // save_slot_99.sav: the hidden slot of MainWindow::autoSave
         const val RESUME_MARK = ".og_resume"       // in the game folder: the game was saved on onStop and not closed since
         const val EXTRA_MOD = "extra_mod"   // the ini of a mod in the game folder (Archolos), "" - none
+        const val EXTRA_GAME_VERSION = "extra_game_version"   // 1 or 2 (-g1/-g2 of the engine), 0 - the engine guesses
 
         init {
             // the game runs in its own process (":game"): the WebView there needs its own data directory
@@ -50,6 +51,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     private external fun nativeSetSurface(surface: Surface, gameDir: String)
     private external fun nativeSetMod(mod: String)
+    private external fun nativeSetGameVersion(version: Int)
     private external fun nativeSurfaceChanged(width: Int, height: Int)
     private external fun nativeSetDensity(density: Float)
     private external fun nativeDestroySurface()
@@ -100,6 +102,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
         nativeSetMod(intent.getStringExtra(EXTRA_MOD) ?: "")
+        nativeSetGameVersion(intent.getIntExtra(EXTRA_GAME_VERSION, 0))
         // the process was killed in the background after an autosave (the marker is there): the game goes on from it.
         // The marker goes at once: a save that cannot be loaded must not make a loop of restarts
         val marker = File(gameDir, RESUME_MARK)

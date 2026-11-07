@@ -436,6 +436,7 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
             putExtra(GameActivity.EXTRA_MOD, "system/" + m.ini.name)
+            putExtra(GameActivity.EXTRA_GAME_VERSION, m.game)
         }
         startActivity(intent)
     }
@@ -446,6 +447,9 @@ class MainActivity : AppCompatActivity() {
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
             if (id == 3) putExtra(GameActivity.EXTRA_MOD, modIni(File(detectedGameDir)) ?: "")
+            // the engine is told which game it is (Archolos is a mod of Gothic 2): its own guess by the files
+            // took a German or Polish Gothic 2 (OU.BIN, no OU.DAT) for Gothic 1
+            putExtra(GameActivity.EXTRA_GAME_VERSION, if (id == 1) 1 else 2)
         }
         startActivity(intent)
     }

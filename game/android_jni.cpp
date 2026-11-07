@@ -42,6 +42,7 @@ static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
 static int               s_loadSlot = -1;   // >=0: the game starts with -save <slot> (the autosave after the process was killed)
+static int               s_gameVersion = 0;   // 1/2: -g1/-g2 from the launcher (it knows the game), 0 - the engine guesses by the files
 static std::string       s_modArg;   // -game:<ini> of a mod (Archolos), set by the activity before the surface
 static std::mutex        s_logMutex;
 static std::string       s_recentLog;
@@ -117,6 +118,11 @@ static void runGameThread(std::string gameDir) {
     "-g",
     gameDir
   };
+  if(s_gameVersion==1 || s_gameVersion==2) {
+    // -g2 = Gothic 2 Night of the Raven, as the web page passes it
+    args.push_back(s_gameVersion==1 ? "-g1" : "-g2");
+    androidAppendLog(s_gameVersion==1 ? "Game: Gothic 1 (-g1)" : "Game: Gothic 2 (-g2)");
+  }
   if(!s_modArg.empty()) {
     // the engine looks for the ini in <game>/system itself (CommandLine: nestedPath({"system", name})): only the file name goes there,
     // "system/x.ini" made <game>/system/system/x.ini, the ini was not found and the mod's archives were not filtered by its language
@@ -338,6 +344,11 @@ Java_com_opengothic_GameActivity_nativeSetMod(JNIEnv* env, jobject, jstring jMod
   const char* c = env->GetStringUTFChars(jMod, nullptr);
   s_modArg = c;
   env->ReleaseStringUTFChars(jMod, c);
+}
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetGameVersion(JNIEnv*, jobject, jint version) {
+  s_gameVersion = version;
 }
 
 JNIEXPORT jint JNICALL
