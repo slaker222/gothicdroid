@@ -994,6 +994,16 @@ void Gothic::detectGothicVersion() {
 
   if(FileUtil::exists(nestedPath({u"_work",u"Data",u"Scripts",u"content",u"CUTSCENE",u"OU.DAT"},Dir::FT_File)))
     score[2]++;
+  // Gothic 2 only archives (Night of the Raven): a translated Gothic 2 has OU.BIN, not OU.DAT, and no Gothic.ini
+  // in a language-split install, so without this it was taken for Gothic 1 (new game: "world.zen" not found)
+  for(const char16_t* vdf : {u"Anims_Addon.vdf", u"Meshes_Addon.vdf", u"Textures_Addon.vdf", u"Worlds_Addon.vdf"}) {
+    if(FileUtil::exists(nestedPath({u"Data",vdf},Dir::FT_File))) {
+      score[2] += 2;
+      break;
+      }
+    }
+  if(FileUtil::exists(nestedPath({u"system",u"Gothic2.exe"},Dir::FT_File)))
+    score[2] += 2;
   if(baseIniFile->has("KEYSDEFAULT1"))
     score[2]++;
   if(baseIniFile->has("GAME","PATCHVERSION"))
