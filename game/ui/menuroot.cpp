@@ -125,6 +125,15 @@ bool MenuRoot::isGraphicsMenu() const {
          std::equal(n.begin(),n.end(),want.begin(),[](char a,char b){ return std::toupper((unsigned char)a)==b; });
   }
 
+bool MenuRoot::isSaveMenu() const {
+  if(current==nullptr)
+    return false;
+  const auto& n = current->sectionName();
+  static const std::string_view want = "MENU_SAVEGAME_SAVE";
+  return n.size()==want.size() &&
+         std::equal(n.begin(),n.end(),want.begin(),[](char a,char b){ return std::toupper((unsigned char)a)==b; });
+  }
+
 void MenuRoot::setPlayer(const Npc &pl) {
   if(current!=nullptr)
     current->setPlayer(pl);
