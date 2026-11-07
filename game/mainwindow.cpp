@@ -929,6 +929,9 @@ int MainWindow::webUiState() const {
     s |= 1<<30;
   if(video.isActive())
     s |= 1<<6;
+  // the save menu: the page shows a keyboard button (bit 20 is the inventory mode, free while it is closed)
+  if(rootMenu.isActive() && rootMenu.isSaveMenu() && inventory.isOpen()==InventoryMenu::State::Closed)
+    s |= 1<<20;
   if(document.isActive())
     s |= 1<<5;
   if(dialogs.isActive())

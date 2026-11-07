@@ -2863,6 +2863,27 @@ async function installChunks(m) {
         window.dispatchEvent(new KeyboardEvent(down ? 'keydown' : 'keyup',
           { key: kk, code, keyCode: kc, which: kc, bubbles: true, cancelable: true }));
       }
+      // the phone's keyboard for the savegame name: a hidden text field takes the typing, every character goes to
+      // the game as a key press (the name dialog reads letters, digits, space and dot)
+      const kbdIn = document.createElement('input');
+      kbdIn.type = 'text'; kbdIn.autocomplete = 'off'; kbdIn.autocapitalize = 'off'; kbdIn.spellcheck = false;
+      kbdIn.setAttribute('enterkeyhint', 'done');
+      kbdIn.style.cssText = 'position:fixed;left:0;bottom:0;width:1px;height:1px;opacity:0;border:0;padding:0;z-index:-1';
+      document.body.appendChild(kbdIn);
+      const tap = (k, ms) => { rawKey(k, true); setTimeout(() => rawKey(k, false), ms || 20); };
+      let kbdN = 0;
+      function kbdOpen() { kbdIn.value = ''; kbdN = 0; kbdIn.focus(); }
+      kbdIn.addEventListener('input', e => {
+        const v = kbdIn.value;
+        if (v.length < kbdN) for (let i = v.length; i < kbdN; i++) tap('Backspace');
+        else for (let i = kbdN; i < v.length; i++) {
+          const ch = v[i].toUpperCase();
+          const k = ch === ' ' ? 'Space' : (KEYS[ch] && ch.length === 1 ? ch : null);
+          if (k) tap(k);
+        }
+        kbdN = v.length;
+      });
+      kbdIn.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); tap('Enter'); kbdIn.blur(); } });
       function strikeCancel(b) {
         if (!b.strike) return;
         clearTimeout(b.strike.timer);
@@ -2928,6 +2949,8 @@ async function installChunks(m) {
         ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
         ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
         ['back',   'Esc',   '',      'right:25cqmin;bottom:8cqmin',            'menu'],
+        // the save menu: the phone's keyboard to type a name of the savegame
+        ['kbd',    '',      'small', 'right:7.6cqmin;bottom:32cqmin',                  'menu'],
         // new chapter screen: only a way out
         ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
       ];
@@ -2999,6 +3022,7 @@ async function installChunks(m) {
                              if (b.id === 'tools') { setTools(!toolsOpen); update(); return; }
                              if (b.id === 'cheat') { ogSet('marvin', 1); update(); return; }
                              if (b.id === 'plugins') { plugOpen(); return; }
+                             if (b.id === 'kbd') { kbdOpen(); return; }
                              if (b.id === 'qsave' || b.id === 'qload') {
                                if (g_runtimeUp) Module.ccall('og_quick', null, ['number'], [b.id === 'qsave' ? 1 : 2]);
                                return;
@@ -3198,7 +3222,7 @@ async function installChunks(m) {
         cfg: () => TC,
         apply: () => applyCfg(true),
         save: () => { try { AndroidBridge.setControls(JSON.stringify(TC)); } catch (e) {} },
-        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'plugins', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: TC.keys || {}, custom: TC.custom || [] })
+        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'kbd', 'plugins', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: TC.keys || {}, custom: TC.custom || [] })
       };
       // minimal line icons (24x24); the name is also the button's tooltip
       // TOUCH-ICONS-BEGIN
@@ -3237,6 +3261,7 @@ async function installChunks(m) {
         back:   '<path d="M9 14l-5-5 5-5M4 9h11a5 5 0 0 1 0 10h-3"/>',
         tools:  '<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>',
         camera: '<path d="M4 8h3l1.5-2h7L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13.5" r="3.5"/>',
+        kbd:    '<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10"/>',
         qsave: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 18v-6.5M9.5 14l2.5-2.5 2.5 2.5"/>',
         qload: '<path d="M5 3h13l3 3v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zM8 3v5h8V3M12 11.5V18M9.5 15.5L12 18l2.5-2.5"/>',
         cheat:  '<path d="M12 2l2.5 6.5L21 9l-5 4.5L17.5 20 12 16.5 6.5 20 8 13.5 3 9l6.5-.5z"/>',
@@ -3254,7 +3279,7 @@ async function installChunks(m) {
         aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', take10: 'Take 10', dive: 'Dive', up: 'Surface', block: 'Block',
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
         close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
-        camera: 'Camera: first / third person (F)', tools: 'More', plugins: 'Plugins', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
+        camera: 'Camera: first / third person (F)', tools: 'More', plugins: 'Plugins', kbd: 'Keyboard (name of a savegame)', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
         console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', human: 'Back to human', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
       // the icon each button shows unless the situation picks another one
       const ICON_OF = { weapon: 'weapon', jump: 'jump', block: 'block', inv: 'inv', log: 'log',
@@ -3262,7 +3287,7 @@ async function installChunks(m) {
         pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
         aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
-        tools: 'tools', plugins: 'plugins', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
+        tools: 'tools', plugins: 'plugins', kbd: 'kbd', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
         possess: 'possess', human: 'human' };
       // TOUCH-ICONS-END
       stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');
@@ -3743,6 +3768,8 @@ async function installChunks(m) {
           if (b.id === 'human' && !(st & (1 << 15))) show = false;      // not transformed
           if (b.id === 'action' && bowOut && !aimReady()) show = false; // the shot waits for the drawn bow
           if (b.id === 'block' && !(drawn && weapon <= 3)) show = false; // fists and melee weapons
+          if (b.id === 'kbd' && !(st & (1 << 20))) show = false;         // only in the save menu
+          if (!(st & (1 << 20)) && document.activeElement === kbdIn) kbdIn.blur(); // the name is done: the keyboard goes away
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
           b.el.classList.toggle('hidden', !show);
           // action, jump and use pick their icon below from the situation
