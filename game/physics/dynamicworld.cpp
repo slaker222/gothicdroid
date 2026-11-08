@@ -596,9 +596,12 @@ DynamicWorld::RayLandResult DynamicWorld::ray(const Tempest::Vec3& from, const T
     zenkit::MaterialGroup matId  = zenkit::MaterialGroup::UNDEFINED;
     const char*           sector = nullptr;
     Category              colCat = C_Null;
+    bool                  noLand = false;
 
     bool needsCollision(btBroadphaseProxy* proxy0) const override {
       auto obj=reinterpret_cast<btCollisionObject*>(proxy0->m_clientObject);
+      if(obj->getUserIndex()==C_Landscape && noLand)
+        return false;
       if(obj->getUserIndex()==C_Landscape || obj->getUserIndex()==C_Object)
         return ClosestRayResultCallback::needsCollision(proxy0);
       return false;
@@ -622,8 +625,40 @@ DynamicWorld::RayLandResult DynamicWorld::ray(const Tempest::Vec3& from, const T
 
   CallBack callback{CollisionWorld::toMeters(from), CollisionWorld::toMeters(to)};
   callback.m_flags = btTriangleRaycastCallback::kF_KeepUnflippedNormal | btTriangleRaycastCallback::kF_FilterBackfaces;
+  // The land is tested apart, by the ray through its bvh (performRaycast): Bullet takes this path only for
+  // TRIANGLE_MESH_SHAPE, the multimaterial land went the generic concave way - every triangle in the box of the ray,
+  // a big box for a long line of sight. The triangle test is the same (btTriangleRaycastCallback), the land is
+  // tested after the objects and takes only a closer hit, as the closest hit callback does.
+  const bool landApart = (landShape!=nullptr && landBody!=nullptr);
+  callback.noLand = landApart;
 
   world->rayCast(from,to,callback);
+
+  if(landApart) {
+    struct LandCallBack : btTriangleRaycastCallback {
+      using btTriangleRaycastCallback::btTriangleRaycastCallback;
+      btVector3 norm = {0,0,0};
+      int       part = -1, tri = -1;
+      btScalar reportHit(const btVector3& hitNormalLocal, btScalar hitFraction, int partId, int triangleIndex) override {
+        norm = hitNormalLocal;
+        part = partId;
+        tri  = triangleIndex;
+        return hitFraction;
+        }
+      };
+    LandCallBack lcb(callback.m_rayFromWorld, callback.m_rayToWorld, callback.m_flags);
+    lcb.m_hitFraction = callback.m_closestHitFraction;
+    static_cast<btBvhTriangleMeshShape*>(landShape.get())->performRaycast(&lcb, callback.m_rayFromWorld, callback.m_rayToWorld);
+    if(lcb.part>=0) {
+      callback.m_closestHitFraction = lcb.m_hitFraction;
+      callback.m_collisionObject    = landBody.get();
+      callback.m_hitNormalWorld     = lcb.norm;
+      callback.m_hitPointWorld.setInterpolate3(callback.m_rayFromWorld, callback.m_rayToWorld, lcb.m_hitFraction);
+      callback.matId                = landMesh->materialId(lcb.part,lcb.tri);
+      callback.sector               = landMesh->sectorName(lcb.part,lcb.tri);
+      callback.colCat               = C_Landscape;
+      }
+    }
 
   Tempest::Vec3 hitPos = to, hitNorm;
   if(callback.hasHit()){

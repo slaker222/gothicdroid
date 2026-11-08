@@ -148,12 +148,14 @@ class Pose final {
     float                           headRotX = 0, headRotY = 0;
 
     size_t                          numBones = 0;
+    Tempest::Matrix4x4              pos;
     // per bone of the skeleton (numBones): a pose exists for every model object of the world (chests, doors, ...),
     // most of them have a few bones; fixed arrays of MAX_NUM_SKELETAL_NODES were ~5.7 KB of them per pose
     std::vector<SampleStatus>            hasSamples;
     std::vector<zenkit::AnimationSample> base;
     std::vector<zenkit::AnimationSample> prev;
     void                                 resizeSamples();
+    // the matrices last: pos and the fields above are read for every model object in every frame, they share cache
+    // lines and a page instead of being 6 KB apart
     Tempest::Matrix4x4              tr        [Resources::MAX_NUM_SKELETAL_NODES] = {};
-    Tempest::Matrix4x4              pos;
   };

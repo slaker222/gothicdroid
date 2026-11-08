@@ -866,6 +866,9 @@ void WorldObjects::marchInteractives(DbgPainter &p) const {
   }
 
 void WorldObjects::marchCsCameras(DbgPainter& p) const {
+  // a dynamic_cast for every trigger of the world in every frame (1.3% of the main thread in Archolos) for a debug view
+  if(!CsCamera::dbgDraw)
+    return;
   for(auto& i:triggers)
     if(auto c = dynamic_cast<CsCamera*>(i)) {
       c->debugDraw(p);

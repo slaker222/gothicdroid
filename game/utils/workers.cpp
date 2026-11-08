@@ -126,6 +126,12 @@ Workers &Workers::inst() {
   }
 
 uint8_t Workers::maxThreads() {
+  // hardware_concurrency is sysconf, bionic reads /sys for it: once (it was 0.7% of the main thread, every batch)
+  static const uint8_t value = implMaxThreads();
+  return value;
+  }
+
+uint8_t Workers::implMaxThreads() {
   int32_t th = int32_t(std::thread::hardware_concurrency());
 #if defined(__EMSCRIPTEN__)
   // the main thread spins while workers run: leave it a core

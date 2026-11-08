@@ -402,7 +402,15 @@ bool Mem32::implRealloc(ptr32_t address, uint32_t nsize) {
   }
 
 Mem32::Region* Mem32::implTranslate(ptr32_t address) {
-  // TODO: binary-search
+  // the regions split the address space, sorted by address (they are only split in place and merged): the one that
+  // starts at or before the address is the candidate. Every memory access of the scripts comes here.
+  auto it = std::upper_bound(region.begin(), region.end(), address, [](ptr32_t a, const Region& r){ return a<r.address; });
+  if(it!=region.begin()) {
+    auto& rgn = *(it-1);
+    if(rgn.address<=address && address<rgn.address+rgn.size && rgn.status!=S_Unused)
+      return &rgn;
+    }
+  // not found that way (an address outside of everything): the plain search, as before
   for(auto& rgn:region) {
     if(rgn.address<=address && address<rgn.address+rgn.size && rgn.status!=S_Unused)
       return &rgn;

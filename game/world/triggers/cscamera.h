@@ -14,6 +14,7 @@ class CsCamera : public AbstractTrigger {
     bool isPlayerMovable() const;
 
     void debugDraw(DbgPainter& p) const;
+    static bool dbgDraw; // the debug drawing of the camera splines
 
   private:
     struct KeyFrame {

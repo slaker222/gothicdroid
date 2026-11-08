@@ -123,9 +123,10 @@ bool CsCamera::isPlayerMovable() const {
   return playerMovable;
   }
 
+bool CsCamera::dbgDraw = false;
+
 void CsCamera::debugDraw(DbgPainter& p) const {
-  static bool dbg = false;
-  if(!dbg)
+  if(!dbgDraw)
     return;
 
   if(posSpline.size()<=1)

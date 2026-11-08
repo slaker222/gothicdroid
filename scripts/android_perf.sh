@@ -76,7 +76,7 @@ zCloudShadowScale=0
 zEnvMappingEnabled=0
 EOF
   for kv in $kvs; do k=${kv%%=*}; adb shell "sed -i 's/^$k=.*/$kv/' $D/Gothic.ini"; done
-  adb shell "printf 'safe_mode=0\nlog_pipelines=0\ngpu_timers=${TIMERS:-0}\n' > $D/debug.cfg"
+  adb shell "printf 'safe_mode=0\nlog_pipelines=0\ngpu_timers=${TIMERS:-0}\ngeo_stats=1\n' > $D/debug.cfg"
   for kv in $dbg; do adb shell "echo $kv >> $D/debug.cfg"; done
   adb logcat -c
   adb shell am start -n com.gothic.droid/com.opengothic.GameActivity --es extra_game_dir "$D" >/dev/null

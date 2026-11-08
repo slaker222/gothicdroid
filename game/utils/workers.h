@@ -37,6 +37,7 @@ class Workers final {
       }
 
     static uint8_t maxThreads();
+    static uint8_t implMaxThreads();
 
   private:
     enum { MAX_THREADS=16 };
