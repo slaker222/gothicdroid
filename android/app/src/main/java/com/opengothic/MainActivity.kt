@@ -543,6 +543,10 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    private val updater by lazy {
+        UpdateChecker(this).also { u -> u.onChange = { runOnUiThread { webView?.evaluateJavascript("window.onUpdate && onUpdate()", null) } } }
+    }
+
     inner class LauncherBridge {
         // [{id, title, path|null, vdf, version}] for both games; the scan runs again on `rescan`
         @JavascriptInterface
@@ -691,6 +695,16 @@ class MainActivity : AppCompatActivity() {
             bmp.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, o)
             "data:image/png;base64," + android.util.Base64.encodeToString(o.toByteArray(), android.util.Base64.NO_WRAP)
         } catch (e: Exception) { "" }
+
+        // updates from GitHub (UpdateChecker): state as JSON, the page is told by onUpdate()
+        @JavascriptInterface
+        fun checkUpdate(force: Boolean) { updater.check(force) }
+        @JavascriptInterface
+        fun updateState(): String = updater.state()
+        @JavascriptInterface
+        fun installUpdate() { runOnUiThread { updater.install() } }
+        @JavascriptInterface
+        fun ignoreUpdate() { updater.ignore() }
 
         @JavascriptInterface
         fun version(): String = try { packageManager.getPackageInfo(packageName, 0).versionName ?: "" } catch (e: Exception) { "" }
