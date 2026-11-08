@@ -1356,8 +1356,10 @@ ProtoMesh* Resources::implBlobShadowMesh() {
   if(blobMesh!=nullptr)
     return blobMesh.get();
 
-  // soft dark circle: the shadow under a character
-  const int sz = 64;
+  // soft dark circle: the shadow under a character. WebGL 2 draws it straight onto the final picture (no tone
+  // mapping lifts the dark part as in the WebGPU renderer): lighter there
+  const int   sz    = 64;
+  const float alpha = Gothic::options().webgl2 ? 0.32f : 0.56f;
   Pixmap pm(sz,sz,TextureFormat::RGBA8);
   auto* pix = reinterpret_cast<uint8_t*>(pm.data());
   for(int y=0; y<sz; ++y)
@@ -1369,7 +1371,7 @@ ProtoMesh* Resources::implBlobShadowMesh() {
       k = k*k*(3.f-2.f*k);
       auto* p = pix + size_t(y*sz+x)*4;
       p[0] = p[1] = p[2] = 0;
-      p[3] = uint8_t(k*0.56f*255.f);
+      p[3] = uint8_t(k*alpha*255.f);
       }
   blobTex.reset(new Texture2d(dev.texture(pm)));
 

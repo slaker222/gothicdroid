@@ -705,6 +705,7 @@ void Renderer::drawWebGL(Tempest::Attachment& result, Encoder<CommandBuffer>& cm
   // WebGL 2 compatibility renderer: the textured world on a sky coloured clear, nothing else
   auto wview  = Gothic::inst().worldView();
   auto camera = Gothic::inst().camera();
+  wview->updateLights(); // the sun and the time of day
   updateCamera(*camera);
 
   Frustrum f;
@@ -712,7 +713,7 @@ void Renderer::drawWebGL(Tempest::Attachment& result, Encoder<CommandBuffer>& cm
   wview->preFrameUpdate(*camera,Gothic::inst().world()->tickCount(),fId);
 
   const Vec3  ldir = wview->mainLight().dir();
-  const float day  = std::clamp(ldir.y*2.f + 0.3f, 0.f, 1.f);
+  const float day  = 1.f - wview->sky().isNight();
   GlScene::View v;
   v.viewProj     = viewProj;
   v.camPos       = camera->originLwc();
@@ -721,6 +722,8 @@ void Renderer::drawWebGL(Tempest::Attachment& result, Encoder<CommandBuffer>& cm
   v.tickCount    = Gothic::inst().world()->tickCount();
   v.drawDistance  = DrawCommands::drawDistance();
   v.worldDistance = DrawCommands::worldDistance();
+  v.sky           = &wview->sky();
+  v.viewProjLwc   = viewProjLwc;
 
   const Vec4 sky = Vec4(0.47f, 0.62f, 0.80f, 1.f)*(0.15f + 0.85f*day);
   // the zbuffer has the render resolution: a smaller one than the target (the swapchain) means the world is drawn
@@ -732,6 +735,21 @@ void Renderer::drawWebGL(Tempest::Attachment& result, Encoder<CommandBuffer>& cm
   cmd.setFramebuffer({{target, Vec4(sky.x, sky.y, sky.z, 1.f), Tempest::Preserve}}, {zbuffer, 1.f, Tempest::Discard});
   cmd.setDebugMarker("WebGL world");
   wview->drawWebGL(cmd, f, v);
+  // Gothic 1: the barrier over the sky (only where the depth stayed cleared), without tone mapping
+  if(glBarrier.isEmpty()) {
+    auto& device = Resources::device();
+    RenderState st;
+    st.setBlendSource    (RenderState::BlendMode::One);
+    st.setBlendDest      (RenderState::BlendMode::SrcAlpha);
+    st.setZTestMode      (RenderState::ZTestMode::Equal);
+    st.setZWriteEnabled  (false);
+    st.setCullFaceMode   (RenderState::CullMode::NoCull);
+    auto sv = GothicShader::get("triangle.vert.sprv");
+    auto sf = GothicShader::get("barrier_ldr.frag.sprv");
+    glBarrier = device.pipeline(Triangles, st, device.shader(sv.data,sv.len), device.shader(sf.data,sf.len));
+    }
+  cmd.setDebugMarker("WebGL barrier");
+  drawBarrier(cmd, *wview, &glBarrier, fId);
   wview->postFrameupdate();
 
   if(scaled) {
@@ -1197,7 +1215,7 @@ void Renderer::drawBarrierBolts(Tempest::Encoder<Tempest::CommandBuffer>& cmd, c
   cmd.draw(nullptr, 0, 3);
   }
 
-void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview) {
+void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview, const Tempest::RenderPipeline* pso, int fId) {
   auto* tex = wview.sky().barrierImage();
   const int mode = Gothic::inst().webBarrierMode(); // 0 classic, 1 always, 2 off
   if(tex==nullptr || mode==2)
@@ -1265,10 +1283,13 @@ void Renderer::drawBarrier(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const 
   const float age = float(now-st.start)/float(duration);
   push.strike = Vec4(st.azimuth, dome && (st.start>0 || now==st.start) && age<1.f ? age : -1.f, st.seed, vis);
 
-  cmd.setBinding(0, scene.uboGlobal[SceneGlobals::V_Main]);
+  // WebGL 2: no compute copies the frame's uniforms into uboGlobal, the frame's own buffer is read
+  if(fId>=0)
+    cmd.setBinding(0, scene.uboGlobalPf[fId][SceneGlobals::V_Main]); else
+    cmd.setBinding(0, scene.uboGlobal[SceneGlobals::V_Main]);
   cmd.setBinding(1, *tex, Sampler::trillinear());
   cmd.setPushData(push);
-  cmd.setPipeline(shaders.barrier);
+  cmd.setPipeline(pso!=nullptr ? *pso : shaders.barrier);
   cmd.draw(nullptr, 0, 3);
   }
 

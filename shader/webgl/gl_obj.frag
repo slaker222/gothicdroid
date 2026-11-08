@@ -19,6 +19,11 @@ void main() {
   if(c.a<0.5)
     discard;
 #endif
+#if defined(EMISSIVE)
+  // multiply (blob shadows, decals) and additive materials: the texture as it is, as in the material pipelines
+  outColor = c;
+#else
   const float l = max(dot(normalize(inNormal), scene.sunDir.xyz), 0.0);
   outColor = vec4(c.rgb*(scene.ambient.rgb + scene.sunColor.rgb*l), c.a);
+#endif
   }

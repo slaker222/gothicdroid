@@ -12,6 +12,7 @@
 #include "graphics/visualobjects.h"
 #include "shaders.h"
 #include "resources.h"
+#include "graphics/sky/sky.h"
 
 #include "shader.h"
 
@@ -56,11 +57,8 @@ GlScene::GlScene() {
         st.setZWriteEnabled(false);
         break;
       case 4:
-        st.setBlendSource(RenderState::BlendMode::DstColor);
-        st.setBlendDest  (RenderState::BlendMode::Zero);
-        st.setZWriteEnabled(false);
-        break;
       case 5:
+        // 2*dst*src as the material pipelines: grey 0.5 leaves the ground as it is (blob shadows)
         st.setBlendSource(RenderState::BlendMode::DstColor);
         st.setBlendDest  (RenderState::BlendMode::SrcColor);
         st.setZWriteEnabled(false);
@@ -68,7 +66,7 @@ GlScene::GlScene() {
       }
     auto sv = GothicShader::get(vsName);
     auto vs = device.shader(sv.data, sv.len);
-    auto sf = GothicShader::get(mode==1 ? "gl_obj_at.frag.sprv" : "gl_obj.frag.sprv");
+    auto sf = GothicShader::get(mode==1 ? "gl_obj_at.frag.sprv" : (mode>=3 ? "gl_obj_e.frag.sprv" : "gl_obj.frag.sprv"));
     auto fs = device.shader(sf.data, sf.len);
     return device.pipeline(Triangles, st, vs, fs);
     };
@@ -78,6 +76,33 @@ GlScene::GlScene() {
     skin[i] = mk("gl_skin.vert.sprv", i);
     }
   sceneUbo = device.ubo<SceneUbo>(SceneUbo());
+
+  RenderState st;
+  st.setZWriteEnabled(false);
+  st.setCullFaceMode(RenderState::CullMode::NoCull);
+  auto sv = GothicShader::get("triangle_uv.vert.sprv");
+  auto sf = GothicShader::get("gl_sky.frag.sprv");
+  skyPso = device.pipeline(Triangles, st, device.shader(sv.data,sv.len), device.shader(sf.data,sf.len));
+  }
+
+void GlScene::drawSky(Encoder<CommandBuffer>& cmd, const Sky& sky, const Matrix4x4& viewProjLwc, float brightness) {
+  struct {
+    Matrix4x4 inv;
+    Vec4      offset;
+    Vec4      params;
+    } push;
+  push.inv = viewProjLwc;
+  push.inv.inverse();
+  const Vec2 o0 = sky.cloudsOffset(0), o1 = sky.cloudsOffset(1);
+  push.offset = Vec4(o0.x, o0.y, o1.x, o1.y);
+  push.params = Vec4(sky.isNight(), brightness, 0, 0);
+
+  const Texture2d* t[4] = {sky.cloudsDay().lay[0], sky.cloudsDay().lay[1], sky.cloudsNight().lay[0], sky.cloudsNight().lay[1]};
+  for(int i=0; i<4; ++i)
+    cmd.setBinding(size_t(i), t[i]!=nullptr ? *t[i] : Resources::fallbackBlack(), Sampler::trillinear());
+  cmd.setPushData(push);
+  cmd.setPipeline(skyPso);
+  cmd.draw(nullptr, 0, 3);
   }
 
 const RenderPipeline* GlScene::pipeline(bool sk, Material::AlphaFunc a) const {
@@ -86,16 +111,23 @@ const RenderPipeline* GlScene::pipeline(bool sk, Material::AlphaFunc a) const {
   }
 
 void GlScene::draw(Encoder<CommandBuffer>& cmd, VisualObjects& vis, const Frustrum& f, const View& v) {
-  // the sun from above lights the most; the light does not go below a dim ambient at night
+  if(v.sky!=nullptr)
+    drawSky(cmd, *v.sky, v.viewProjLwc, 0.25f + 0.75f*v.sunIntensity);
+  // day: warm light with the sun on the lit sides; night: a dim bluish ambient only
   {
     SceneUbo u = {};
     const float day = std::max(0.f, std::min(1.f, v.sunIntensity));
-    u.sunDir[0]   = v.sunDir.x;
-    u.sunDir[1]   = v.sunDir.y;
-    u.sunDir[2]   = v.sunDir.z;
-    u.sunColor[0] = u.sunColor[1] = u.sunColor[2] = 0.6f*day;
-    u.ambient[0]  = u.ambient[1]  = u.ambient[2]  = 0.5f + 0.35f*day;
-    u.ambient[3]  = 1.f;
+    const float ambDay[3]   = {0.62f, 0.60f, 0.56f};
+    const float ambNight[3] = {0.24f, 0.26f, 0.36f};
+    const float sunDay[3]   = {0.50f, 0.47f, 0.40f};
+    u.sunDir[0] = v.sunDir.x;
+    u.sunDir[1] = v.sunDir.y;
+    u.sunDir[2] = v.sunDir.z;
+    for(int i=0; i<3; ++i) {
+      u.ambient [i] = ambNight[i] + (ambDay[i]-ambNight[i])*day;
+      u.sunColor[i] = sunDay[i]*day;
+      }
+    u.ambient[3] = 1.f;
     sceneUbo.update(&u);
   }
 

@@ -68,6 +68,7 @@ class Renderer final {
     // WebGL 2 renderer: the world at the render resolution (stretched onto the screen by glBlit)
     Tempest::Attachment      glColor;
     Tempest::RenderPipeline  glBlit;
+    Tempest::RenderPipeline  glBarrier;
     Tempest::ZBuffer&       usesZBuffer(Tempest::ZBuffer&      ret, Tempest::TextureFormat frm, uint32_t w, uint32_t h);
     Tempest::StorageBuffer& usesSsbo(Tempest::StorageBuffer& ret, size_t size);
     Tempest::StorageBuffer& usesScratch(Tempest::StorageBuffer& ret, size_t size);
@@ -106,7 +107,7 @@ class Renderer final {
     void drawFog          (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
     void drawSunMoon      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
     void drawSunMoon      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview, bool isSun);
-    void drawBarrier      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
+    void drawBarrier      (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview, const Tempest::RenderPipeline* pso = nullptr, int fId = -1);
     void drawBarrierZones (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
     void drawBarrierBolts (Tempest::Encoder<Tempest::CommandBuffer>& cmd, const WorldView& wview);
 

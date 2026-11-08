@@ -136,5 +136,10 @@ void main() {
   // the barrier dims the sky behind it
   const vec3 bolt = vec3(0.85,0.90,1.0)*(strike(view, push.strike)*3.0);
   const float vis = push.strike.w;
+#if defined(LDR)
+  // WebGL 2 renderer: drawn straight onto the final picture, no exposure / tone mapping after it
+  outColor = vec4((clr*near + bolt)*vis*fade, 1.0 - 0.4*near*fade*vis);
+#else
   outColor = vec4((clr*near + bolt)*vis*fade*210000.0*scene.exposure, 1.0 - 0.4*near*fade*vis);
+#endif
   }

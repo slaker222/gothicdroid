@@ -298,6 +298,7 @@ add_shader(sky_pathtrace.frag        sky/sky_pathtrace.frag)
 add_shader(sun.vert                  sky/sun.vert)
 add_shader(sun.frag                  sky/sun.frag)
 add_shader(barrier.frag              sky/barrier.frag)
+add_shader(barrier_ldr.frag          sky/barrier.frag -DLDR)
 add_shader(barrier_zone.frag         sky/barrier_zone.frag)
 add_shader(barrier_bolts.frag        sky/barrier_bolts.frag)
 
@@ -425,6 +426,8 @@ add_shader(gl_skin.vert              webgl/gl_obj.vert -DSKINING)
 add_shader(gl_obj.frag               webgl/gl_obj.frag)
 add_shader(gl_obj_at.frag            webgl/gl_obj.frag -DATEST)
 add_shader(gl_blit.frag              webgl/gl_blit.frag)
+add_shader(gl_obj_e.frag             webgl/gl_obj.frag -DEMISSIVE)
+add_shader(gl_sky.frag               webgl/gl_sky.frag)
 
 add_custom_command(
   OUTPUT     ${HEADER} ${CPP}

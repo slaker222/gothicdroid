@@ -14,6 +14,7 @@
 
 class VisualObjects;
 class Frustrum;
+class Sky;
 
 // The world of the WebGL 2 compatibility renderer: every object is drawn by plain vertex/index buffers
 // with its texture, culled on the cpu. No compute, no lights, shadows, fog or post effects.
@@ -29,9 +30,13 @@ class GlScene final {
       uint64_t           tickCount    = 0;
       float              drawDistance  = 0; // objects, cm; 0 = no limit
       float              worldDistance = 0; // world mesh, cm; 0 = no limit
+      const Sky*         sky           = nullptr;
+      Tempest::Matrix4x4 viewProjLwc;          // the camera at the origin (sky rays)
       };
 
-    void draw(Tempest::Encoder<Tempest::CommandBuffer>& cmd, VisualObjects& vis, const Frustrum& f, const View& v);
+    void draw   (Tempest::Encoder<Tempest::CommandBuffer>& cmd, VisualObjects& vis, const Frustrum& f, const View& v);
+    // the sky layers of the original game, over the whole target (drawn first, the world covers it)
+    void drawSky(Tempest::Encoder<Tempest::CommandBuffer>& cmd, const Sky& sky, const Tempest::Matrix4x4& viewProjLwc, float brightness);
 
   private:
     enum Pass : uint8_t { P_Opaque, P_Blend };
@@ -61,6 +66,7 @@ class GlScene final {
     const Tempest::RenderPipeline* pipeline(bool skin, Material::AlphaFunc a) const;
 
     Tempest::RenderPipeline  obj[6], skin[6];
+    Tempest::RenderPipeline  skyPso;
 
     Tempest::UniformBuffer<SceneUbo> sceneUbo;
     Tempest::StorageBuffer   bonesGpu;

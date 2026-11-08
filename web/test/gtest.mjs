@@ -31,6 +31,9 @@
 //   --gputime          GPU time per pass (timestamp queries): run script reads window.__gpuAgg()
 //   --manual           turn the page's automatic graphics settings off (gfxManual) for stable measurements
 //   --log              print the game's console
+//   --nowebgpu=MODE    no usable WebGPU in the page: api (no navigator.gpu) or device (requestDevice fails); the page
+//                      should fall back to WebGL 2
+//   --glnos3tc=N       WebGL 2 renderer: as a phone without s3tc (1: ASTC if the browser has it, 2: RGBA8)
 //   --glsrc            WebGL 2 renderer (--url=...?renderer=webgl2): print the GLSL of the gl_* shaders
 //
 // Prints one JSON line with the results.
@@ -117,6 +120,11 @@ page.on('pageerror', e => errors.push('pageerror: ' + e.message));
 
 if (args.manual) await page.evaluateOnNewDocument(() => { try { localStorage.setItem('gfxManual', '1'); } catch (e) {} });
 if (args.glsrc) await page.evaluateOnNewDocument(() => { window.__OG_GL_SRC = 1; });
+if (args.glnos3tc) await page.evaluateOnNewDocument(n => { window.__OG_GL_NOS3TC = n; }, +args.glnos3tc);
+if (args.nowebgpu === 'api') await page.evaluateOnNewDocument(() => { Object.defineProperty(Navigator.prototype, 'gpu', { get: () => undefined }); });
+if (args.nowebgpu === 'device') await page.evaluateOnNewDocument(() => {
+  if (window.GPUAdapter) GPUAdapter.prototype.requestDevice = function () { return Promise.reject(new Error('test: no device')); };
+});
 if (args.gputime) await page.evaluateOnNewDocument(fs.readFileSync(path.join(HERE, 'gputime.js'), 'utf8'));
 // count the frames the engine renders (one canvas texture each)
 await page.evaluateOnNewDocument(() => {
