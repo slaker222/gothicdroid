@@ -47,7 +47,21 @@ class Animation final {
       Tempest::Vec3                               translate={};
       Tempest::Vec3                               moveTr={};
 
+      // the samples as the .MAN file keeps them: 3x16 bit rotation, 3x16 bit position (12 instead of 28 bytes);
+      // sample() decodes them with the arithmetic of zenkit::ModelAnimation, packing is kept only when every sample
+      // decodes to the very same floats (else 'samples' stays)
+      struct PackedSample final {
+        uint16_t rot[3];
+        uint16_t pos[3];
+        };
       std::vector<zenkit::AnimationSample>        samples;
+      std::vector<PackedSample>                   packed;
+      float                                       posScale = 0;
+      float                                       posMin   = 0;
+      size_t                                      sampleCount() const { return packed.empty() ? samples.size() : packed.size(); }
+      inline zenkit::AnimationSample              sample(size_t i) const;
+      static zenkit::AnimationSample              unpack(const PackedSample& p, float scale, float minimum);
+      void                                        pack(float scale, float minimum);
       std::vector<uint32_t>                       nodeIndex;
       std::vector<Tempest::Vec3>                  tr;
       bool                                        hasMoveTr=false;
@@ -139,3 +153,9 @@ class Animation final {
     std::vector<std::string>                 mesh;
     zenkit::MdsSkeleton                      meshDef;
   };
+
+inline zenkit::AnimationSample Animation::AnimData::sample(size_t i) const {
+  if(packed.empty())
+    return samples[i];
+  return unpack(packed[i],posScale,posMin);
+  }

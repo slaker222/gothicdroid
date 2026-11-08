@@ -414,7 +414,7 @@ bool Pose::updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBle
   auto&        d         = *s.data;
   const size_t idSize    = d.nodeIndex.size();
   const size_t numFrames = d.numFrames;
-  if(numFrames==0 || idSize==0 || d.samples.size()%idSize!=0)
+  if(numFrames==0 || idSize==0 || d.sampleCount()%idSize!=0)
     return false; // error
 
   (void)barrier;
@@ -440,8 +440,8 @@ bool Pose::updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBle
     frameB = d.numFrames-1-frameB;
     }
 
-  auto* sampleA = &d.samples[size_t(frameA*idSize)];
-  auto* sampleB = &d.samples[size_t(frameB*idSize)];
+  const size_t sampleA = size_t(frameA*idSize);
+  const size_t sampleB = size_t(frameB*idSize);
 
   const uint64_t blendMax = std::max(s.blendOut,s.blendIn);
   const uint64_t blend    = std::max<uint64_t>(0, now-sBlend);
@@ -450,7 +450,7 @@ bool Pose::updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBle
     size_t idx = d.nodeIndex[i];
     if(idx>=numBones)
       continue;
-    auto smp = mix(sampleA[i],sampleB[i],a);
+    auto smp = mix(d.sample(sampleA+i),d.sample(sampleB+i),a);
     if(i==0) {
       if(bs==BS_CLIMB)
         smp.position.y = trY;

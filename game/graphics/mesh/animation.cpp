@@ -3,6 +3,8 @@
 
 #include <Tempest/Log>
 #include <cctype>
+#include <cstring>
+#include <cmath>
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten.h>
@@ -257,9 +259,10 @@ Animation::Sequence::Sequence(const zenkit::MdsAnimation& hdr, std::string_view 
   data->fpsRate   = p.fps;
   data->numFrames = p.frame_count;
   data->nodeIndex = p.node_indices;
-  data->samples   = p.samples;
+  data->samples   = std::move(p.samples);
 
   data->setupMoveTr();
+  data->pack(p.sample_position_scale, p.sample_position_min);
   OG_HB('man-done');
   }
 
@@ -597,6 +600,74 @@ void Animation::Sequence::schemeName(char scheme[64]) const {
       break;
       }
     }
+  }
+
+// the same arithmetic as read_sample_quaternion/read_sample_position of zenkit ModelAnimation.cc
+static constexpr float    SAMPLE_ROTATION_RANGE = static_cast<float>(1 << 16) - 1.0f;
+static constexpr float    SAMPLE_ROTATION_SCALE = (1.0f / SAMPLE_ROTATION_RANGE) * 2.1f;
+static constexpr uint16_t SAMPLE_ROTATION_MID   = (1 << 15) - 1;
+
+zenkit::AnimationSample Animation::AnimData::unpack(const PackedSample& p, float scale, float minimum) {
+  zenkit::AnimationSample s;
+  zenkit::Quat& v = s.rotation;
+  v.x = (static_cast<float>(p.rot[0]) - SAMPLE_ROTATION_MID) * SAMPLE_ROTATION_SCALE;
+  v.y = (static_cast<float>(p.rot[1]) - SAMPLE_ROTATION_MID) * SAMPLE_ROTATION_SCALE;
+  v.z = (static_cast<float>(p.rot[2]) - SAMPLE_ROTATION_MID) * SAMPLE_ROTATION_SCALE;
+
+  float len_q = v.x * v.x + v.y * v.y + v.z * v.z;
+  if(len_q > 1.0f) {
+    float l = 1.0f / sqrtf(len_q);
+    v.x *= l;
+    v.y *= l;
+    v.z *= l;
+    v.w = 0;
+    } else {
+    v.w = sqrtf(1.0f - len_q);
+    }
+
+  s.position.x = static_cast<float>(p.pos[0]) * scale + minimum;
+  s.position.y = static_cast<float>(p.pos[1]) * scale + minimum;
+  s.position.z = static_cast<float>(p.pos[2]) * scale + minimum;
+  return s;
+  }
+
+static bool sameBits(float a, float b) {
+  return std::memcmp(&a,&b,sizeof(float))==0;
+  }
+
+void Animation::AnimData::pack(float scale, float minimum) {
+  auto q = [](float v, float k, float o) -> uint16_t {
+    float u = (k!=0.f) ? std::nearbyint(v/k + o) : 0.f;
+    if(!(u>=0.f)) u = 0.f; // also NaN
+    if(u>65535.f) u = 65535.f;
+    return uint16_t(u);
+    };
+
+  std::vector<PackedSample> pk(samples.size());
+  for(size_t i=0; i<samples.size(); ++i) {
+    auto& s = samples[i];
+    auto& p = pk[i];
+    p.rot[0] = q(s.rotation.x, SAMPLE_ROTATION_SCALE, float(SAMPLE_ROTATION_MID));
+    p.rot[1] = q(s.rotation.y, SAMPLE_ROTATION_SCALE, float(SAMPLE_ROTATION_MID));
+    p.rot[2] = q(s.rotation.z, SAMPLE_ROTATION_SCALE, float(SAMPLE_ROTATION_MID));
+    if(scale!=0.f) {
+      p.pos[0] = q(s.position.x - minimum, scale, 0.f);
+      p.pos[1] = q(s.position.y - minimum, scale, 0.f);
+      p.pos[2] = q(s.position.z - minimum, scale, 0.f);
+      } else {
+      p.pos[0] = p.pos[1] = p.pos[2] = 0;
+      }
+    auto d = unpack(p,scale,minimum);
+    if(!sameBits(d.rotation.x,s.rotation.x) || !sameBits(d.rotation.y,s.rotation.y) ||
+       !sameBits(d.rotation.z,s.rotation.z) || !sameBits(d.rotation.w,s.rotation.w) ||
+       !sameBits(d.position.x,s.position.x) || !sameBits(d.position.y,s.position.y) ||
+       !sameBits(d.position.z,s.position.z))
+      return; // not exact: the floats stay
+    }
+  packed   = std::move(pk);
+  posScale = scale;
+  posMin   = minimum;
+  samples  = std::vector<zenkit::AnimationSample>();
   }
 
 void Animation::AnimData::setupMoveTr() {
