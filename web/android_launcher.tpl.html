@@ -698,6 +698,22 @@
       for (const k in p) Launcher.set(k, p[k]);
       load();
     });
+    // the renderer, for every game (the app keeps it, the game reads it at start): Vulkan or OpenGL ES
+    {
+      const rsel = $('renderer-sel');
+      if (rsel) {
+        rsel.querySelector('option[value="webgpu"]').textContent = 'Vulkan';
+        rsel.querySelector('option[value="webgl2"]').textContent = 'OpenGL ES (simple)';
+        rsel.parentElement.title = 'Vulkan: the full renderer. OpenGL ES: textures and models only, for phones where Vulkan ' +
+                                   'does not work (the game takes it by itself there)';
+        const syncR = () => {
+          try { rsel.value = Launcher.renderer(); } catch (e) {}
+          document.documentElement.classList.toggle('webgl', rsel.value === 'webgl2');
+        };
+        syncR();
+        rsel.addEventListener('change', () => { try { Launcher.setRenderer(rsel.value); } catch (e) {} syncR(); });
+      }
+    }
     $('gset-x').addEventListener('click', () => { $('gset').hidden = true; });
     $('gset').addEventListener('click', e => { if (e.target === $('gset')) $('gset').hidden = true; });
     $('log-show').addEventListener('click', () => {

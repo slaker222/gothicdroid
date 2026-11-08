@@ -23,7 +23,10 @@ if (typeof window === 'object' && !self.crossOriginIsolated) {
     construct(target, args, newTarget) {
       const d = args[0];
       if (!d || !d.shared || !d.maximum) return Reflect.construct(target, args, newTarget);
-      const steps = [d.maximum, 49152, 32768, 24576, 16384].filter((m, i, a) => m <= d.maximum && a.indexOf(m) === i);
+      // iOS 17 refused even 1 GB: down to 512 MB (Gothic 1 needs about 520 MB at the end of its load, Gothic 2 and Archolos more:
+      // they may run out of memory later, still better than nothing at all)
+      const steps = [d.maximum, 49152, 32768, 24576, 16384, 14336, 12288, 10240, 8192]
+                      .filter((m, i, a) => m <= d.maximum && a.indexOf(m) === i && (!d.initial || m >= d.initial));
       let err;
       for (const m of steps) {
         try {
@@ -32,6 +35,12 @@ if (typeof window === 'object' && !self.crossOriginIsolated) {
           return mem;
         } catch (e) { err = e; console.warn('[mem] wasm memory with maximum ' + (m * 64 / 1024) + ' MB refused: ' + e); }
       }
+      try {
+        window.__ogMemError = 'The browser gives this page too little memory (' + err + '). Close other tabs and apps and reload; ' +
+                              'on an iPhone, a newer iOS gives more.';
+        const st = document.getElementById('status-text');
+        if (st) { st.style.color = 'var(--danger)'; st.innerText = window.__ogMemError; }
+      } catch (e) {}
       throw err;
     }
   });

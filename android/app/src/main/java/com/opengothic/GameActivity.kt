@@ -1,5 +1,6 @@
 package com.opengothic
 
+import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.os.Build
 import android.os.Bundle
@@ -72,6 +73,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeFrameTimes(): String
     private external fun nativeQuick(kind: Int)
     private external fun nativeSetLoadSlot(slot: Int)
+    private external fun nativeSetRenderer(gl: Boolean)
     private external fun nativeAutoSave(): Int
     private external fun nativeSaveBusy(): Int
     private external fun nativeQuests(): String
@@ -88,6 +90,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var webView: WebView? = null
     private var surfaceHolder: SurfaceHolder? = null
     private var gameDir: String = "/sdcard/Gothic2"
+    private var switching = false // the renderer is being switched: saved already, no second autosave in onStop
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -108,6 +111,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         nativeSetMod(intent.getStringExtra(EXTRA_MOD) ?: "")
         nativeSetGameVersion(intent.getIntExtra(EXTRA_GAME_VERSION, 0))
         nativeSetSkyDir(intent.getStringExtra(EXTRA_SKY_DIR) ?: "")
+        nativeSetRenderer(RendererPref.isGl(this))
         // the process was killed in the background after an autosave (the marker is there): the game goes on from it.
         // The marker goes at once: a save that cannot be loaded must not make a loop of restarts
         val marker = File(gameDir, RESUME_MARK)
@@ -205,6 +209,10 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             }
         }
 
+        // the renderer (web/shell.html #renderer-sel): "webgl2" = OpenGL ES, else Vulkan; the game restarts with it
+        @JavascriptInterface
+        fun setRenderer(v: String) = runOnUiThread { switchRenderer(v == "webgl2") }
+
         // the layout of the touch controls from the app's Controls tab (written by MainActivity)
         @JavascriptInterface
         fun controls(): String = try { File(filesDir, "controls.json").readText() } catch (e: Exception) { "{}" }
@@ -278,7 +286,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     // is killed, the next start of the game (also the one Android makes when the player comes back) loads the slot
     override fun onStop() {
         try {
-            if (!isFinishing && nativeIsGameRunning() && nativeAutoSave() == 1) {
+            if (!switching && !isFinishing && nativeIsGameRunning() && nativeAutoSave() == 1) {
                 // the game thread does it (it needs no window: here the surface is already gone): 1 asked, 2 runs, 3 written, 4 not possible
                 val end = System.currentTimeMillis() + 7000
                 var st = nativeSaveBusy()
@@ -309,6 +317,39 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private var exitWatch: Thread? = null
+    // the renderer is chosen at start: the game is saved (the hidden slot 99), the app's main menu starts it again in a new
+    // process (this one ends) and the new start loads the slot - the player comes back where he was
+    private fun switchRenderer(gl: Boolean) {
+        if (RendererPref.isGl(this) == gl)
+            return
+        RendererPref.set(this, gl)
+        switching = true
+        Thread {
+            var saved = false
+            try {
+                if (nativeIsGameRunning() && nativeAutoSave() == 1) {
+                    val end = System.currentTimeMillis() + 20000
+                    var st = nativeSaveBusy()
+                    while ((st == 1 || st == 2) && System.currentTimeMillis() < end) { Thread.sleep(50); st = nativeSaveBusy() }
+                    saved = (st == 3)
+                }
+            } catch (e: Throwable) {
+                Log.w(TAG, "renderer switch: ${e.message}")
+            }
+            Log.i(TAG, "renderer switch to " + (if (gl) "OpenGL ES" else "Vulkan") + ", saved=$saved")
+            runOnUiThread {
+                try { if (saved) File(gameDir, RESUME_MARK).writeText("1") } catch (e: Exception) {}
+                val back = Intent(this, MainActivity::class.java).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    putExtra(MainActivity.EXTRA_RELAUNCH, intent.extras ?: Bundle())
+                }
+                startActivity(back)
+                finish()
+                Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
+            }
+        }.start()
+    }
+
     private fun leaveGame() {
         try { File(gameDir, RESUME_MARK).delete() } catch (e: Exception) {}
         finish()

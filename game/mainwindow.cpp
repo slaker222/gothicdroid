@@ -311,6 +311,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* og_frame_times() {
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
+  if(std::strcmp(name, "renderer")==0)
+    return Gothic::options().webgl2 ? 1 : 0; // 1: the OpenGL ES / WebGL 2 renderer runs (chosen, or Vulkan was not usable)
   if(g_webSettingsReady && std::strcmp(name, "marvin")==0)
     return Gothic::inst().isMarvinEnabled() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
@@ -1563,6 +1565,7 @@ void MainWindow::tickAutoLoot(uint64_t dt) {
 
 uint64_t MainWindow::tick() {
   autoSaveStep();
+  Gothic::inst().runDeferredLoad();
   auto time = Application::tickCount();
   auto dt   = time-lastTick;
   // NOTE: limit to ~200 FPS in game logic to avoid math issues

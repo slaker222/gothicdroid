@@ -23,6 +23,8 @@
 
 #if defined(__EMSCRIPTEN__)
 #include <Tempest/WebGapi>
+#endif
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 #include <Tempest/WebGLApi>
 #endif
 
@@ -66,7 +68,7 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
       break;
 #endif
     case CommandLine::WebGL2:
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
       return std::make_unique<Tempest::WebGLApi>(flg);
 #else
       break;
@@ -215,12 +217,42 @@ int main(int argc, const char** argv) {
     return app->exec();
 #else
     CommandLine          cmd{argc,argv};
+#if defined(__ANDROID__)
+    // Vulkan, or OpenGL ES (the WebGL 2 renderer of the web build) when asked for (-gl) or when Vulkan can not be
+    // used on this phone (no driver, no device, the device is not made)
+    std::unique_ptr<Tempest::AbstractGraphicsApi> api;
+    std::unique_ptr<Tempest::Device>              devicePtr;
+    if(cmd.graphicsApi()!=CommandLine::WebGL2) {
+      try {
+        api = mkApi(cmd);
+        const auto gpuName = selectDevice(*api);
+        if(gpuName.empty())
+          throw std::runtime_error("no vulkan device");
+        CrashLog::setGpu(gpuName);
+        devicePtr.reset(new Tempest::Device{*api,gpuName});
+        }
+      catch(const std::exception& e) {
+        Tempest::Log::e("Vulkan is not usable (", e.what(), "): OpenGL ES instead");
+        devicePtr.reset();
+        api.reset();
+        }
+      }
+    if(devicePtr==nullptr) {
+      api = std::make_unique<Tempest::WebGLApi>();
+      const auto gpuName = selectDevice(*api);
+      CrashLog::setGpu(gpuName);
+      devicePtr.reset(new Tempest::Device{*api,gpuName});
+      }
+    Tempest::Device&     device = *devicePtr;
+    CrashLog::setGpu(device.properties().name);
+#else
     auto                 api     = mkApi(cmd);
     const auto           gpuName = selectDevice(*api);
     CrashLog::setGpu(gpuName);
 
     Tempest::Device      device{*api,gpuName};
     CrashLog::setGpu(device.properties().name);
+#endif
 
     Resources            resources{device};
     Gothic               gothic;

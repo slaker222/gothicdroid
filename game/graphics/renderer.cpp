@@ -86,6 +86,14 @@ Renderer::Renderer(Tempest::Swapchain& swapchain)
     sky.lutRGBAFormat = Tempest::TextureFormat::RGBA8;
   if(!device.properties().hasStorageFormat(sky.lutRGBFormat))
     sky.lutRGBFormat = Tempest::TextureFormat::RGBA8;
+#if defined(__ANDROID__)
+  if(Gothic::options().webgl2) // the OpenGL ES renderer: the formats of the WebGL 2 one (the same backend)
+    ssao.aoFormat = TextureFormat::R32F;
+#endif
+#if defined(__ANDROID__)
+  if(Gothic::options().webgl2) // the OpenGL ES renderer: the formats of the WebGL 2 one (the same backend)
+    ssao.aoFormat = TextureFormat::R32F;
+#endif
 #if defined(__EMSCRIPTEN__)
   // WGSL storage images need a fixed format: web shaders declare rgba16f/r32f
   if(device.properties().hasStorageFormat(TextureFormat::RGBA16F)) {
@@ -141,7 +149,13 @@ void Renderer::resetSwapchain() {
   const uint32_t w      = uint32_t(res.w);
   const uint32_t h      = uint32_t(res.h);
 
-  sceneLinear = device.attachment(TextureFormat::R11G11B10UF,w,h);
+  // WebGL 2 / OpenGL ES renderer draws only into zbuffer + glColor: the targets of the GPU-driven path stay 1x1
+  // (prepareUniforms still binds them), at 1280x720 it is ~26 MB, at 1080p ~60 MB of video memory
+  const bool     gl     = Gothic::options().webgl2;
+  const uint32_t ew     = gl ? 1 : w;
+  const uint32_t eh     = gl ? 1 : h;
+
+  sceneLinear = device.attachment(TextureFormat::R11G11B10UF,ew,eh);
 
   if(settings.aaEnabled) {
     cmaa2.workingEdges               = device.image2d(TextureFormat::R8, (w + 1) / 2, h);
@@ -188,14 +202,14 @@ void Renderer::resetSwapchain() {
     hiz.counterBuf = device.ssbo(Tempest::Uninitialized, std::max(hw/4, 1u)*std::max(hh/4, 1u)*sizeof(uint32_t));
     }
 
-  sceneOpaque   = device.attachment(TextureFormat::R11G11B10UF,w,h);
-  sceneDepth    = device.attachment(TextureFormat::R32F,       w,h);
+  sceneOpaque   = device.attachment(TextureFormat::R11G11B10UF,ew,eh);
+  sceneDepth    = device.attachment(TextureFormat::R32F,       ew,eh);
 
-  gbufDiffuse   = device.attachment(TextureFormat::RGBA8,w,h);
-  gbufNormal    = device.attachment(TextureFormat::R32U, w,h);
+  gbufDiffuse   = device.attachment(TextureFormat::RGBA8,ew,eh);
+  gbufNormal    = device.attachment(TextureFormat::R32U, ew,eh);
 
-  ssao.ssaoBuf  = device.image2d(ssao.aoFormat, w, h);
-  ssao.ssaoBlur = device.image2d(ssao.aoFormat, w, h);
+  ssao.ssaoBuf  = device.image2d(ssao.aoFormat, ew, eh);
+  ssao.ssaoBlur = device.image2d(ssao.aoFormat, ew, eh);
 
   epipolar = decltype(epipolar)();
   vsm      = decltype(vsm)();
@@ -258,6 +272,10 @@ void Renderer::setupSettings() {
       break;
       }
   settings.aaEnabled = (Gothic::options().aaPreset>0) && (settings.vidResIndex==0);
+  if(Gothic::options().webgl2)
+    settings.aaEnabled = false; // CMAA2 is compute: none in the OpenGL ES / WebGL 2 renderer
+  if(Gothic::options().webgl2)
+    settings.aaEnabled = false; // CMAA2 is compute: none in the OpenGL ES / WebGL 2 renderer
 
   // direct lighting
   if(settings.rtsmEnabled)
@@ -476,7 +494,8 @@ void Renderer::resetShadowmap() {
       continue; //TODO: support vsm in gi code
     if(settings.rtsmEnabled && !(settings.giEnabled && i==1) && !(sky.quality!=None && i==1))
       continue; //TODO: support vsm in gi code
-    shadowMap[i] = device.zbuffer(shadowFormat, settings.shadowResolution, settings.shadowResolution);
+    const uint32_t sz = Gothic::options().webgl2 ? 1u : settings.shadowResolution; // no shadow pass in the WebGL 2 renderer
+    shadowMap[i] = device.zbuffer(shadowFormat, sz, sz);
     }
   }
 
@@ -520,6 +539,8 @@ void Renderer::resetSkyFog() {
 #else
       sky.fogLut3D     = device.image3d(sky.lutRGBAFormat, 160, 90, 64);
 #endif
+      if(Gothic::options().webgl2) // no volumetric fog in the WebGL 2 renderer
+        sky.fogLut3D = device.image3d(sky.lutRGBAFormat, 1, 1, 1);
       sky.occlusionLut = StorageImage();
       break;
     case VolumetricHQ:

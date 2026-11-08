@@ -152,6 +152,7 @@ class Gothic final {
 
     LoadState    checkLoading() const;
     bool         finishLoading();
+    void         runDeferredLoad(); // the load of the OpenGL ES renderer (android), run from the frame loop
     void         startLoad(std::string_view banner, const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f);
     void         startSave(Tempest::Texture2d&& tex, const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f);
     void         cancelLoading();
@@ -400,10 +401,12 @@ class Gothic final {
 
     static Gothic*                          instance;
 
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
     void                                    webRunLoadSave(const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)>& f,
                                                            GameSession* g, LoadState one);
 #endif
+    std::function<void()>                   deferredLoad;   // a load for the OpenGL ES renderer, on the render thread
+    int                                     deferredFrames = 0;
     void                                    implStartLoadSave(std::string_view banner,
                                                               bool load,
                                                               const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)> f);

@@ -567,7 +567,8 @@ bool Gothic::finishLoading() {
 #if defined(__EMSCRIPTEN__)
     // loaderTh is never started on the single-threaded wasm build
 #else
-    loaderTh.join();
+    if(loaderTh.joinable()) // not started for a load of the OpenGL ES renderer (it runs on this thread)
+      loaderTh.join();
 #endif
     Tempest::Log::i("[Gothic] finishLoading: state=", int(state), " pending=", pendingGame!=nullptr);
     if(pendingGame!=nullptr)
@@ -622,6 +623,15 @@ void Gothic::implStartLoadSave(std::string_view banner,
     job->self->webRunLoadSave(job->f, job->g, job->one);
     }, new Job{this, f, g, one}, 100);
 #else
+#if defined(__ANDROID__)
+  if(load && opts.webgl2) {
+    // OpenGL ES renderer: one GL context, on this thread - the world (textures, meshes) is loaded here, as on the web.
+    // A few frames later, so the loading screen is drawn first (runDeferredLoad)
+    deferredFrames = 3;
+    deferredLoad   = [this,f,g,one]() { webRunLoadSave(f,g,one); };
+    return;
+    }
+#endif
   try{
     auto l = std::thread([this,f,g,one]() noexcept {
       Workers::setThreadName("Loading thread");
@@ -669,13 +679,31 @@ void Gothic::implStartLoadSave(std::string_view banner,
 #endif
   }
 
+void Gothic::runDeferredLoad() {
+  if(!deferredLoad)
+    return;
+  if(deferredFrames>0) {
+    --deferredFrames;
+    return;
+    }
+  auto job = std::move(deferredLoad);
+  deferredLoad = nullptr;
+  job();
+  }
+
 void Gothic::cancelLoading() {
   if(loadingFlag.load()!=LoadState::Idle){
 #if defined(__EMSCRIPTEN__)
     // loaderTh is never started on the single-threaded wasm build
     loadingFlag.store(LoadState::Idle);
 #else
-    loaderTh.join();
+    if(deferredLoad) {
+      auto job = std::move(deferredLoad);
+      deferredLoad = nullptr;
+      job();
+      }
+    if(loaderTh.joinable())
+      loaderTh.join();
     loadingFlag.store(LoadState::Idle);
 #endif
     }
@@ -1468,7 +1496,7 @@ void Gothic::printdebuginstch(int ch, std::string_view msg) {
     Log::d("[zspy,",ch,"]: ",msg);
   }
 
-#if defined(__EMSCRIPTEN__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
 void Gothic::webRunLoadSave(const std::function<std::unique_ptr<GameSession>(std::unique_ptr<GameSession>&&)>& f,
                             GameSession* g, LoadState one) {
   try {
@@ -1507,19 +1535,23 @@ void Gothic::webRunLoadSave(const std::function<std::unique_ptr<GameSession>(std
       if(game!=nullptr)
         pendingGame = std::move(game);
       }
+#if defined(__EMSCRIPTEN__)
     EM_ASM({
       if (!window.__hb) window.__hb = {};
       window.__hb.phase = 'load-exit';
       window.__hb.t = Date.now();
       });
+#endif
     Tempest::Log::i("[Gothic] sync load/save done");
     }
   catch(...){
+#if defined(__EMSCRIPTEN__)
     EM_ASM({
       if (!window.__hb) window.__hb = {};
       window.__hb.phase = 'load-swallowed';
       window.__hb.t = Date.now();
       });
+#endif
     Tempest::Log::e("[Gothic] sync load/save: unknown exception swallowed");
     delete g;
     }

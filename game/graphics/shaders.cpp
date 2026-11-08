@@ -33,6 +33,14 @@ Shaders::Shaders() {
   compileShaders();
   done.set_value();
 #else
+  if(Gothic::options().webgl2) {
+    // the OpenGL ES renderer: one GL context, on this thread
+    std::promise<void> done;
+    deferredCompilation = done.get_future();
+    compileShaders();
+    done.set_value();
+    return;
+    }
   deferredCompilation = std::async(std::launch::async, [this]() {
     Workers::setThreadName("Shader compilation");
     auto time = Application::tickCount();

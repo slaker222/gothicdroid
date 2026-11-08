@@ -96,11 +96,20 @@ World::World(GameSession& game, std::string_view file, bool startup, std::functi
       Workers::setThreadName("Loading: BVH thread");
       return std::unique_ptr<DynamicWorld>(new DynamicWorld(*this,worldMesh));
       });
-    auto wviewFut = std::async(std::launch::async, [&]() {
-      Workers::setThreadName("Loading: PackedMesh thread");
+    // the OpenGL ES renderer has one context, on this thread: the world mesh and the sky (gpu objects) are made here
+    const bool glThread = Gothic::options().webgl2;
+    std::unique_ptr<WorldView> wviewGl;
+    std::future<std::unique_ptr<WorldView>> wviewFut;
+    if(glThread) {
       PackedMesh vmesh(worldMesh,PackedMesh::PK_VisualLnd);
-      return std::unique_ptr<WorldView>(new WorldView(*this,vmesh));
-      });
+      wviewGl.reset(new WorldView(*this,vmesh));
+      } else {
+      wviewFut = std::async(std::launch::async, [&]() {
+        Workers::setThreadName("Loading: PackedMesh thread");
+        PackedMesh vmesh(worldMesh,PackedMesh::PK_VisualLnd);
+        return std::unique_ptr<WorldView>(new WorldView(*this,vmesh));
+        });
+      }
 #endif
 
     loadProgress(30);
@@ -119,7 +128,7 @@ World::World(GameSession& game, std::string_view file, bool startup, std::functi
     loadProgress(60);
     wdynamic = std::move(wdynamicPtr);
 #else
-    wview = wviewFut.get();
+    wview = glThread ? std::move(wviewGl) : wviewFut.get();
     loadProgress(60);
 
     wdynamic = wdynamicFut.get();

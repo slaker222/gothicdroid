@@ -41,6 +41,7 @@ extern "C" void og_input_zoom(int steps);
 static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
+static bool              s_glRenderer = false; // the OpenGL ES renderer is chosen (-gl)
 static int               s_loadSlot = -1;   // >=0: the game starts with -save <slot> (the autosave after the process was killed)
 static std::string       s_skyArg;   // folder with the sky pack (g1/, g2/) for the sky setting (OG_SKY_PACK_DIR)
 static int               s_gameVersion = 0;   // 1/2: -g1/-g2 from the launcher (it knows the game), 0 - the engine guesses by the files
@@ -139,6 +140,10 @@ static void runGameThread(std::string gameDir) {
     androidAppendLog(("Mod: " + modIni).c_str());
   }
 
+  if(s_glRenderer) {
+    args.push_back("-gl");
+    androidAppendLog("Renderer: OpenGL ES (-gl)");
+  }
   if(s_loadSlot >= 0) {
     args.push_back("-save");
     args.push_back(std::to_string(s_loadSlot));
@@ -377,6 +382,8 @@ Java_com_opengothic_GameActivity_nativeUiState(JNIEnv*, jobject) { return og_ui_
 
 JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeSetLoadSlot(JNIEnv*, jobject, jint slot) { s_loadSlot = slot; }
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetRenderer(JNIEnv*, jobject, jboolean gl) { s_glRenderer = gl; }
 
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeAutoSave(JNIEnv*, jobject) { return og_autosave(); }

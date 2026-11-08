@@ -34,6 +34,8 @@ class MainActivity : AppCompatActivity() {
     companion object {
         private const val TAG = "OpenGothic"
         private const val REQUEST_STORAGE_PERMISSION = 1001
+        // the game switched its renderer: the extras of its GameActivity, started again here (in a new game process)
+        const val EXTRA_RELAUNCH = "relaunch_game"
 
         init {
             try {
@@ -92,6 +94,21 @@ class MainActivity : AppCompatActivity() {
             intent.removeExtra("autostart")
             launchGame()
         }
+        relaunchGame(intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        relaunchGame(intent)
+    }
+
+    // the game ends its process after a renderer switch: once it is gone, the same game is started again
+    private fun relaunchGame(i: Intent?) {
+        val extras = i?.getBundleExtra(EXTRA_RELAUNCH) ?: return
+        i.removeExtra(EXTRA_RELAUNCH)
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            startActivity(Intent(this, GameActivity::class.java).apply { putExtras(extras) })
+        }, 1200)
     }
 
     override fun onResume() {
@@ -631,6 +648,13 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun get(name: String): Int { detectedGameDir = findGameDirectory(); return settings[name]?.let { iniGet(it) } ?: -1 }
+
+        // the renderer for every game (RendererPref): the values of the page's select, webgpu = Vulkan, webgl2 = OpenGL ES
+        @JavascriptInterface
+        fun renderer(): String = RendererPref.pageValue(this@MainActivity)
+
+        @JavascriptInterface
+        fun setRenderer(v: String) = RendererPref.set(this@MainActivity, v == "webgl2")
 
         @JavascriptInterface
         fun set(name: String, v: Int): Int { val s = settings[name] ?: return 0; detectedGameDir = findGameDirectory(); iniSet(s, v); return 1 }

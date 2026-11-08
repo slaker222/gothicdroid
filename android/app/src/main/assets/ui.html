@@ -24,7 +24,12 @@
     const P = window.FileSystemFileHandle && FileSystemFileHandle.prototype;
     if (!P || P.createWritable) return;
     let worker = null, seq = 0; const pend = new Map();
-    const src = 'onmessage=async e=>{const{id,fh,data}=e.data;try{const h=await fh.createSyncAccessHandle();try{h.truncate(0);let at=0;for(const c of data){h.write(c,{at});at+=c.byteLength}h.flush()}finally{h.close()}postMessage({id})}catch(err){postMessage({id,err:String(err&&err.message||err)})}}';
+    // the file comes as its path in OPFS: older Safari cannot send a FileSystemFileHandle to a worker
+    // ("The object can not be cloned"); the handle itself only when the path is not known
+    const src = 'onmessage=async e=>{const{id,fh,path,data}=e.data;try{let f=fh;if(path){let d=await navigator.storage.getDirectory();' +
+                'for(const p of path.slice(0,-1))d=await d.getDirectoryHandle(p,{create:true});f=await d.getFileHandle(path[path.length-1],{create:true})}' +
+                'const h=await f.createSyncAccessHandle();try{await h.truncate(0);let at=0;for(const c of data){h.write(c,{at});at+=c.byteLength}await h.flush()}finally{await h.close()}' +
+                'postMessage({id})}catch(err){postMessage({id,err:String(err&&err.message||err)})}}';
     const getWorker = () => worker || (worker = (() => {
       const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
       w.onmessage = e => { const p = pend.get(e.data.id); pend.delete(e.data.id); e.data.err ? p.rej(new Error(e.data.err)) : p.res(); };
@@ -36,7 +41,16 @@
       const fh = this, chunks = [];
       return {
         async write(d) { if (d && d.type === 'write') d = d.data; chunks.push(await u8(d)); },
-        close() { return new Promise((res, rej) => { const id = ++seq; pend.set(id, { res, rej }); getWorker().postMessage({ id, fh, data: chunks.splice(0) }); }); },
+        async close() {
+          let path = null;
+          try { path = await (await navigator.storage.getDirectory()).resolve(fh); } catch (e) {}
+          const data = chunks.splice(0);
+          return new Promise((res, rej) => {
+            const id = ++seq; pend.set(id, { res, rej });
+            try { getWorker().postMessage(path && path.length ? { id, path, data } : { id, fh, data }); }
+            catch (e) { pend.delete(id); rej(e); }
+          });
+        },
         async abort() { chunks.length = 0; }
       };
     };
@@ -263,7 +277,7 @@
     #lang-bar .support svg { width: 16px; height: 16px; fill: currentColor; }
     #lang-bar .support .donate svg, .support .donate svg { width: 21px; height: 21px; }
     /* rare small stars flying out of the Donate button; they live in their own layer, so the bars do not clip them */
-    #dn-sparks { position: fixed; inset: 0; z-index: 150; pointer-events: none; overflow: hidden; }
+    #dn-sparks { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 150; pointer-events: none; overflow: hidden; }
     .dn-star { position: absolute; width: var(--s); height: var(--s); background: var(--c, #ffe27a); opacity: 0;
       clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
       animation: dn-star 1.7s ease-out forwards; }
@@ -274,7 +288,7 @@
     }
     @media (prefers-reduced-motion: reduce) { #dn-sparks { display: none; } }
     /* donate window (the Android main menu takes the same markup and styles, see web/make_android_ui.py) */
-    .dn-overlay { position: fixed; inset: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .66); }
+    .dn-overlay { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 200; display: flex; align-items: center; justify-content: center; padding: 16px; background: rgba(0, 0, 0, .66); }
     .dn-overlay[hidden] { display: none; }
     .dn-box { position: relative; width: 100%; max-width: 460px; max-height: 100%; overflow-y: auto; background: #1b1b1b; border: 1px solid var(--line); border-radius: 14px; padding: 20px 18px 16px; color: var(--text); box-shadow: 0 18px 60px rgba(0, 0, 0, .6); }
     .dn-x { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border: 0; border-radius: 8px; background: transparent; color: var(--dim); font-size: 24px; line-height: 1; cursor: pointer; }
@@ -387,7 +401,7 @@
     body.window-mode { overflow: hidden; }
     body.window-mode #player {
       position: fixed;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       z-index: 100;
       width: 100vw;
       height: var(--vh, 100vh);
@@ -406,6 +420,8 @@
       left: 0;
       top: 50%;
       width: 100%;
+      height: 100%; /* Safari before 16 (no container units): the player box is 16:9 there anyway */
+      height: min(100%, calc(100vw * 9 / 16)); 16:9 there anyway */
       height: min(100%, calc(100cqw * 9 / 16));
       transform: translateY(-50%);
       outline: none;
@@ -419,18 +435,18 @@
        it fades out when the engine has drawn its first frames (ogFrameStats) */
     #boot-bg {
       position: absolute;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       z-index: 2;
       pointer-events: none;
       background: #000 center / 100% 100% no-repeat;
       transition: opacity 0.7s ease;
     }
-    #boot-bg::after { content: ''; position: absolute; inset: 0; background: rgba(0, 0, 0, 0.42); }
+    #boot-bg::after { content: ''; position: absolute; top: 0; right: 0; bottom: 0; left: 0; background: rgba(0, 0, 0, 0.42); }
     #boot-bg.gone { opacity: 0; }
 
     #ui-overlay {
       position: absolute;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       z-index: 10;
       display: flex;
       flex-direction: column;
@@ -459,8 +475,14 @@
       word-break: break-all;
     }
     .spinner {
+      /* never squeezed by a flex column (a phone in landscape has little height): it turned into a spinning oval */
+      flex: none;
+      box-sizing: border-box;
       width: 26px;
       height: 26px;
+      min-width: 26px;
+      min-height: 26px;
+      aspect-ratio: 1 / 1;
       border: 3px solid var(--line);
       border-top-color: var(--accent);
       border-radius: 50%;
@@ -471,7 +493,7 @@
     /* the engine starts after the overlay is gone: the same spinner and a line of text over the menu picture */
     #boot-status {
       position: absolute;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       z-index: 3;
       display: none;
       flex-direction: column;
@@ -549,7 +571,7 @@
     .fps-opt input { margin: 0; accent-color: var(--accent); cursor: pointer; }
     /* toolbar toggles shown as icons: the checkbox stays (the page code reads it) but is invisible, the label is the button */
     .ico { position: relative; padding: 0 9px; color: var(--dim); }
-    .ico input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+    .ico input { position: absolute; top: 0; right: 0; bottom: 0; left: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
     .ico:hover { color: var(--accent); }
     .ico:has(input:checked) { color: var(--accent); box-shadow: inset 0 0 0 1px var(--line); }
     .ico:has(input:focus-visible) { outline: 1px solid var(--accent); outline-offset: -2px; }
@@ -575,7 +597,7 @@
     #perf-box #perf-fps { display: block; margin-top: 2px; font-size: 20px; line-height: 1.2; font-weight: bold; color: #ff3b30; }
     #perf-box canvas { display: block; width: 100%; height: 64px; margin: 4px 0 2px; background: rgba(255,255,255,0.06); }
     /* side menu (Android app: the back button) */
-    #side-scrim { position: absolute; inset: 0; z-index: 30; display: none; background: rgba(0, 0, 0, 0.45); }
+    #side-scrim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: none; background: rgba(0, 0, 0, 0.45); }
     #side-menu { position: absolute; top: 0; bottom: 0; left: 0; z-index: 31; width: 36%; min-width: 230px; max-width: 380px;
       display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) 0 8px; box-sizing: border-box;
       background: rgba(14, 14, 14, 0.97); border-right: 1px solid var(--line); transform: translateX(-102%);
@@ -628,7 +650,7 @@
     /* touch controls ("Mobile input"): buttons send the game's keys */
     #touch-ui {
       position: absolute;
-      inset: 0;
+      top: 0; right: 0; bottom: 0; left: 0;
       container-type: size; /* sizes follow the player, not the browser window */
       z-index: 12;
       display: none;
@@ -666,28 +688,28 @@
     body.touch-on #controls .ctl-left { visibility: hidden; }
     body.touch-on.touch-menu #controls .ctl-left { visibility: visible; }
     body.touch-on #settings-panel { top: 38px; bottom: auto; max-height: calc(100% - 46px); }
-    #touch-look { position: absolute; inset: 0; pointer-events: auto; touch-action: none; }
+    #touch-look { position: absolute; top: 0; right: 0; bottom: 0; left: 0; pointer-events: auto; touch-action: none; }
     #touch-ui.no-look #touch-look { pointer-events: none; }
     .tbtn {
       position: absolute;
       display: flex;
       align-items: center;
       justify-content: center;
-      width: calc(var(--s, 13cqmin) * var(--k, 1));
-      height: calc(var(--s, 13cqmin) * var(--k, 1));
+      width: calc(var(--s, 13vmin) * var(--k, 1)); width: calc(var(--s, 13cqmin) * var(--k, 1));
+      height: calc(var(--s, 13vmin) * var(--k, 1)); height: calc(var(--s, 13cqmin) * var(--k, 1));
       border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.45);
       background: rgba(0, 0, 0, 0.35);
       color: #fff;
-      font: 600 clamp(10px, 2.6cqmin, 16px)/1.1 -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font: 600 clamp(10px, 2.6vmin, 16px)/1.1 -apple-system, 'Segoe UI', Roboto, sans-serif; font: 600 clamp(10px, 2.6cqmin, 16px)/1.1 -apple-system, 'Segoe UI', Roboto, sans-serif;
       text-align: center;
       text-shadow: 0 1px 2px #000;
       pointer-events: auto;
       touch-action: none;
     }
-    .tbtn.big { --s: 19cqmin; font-size: clamp(12px, 3.2cqmin, 19px); background: rgba(120, 20, 10, 0.45); }
+    .tbtn.big { --s: 19cqmin; font-size: clamp(12px, 3.2vmin, 19px); font-size: clamp(12px, 3.2cqmin, 19px); background: rgba(120, 20, 10, 0.45); }
     .tbtn.huge { --s: 22.8cqmin; }
-    .tbtn.small { --s: 10cqmin; font-size: clamp(9px, 2.2cqmin, 13px); }
+    .tbtn.small { --s: 10cqmin; font-size: clamp(9px, 2.2vmin, 13px); font-size: clamp(9px, 2.2cqmin, 13px); }
     .tbtn.down, .tbtn.on { background: rgba(255, 255, 255, 0.35); }
     .tbtn.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); }
     .tbtn svg { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 2;
@@ -695,7 +717,7 @@
     .tbtn.cheat { border-color: #f2c200; color: #ffe066; }
     .tbtn.plug { border-color: #3ddc6a; color: #8dffa8; background: rgba(30, 110, 55, 0.55); }
     /* the plugins window (the green button of the tool bar) */
-    #plug-box { position: absolute; inset: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); }
+    #plug-box { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 40; display: flex; align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.6); }
     #plug-box[hidden] { display: none; }
     #plug-win { width: min(440px, 92%); max-height: 92%; overflow-y: auto; padding: 12px 14px; color: #eee; background: #14201a; border: 1px solid #3ddc6a; border-radius: 12px; font: 14px/1.3 sans-serif; }
     #plug-win h3 { margin: 0 0 8px; font-size: 16px; color: #8dffa8; }
@@ -728,13 +750,13 @@
        3D item pictures, drawn by the engine under these frames) */
     .tq-slot {
       position: absolute; box-sizing: border-box;
-      border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2cqmin;
+      border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2vmin; border-radius: 1.2cqmin;
       background: rgba(0, 0, 0, 0.3); pointer-events: none;
     }
     .tq-clip { position: absolute; overflow: hidden; pointer-events: none; }
     #tq-hit { position: absolute; pointer-events: auto; touch-action: none; }
     /* the inventory button: one more block of the quick row, always in its place */
-    .tbtn.sq { border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
+    .tbtn.sq { border-radius: 1.2vmin; border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
     .tbtn.sq.down { background: rgba(255, 255, 255, 0.3); }
     .tq-slot.empty { border-color: rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.18); }
     /* "darken behind the slots": the engine paints a dark backing under the icons, the frames stay clear over them */
@@ -742,51 +764,51 @@
     #touch-ui.tq-back .tq-slot { border-color: rgba(255, 255, 255, 0.7); }
     .tq-slot.on { border: 2px solid #ffd54a; background: rgba(255, 213, 74, 0.18); }
     .tq-slot.down { background: rgba(255, 255, 255, 0.3); }
-    .tq-slot i { position: absolute; right: 3px; bottom: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif; font-style: normal;
+    .tq-slot i { position: absolute; right: 3px; bottom: 1px; font: 700 clamp(9px, 2.4vmin, 13px)/1 sans-serif; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif; font-style: normal;
                  color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
-    .tq-slot span { position: absolute; left: 3px; top: 1px; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif;
+    .tq-slot span { position: absolute; left: 3px; top: 1px; font: 700 clamp(9px, 2.4vmin, 13px)/1 sans-serif; font: 700 clamp(9px, 2.4cqmin, 13px)/1 sans-serif;
                     color: #fff; text-shadow: 0 1px 2px #000; pointer-events: none; }
     /* the quest journal for the touch layout: under the inventory and character buttons */
     #tj {
       position: absolute;
-      left: 4cqmin;
-      top: calc(36px + 12.5cqmin);
-      width: 46cqmin;
+      left: 4vmin; left: 4cqmin;
+      top: calc(36px + 12.5vmin); top: calc(36px + 12.5cqmin);
+      width: 46vmin; width: 46cqmin;
       background: rgba(0, 0, 0, 0.6);
       border: 1px solid rgba(255, 255, 255, 0.4);
-      border-radius: 1.6cqmin;
+      border-radius: 1.6vmin; border-radius: 1.6cqmin;
       color: #fff;
-      font: 500 clamp(11px, 3cqmin, 15px)/1.25 -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font: 500 clamp(11px, 3vmin, 15px)/1.25 -apple-system, 'Segoe UI', Roboto, sans-serif; font: 500 clamp(11px, 3cqmin, 15px)/1.25 -apple-system, 'Segoe UI', Roboto, sans-serif;
       pointer-events: auto;
       touch-action: pan-y;
       overflow: hidden;
     }
     #tj.hidden, #tj-open.hidden { display: none; }
-    #tj .tj-head { display: flex; align-items: center; height: 7.5cqmin; padding-left: 2cqmin; }
+    #tj .tj-head { display: flex; align-items: center; height: 7.5vmin; height: 7.5cqmin; padding-left: 2vmin; padding-left: 2cqmin; }
     #tj .tj-title { flex: 1; min-width: 0; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    #tj button { all: unset; display: flex; align-items: center; justify-content: center; width: 7.5cqmin; height: 7.5cqmin; color: #fff; cursor: pointer; }
+    #tj button { all: unset; display: flex; align-items: center; justify-content: center; width: 7.5vmin; width: 7.5cqmin; height: 7.5vmin; height: 7.5cqmin; color: #fff; cursor: pointer; }
     #tj button.hidden { display: none; }
     #tj button svg { width: 55%; height: 55%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
-    #tj .tj-body { max-height: 24cqmin; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border-top: 1px solid rgba(255, 255, 255, 0.25); }
-    #tj .tj-row { height: 8cqmin; line-height: 8cqmin; padding: 0 2cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    #tj .tj-body { max-height: 24vmin; max-height: 24cqmin; overflow-y: auto; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; border-top: 1px solid rgba(255, 255, 255, 0.25); }
+    #tj .tj-row { height: 8vmin; height: 8cqmin; line-height: 8vmin; line-height: 8cqmin; padding: 0 2vmin; padding: 0 2cqmin; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                   border-top: 1px solid rgba(255, 255, 255, 0.12); cursor: pointer; }
     #tj .tj-row:first-child { border-top: 0; }
     #tj .tj-row:active { background: rgba(255, 255, 255, 0.18); }
-    #tj .tj-entry { padding: 1.2cqmin 2cqmin; white-space: pre-wrap; }
-    #tj .tj-sep { height: 0; border-top: 1px dashed rgba(255, 255, 255, 0.4); margin: 0 2cqmin; }
+    #tj .tj-entry { padding: 1.2vmin 2vmin; padding: 1.2cqmin 2cqmin; white-space: pre-wrap; }
+    #tj .tj-sep { height: 0; border-top: 1px dashed rgba(255, 255, 255, 0.4); margin: 0 2vmin; margin: 0 2cqmin; }
     /* closed: a wide, low arrow under the character button brings it back */
     #tj-open {
-      position: absolute; left: 14cqmin; top: calc(36px + 12cqmin);
-      width: 14cqmin; height: 5cqmin;
+      position: absolute; left: 14vmin; left: 14cqmin; top: calc(36px + 12vmin); top: calc(36px + 12cqmin);
+      width: 14vmin; width: 14cqmin; height: 5vmin; height: 5cqmin;
       display: flex; align-items: center; justify-content: center;
-      border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
+      border-radius: 1.6vmin; border-radius: 1.6cqmin; border: 1px solid rgba(255, 255, 255, 0.45);
       background: rgba(0, 0, 0, 0.35); color: #fff; pointer-events: auto; touch-action: none;
     }
     #tj-open svg { width: 70%; height: 70%; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
     #touch-stick {
       position: absolute;
-      width: 26cqmin; height: 26cqmin;
-      margin: -13cqmin 0 0 -13cqmin;
+      width: 26vmin; width: 26cqmin; height: 26vmin; height: 26cqmin;
+      margin: -13vmin 0 0 -13vmin; margin: -13cqmin 0 0 -13cqmin;
       scale: var(--k, 1);
       border-radius: 50%;
       border: 1px solid rgba(255, 255, 255, 0.35);
@@ -798,22 +820,22 @@
       content: '';
       position: absolute;
       left: 50%; top: 50%;
-      width: 11cqmin; height: 11cqmin;
-      margin: -5.5cqmin 0 0 -5.5cqmin;
+      width: 11vmin; width: 11cqmin; height: 11vmin; height: 11cqmin;
+      margin: -5.5vmin 0 0 -5.5vmin; margin: -5.5cqmin 0 0 -5.5cqmin;
       border-radius: 50%;
       background: rgba(255, 255, 255, 0.4);
       transform: translate(var(--tx, 0px), var(--ty, 0px));
     }
     #touch-stick .stick-icon {
       position: absolute; left: 50%; top: 50%;
-      width: 8cqmin; height: 8cqmin; margin: -4cqmin 0 0 -4cqmin;
+      width: 8vmin; width: 8cqmin; height: 8vmin; height: 8cqmin; margin: -4vmin 0 0 -4vmin; margin: -4cqmin 0 0 -4cqmin;
       color: #fff; display: none; pointer-events: none;
     }
     #touch-stick .stick-icon svg { width: 100%; height: 100%; fill: none; stroke: currentColor; stroke-width: 2;
                                    stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
     /* sneaking learned: its icon sits on the stick (double tap switches it), gone while the stick is pulled */
     #touch-stick.sneak-known:not(.on) .stick-icon { display: block; }
-    .tbtn .clabel { font: 700 3.4cqmin/1.05 sans-serif; text-align: center; max-width: 92%; overflow: hidden; word-break: break-word; pointer-events: none; }
+    .tbtn .clabel { font: 700 3.4vmin/1.05 sans-serif; font: 700 3.4cqmin/1.05 sans-serif; text-align: center; max-width: 92%; overflow: hidden; word-break: break-word; pointer-events: none; }
     #touch-stick.sneaking .stick-icon { color: #ffd54a; }
     #touch-stick.on, #touch-stick.home { display: block; }
     #touch-stick.home:not(.on) { opacity: 0.6; }
@@ -910,12 +932,22 @@
     #settings-panel .set-note:empty { display: none; }
     #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
+    #settings-panel.disabled .set-row.keep { opacity: 1; pointer-events: auto; }
+    /* WebGL 2 compatibility renderer: effects it does not draw are hidden */
+    html:not(.webgl) #gl-presets,
+    html.webgl select[data-set="shadows"] option[value="1"], html.webgl select[data-set="shadows"] option[value="2"],
+    html.webgl #gfx-presets,
+    html.webgl #settings-panel .set-row:has([data-set="waterQuality"]), html.webgl #settings-panel .set-row:has([data-set="waterPhysics"]),
+    html.webgl #settings-panel .set-row:has([data-set="reflections"]), html.webgl #settings-panel .set-row:has([data-set="ssao"]),
+    html.webgl #settings-panel .set-row:has([data-set="fog"]), html.webgl #settings-panel .set-row:has([data-set="sun"]),
+    html.webgl #settings-panel .set-row:has([data-set="sunset"]), html.webgl #settings-panel .set-row:has([data-set="sky"]),
+    html.webgl #settings-panel .set-row:has([data-set="blood"]) { display: none !important; }
     #player:fullscreen #fs-btn .icon-enter { display: none; }
     #player:fullscreen #fs-btn .icon-exit { display: block; }
 
     /* Android app: this page lies over the game's SurfaceView (web/make_android_ui.sh copies it to the app's assets) */
     html.native, html.native body { background: transparent; display: block; overflow: hidden; width: 100vw; height: var(--vh, 100vh); }
-    html.native #player { position: fixed; inset: 0; width: 100vw; height: var(--vh, 100vh); aspect-ratio: auto; background: transparent; }
+    html.native #player { position: fixed; top: 0; right: 0; bottom: 0; left: 0; width: 100vw; height: var(--vh, 100vh); aspect-ratio: auto; background: transparent; }
     html.native #canvas { position: absolute; left: 0; top: 0; width: 100%; height: 100%; transform: none; background: transparent; }
     html.native #lang-bar, html.native #voice-bar, html.native #legal, html.native #boot-bg, html.native #boot-status,
     html.native #ui-overlay, html.native #win-btn, html.native #fs-btn, html.native #files-btn, html.native #files-menu,
@@ -924,6 +956,20 @@
     html.native body.touch-on #controls, html.native #controls { background: none !important; }
     /* settings of the page that the app does not have (the canvas pixel ratio, the web texture mips) */
     html.native #settings-panel label:has(#pixel-cap), html.native #settings-panel label:has([data-set="texQuality"]) { display: none; }
+
+    /* Safari before 15 has no aspect-ratio: the player had no height and was not seen at all; the same 16:9 box */
+    @supports not (aspect-ratio: 16 / 9) {
+      #player { height: min(calc(100vw * 9 / 16), calc(var(--vh, 100vh) - var(--about-h))); }
+      body.has-lang #player { height: min(calc(100vw * 9 / 16), calc(var(--vh, 100vh) - var(--chrome-h))); }
+      body.window-mode #player, html.native #player { height: var(--vh, 100vh); }
+      #player:fullscreen { height: 100%; }
+    }
+    /* Safari before 16 has no container units (cqmin, ...): the custom properties made of them in the units of the window */
+    @supports not (width: 1cqmin) {
+      .tbtn.big { --s: 19vmin; }
+      .tbtn.huge { --s: 22.8vmin; }
+      .tbtn.small { --s: 10vmin; }
+    }
   </style>
 </head>
 <body>
@@ -932,7 +978,7 @@
     <label>Game <select id="game-select" onchange="gameChosen()">
       <option value="g1">Gothic 1</option>
       <option value="g2">Gothic 2</option>
-      <option value="g3">Archolos</option>
+      <option value="g3">Archolos (beta)</option>
     </select></label>
     <label id="lang-text-label" hidden>Text language <select id="lang-text" onchange="languagesChosen()"></select></label>
     <label id="lang-voice-label" hidden>Voice language <select id="lang-voice" onchange="languagesChosen()"></select></label>
@@ -994,6 +1040,16 @@
         <button type="button" data-preset="classic" title="Like the original: circle shadows, 80 m objects, 200 m world, simple water, no reflections or occlusion">Classic</button>
         <button type="button" data-preset="ultra" title="Everything at the maximum and on">Ultra</button>
       </div>
+      <div class="presets" id="gl-presets">
+        <button type="button" data-preset="ultralow" title="Resolution 40%, objects 40 m, no shadows">Ultra low</button>
+        <button type="button" data-preset="low" title="Resolution 60%, objects 40 m">Low</button>
+        <button type="button" data-preset="classic" title="Resolution 80%, objects 80 m">Classic</button>
+      </div>
+      <label class="set-row keep" title="WebGPU: the full renderer. WebGL 2: for devices without WebGPU. The game is saved and comes back after the page reloads">Renderer
+        <select id="renderer-sel">
+          <option value="webgpu">WebGPU</option><option value="webgl2">WebGL 2 (simple)</option>
+        </select>
+      </label>
       <label class="set-row" title="Frame rate limit, from 25 up to the display refresh rate (the right end: frames follow the monitor, no limit)">FPS limit
         <span class="fps-slider"><input type="range" id="fps-limit" min="25" max="60" step="1" value="60"><output id="fps-limit-val">60</output></span>
       </label>
@@ -1250,6 +1306,132 @@
   </script>
   <!--DONATE-END-->
 
+  <script id="inflate-polyfill">
+// Safari before 16.4 has no DecompressionStream: a raw-deflate one in JS (the game archives are unpacked with it).
+// It collects the compressed bytes and inflates them at the end (puff, the reference inflater of zlib).
+(function () {
+  // test hook: ?inflatejs (page; the worker gets self.__ogForceInflate) uses this one even where the browser has its own
+  const force = self.__ogForceInflate || (typeof location !== 'undefined' && /[?&]inflatejs\b/.test(location.search));
+  try { if (!force && typeof DecompressionStream !== 'undefined') { new DecompressionStream('deflate-raw'); return; } } catch (e) {}
+  const LBASE = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const LEXT  = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const DBASE = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const DEXT  = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  const ORDER = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+  // lookup table over the next mb bits (bit-reversed canonical codes): sym<<4 | length, 0 = no such code
+  function build(len, n) {
+    let mb = 1;
+    const count = new Uint16Array(16), next = new Uint16Array(16);
+    for (let i = 0; i < n; i++) { count[len[i]]++; if (len[i] > mb) mb = len[i]; }
+    count[0] = 0;
+    for (let b = 1, code = 0; b < 16; b++) { code = (code + count[b - 1]) << 1; next[b] = code; }
+    const t = new Uint16Array(1 << mb);
+    for (let s = 0; s < n; s++) {
+      const l = len[s]; if (!l) continue;
+      const c = next[l]++;
+      let r = 0; for (let k = 0; k < l; k++) r |= ((c >> k) & 1) << (l - 1 - k);
+      for (let j = r; j < t.length; j += 1 << l) t[j] = (s << 4) | l;
+    }
+    return { t, mb, mask: (1 << mb) - 1 };
+  }
+  let FIXL = null, FIXD = null;
+  function inflateRaw(src) {
+    let out = new Uint8Array(Math.max(65536, src.length * 4)), op = 0, ip = 0, bb = 0, bc = 0;
+    const need = n => {
+      if (op + n <= out.length) return;
+      let nl = out.length * 2; while (nl < op + n) nl *= 2;
+      const o = new Uint8Array(nl); o.set(out.subarray(0, op)); out = o;
+    };
+    // past the end the input reads as zeros: checked once at the end
+    const fill = n => { while (bc < n) { bb |= (ip < src.length ? src[ip] : 0) << bc; ip++; bc += 8; } };
+    const bits = n => { fill(n); const v = bb & ((1 << n) - 1); bb >>>= n; bc -= n; return v; };
+    const decode = h => {
+      fill(h.mb);
+      const v = h.t[bb & h.mask], l = v & 15;
+      if (!l) throw new Error('inflate: bad code');
+      bb >>>= l; bc -= l;
+      return v >> 4;
+    };
+    const codes = (L, D) => {
+      for (;;) {
+        let s = decode(L);
+        if (s < 256) { need(1); out[op++] = s; }
+        else if (s === 256) return;
+        else {
+          s -= 257; if (s >= 29) throw new Error('inflate: bad length');
+          const len = LBASE[s] + bits(LEXT[s]);
+          const ds = decode(D); if (ds >= 30) throw new Error('inflate: bad distance');
+          const dist = DBASE[ds] + bits(DEXT[ds]);
+          if (dist > op) throw new Error('inflate: distance too far');
+          need(len);
+          for (let k = 0; k < len; k++, op++) out[op] = out[op - dist];
+        }
+      }
+    };
+    let last;
+    do {
+      last = bits(1);
+      const type = bits(2);
+      if (type === 0) {
+        ip -= bc >> 3; bb = 0; bc = 0;   // whole bytes read ahead go back, the rest of the byte is dropped
+        if (ip + 4 > src.length) throw new Error('inflate: unexpected end of data');
+        const len = src[ip] | (src[ip + 1] << 8); ip += 4;
+        if (ip + len > src.length) throw new Error('inflate: unexpected end of data');
+        need(len); out.set(src.subarray(ip, ip + len), op); op += len; ip += len;
+      } else if (type === 1) {
+        if (!FIXL) {
+          const l = new Uint8Array(288);
+          for (let i = 0; i < 288; i++) l[i] = i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8;
+          FIXL = build(l, 288); FIXD = build(new Uint8Array(30).fill(5), 30);
+        }
+        codes(FIXL, FIXD);
+      } else if (type === 2) {
+        const nlen = bits(5) + 257, ndist = bits(5) + 1, ncode = bits(4) + 4;
+        const cl = new Uint8Array(19);
+        for (let i = 0; i < ncode; i++) cl[ORDER[i]] = bits(3);
+        const lencode = build(cl, 19);
+        const ll = new Uint8Array(nlen + ndist);
+        for (let i = 0; i < nlen + ndist;) {
+          const s = decode(lencode);
+          if (s < 16) { ll[i++] = s; continue; }
+          let v = 0, rep;
+          if (s === 16) { if (i === 0) throw new Error('inflate: repeat without length'); v = ll[i - 1]; rep = 3 + bits(2); }
+          else if (s === 17) rep = 3 + bits(3);
+          else rep = 11 + bits(7);
+          if (i + rep > nlen + ndist) throw new Error('inflate: too many lengths');
+          while (rep--) ll[i++] = v;
+        }
+        codes(build(ll.subarray(0, nlen), nlen), build(ll.subarray(nlen), ndist));
+      } else throw new Error('inflate: bad block type');
+    } while (!last);
+    if (ip - (bc >> 3) > src.length) throw new Error('inflate: unexpected end of data');
+    return out.subarray(0, op);
+  }
+  class DecompressionStreamPolyfill {
+    constructor(format) {
+      if (format !== 'deflate-raw') throw new TypeError('DecompressionStream: unsupported format ' + format);
+      const parts = []; let total = 0;
+      const ts = new TransformStream({
+        transform(chunk) {
+          const u = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk.buffer || chunk, chunk.byteOffset || 0, chunk.byteLength);
+          parts.push(u); total += u.length;
+        },
+        flush(ctl) {
+          const all = new Uint8Array(total); let p = 0;
+          for (const c of parts) { all.set(c, p); p += c.length; }
+          parts.length = 0;
+          const out = inflateRaw(all);
+          for (let i = 0; i < out.length; i += 1 << 20) ctl.enqueue(out.subarray(i, Math.min(out.length, i + (1 << 20))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  }
+  self.DecompressionStream = DecompressionStreamPolyfill;
+  self.__ogInflatePolyfill = true;
+})();
+  </script>
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
        unpacks ZIP archives into the OPFS game directory. Kept as text and
        started from a Blob URL so the page stays a single file. -->
@@ -1261,6 +1443,7 @@ let root = null;
 
 self.onmessage = async (e) => {
   const m = e.data;
+  if (self.__ogInflatePolyfill) self.postMessage({ type: 'log', msg: 'inflate: the JS polyfill (no DecompressionStream)' });
   try {
     // memory mode: the browser gives no (or no room in the) storage, the files are kept in memory
     root = m.memory ? null : await navigator.storage.getDirectory();
@@ -1315,17 +1498,20 @@ async function fetchBlob(m) {
   return new Blob(parts);
 }
 
-function writeJsonSync(h, obj) {
+// Safari before 16.4: truncate / getSize / flush / close of a sync access handle return promises. Without
+// waiting for them the writes race with the truncate and a closed handle is used ("Invalid platform file
+// handle"): they are awaited everywhere (a plain value on other browsers, the await costs nothing)
+async function writeJsonSync(h, obj) {
   const bytes = new TextEncoder().encode(JSON.stringify(obj));
-  h.truncate(0);
+  await h.truncate(0);
   h.write(bytes, { at: 0 });
-  h.flush();
+  await h.flush();
 }
 
 async function writeJson(name, obj) {
   const fh = await root.getFileHandle(name, { create: true });
   const h = await fh.createSyncAccessHandle();
-  try { writeJsonSync(h, obj); } finally { h.close(); }
+  try { await writeJsonSync(h, obj); } finally { await h.close(); }
 }
 
 // ------------------------------ download ------------------------------
@@ -1348,9 +1534,9 @@ async function download(m) {
   const h = await fh.createSyncAccessHandle();
   try {
     let total = m.expectTotal || 0;
-    let have = h.getSize();
+    let have = await h.getSize();
     if (total && have === total) return { total };
-    if (total && have > total) { h.truncate(0); have = 0; }
+    if (total && have > total) { await h.truncate(0); have = 0; }
 
     let spaceChecked = false;
     for (let attempt = 0; ; attempt++) {
@@ -1359,7 +1545,7 @@ async function download(m) {
         const resp = await fetch(m.url, { cache: 'no-store', headers });
         if (resp.status === 416) {
           // range past the end: the remote file changed, start over
-          h.truncate(0); have = 0; total = 0;
+          await h.truncate(0); have = 0; total = 0;
           throw new Error('HTTP 416');
         }
         if (!resp.ok) {
@@ -1372,7 +1558,7 @@ async function download(m) {
         if (resp.status !== 206 || (rangeStart && +rangeStart[1] !== have) ||
             (total && remoteTotal && remoteTotal !== total)) {
           // no resume possible (or another file behind the URL): from scratch
-          h.truncate(0); have = 0;
+          await h.truncate(0); have = 0;
           if (resp.status === 206) {
             resp.body.cancel().catch(() => {});
             total = 0;
@@ -1380,7 +1566,7 @@ async function download(m) {
           }
         }
         total = remoteTotal;
-        writeJsonSync(await stateHandle(m), { url: m.url, total });
+        await writeJsonSync(await stateHandle(m), { url: m.url, total });
 
         if (!spaceChecked && total && navigator.storage.estimate) {
           spaceChecked = true;
@@ -1405,28 +1591,28 @@ async function download(m) {
           h.write(value, { at: have });
           have += value.byteLength;
           sinceFlush += value.byteLength;
-          if (sinceFlush >= FLUSH_EVERY) { h.flush(); sinceFlush = 0; }
+          if (sinceFlush >= FLUSH_EVERY) { await h.flush(); sinceFlush = 0; }
           const now = performance.now();
           if (now - lastPost > 200) {
             lastPost = now;
             progress({ phase: 'download', done: have, total });
           }
         }
-        h.flush();
+        await h.flush();
         if (total && have < total) throw new Error('connection lost');
         progress({ phase: 'download', done: have, total: total || have });
         return { total: total || have };
       } catch (err) {
-        h.flush();
+        await h.flush();
         if (err.fatal || attempt >= MAX_RETRIES) throw err;
         progress({ phase: 'retry', attempt: attempt + 1, max: MAX_RETRIES, msg: String(err.message || err) });
         await sleep(Math.min(15000, 1500 * (attempt + 1)));
-        have = h.getSize();
+        have = await h.getSize();
       }
     }
   } finally {
-    h.close();
-    if (stateH) { stateH.close(); stateH = null; }
+    await h.close();
+    if (stateH) { await stateH.close(); stateH = null; }
   }
 }
 
@@ -1614,7 +1800,7 @@ async function extract(blob, m) {
       h = await (await d.getFileHandle(fname, { create: true })).createSyncAccessHandle();
     }
     try {
-      h.truncate(0);
+      await h.truncate(0);
       let stream = blob.slice(dataOff, dataOff + e.compSize).stream();
       if (e.method === 8) stream = stream.pipeThrough(new DecompressionStream('deflate-raw'));
       const reader = stream.getReader();
@@ -1635,9 +1821,9 @@ async function extract(blob, m) {
       }
       if (pos !== e.size || crc !== e.crc)
         throw new Error('corrupt file in the archive (checksum mismatch): ' + e.rel);
-      h.flush();
+      await h.flush();
     } finally {
-      h.close();
+      await h.close();
     }
     doneComp += e.compSize;
     doneBytes += e.size;
@@ -1714,7 +1900,7 @@ async function installChunks(m) {
   const stateH = m.memory ? { getSize: () => 0, read() {}, write() {}, truncate() {}, flush() {}, close() {} } : await (await root.getFileHandle(m.stateName, { create: true })).createSyncAccessHandle();
   let state = null;
   try {
-    const buf = new Uint8Array(stateH.getSize());
+    const buf = new Uint8Array(await stateH.getSize());
     stateH.read(buf, { at: 0 });
     state = JSON.parse(new TextDecoder().decode(buf));
   } catch (_) {}
@@ -1794,7 +1980,7 @@ async function installChunks(m) {
           await sleep(250);
         }
       }
-      if (h.getSize() !== f.size) h.truncate(f.size);
+      if ((await h.getSize()) !== f.size) await h.truncate(f.size);
       return h;
     })());
     return handles.get(fi);
@@ -1880,16 +2066,17 @@ async function installChunks(m) {
   const UNPACK_BACKLOG = +(tune.backlog || 2);
   const unflushed = [];
   const dirty = new Set();
-  function flushAll() {
+  // runs inside the unpack chain (one chunk at a time) and once after it
+  async function flushAll() {
     if (!unflushed.length) return;
     const tl = performance.now();
-    if (!NO_FSYNC) for (const h of dirty) h.flush();
+    const hs = [...dirty], names = unflushed.splice(0);
     dirty.clear();
+    if (!NO_FSYNC) for (const h of hs) await h.flush();
     T.flush += performance.now() - tl;
-    for (const n of unflushed) done.add(n);
-    unflushed.length = 0;
+    for (const n of names) done.add(n);
     state.done = [...done];
-    writeJsonSync(stateH, state);
+    await writeJsonSync(stateH, state);
   }
 
   async function unpackChunk(ci, data) {
@@ -1913,7 +2100,7 @@ async function installChunks(m) {
       dirty.add(h);
     }
     unflushed.push(man.chunks[ci].name);
-    if (unflushed.length >= FLUSH_CHUNKS) flushAll();
+    if (unflushed.length >= FLUSH_CHUNKS) await flushAll();
   }
 
   const unpacking = [];   // promises of the chunks being unpacked or waiting for it
@@ -1963,7 +2150,7 @@ async function installChunks(m) {
     }
     await Promise.allSettled(unpacking);
     if (failed) throw failed;
-    flushAll();
+    await flushAll();
     progress({ phase: 'download', done: total, total });
     self.postMessage({ type: 'log', msg: 'pack ' + (m.stateKey || m.urls[0]) + ': ' + todo.length + ' chunks, ' + (total / 1048576).toFixed(0) + ' MB -> ' +
       (T.raw / 1048576).toFixed(0) + ' MB, wall ' + (performance.now() - T.t0).toFixed(0) + ' ms | summed: fetch ' + T.fetch.toFixed(0) +
@@ -1974,9 +2161,9 @@ async function installChunks(m) {
   } finally {
     for (const p of handles.values()) {
       const h = await p.catch(() => null);
-      if (h) h.close();
+      if (h) await h.close();
     }
-    stateH.close();
+    await stateH.close();
   }
   return { files: wanted.filter(Boolean).length, bytes: totalBytes, download: total, mem: m.memory ? memFiles : undefined };
 }
@@ -2103,16 +2290,21 @@ async function installChunks(m) {
         bootBg.classList.add('gone');
         setTimeout(() => bootBg.remove(), 900);
       };
+      const countFrame = () => {
+        frames++;
+        const now = performance.now();
+        if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
+        if (window.ogPerfPush && stats.last) window.ogPerfPush(now - stats.last);
+        stats.last = now;
+        stats.count++;
+        if (stats.count === 4 && bootBg.isConnected) hideBootBg();
+      };
+      // WebGL 2 renderer: the engine calls it at every present
+      window.ogGlFrame = countFrame;
       if (window.GPUCanvasContext) {
         const orig = GPUCanvasContext.prototype.getCurrentTexture;
         GPUCanvasContext.prototype.getCurrentTexture = function() {
-          frames++;
-          const now = performance.now();
-          if (stats.last) stats.maxGap = Math.max(stats.maxGap, now - stats.last);
-          if (window.ogPerfPush && stats.last) window.ogPerfPush(now - stats.last);
-          stats.last = now;
-          stats.count++;
-          if (stats.count === 4 && bootBg.isConnected) hideBootBg();
+          countFrame();
           return orig.apply(this, arguments);
         };
       }
@@ -2340,6 +2532,75 @@ async function installChunks(m) {
       });
       // the engine answers once the game window exists
       const ready = () => ogGet('shadows') >= 0;
+      // renderer choice: the engine picks it at start only, a change reloads the page
+      const rsel = document.getElementById('renderer-sel');
+      function syncRenderer() {
+        let r = 'webgpu';
+        if (NATIVE) {
+          // the app: Vulkan or OpenGL ES (the same simple renderer as WebGL 2); the engine says which one runs
+          rsel.querySelector('option[value="webgpu"]').textContent = 'Vulkan';
+          rsel.querySelector('option[value="webgl2"]').textContent = 'OpenGL ES (simple)';
+          rsel.parentElement.title = 'Vulkan: the full renderer. OpenGL ES: textures and models only, for phones where Vulkan ' +
+                                     'does not work. The game is saved and starts again with it';
+          try { r = ogGet('renderer') === 1 ? 'webgl2' : 'webgpu'; } catch (e) {}
+          rsel.value = r;
+          rsel.querySelector('option[value="webgl2"]').disabled = false;
+          document.documentElement.classList.toggle('webgl', r === 'webgl2');
+          const o3n = panel.querySelector('select[data-set="shadows"] option[value="3"]');
+          if (o3n) o3n.textContent = r === 'webgl2' ? 'Low (circles)' : 'Ultra low (circles)';
+          return;
+        }
+        try { r = window.ogRenderer ? window.ogRenderer() : 'webgpu'; } catch (e) {}
+        rsel.value = r;
+        const gl2 = r === 'webgl2';
+        let has = false; try { has = hasWebGL2(); } catch (e) {}
+        rsel.querySelector('option[value="webgl2"]').disabled = !has && !gl2;
+        document.documentElement.classList.toggle('webgl', gl2);
+        // WebGL 2 has the circles under the characters only: Low (circles) or Off
+        const o3 = panel.querySelector('select[data-set="shadows"] option[value="3"]');
+        if (o3) o3.textContent = gl2 ? 'Low (circles)' : 'Ultra low (circles)';
+      }
+      // A change saves the game into the hidden slot 99 (og_autosave), reloads the page with the other renderer and
+      // loads that slot at the start (sessionStorage ogResume -> "-save 99"): the player comes back where he was
+      function reloadForRenderer() {
+        // ?renderer= in the address would override the saved choice
+        try { const u = new URL(location.href); u.searchParams.delete('renderer'); location.href = u.toString(); } catch (e) { location.reload(); }
+      }
+      rsel.addEventListener('change', async () => {
+        const v = rsel.value;
+        if (NATIVE) {
+          // the app saves the game, starts it again with the other renderer and loads the save
+          rsel.disabled = true;
+          try { AndroidBridge.setRenderer(v); } catch (e) { rsel.disabled = false; }
+          return;
+        }
+        try { localStorage.setItem('renderer', v); } catch (e) {}
+        rsel.blur();
+        let running = false;
+        try { running = ready(); } catch (e) {}
+        if (!running) { reloadForRenderer(); return; }
+        let st = 0;
+        try { if (g_runtimeUp && Module.ccall('og_autosave', 'number', [], [])) st = 1; } catch (e) {}
+        rsel.disabled = true;
+        const t0 = Date.now();
+        while (st === 1 || st === 2) {
+          await new Promise(r => setTimeout(r, 100));
+          try { st = Module.ccall('og_save_busy', 'number', [], []); } catch (e) { st = 4; }
+          if (Date.now() - t0 > 20000) st = 4;
+        }
+        if (st === 3) {
+          // the file goes to OPFS asynchronously: wait for every pending write
+          try { await Promise.all([...GameFS.persistQueue.values()]); } catch (e) {}
+          try { sessionStorage.setItem('ogResume', '99'); } catch (e) {}
+          reloadForRenderer();
+          return;
+        }
+        rsel.disabled = false;
+        if (confirm('The game cannot be saved right now (dialog, cutscene or loading). Switch the renderer anyway? ' +
+                    'The progress since the last save is lost. Cancel: it switches at the next start.'))
+          reloadForRenderer();
+      });
+      syncRenderer();
       function markPreset() {
         let cur = '';
         try {
@@ -2348,9 +2609,13 @@ async function installChunks(m) {
           if (!cur && localStorage.getItem('gfxManual') !== '1') cur = 'classic';
         } catch (e) {}
         document.querySelectorAll('#gfx-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === cur));
+        let gl = '';
+        try { gl = localStorage.getItem('gfxPresetGl') || ''; } catch (e) {}
+        document.querySelectorAll('#gl-presets [data-preset]').forEach(b => b.classList.toggle('active', b.dataset.preset === gl));
       }
       markPreset();
       function load() {
+        syncRenderer();
         let ok = false, err = '';
         try { ok = ready(); }
         catch (e) { ok = false; err = String((e && (e.message || e.name)) || e); console.warn('[settings] unavailable:', e); }
@@ -2372,6 +2637,11 @@ async function installChunks(m) {
           else if (el.dataset.set === 'barrierVol') el.value = String(v < 20 ? 100 : v); // not set yet = full volume
           else el.value = String(v);
         });
+        // WebGL 2: real shadows (1, 2) are not drawn there, they become the circles
+        try {
+          const sh = panel.querySelector('select[data-set="shadows"]');
+          if (useWebGL() && sh && (sh.value === '1' || sh.value === '2')) { ogSet('shadows', 3); sh.value = '3'; }
+        } catch (e) {}
         // a sky chosen earlier: the textures are fetched once per session if they are not on the phone yet
         if (!skyChecked) { skyChecked = true; const sk = panel.querySelector('[data-set="sky"]'); if (sk && +sk.value > 0) skyDownload(sk, +sk.value); }
       }
@@ -2468,6 +2738,23 @@ async function installChunks(m) {
         const p = PRESETS[b.dataset.preset];
         for (const k in p) { try { ogSet(k, p[k]); } catch (err) {} }
         try { localStorage.setItem('gfxPreset', b.dataset.preset); } catch (err) {}
+        markPreset();
+        load();
+        b.blur();
+      });
+      // WebGL 2 presets: only render resolution and object draw distance do something there
+      const GL_PRESETS = {
+        ultralow: { resScale: 3,  drawDist: 3, shadows: 0 },   // 40%, 40 m, no circles
+        low:      { resScale: 14, drawDist: 3, shadows: 3 },   // 60%, 40 m
+        classic:  { resScale: 11, drawDist: 2, shadows: 3 },   // 80%, 80 m
+      };
+      document.getElementById('gl-presets').addEventListener('click', e => {
+        const b = e.target.closest('[data-preset]');
+        if (!b || panel.classList.contains('disabled')) return;
+        try { localStorage.setItem('gfxManual', '1'); } catch (err) {}
+        const p = GL_PRESETS[b.dataset.preset];
+        for (const k in p) { try { ogSet(k, p[k]); } catch (err) {} }
+        try { localStorage.setItem('gfxPresetGl', b.dataset.preset); } catch (err) {}
         markPreset();
         load();
         b.blur();
@@ -2591,6 +2878,8 @@ async function installChunks(m) {
         for (;;) {
           if (manual()) return;
           const fps = await measure();
+          // WebGL 2 mode has none of these settings to lower (useWebGL is defined later in the page)
+          try { if (useWebGL()) return; } catch (e) {}
           if (fps === null) { slow = 0; await sleep(1000); continue; }
           if (fps >= LOW) { slow = 0; continue; }
           if (++slow < 2) continue; // two slow windows in a row, not a hiccup
@@ -3004,7 +3293,11 @@ async function installChunks(m) {
         });
       };
       const customDefs = customList();
+      // Safari before 16 has no container units: the positions in the units of the window (the player fills it there)
+      const CQ_OK = (() => { try { return CSS.supports('width', '1cqmin'); } catch (e) { return false; } })();
+      const cqFix = v => CQ_OK ? v : String(v).replace(/(\d)cq(min|max|w|h)\b/g, '$1v$2');
       const makeButton = ([id, k, cls, pos, layouts]) => {
+        pos = cqFix(pos);
         const el = document.createElement('div');
         el.className = 'tbtn ' + cls;
         el.style.cssText = pos;
@@ -3205,7 +3498,7 @@ async function installChunks(m) {
       // MiniMap: the engine draws the small map with a cross; a touch button over the cross closes it
       const mmClose = document.createElement('div');
       mmClose.title = 'Close the map';
-      mmClose.style.cssText = 'position:absolute;display:none;width:11cqmin;height:11cqmin;transform:translate(-50%,-50%);z-index:30;touch-action:none;pointer-events:auto';
+      mmClose.style.cssText = cqFix('position:absolute;display:none;width:11cqmin;height:11cqmin;transform:translate(-50%,-50%);z-index:30;touch-action:none;pointer-events:auto');
       ui.appendChild(mmClose);
       const mmHit = e => { e.preventDefault(); e.stopPropagation(); if (g_runtimeUp) ogSet('minimapClose', 1); };
       mmClose.addEventListener('pointerdown', mmHit);
@@ -4208,6 +4501,13 @@ async function installChunks(m) {
     // on the document thread), so it busy-polls while the worker blocks
     // in Atomics.wait for the next command.
 
+    // test hook ?asynchandles: in the workers the sync access handle behaves as in Safari before 16.4
+    // (truncate / getSize / flush / close return promises and run later)
+    const ASYNC_HANDLES_SHIM = /[?&]asynchandles\b/.test(location.search) ?
+      'if (self.FileSystemSyncAccessHandle) { const P = FileSystemSyncAccessHandle.prototype;' +
+      ' for (const k of ["truncate", "getSize", "flush", "close"]) { const o = P[k];' +
+      ' P[k] = function (...a) { return new Promise((res, rej) => setTimeout(() => { try { res(o.apply(this, a)); } catch (e) { rej(e); } }, 3)); }; } }\n' : '';
+
     function makeBridgeWorkerSource() {
       return `
 'use strict';
@@ -4225,7 +4525,7 @@ async function openAll(paths) {
     for (const seg of parts) d = await d.getDirectoryHandle(seg, {create:false});
     const fh = await d.getFileHandle(name, {create:false});
     const h = await fh.createSyncAccessHandle();
-    handles.push({ h, size: h.getSize() });
+    handles.push({ h, size: await h.getSize() });   // a promise in Safari before 16.4: the size is kept
   }
 }
 
@@ -4280,13 +4580,13 @@ function serveLoop() {
           Atomics.store(cmd, 4, 1); // ok
         } else if (op === OP_TRUNCATE) {
           const hIdx = Atomics.load(cmd, 1);
-          if (handles[hIdx].h) handles[hIdx].h.truncate(0);
+          if (handles[hIdx].h) Promise.resolve(handles[hIdx].h.truncate(0)).catch(() => {});
           handles[hIdx].size = 0;
           Atomics.store(cmd, 5, 0);
           Atomics.store(cmd, 4, 1);
         } else if (op === OP_SIZE) {
           const hIdx = Atomics.load(cmd, 1);
-          Atomics.store(cmd, 5, handles[hIdx].h ? handles[hIdx].h.getSize() : handles[hIdx].size);
+          Atomics.store(cmd, 5, handles[hIdx].size);   // the files are only read here: the size from the opening
           Atomics.store(cmd, 4, 1);
         } else {
           Atomics.store(cmd, 4, 2); // unknown op
@@ -4887,7 +5187,10 @@ function serveLoop() {
 
     function runInstallWorker(msg, onProgress) {
       return new Promise((resolve, reject) => {
-        const src = document.getElementById('install-worker-src').textContent;
+        // the worker gets the DecompressionStream polyfill of old Safari too (it only acts where the browser has none)
+        const src = ASYNC_HANDLES_SHIM + (/[?&]inflatejs\b/.test(location.search) ? 'self.__ogForceInflate = true;\n' : '') +
+                    document.getElementById('install-worker-src').textContent + '\n' +
+                    document.getElementById('inflate-polyfill').textContent;
         const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
         const worker = new Worker(url);
         URL.revokeObjectURL(url);
@@ -5496,7 +5799,7 @@ function serveLoop() {
         const dataSab = new SharedArrayBuffer(BRIDGE_CHUNK);
         const cmd = new Int32Array(cmdSab);
         const data = new Uint8Array(dataSab);
-        const url = URL.createObjectURL(new Blob([makeBridgeWorkerSource()], { type: 'text/javascript' }));
+        const url = URL.createObjectURL(new Blob([ASYNC_HANDLES_SHIM + makeBridgeWorkerSource()], { type: 'text/javascript' }));
         const worker = new Worker(url);
         URL.revokeObjectURL(url);
         worker.onerror = (e) => reject(new Error('voice bridge: ' + e.message));
@@ -5956,7 +6259,7 @@ function serveLoop() {
         const data = new Uint8Array(dataSab);
         cmd[0] = 0; cmd[6] = 0;
 
-        const src = makeBridgeWorkerSource();
+        const src = ASYNC_HANDLES_SHIM + makeBridgeWorkerSource();
         const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
         const worker = new Worker(url);
         worker.onerror = (e) => reject(new Error('bridge worker: ' + e.message));
@@ -6333,9 +6636,30 @@ function serveLoop() {
       } catch (e) {}
       return null;
     }
+    // Renderer: WebGPU (default) or the WebGL 2 compatibility renderer (textures and models only).
+    // The choice: ?renderer=webgl2|webgpu, else localStorage 'renderer'; without WebGPU the page falls back to WebGL 2.
+    let g_forceWebGL = false;
+    function rendererChoice() {
+      const q = new URLSearchParams(location.search).get('renderer');
+      if (q === 'webgl2' || q === 'webgpu') return q;
+      try { if (localStorage.getItem('renderer') === 'webgl2') return 'webgl2'; } catch (e) {}
+      return 'webgpu';
+    }
+    function hasWebGL2() {
+      try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
+    }
+    function useWebGL() { return g_forceWebGL || rendererChoice() === 'webgl2'; }
+    window.ogRenderer = () => useWebGL() ? 'webgl2' : 'webgpu';
+
     async function webgpuBlocked() {
+      if (useWebGL()) return false;
       const why = await webgpuProblem();
       if (!why) return false;
+      if (hasWebGL2()) {
+        console.warn('[SHELL] WebGPU unusable, falling back to WebGL 2: ' + why.replace(/<[^>]+>/g, '').slice(0, 200));
+        g_forceWebGL = true;
+        return false;
+      }
       console.error('[SHELL] WebGPU blocked: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
       window.__ogFatal = true;
       progressContainer.style.display = 'none';
@@ -6396,7 +6720,7 @@ function serveLoop() {
       }
       device.lost.then(info => {
         console.error('[WebGPU] device lost:', info.reason, info.message);
-        if (info.reason !== 'destroyed') showGpuLost(info);
+        if (info.reason !== 'destroyed') gpuLostFallback(info);
       });
       Module.preinitializedWebGPUDevice = device;
       console.log('[SHELL] WebGPU device: features=' + [...device.features].join(','));
@@ -6404,6 +6728,28 @@ function serveLoop() {
 
     // the browser took the graphics device away (GPU process crashed, driver reset): the game goes on
     // but nothing is drawn any more, so say it on the screen instead of leaving a black canvas
+    // WebGPU device lost in the game: save into the hidden slot 99, reload this tab with WebGL 2 and continue from
+    // the slot (the renderer setting stays as it is: ?renderer=webgl2 holds for this tab only). The game logic
+    // runs on without the GPU, the autosave does not need a frame. Without WebGL 2 the message stays.
+    async function gpuLostFallback(info) {
+      if (!hasWebGL2()) { showGpuLost(info); return; }
+      console.warn('[SHELL] WebGPU device lost, switching to WebGL 2');
+      let st = 0;
+      try { if (g_runtimeUp && Module.ccall('og_autosave', 'number', [], [])) st = 1; } catch (e) {}
+      const t0 = Date.now();
+      while (st === 1 || st === 2) {
+        await new Promise(r => setTimeout(r, 100));
+        try { st = Module.ccall('og_save_busy', 'number', [], []); } catch (e) { st = 4; }
+        if (Date.now() - t0 > 20000) st = 4;
+      }
+      if (st === 3) {
+        try { await Promise.all([...GameFS.persistQueue.values()]); } catch (e) {}
+        try { sessionStorage.setItem('ogResume', '99'); } catch (e) {}
+      }
+      try { const u = new URL(location.href); u.searchParams.set('renderer', 'webgl2'); location.href = u.toString(); }
+      catch (e) { showGpuLost(info); }
+    }
+
     function showGpuLost(info) {
       if (document.getElementById('gpu-lost')) return;
       const d = document.createElement('div');
@@ -6437,8 +6783,15 @@ function serveLoop() {
       if (bootBg_isUp()) { bootStatusText.textContent = 'Starting the engine...'; bootStatus.style.display = 'flex'; }
       console.log("Starting GothicDroid engine...");
       try {
-        if (!Module.preinitializedWebGPUDevice)
-          await initWebGPU();
+        if (!useWebGL() && !Module.preinitializedWebGPUDevice) {
+          try { await initWebGPU(); }
+          catch (e) {
+            // no usable WebGPU (no adapter, the device refused, ...): the WebGL 2 renderer instead of an error
+            if (!hasWebGL2()) throw e;
+            console.warn('[SHELL] WebGPU failed, falling back to WebGL 2: ' + String(e && e.message || e).slice(0, 200));
+            g_forceWebGL = true;
+          }
+        }
         // ?nomenu skips the main menu and boots straight into the world
         // (used by automated tests; regular users get the normal menu)
         const noMenu = location.search.indexOf('nomenu') >= 0;
@@ -6448,6 +6801,12 @@ function serveLoop() {
         const args = ["-g", GAME_ROOT, GAME_ID === 'g1' ? "-g1" : "-g2"];
         if (IS_ARCHOLOS) args.push("-game:" + ARCHOLOS_INI);   // the engine looks for it in <game>/system
         if (noMenu) args.push("-nomenu");
+        if (useWebGL()) { args.push("-webgl2"); console.log('[SHELL] renderer: WebGL 2'); }
+        // the renderer was switched in the game: back into the slot saved just before the reload
+        try {
+          const resume = sessionStorage.getItem('ogResume');
+          if (resume) { sessionStorage.removeItem('ogResume'); if (!noMenu) { args.push("-save", resume); console.log('[SHELL] resume slot ' + resume); } }
+        } catch (e) {}
         const ret = Module.callMain(args);
         window.__callMainReturned = { ret: ret, t: Date.now() };
         console.log("[SHELL] callMain returned ret=" + ret);
@@ -6494,7 +6853,7 @@ function serveLoop() {
         v.volume = Math.max(0, Math.min(1, parseFloat(cmd.slice(0, bar)) || 0));
         v.playsInline = true;
         v.poster = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-        v.style.cssText = 'position:fixed;inset:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:99999';
+        v.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;width:100%;height:100%;object-fit:contain;background:#000;z-index:99999';
         v.onended = vidEnd;
         v.onclick = vidEnd;
         v.onerror = () => { console.error('[video] cannot play', v.error && v.error.message); vidEnd(); };
