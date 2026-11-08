@@ -24,7 +24,12 @@
     const P = window.FileSystemFileHandle && FileSystemFileHandle.prototype;
     if (!P || P.createWritable) return;
     let worker = null, seq = 0; const pend = new Map();
-    const src = 'onmessage=async e=>{const{id,fh,data}=e.data;try{const h=await fh.createSyncAccessHandle();try{h.truncate(0);let at=0;for(const c of data){h.write(c,{at});at+=c.byteLength}h.flush()}finally{h.close()}postMessage({id})}catch(err){postMessage({id,err:String(err&&err.message||err)})}}';
+    // the file comes as its path in OPFS: older Safari cannot send a FileSystemFileHandle to a worker
+    // ("The object can not be cloned"); the handle itself only when the path is not known
+    const src = 'onmessage=async e=>{const{id,fh,path,data}=e.data;try{let f=fh;if(path){let d=await navigator.storage.getDirectory();' +
+                'for(const p of path.slice(0,-1))d=await d.getDirectoryHandle(p,{create:true});f=await d.getFileHandle(path[path.length-1],{create:true})}' +
+                'const h=await f.createSyncAccessHandle();try{await h.truncate(0);let at=0;for(const c of data){h.write(c,{at});at+=c.byteLength}await h.flush()}finally{await h.close()}' +
+                'postMessage({id})}catch(err){postMessage({id,err:String(err&&err.message||err)})}}';
     const getWorker = () => worker || (worker = (() => {
       const w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
       w.onmessage = e => { const p = pend.get(e.data.id); pend.delete(e.data.id); e.data.err ? p.rej(new Error(e.data.err)) : p.res(); };
@@ -36,7 +41,16 @@
       const fh = this, chunks = [];
       return {
         async write(d) { if (d && d.type === 'write') d = d.data; chunks.push(await u8(d)); },
-        close() { return new Promise((res, rej) => { const id = ++seq; pend.set(id, { res, rej }); getWorker().postMessage({ id, fh, data: chunks.splice(0) }); }); },
+        async close() {
+          let path = null;
+          try { path = await (await navigator.storage.getDirectory()).resolve(fh); } catch (e) {}
+          const data = chunks.splice(0);
+          return new Promise((res, rej) => {
+            const id = ++seq; pend.set(id, { res, rej });
+            try { getWorker().postMessage(path && path.length ? { id, path, data } : { id, fh, data }); }
+            catch (e) { pend.delete(id); rej(e); }
+          });
+        },
         async abort() { chunks.length = 0; }
       };
     };
@@ -459,8 +473,14 @@
       word-break: break-all;
     }
     .spinner {
+      /* never squeezed by a flex column (a phone in landscape has little height): it turned into a spinning oval */
+      flex: none;
+      box-sizing: border-box;
       width: 26px;
       height: 26px;
+      min-width: 26px;
+      min-height: 26px;
+      aspect-ratio: 1 / 1;
       border: 3px solid var(--line);
       border-top-color: var(--accent);
       border-radius: 50%;
@@ -913,7 +933,8 @@
     #settings-panel.disabled .set-row.keep { opacity: 1; pointer-events: auto; }
     /* WebGL 2 compatibility renderer: effects it does not draw are hidden */
     html:not(.webgl) #gl-presets,
-    html.webgl #gfx-presets, html.webgl #settings-panel .set-row:has([data-set="shadows"]),
+    html.webgl select[data-set="shadows"] option[value="1"], html.webgl select[data-set="shadows"] option[value="2"],
+    html.webgl #gfx-presets,
     html.webgl #settings-panel .set-row:has([data-set="waterQuality"]), html.webgl #settings-panel .set-row:has([data-set="waterPhysics"]),
     html.webgl #settings-panel .set-row:has([data-set="reflections"]), html.webgl #settings-panel .set-row:has([data-set="ssao"]),
     html.webgl #settings-panel .set-row:has([data-set="fog"]), html.webgl #settings-panel .set-row:has([data-set="sun"]),
@@ -941,7 +962,7 @@
     <label>Game <select id="game-select" onchange="gameChosen()">
       <option value="g1">Gothic 1</option>
       <option value="g2">Gothic 2</option>
-      <option value="g3">Archolos</option>
+      <option value="g3">Archolos (beta)</option>
     </select></label>
     <label id="lang-text-label" hidden>Text language <select id="lang-text" onchange="languagesChosen()"></select></label>
     <label id="lang-voice-label" hidden>Voice language <select id="lang-voice" onchange="languagesChosen()"></select></label>
@@ -1004,7 +1025,7 @@
         <button type="button" data-preset="ultra" title="Everything at the maximum and on">Ultra</button>
       </div>
       <div class="presets" id="gl-presets">
-        <button type="button" data-preset="ultralow" title="Resolution 40%, objects 40 m">Ultra low</button>
+        <button type="button" data-preset="ultralow" title="Resolution 40%, objects 40 m, no shadows">Ultra low</button>
         <button type="button" data-preset="low" title="Resolution 60%, objects 40 m">Low</button>
         <button type="button" data-preset="classic" title="Resolution 80%, objects 80 m">Classic</button>
       </div>
@@ -1269,6 +1290,132 @@
   </script>
   <!--DONATE-END-->
 
+  <script id="inflate-polyfill">
+// Safari before 16.4 has no DecompressionStream: a raw-deflate one in JS (the game archives are unpacked with it).
+// It collects the compressed bytes and inflates them at the end (puff, the reference inflater of zlib).
+(function () {
+  // test hook: ?inflatejs (page; the worker gets self.__ogForceInflate) uses this one even where the browser has its own
+  const force = self.__ogForceInflate || (typeof location !== 'undefined' && /[?&]inflatejs\b/.test(location.search));
+  try { if (!force && typeof DecompressionStream !== 'undefined') { new DecompressionStream('deflate-raw'); return; } } catch (e) {}
+  const LBASE = [3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,59,67,83,99,115,131,163,195,227,258];
+  const LEXT  = [0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0];
+  const DBASE = [1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577];
+  const DEXT  = [0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13];
+  const ORDER = [16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15];
+  // lookup table over the next mb bits (bit-reversed canonical codes): sym<<4 | length, 0 = no such code
+  function build(len, n) {
+    let mb = 1;
+    const count = new Uint16Array(16), next = new Uint16Array(16);
+    for (let i = 0; i < n; i++) { count[len[i]]++; if (len[i] > mb) mb = len[i]; }
+    count[0] = 0;
+    for (let b = 1, code = 0; b < 16; b++) { code = (code + count[b - 1]) << 1; next[b] = code; }
+    const t = new Uint16Array(1 << mb);
+    for (let s = 0; s < n; s++) {
+      const l = len[s]; if (!l) continue;
+      const c = next[l]++;
+      let r = 0; for (let k = 0; k < l; k++) r |= ((c >> k) & 1) << (l - 1 - k);
+      for (let j = r; j < t.length; j += 1 << l) t[j] = (s << 4) | l;
+    }
+    return { t, mb, mask: (1 << mb) - 1 };
+  }
+  let FIXL = null, FIXD = null;
+  function inflateRaw(src) {
+    let out = new Uint8Array(Math.max(65536, src.length * 4)), op = 0, ip = 0, bb = 0, bc = 0;
+    const need = n => {
+      if (op + n <= out.length) return;
+      let nl = out.length * 2; while (nl < op + n) nl *= 2;
+      const o = new Uint8Array(nl); o.set(out.subarray(0, op)); out = o;
+    };
+    // past the end the input reads as zeros: checked once at the end
+    const fill = n => { while (bc < n) { bb |= (ip < src.length ? src[ip] : 0) << bc; ip++; bc += 8; } };
+    const bits = n => { fill(n); const v = bb & ((1 << n) - 1); bb >>>= n; bc -= n; return v; };
+    const decode = h => {
+      fill(h.mb);
+      const v = h.t[bb & h.mask], l = v & 15;
+      if (!l) throw new Error('inflate: bad code');
+      bb >>>= l; bc -= l;
+      return v >> 4;
+    };
+    const codes = (L, D) => {
+      for (;;) {
+        let s = decode(L);
+        if (s < 256) { need(1); out[op++] = s; }
+        else if (s === 256) return;
+        else {
+          s -= 257; if (s >= 29) throw new Error('inflate: bad length');
+          const len = LBASE[s] + bits(LEXT[s]);
+          const ds = decode(D); if (ds >= 30) throw new Error('inflate: bad distance');
+          const dist = DBASE[ds] + bits(DEXT[ds]);
+          if (dist > op) throw new Error('inflate: distance too far');
+          need(len);
+          for (let k = 0; k < len; k++, op++) out[op] = out[op - dist];
+        }
+      }
+    };
+    let last;
+    do {
+      last = bits(1);
+      const type = bits(2);
+      if (type === 0) {
+        ip -= bc >> 3; bb = 0; bc = 0;   // whole bytes read ahead go back, the rest of the byte is dropped
+        if (ip + 4 > src.length) throw new Error('inflate: unexpected end of data');
+        const len = src[ip] | (src[ip + 1] << 8); ip += 4;
+        if (ip + len > src.length) throw new Error('inflate: unexpected end of data');
+        need(len); out.set(src.subarray(ip, ip + len), op); op += len; ip += len;
+      } else if (type === 1) {
+        if (!FIXL) {
+          const l = new Uint8Array(288);
+          for (let i = 0; i < 288; i++) l[i] = i < 144 ? 8 : i < 256 ? 9 : i < 280 ? 7 : 8;
+          FIXL = build(l, 288); FIXD = build(new Uint8Array(30).fill(5), 30);
+        }
+        codes(FIXL, FIXD);
+      } else if (type === 2) {
+        const nlen = bits(5) + 257, ndist = bits(5) + 1, ncode = bits(4) + 4;
+        const cl = new Uint8Array(19);
+        for (let i = 0; i < ncode; i++) cl[ORDER[i]] = bits(3);
+        const lencode = build(cl, 19);
+        const ll = new Uint8Array(nlen + ndist);
+        for (let i = 0; i < nlen + ndist;) {
+          const s = decode(lencode);
+          if (s < 16) { ll[i++] = s; continue; }
+          let v = 0, rep;
+          if (s === 16) { if (i === 0) throw new Error('inflate: repeat without length'); v = ll[i - 1]; rep = 3 + bits(2); }
+          else if (s === 17) rep = 3 + bits(3);
+          else rep = 11 + bits(7);
+          if (i + rep > nlen + ndist) throw new Error('inflate: too many lengths');
+          while (rep--) ll[i++] = v;
+        }
+        codes(build(ll.subarray(0, nlen), nlen), build(ll.subarray(nlen), ndist));
+      } else throw new Error('inflate: bad block type');
+    } while (!last);
+    if (ip - (bc >> 3) > src.length) throw new Error('inflate: unexpected end of data');
+    return out.subarray(0, op);
+  }
+  class DecompressionStreamPolyfill {
+    constructor(format) {
+      if (format !== 'deflate-raw') throw new TypeError('DecompressionStream: unsupported format ' + format);
+      const parts = []; let total = 0;
+      const ts = new TransformStream({
+        transform(chunk) {
+          const u = chunk instanceof Uint8Array ? chunk : new Uint8Array(chunk.buffer || chunk, chunk.byteOffset || 0, chunk.byteLength);
+          parts.push(u); total += u.length;
+        },
+        flush(ctl) {
+          const all = new Uint8Array(total); let p = 0;
+          for (const c of parts) { all.set(c, p); p += c.length; }
+          parts.length = 0;
+          const out = inflateRaw(all);
+          for (let i = 0; i < out.length; i += 1 << 20) ctl.enqueue(out.subarray(i, Math.min(out.length, i + (1 << 20))));
+        }
+      });
+      this.readable = ts.readable;
+      this.writable = ts.writable;
+    }
+  }
+  self.DecompressionStream = DecompressionStreamPolyfill;
+  self.__ogInflatePolyfill = true;
+})();
+  </script>
   <!-- Install worker: downloads the game archive into OPFS (resumable) and
        unpacks ZIP archives into the OPFS game directory. Kept as text and
        started from a Blob URL so the page stays a single file. -->
@@ -1280,6 +1427,7 @@ let root = null;
 
 self.onmessage = async (e) => {
   const m = e.data;
+  if (self.__ogInflatePolyfill) self.postMessage({ type: 'log', msg: 'inflate: the JS polyfill (no DecompressionStream)' });
   try {
     // memory mode: the browser gives no (or no room in the) storage, the files are kept in memory
     root = m.memory ? null : await navigator.storage.getDirectory();
@@ -1334,17 +1482,20 @@ async function fetchBlob(m) {
   return new Blob(parts);
 }
 
-function writeJsonSync(h, obj) {
+// Safari before 16.4: truncate / getSize / flush / close of a sync access handle return promises. Without
+// waiting for them the writes race with the truncate and a closed handle is used ("Invalid platform file
+// handle"): they are awaited everywhere (a plain value on other browsers, the await costs nothing)
+async function writeJsonSync(h, obj) {
   const bytes = new TextEncoder().encode(JSON.stringify(obj));
-  h.truncate(0);
+  await h.truncate(0);
   h.write(bytes, { at: 0 });
-  h.flush();
+  await h.flush();
 }
 
 async function writeJson(name, obj) {
   const fh = await root.getFileHandle(name, { create: true });
   const h = await fh.createSyncAccessHandle();
-  try { writeJsonSync(h, obj); } finally { h.close(); }
+  try { await writeJsonSync(h, obj); } finally { await h.close(); }
 }
 
 // ------------------------------ download ------------------------------
@@ -1367,9 +1518,9 @@ async function download(m) {
   const h = await fh.createSyncAccessHandle();
   try {
     let total = m.expectTotal || 0;
-    let have = h.getSize();
+    let have = await h.getSize();
     if (total && have === total) return { total };
-    if (total && have > total) { h.truncate(0); have = 0; }
+    if (total && have > total) { await h.truncate(0); have = 0; }
 
     let spaceChecked = false;
     for (let attempt = 0; ; attempt++) {
@@ -1378,7 +1529,7 @@ async function download(m) {
         const resp = await fetch(m.url, { cache: 'no-store', headers });
         if (resp.status === 416) {
           // range past the end: the remote file changed, start over
-          h.truncate(0); have = 0; total = 0;
+          await h.truncate(0); have = 0; total = 0;
           throw new Error('HTTP 416');
         }
         if (!resp.ok) {
@@ -1391,7 +1542,7 @@ async function download(m) {
         if (resp.status !== 206 || (rangeStart && +rangeStart[1] !== have) ||
             (total && remoteTotal && remoteTotal !== total)) {
           // no resume possible (or another file behind the URL): from scratch
-          h.truncate(0); have = 0;
+          await h.truncate(0); have = 0;
           if (resp.status === 206) {
             resp.body.cancel().catch(() => {});
             total = 0;
@@ -1399,7 +1550,7 @@ async function download(m) {
           }
         }
         total = remoteTotal;
-        writeJsonSync(await stateHandle(m), { url: m.url, total });
+        await writeJsonSync(await stateHandle(m), { url: m.url, total });
 
         if (!spaceChecked && total && navigator.storage.estimate) {
           spaceChecked = true;
@@ -1424,28 +1575,28 @@ async function download(m) {
           h.write(value, { at: have });
           have += value.byteLength;
           sinceFlush += value.byteLength;
-          if (sinceFlush >= FLUSH_EVERY) { h.flush(); sinceFlush = 0; }
+          if (sinceFlush >= FLUSH_EVERY) { await h.flush(); sinceFlush = 0; }
           const now = performance.now();
           if (now - lastPost > 200) {
             lastPost = now;
             progress({ phase: 'download', done: have, total });
           }
         }
-        h.flush();
+        await h.flush();
         if (total && have < total) throw new Error('connection lost');
         progress({ phase: 'download', done: have, total: total || have });
         return { total: total || have };
       } catch (err) {
-        h.flush();
+        await h.flush();
         if (err.fatal || attempt >= MAX_RETRIES) throw err;
         progress({ phase: 'retry', attempt: attempt + 1, max: MAX_RETRIES, msg: String(err.message || err) });
         await sleep(Math.min(15000, 1500 * (attempt + 1)));
-        have = h.getSize();
+        have = await h.getSize();
       }
     }
   } finally {
-    h.close();
-    if (stateH) { stateH.close(); stateH = null; }
+    await h.close();
+    if (stateH) { await stateH.close(); stateH = null; }
   }
 }
 
@@ -1633,7 +1784,7 @@ async function extract(blob, m) {
       h = await (await d.getFileHandle(fname, { create: true })).createSyncAccessHandle();
     }
     try {
-      h.truncate(0);
+      await h.truncate(0);
       let stream = blob.slice(dataOff, dataOff + e.compSize).stream();
       if (e.method === 8) stream = stream.pipeThrough(new DecompressionStream('deflate-raw'));
       const reader = stream.getReader();
@@ -1654,9 +1805,9 @@ async function extract(blob, m) {
       }
       if (pos !== e.size || crc !== e.crc)
         throw new Error('corrupt file in the archive (checksum mismatch): ' + e.rel);
-      h.flush();
+      await h.flush();
     } finally {
-      h.close();
+      await h.close();
     }
     doneComp += e.compSize;
     doneBytes += e.size;
@@ -1733,7 +1884,7 @@ async function installChunks(m) {
   const stateH = m.memory ? { getSize: () => 0, read() {}, write() {}, truncate() {}, flush() {}, close() {} } : await (await root.getFileHandle(m.stateName, { create: true })).createSyncAccessHandle();
   let state = null;
   try {
-    const buf = new Uint8Array(stateH.getSize());
+    const buf = new Uint8Array(await stateH.getSize());
     stateH.read(buf, { at: 0 });
     state = JSON.parse(new TextDecoder().decode(buf));
   } catch (_) {}
@@ -1813,7 +1964,7 @@ async function installChunks(m) {
           await sleep(250);
         }
       }
-      if (h.getSize() !== f.size) h.truncate(f.size);
+      if ((await h.getSize()) !== f.size) await h.truncate(f.size);
       return h;
     })());
     return handles.get(fi);
@@ -1899,16 +2050,17 @@ async function installChunks(m) {
   const UNPACK_BACKLOG = +(tune.backlog || 2);
   const unflushed = [];
   const dirty = new Set();
-  function flushAll() {
+  // runs inside the unpack chain (one chunk at a time) and once after it
+  async function flushAll() {
     if (!unflushed.length) return;
     const tl = performance.now();
-    if (!NO_FSYNC) for (const h of dirty) h.flush();
+    const hs = [...dirty], names = unflushed.splice(0);
     dirty.clear();
+    if (!NO_FSYNC) for (const h of hs) await h.flush();
     T.flush += performance.now() - tl;
-    for (const n of unflushed) done.add(n);
-    unflushed.length = 0;
+    for (const n of names) done.add(n);
     state.done = [...done];
-    writeJsonSync(stateH, state);
+    await writeJsonSync(stateH, state);
   }
 
   async function unpackChunk(ci, data) {
@@ -1932,7 +2084,7 @@ async function installChunks(m) {
       dirty.add(h);
     }
     unflushed.push(man.chunks[ci].name);
-    if (unflushed.length >= FLUSH_CHUNKS) flushAll();
+    if (unflushed.length >= FLUSH_CHUNKS) await flushAll();
   }
 
   const unpacking = [];   // promises of the chunks being unpacked or waiting for it
@@ -1982,7 +2134,7 @@ async function installChunks(m) {
     }
     await Promise.allSettled(unpacking);
     if (failed) throw failed;
-    flushAll();
+    await flushAll();
     progress({ phase: 'download', done: total, total });
     self.postMessage({ type: 'log', msg: 'pack ' + (m.stateKey || m.urls[0]) + ': ' + todo.length + ' chunks, ' + (total / 1048576).toFixed(0) + ' MB -> ' +
       (T.raw / 1048576).toFixed(0) + ' MB, wall ' + (performance.now() - T.t0).toFixed(0) + ' ms | summed: fetch ' + T.fetch.toFixed(0) +
@@ -1993,9 +2145,9 @@ async function installChunks(m) {
   } finally {
     for (const p of handles.values()) {
       const h = await p.catch(() => null);
-      if (h) h.close();
+      if (h) await h.close();
     }
-    stateH.close();
+    await stateH.close();
   }
   return { files: wanted.filter(Boolean).length, bytes: totalBytes, download: total, mem: m.memory ? memFiles : undefined };
 }
@@ -2374,6 +2526,9 @@ async function installChunks(m) {
         let has = false; try { has = hasWebGL2(); } catch (e) {}
         rsel.querySelector('option[value="webgl2"]').disabled = !has && !gl2;
         document.documentElement.classList.toggle('webgl', gl2);
+        // WebGL 2 has the circles under the characters only: Low (circles) or Off
+        const o3 = panel.querySelector('select[data-set="shadows"] option[value="3"]');
+        if (o3) o3.textContent = gl2 ? 'Low (circles)' : 'Ultra low (circles)';
       }
       // A change saves the game into the hidden slot 99 (og_autosave), reloads the page with the other renderer and
       // loads that slot at the start (sessionStorage ogResume -> "-save 99"): the player comes back where he was
@@ -2446,6 +2601,11 @@ async function installChunks(m) {
           else if (el.dataset.set === 'barrierVol') el.value = String(v < 20 ? 100 : v); // not set yet = full volume
           else el.value = String(v);
         });
+        // WebGL 2: real shadows (1, 2) are not drawn there, they become the circles
+        try {
+          const sh = panel.querySelector('select[data-set="shadows"]');
+          if (useWebGL() && sh && (sh.value === '1' || sh.value === '2')) { ogSet('shadows', 3); sh.value = '3'; }
+        } catch (e) {}
         // a sky chosen earlier: the textures are fetched once per session if they are not on the phone yet
         if (!skyChecked) { skyChecked = true; const sk = panel.querySelector('[data-set="sky"]'); if (sk && +sk.value > 0) skyDownload(sk, +sk.value); }
       }
@@ -2548,9 +2708,9 @@ async function installChunks(m) {
       });
       // WebGL 2 presets: only render resolution and object draw distance do something there
       const GL_PRESETS = {
-        ultralow: { resScale: 3,  drawDist: 3 },   // 40%, 40 m
-        low:      { resScale: 14, drawDist: 3 },   // 60%, 40 m
-        classic:  { resScale: 11, drawDist: 2 },   // 80%, 80 m
+        ultralow: { resScale: 3,  drawDist: 3, shadows: 0 },   // 40%, 40 m, no circles
+        low:      { resScale: 14, drawDist: 3, shadows: 3 },   // 60%, 40 m
+        classic:  { resScale: 11, drawDist: 2, shadows: 3 },   // 80%, 80 m
       };
       document.getElementById('gl-presets').addEventListener('click', e => {
         const b = e.target.closest('[data-preset]');
@@ -4301,6 +4461,13 @@ async function installChunks(m) {
     // on the document thread), so it busy-polls while the worker blocks
     // in Atomics.wait for the next command.
 
+    // test hook ?asynchandles: in the workers the sync access handle behaves as in Safari before 16.4
+    // (truncate / getSize / flush / close return promises and run later)
+    const ASYNC_HANDLES_SHIM = /[?&]asynchandles\b/.test(location.search) ?
+      'if (self.FileSystemSyncAccessHandle) { const P = FileSystemSyncAccessHandle.prototype;' +
+      ' for (const k of ["truncate", "getSize", "flush", "close"]) { const o = P[k];' +
+      ' P[k] = function (...a) { return new Promise((res, rej) => setTimeout(() => { try { res(o.apply(this, a)); } catch (e) { rej(e); } }, 3)); }; } }\n' : '';
+
     function makeBridgeWorkerSource() {
       return `
 'use strict';
@@ -4318,7 +4485,7 @@ async function openAll(paths) {
     for (const seg of parts) d = await d.getDirectoryHandle(seg, {create:false});
     const fh = await d.getFileHandle(name, {create:false});
     const h = await fh.createSyncAccessHandle();
-    handles.push({ h, size: h.getSize() });
+    handles.push({ h, size: await h.getSize() });   // a promise in Safari before 16.4: the size is kept
   }
 }
 
@@ -4373,13 +4540,13 @@ function serveLoop() {
           Atomics.store(cmd, 4, 1); // ok
         } else if (op === OP_TRUNCATE) {
           const hIdx = Atomics.load(cmd, 1);
-          if (handles[hIdx].h) handles[hIdx].h.truncate(0);
+          if (handles[hIdx].h) Promise.resolve(handles[hIdx].h.truncate(0)).catch(() => {});
           handles[hIdx].size = 0;
           Atomics.store(cmd, 5, 0);
           Atomics.store(cmd, 4, 1);
         } else if (op === OP_SIZE) {
           const hIdx = Atomics.load(cmd, 1);
-          Atomics.store(cmd, 5, handles[hIdx].h ? handles[hIdx].h.getSize() : handles[hIdx].size);
+          Atomics.store(cmd, 5, handles[hIdx].size);   // the files are only read here: the size from the opening
           Atomics.store(cmd, 4, 1);
         } else {
           Atomics.store(cmd, 4, 2); // unknown op
@@ -4980,7 +5147,10 @@ function serveLoop() {
 
     function runInstallWorker(msg, onProgress) {
       return new Promise((resolve, reject) => {
-        const src = document.getElementById('install-worker-src').textContent;
+        // the worker gets the DecompressionStream polyfill of old Safari too (it only acts where the browser has none)
+        const src = ASYNC_HANDLES_SHIM + (/[?&]inflatejs\b/.test(location.search) ? 'self.__ogForceInflate = true;\n' : '') +
+                    document.getElementById('install-worker-src').textContent + '\n' +
+                    document.getElementById('inflate-polyfill').textContent;
         const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
         const worker = new Worker(url);
         URL.revokeObjectURL(url);
@@ -5589,7 +5759,7 @@ function serveLoop() {
         const dataSab = new SharedArrayBuffer(BRIDGE_CHUNK);
         const cmd = new Int32Array(cmdSab);
         const data = new Uint8Array(dataSab);
-        const url = URL.createObjectURL(new Blob([makeBridgeWorkerSource()], { type: 'text/javascript' }));
+        const url = URL.createObjectURL(new Blob([ASYNC_HANDLES_SHIM + makeBridgeWorkerSource()], { type: 'text/javascript' }));
         const worker = new Worker(url);
         URL.revokeObjectURL(url);
         worker.onerror = (e) => reject(new Error('voice bridge: ' + e.message));
@@ -6049,7 +6219,7 @@ function serveLoop() {
         const data = new Uint8Array(dataSab);
         cmd[0] = 0; cmd[6] = 0;
 
-        const src = makeBridgeWorkerSource();
+        const src = ASYNC_HANDLES_SHIM + makeBridgeWorkerSource();
         const url = URL.createObjectURL(new Blob([src], { type: 'text/javascript' }));
         const worker = new Worker(url);
         worker.onerror = (e) => reject(new Error('bridge worker: ' + e.message));
@@ -6510,7 +6680,7 @@ function serveLoop() {
       }
       device.lost.then(info => {
         console.error('[WebGPU] device lost:', info.reason, info.message);
-        if (info.reason !== 'destroyed') showGpuLost(info);
+        if (info.reason !== 'destroyed') gpuLostFallback(info);
       });
       Module.preinitializedWebGPUDevice = device;
       console.log('[SHELL] WebGPU device: features=' + [...device.features].join(','));
@@ -6518,6 +6688,28 @@ function serveLoop() {
 
     // the browser took the graphics device away (GPU process crashed, driver reset): the game goes on
     // but nothing is drawn any more, so say it on the screen instead of leaving a black canvas
+    // WebGPU device lost in the game: save into the hidden slot 99, reload this tab with WebGL 2 and continue from
+    // the slot (the renderer setting stays as it is: ?renderer=webgl2 holds for this tab only). The game logic
+    // runs on without the GPU, the autosave does not need a frame. Without WebGL 2 the message stays.
+    async function gpuLostFallback(info) {
+      if (!hasWebGL2()) { showGpuLost(info); return; }
+      console.warn('[SHELL] WebGPU device lost, switching to WebGL 2');
+      let st = 0;
+      try { if (g_runtimeUp && Module.ccall('og_autosave', 'number', [], [])) st = 1; } catch (e) {}
+      const t0 = Date.now();
+      while (st === 1 || st === 2) {
+        await new Promise(r => setTimeout(r, 100));
+        try { st = Module.ccall('og_save_busy', 'number', [], []); } catch (e) { st = 4; }
+        if (Date.now() - t0 > 20000) st = 4;
+      }
+      if (st === 3) {
+        try { await Promise.all([...GameFS.persistQueue.values()]); } catch (e) {}
+        try { sessionStorage.setItem('ogResume', '99'); } catch (e) {}
+      }
+      try { const u = new URL(location.href); u.searchParams.set('renderer', 'webgl2'); location.href = u.toString(); }
+      catch (e) { showGpuLost(info); }
+    }
+
     function showGpuLost(info) {
       if (document.getElementById('gpu-lost')) return;
       const d = document.createElement('div');
@@ -6551,8 +6743,15 @@ function serveLoop() {
       if (bootBg_isUp()) { bootStatusText.textContent = 'Starting the engine...'; bootStatus.style.display = 'flex'; }
       console.log("Starting GothicDroid engine...");
       try {
-        if (!useWebGL() && !Module.preinitializedWebGPUDevice)
-          await initWebGPU();
+        if (!useWebGL() && !Module.preinitializedWebGPUDevice) {
+          try { await initWebGPU(); }
+          catch (e) {
+            // no usable WebGPU (no adapter, the device refused, ...): the WebGL 2 renderer instead of an error
+            if (!hasWebGL2()) throw e;
+            console.warn('[SHELL] WebGPU failed, falling back to WebGL 2: ' + String(e && e.message || e).slice(0, 200));
+            g_forceWebGL = true;
+          }
+        }
         // ?nomenu skips the main menu and boots straight into the world
         // (used by automated tests; regular users get the normal menu)
         const noMenu = location.search.indexOf('nomenu') >= 0;
