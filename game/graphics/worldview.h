@@ -40,6 +40,7 @@ class WorldView {
 
     void prepareGlobals(Tempest::Encoder<Tempest::CommandBuffer> &cmd, uint8_t fId);
 
+    void setScreenResolution(uint32_t w, uint32_t h);
     void setGbuffer(const Tempest::Texture2d& diffuse,
                     const Tempest::Texture2d& norm);
     void setShadowMaps (const Tempest::Texture2d* shadow[]);

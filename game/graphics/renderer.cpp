@@ -481,6 +481,8 @@ void Renderer::prepareUniforms() {
   wview->setHiZ(textureCast<const Texture2d&>(hiz.hiZ));
   wview->setGbuffer(textureCast<const Texture2d&>(gbufDiffuse), textureCast<const Texture2d&>(gbufNormal));
   wview->setSceneImages(textureCast<const Texture2d&>(sceneOpaque), textureCast<const Texture2d&>(sceneDepth), zbuffer);
+  if(Gothic::options().webgl2) // the gbuffer is 1x1 here: the world is drawn at the size of the zbuffer
+    wview->setScreenResolution(uint32_t(zbuffer.w()), uint32_t(zbuffer.h()));
   }
 
 void Renderer::resetShadowmap() {

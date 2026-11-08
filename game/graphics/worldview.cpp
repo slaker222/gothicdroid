@@ -87,6 +87,12 @@ void WorldView::setGbuffer(const Texture2d& diffuse, const Texture2d& norm) {
   sGlobal.setResolution(uint32_t(diffuse.w()),uint32_t(diffuse.h()));
   }
 
+// the size of the picture the world is drawn into (the uniforms: screenRes, screenResInv); the OpenGL ES / WebGL 2
+// renderer keeps the gbuffer 1x1, the shaders that rebuild a view ray from gl_FragCoord (the barrier, the sky) need the real one
+void WorldView::setScreenResolution(uint32_t w, uint32_t h) {
+  sGlobal.setResolution(w,h);
+  }
+
 void WorldView::setShadowMaps(const Tempest::Texture2d* sh[]) {
   const Texture2d* shadow[Resources::ShadowLayers] = {};
   for(size_t i=0; i<Resources::ShadowLayers; ++i)
