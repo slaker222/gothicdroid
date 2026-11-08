@@ -946,6 +946,13 @@
     #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
     #settings-panel.disabled .set-row.keep { opacity: 1; pointer-events: auto; }
+    /* the page chose the WebGL 2 renderer on its own: a notice (red frame), closable */
+    #gl-notice { position: absolute; z-index: 400; top: 2cqmin; right: 2cqmin; width: min(46cqw, 420px); box-sizing: border-box;
+                 display: none; padding: 1.6cqmin 4.5cqmin 1.6cqmin 2cqmin; font-size: clamp(11px, 2.1cqmin, 14px); line-height: 1.4; color: #fff; background: rgba(20, 8, 8, .94);
+                 border: 2px solid #e53935; border-radius: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, .55); }
+    #gl-notice.on { display: block; }
+    #gl-notice b { color: #ff8a80; }
+    #gl-notice button { position: absolute; top: 4px; right: 6px; width: 30px; height: 30px; border: 0; background: transparent; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
     /* WebGL 2 compatibility renderer: effects it does not draw are hidden */
     html:not(.webgl) #gl-presets,
     html.webgl select[data-set="shadows"] option[value="1"], html.webgl select[data-set="shadows"] option[value="2"],
@@ -1003,6 +1010,9 @@
   </div>
   <div id="player">
     <canvas id="canvas" oncontextmenu="event.preventDefault()" tabindex="-1"></canvas>
+    <div id="gl-notice" role="alert"><button type="button" aria-label="Close" onclick="this.parentNode.classList.remove('on')">&times;</button>
+    <b>The renderer was switched to WebGL 2 automatically.</b>&nbsp;It is an experimental, slow renderer: it gives fewer FPS than WebGPU.
+    Turn WebGPU on if your browser supports it. On an Android device we recommend playing in the app, which uses Vulkan.</div>
     <div id="boot-bg"></div>
     <div id="boot-status"><div class="spinner"></div><div id="boot-status-text"></div></div>
 
@@ -1035,6 +1045,7 @@
       </div>
       <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
       <button class="sm-item" id="sm-perf" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm4 10h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z"/></svg><span class="sm-label">Performance stats</span><span class="sm-sw"></span></button>
+      <button class="sm-item" id="sm-log" type="button" role="switch" aria-checked="false" title="Writes everything to opengothic_log.txt: every file read, savegame writes, game resources, Vulkan objects and queue activity. The log gets big and the game slower; applies at once"><svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM9.5 3v18M12.5 8h4M12.5 12h4M12.5 16h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sm-label">Logs (full)</span><span class="sm-sw"></span></button>
       <div class="sm-spacer"></div>
       <button class="sm-item sm-exit" id="sm-exit" type="button"><svg viewBox="0 0 24 24"><path d="M10.09 15.59 11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg><span class="sm-label">Exit</span></button>
     </div>
@@ -1060,7 +1071,7 @@
       </div>
       <label class="set-row keep" title="WebGPU: the full renderer. WebGL 2: for devices without WebGPU. The game is saved and comes back after the page reloads">Renderer
         <select id="renderer-sel">
-          <option value="webgpu">WebGPU</option><option value="webgl2">WebGL 2 (simple)</option>
+          <option value="webgpu">WebGPU (recommended)</option><option value="webgl2">WebGL 2 (low FPS)</option>
         </select>
       </label>
       <label class="set-row" title="Frame rate limit, from 25 up to the display refresh rate (the right end: frames follow the monitor, no limit)">FPS limit
@@ -2464,7 +2475,10 @@ async function installChunks(m) {
       const smPerf = document.getElementById('sm-perf');
       const fpsChk = document.getElementById('fps-chk');
       const smFps = document.getElementById('sm-fps');
+      const smLog = document.getElementById('sm-log');
+      const logOn = () => { try { return !!AndroidBridge.verboseLog(); } catch (e) { return false; } };
       const sync = () => {
+        smLog.setAttribute('aria-checked', logOn() ? 'true' : 'false');
         smTouch.setAttribute('aria-checked', document.body.classList.contains('touch-on') ? 'true' : 'false');
         smPerf.setAttribute('aria-checked', document.body.classList.contains('perf-on') ? 'true' : 'false');
         smFps.setAttribute('aria-checked', fpsChk.checked ? 'true' : 'false');
@@ -2473,6 +2487,7 @@ async function installChunks(m) {
       window.ogBackMenu = () => setOpen(!player.classList.contains('side-open'));
       document.getElementById('side-scrim').addEventListener('click', () => setOpen(false));
       smTouch.addEventListener('click', () => { touch.checked = !document.body.classList.contains('touch-on'); touch.dispatchEvent(new Event('change')); sync(); });
+      smLog.addEventListener('click', () => { try { AndroidBridge.setVerboseLog(!logOn()); } catch (e) {} sync(); });
       smFps.addEventListener('click', () => { fpsChk.checked = !fpsChk.checked; fpsChk.dispatchEvent(new Event('change')); sync(); });
       smPerf.addEventListener('click', () => { perf.checked = !document.body.classList.contains('perf-on'); perf.dispatchEvent(new Event('change')); sync(); });
       // the controls under the checkbox: sensitivity, transparency, the layout editor (web/touch_editor.js)
@@ -2551,8 +2566,8 @@ async function installChunks(m) {
         let r = 'webgpu';
         if (NATIVE) {
           // the app: Vulkan or OpenGL ES (the same simple renderer as WebGL 2); the engine says which one runs
-          rsel.querySelector('option[value="webgpu"]').textContent = 'Vulkan';
-          rsel.querySelector('option[value="webgl2"]').textContent = 'OpenGL ES (simple)';
+          rsel.querySelector('option[value="webgpu"]').textContent = 'Vulkan (recommended)';
+          rsel.querySelector('option[value="webgl2"]').textContent = 'OpenGL ES (low FPS)';
           rsel.parentElement.title = 'Vulkan: the full renderer. OpenGL ES: textures and models only, for phones where Vulkan ' +
                                      'does not work. The game is saved and starts again with it';
           try { r = ogGet('renderer') === 1 ? 'webgl2' : 'webgpu'; } catch (e) {}
@@ -2699,6 +2714,11 @@ async function installChunks(m) {
         // a game menu is on screen: the pointer is free (under the lock a click carries no position, the menu
         // could not tell which item was clicked) and the cursor is shown
         g_menuUp = (st & (1 << 1)) !== 0;
+        // the WebGL 2 notice (the page chose it on its own): when the menu is up (without a menu, 8 s after the engine started)
+        if (glNoticePending) {
+          if (!glNoticeSince) glNoticeSince = performance.now();
+          if (g_menuUp || performance.now() - glNoticeSince > 8000) { glNoticePending = false; showGlNotice(); }
+        }
         if (g_menuUp && document.pointerLockElement) { try { document.exitPointerLock(); } catch (e) {} }
         const now = (st & (1 << 30)) !== 0;
         if (now === engineGfx) return;
@@ -6746,6 +6766,15 @@ function serveLoop() {
     function hasWebGL2() {
       try { return !!document.createElement('canvas').getContext('webgl2'); } catch (e) { return false; }
     }
+    let glNoticeTimer = 0, glNoticePending = false, glNoticeSince = 0;   // shown once the game menu is on screen
+    function showGlNotice() {   // 6 seconds in the top right corner of the player
+      try {
+        if (NATIVE) return;
+        const n = document.getElementById('gl-notice');
+        n.classList.add('on'); clearTimeout(glNoticeTimer);
+        glNoticeTimer = setTimeout(() => n.classList.remove('on'), 6000);
+      } catch (e) {}
+    }
     function useWebGL() { return g_forceWebGL || rendererChoice() === 'webgl2'; }
     window.ogRenderer = () => useWebGL() ? 'webgl2' : 'webgpu';
 
@@ -6755,7 +6784,7 @@ function serveLoop() {
       if (!why) return false;
       if (hasWebGL2()) {
         console.warn('[SHELL] WebGPU unusable, falling back to WebGL 2: ' + why.replace(/<[^>]+>/g, '').slice(0, 200));
-        g_forceWebGL = true;
+        g_forceWebGL = true; glNoticePending = true;
         return false;
       }
       console.error('[SHELL] WebGPU blocked: ' + why.replace(/<[^>]+>/g, '').slice(0, 300) + ' | gpu=' + (typeof navigator.gpu) + ' secure=' + window.isSecureContext);
@@ -6887,7 +6916,7 @@ function serveLoop() {
             // no usable WebGPU (no adapter, the device refused, ...): the WebGL 2 renderer instead of an error
             if (!hasWebGL2()) throw e;
             console.warn('[SHELL] WebGPU failed, falling back to WebGL 2: ' + String(e && e.message || e).slice(0, 200));
-            g_forceWebGL = true;
+            g_forceWebGL = true; glNoticePending = true;
           }
         }
         // ?nomenu skips the main menu and boots straight into the world
