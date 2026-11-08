@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <cstring>
 
+#include <Tempest/Sound>
+
 static constexpr int32_t OpusRate = 48000;
 
 static uint16_t rd16(const uint8_t* p) {
@@ -136,4 +138,136 @@ std::vector<uint8_t> OpusSound::decodeToWav(const uint8_t* data, size_t size) {
   auto src = reinterpret_cast<const uint8_t*>(d.pcm.data()+begin);
   wav.insert(wav.end(),src,src+bytes);
   return wav;
+  }
+
+namespace {
+// the audio packets of the Ogg stream one after another (a packet may span pages), the OpusHead values
+struct OpusStreamSource final : Tempest::SoundStreamSource {
+  std::vector<uint8_t>  bytes;
+  std::vector<uint32_t> off;      // packet i is bytes[off[i]..off[i+1])
+  int                   channels = 0;
+  uint16_t              preSkip  = 0;
+  uint64_t              frames   = 0;
+
+  std::unique_ptr<Tempest::SoundStream> open() const override;
+  };
+
+struct OpusStreamDecoder final : Tempest::SoundStream {
+  explicit OpusStreamDecoder(const OpusStreamSource& src):src(src) {
+    int err = 0;
+    dec = opus_decoder_create(OpusRate,src.channels,&err);
+    if(err!=OPUS_OK)
+      dec = nullptr;
+    buf.resize(size_t(maxFrame*src.channels));
+    }
+  ~OpusStreamDecoder() override {
+    if(dec!=nullptr)
+      opus_decoder_destroy(dec);
+    }
+
+  void rewind() noexcept override {
+    if(dec!=nullptr)
+      opus_decoder_ctl(dec,OPUS_RESET_STATE);
+    pkt     = 0;
+    bufPos  = 0;
+    bufLen  = 0;
+    decoded = 0;
+    out     = 0;
+    }
+
+  size_t read(int16_t* dst, size_t frames) noexcept override {
+    const size_t ch = size_t(src.channels);
+    size_t written = 0;
+    while(written<frames && out<src.frames && dec!=nullptr) {
+      if(bufPos==bufLen) {
+        if(pkt+1>=src.off.size())
+          break;
+        const uint8_t* p = src.bytes.data() + src.off[pkt];
+        const auto     sz = opus_int32(src.off[pkt+1]-src.off[pkt]);
+        ++pkt;
+        int n = opus_decode(dec,p,sz,buf.data(),maxFrame,0);
+        if(n<0)
+          break; // decodeToWav failed on it already: such a sound is not streamed
+        const uint64_t start = decoded;
+        decoded += uint64_t(n);
+        bufLen = size_t(n);
+        bufPos = 0;
+        if(start<src.preSkip) // the encoder delay at the start
+          bufPos = size_t(std::min<uint64_t>(uint64_t(n), src.preSkip-start));
+        continue;
+        }
+      size_t take = std::min(bufLen-bufPos, frames-written);
+      take = size_t(std::min<uint64_t>(take, src.frames-out));
+      std::memcpy(dst+written*ch, buf.data()+bufPos*ch, take*ch*sizeof(int16_t));
+      bufPos  += take;
+      written += take;
+      out     += take;
+      }
+    return written;
+    }
+
+  static constexpr int    maxFrame = OpusRate*120/1000;
+  const OpusStreamSource& src;
+  OpusDecoder*            dec     = nullptr;
+  std::vector<int16_t>    buf;
+  size_t                  pkt     = 0;
+  size_t                  bufPos  = 0;
+  size_t                  bufLen  = 0;
+  uint64_t                decoded = 0;
+  uint64_t                out     = 0;
+  };
+
+std::unique_ptr<Tempest::SoundStream> OpusStreamSource::open() const {
+  auto d = std::make_unique<OpusStreamDecoder>(*this);
+  if(d->dec==nullptr)
+    return nullptr;
+  return d;
+  }
+}
+
+std::shared_ptr<const Tempest::SoundStreamSource> OpusSound::makeStream(const uint8_t* data, size_t size, uint64_t frames) {
+  auto ret = std::make_shared<OpusStreamSource>();
+  ret->frames = frames;
+  ret->off.push_back(0);
+
+  int    packetId = 0;
+  size_t pos      = 0;
+  std::vector<uint8_t> packet;
+  while(pos+27<=size) {
+    if(std::memcmp(data+pos,"OggS",4)!=0)
+      return nullptr;
+    const uint8_t nseg = data[pos+26];
+    size_t        off  = pos+27+nseg;
+    if(off>size)
+      return nullptr;
+    for(size_t i=0; i<nseg; ++i) {
+      const uint8_t lace = data[pos+27+i];
+      if(off+lace>size)
+        return nullptr;
+      packet.insert(packet.end(),data+off,data+off+lace);
+      off += lace;
+      if(lace<255) {
+        if(packetId==0) {
+          if(packet.size()<19 || std::memcmp(packet.data(),"OpusHead",8)!=0)
+            return nullptr;
+          ret->channels = packet[9];
+          ret->preSkip  = rd16(packet.data()+10);
+          if(ret->channels<1 || ret->channels>2 || packet[18]!=0)
+            return nullptr;
+          }
+        else if(packetId>=2) {
+          ret->bytes.insert(ret->bytes.end(),packet.begin(),packet.end());
+          ret->off.push_back(uint32_t(ret->bytes.size()));
+          }
+        ++packetId;
+        packet.clear();
+        }
+      }
+    pos = off;
+    }
+  if(ret->channels==0)
+    return nullptr;
+  ret->bytes.shrink_to_fit();
+  ret->off.shrink_to_fit();
+  return ret;
   }

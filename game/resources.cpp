@@ -996,6 +996,20 @@ Tempest::Sound Resources::implLoadSoundBuffer(std::string_view name) {
       auto wav = OpusSound::decodeToWav(fBuff.data(),fBuff.size());
       if(wav.empty())
         throw std::runtime_error("bad opus stream");
+#if !defined(__EMSCRIPTEN__)
+      // a long sound (ambience, music of the world sounds) is decoded while it plays: 96 KB of PCM per second at 48 kHz
+      // was kept for every sound of the world (Archolos: ~140 MB at the start). The whole stream is decoded once above
+      // anyway: it is valid and its length is known, the streamed samples are the same.
+      {
+        const uint32_t channels = uint32_t(wav[22] | (wav[23]<<8));
+        const uint32_t bytes    = uint32_t(wav[40] | (wav[41]<<8) | (wav[42]<<16) | (uint32_t(wav[43])<<24));
+        const uint64_t frames   = (channels>0) ? bytes/(2u*channels) : 0;
+        if(frames>=uint64_t(48000*2)) {
+          if(auto src = OpusSound::makeStream(fBuff.data(),fBuff.size(),frames))
+            return Tempest::Sound(std::move(src),48000,uint16_t(channels),frames);
+          }
+      }
+#endif
       Tempest::MemReader rd(wav.data(),wav.size());
       return Tempest::Sound(rd);
       }

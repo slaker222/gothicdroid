@@ -126,7 +126,8 @@ class VisualObjects final {
       uint64_t            timeShift = 0;
 
       Material::AlphaFunc alpha = Material::Solid;
-      MorphAnim           morphAnim[Resources::MAX_MORPH_LAYERS];
+      // MAX_MORPH_LAYERS, only for the morph meshes (faces): 128 bytes in every object of the world were mostly unused
+      std::unique_ptr<MorphAnim[]> morphAnim;
       zenkit::AnimationType wind        = zenkit::AnimationType::NONE;
       float               windIntensity = 0;
       float               fatness       = 0;

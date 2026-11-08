@@ -246,6 +246,7 @@ VisualObjects::Item VisualObjects::get(const StaticMesh& mesh, const Material& m
   clustersMem[obj.clusterId].instanceId = obj.objInstance.offsetId<InstanceDesc>();
 
   if(type==DrawCommands::Morph) {
+    obj.morphAnim.reset(new MorphAnim[Resources::MAX_MORPH_LAYERS]());
     obj.objMorphAnim = instanceMem.alloc(sizeof(MorphDesc)*Resources::MAX_MORPH_LAYERS);
     obj.animPtr      = obj.objMorphAnim.offsetId<MorphDesc>();
     const MorphData d = {};
@@ -471,7 +472,7 @@ uint32_t VisualObjects::clusterId(const DrawBuckets::Bucket& bucket, size_t firs
 void VisualObjects::startMMAnim(size_t i, std::string_view animName, float intensity, uint64_t timeUntil) {
   auto& obj        = objects[i];
   auto  staticMesh = obj.bucketId->staticMesh;
-  if(staticMesh==nullptr || staticMesh->morph.anim==nullptr)
+  if(staticMesh==nullptr || staticMesh->morph.anim==nullptr || obj.morphAnim==nullptr)
     return;
 
   auto&  anim = *staticMesh->morph.anim;
@@ -492,7 +493,8 @@ void VisualObjects::startMMAnim(size_t i, std::string_view animName, float inten
     timeUntil = scene.tickCount + m.duration;
 
   // extend time of anim
-  for(auto& i:obj.morphAnim) {
+  for(size_t l=0; l<Resources::MAX_MORPH_LAYERS; ++l) {
+    auto& i = obj.morphAnim[l];
     if(i.id!=id || i.timeUntil<scene.tickCount)
       continue;
     i.timeUntil = timeUntil;
@@ -501,7 +503,8 @@ void VisualObjects::startMMAnim(size_t i, std::string_view animName, float inten
     }
 
   // find same layer
-  for(auto& i:obj.morphAnim) {
+  for(size_t l=0; l<Resources::MAX_MORPH_LAYERS; ++l) {
+    auto& i = obj.morphAnim[l];
     if(i.timeUntil<scene.tickCount)
       continue;
     if(anim[i.id].layer!=m.layer)
@@ -618,6 +621,10 @@ void VisualObjects::preFrameUpdateWind() {
 void VisualObjects::preFrameUpdateMorph() {
   for(auto it=objectsMorph.begin(); it!=objectsMorph.end(); ) {
     auto& obj = objects[*it];
+    if(obj.morphAnim==nullptr) {
+      it = objectsMorph.erase(it);
+      continue;
+      }
 
     bool reschedule = false;
     MorphData data = {};
