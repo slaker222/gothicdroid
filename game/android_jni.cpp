@@ -33,6 +33,7 @@ extern "C" const char* og_quests();
 extern "C" const char* og_video_take();
 extern "C" void og_video_done();
 extern "C" const char* og_quickslots();
+extern "C" const char* og_potslots();
 extern "C" void og_quickpanel(int open, int first);
 extern "C" void og_pointer(int type, int x, int y);
 extern "C" void og_input_look(int dx, int dy);
@@ -399,6 +400,9 @@ Java_com_opengothic_GameActivity_nativeQuests(JNIEnv* env, jobject) { return env
 
 JNIEXPORT jstring JNICALL
 Java_com_opengothic_GameActivity_nativeQuickSlots(JNIEnv* env, jobject) { return env->NewStringUTF(og_quickslots()); }
+
+JNIEXPORT jstring JNICALL
+Java_com_opengothic_GameActivity_nativePotSlots(JNIEnv* env, jobject) { return env->NewStringUTF(og_potslots()); }
 
 JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeQuickPanel(JNIEnv*, jobject, jint open, jint first) { og_quickpanel(open, first); }

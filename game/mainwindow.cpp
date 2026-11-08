@@ -250,6 +250,12 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_text_apply() {
 
 #endif // __EMSCRIPTEN__
 
+extern "C" EMSCRIPTEN_KEEPALIVE const char* og_potslots() {
+  static std::string out;
+  out = g_webMain!=nullptr ? g_webMain->webPotSlots() : std::string("{}");
+  return out.c_str();
+  }
+
 extern "C" EMSCRIPTEN_KEEPALIVE void og_quickpanel(int open, int first) {
   if(g_webMain!=nullptr)
     g_webMain->webQuickPanel(open!=0, first);
@@ -317,6 +323,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
     return Gothic::inst().isMarvinEnabled() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
     return int(Gothic::inst().version().game); // save slots: 15 in Gothic 1, 20 in Gothic 2
+  if(std::strcmp(name, "potSel")==0)
+    return Plugins::potSel.load();      // the item under the cursor of the inventory can go to the quick potions
   if(std::strcmp(name, "minimapCross")==0)
     return Plugins::miniCross.load();   // the small map is open: where its cross is (the page puts a button over it)
   if(g_webSettingsReady && std::strcmp(name, "skyOther")==0)
@@ -396,6 +404,16 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
   if(std::strcmp(name, "plugWeapons")==0)    { Plugins::takeWeapons.store(val); return 1; }
   if(std::strcmp(name, "plugMiniMap")==0)    { Plugins::miniMap   .store(val); return 1; }
   if(std::strcmp(name, "minimapClose")==0)   { Plugins::miniClose .store(1);   return 1; }
+  if(std::strcmp(name, "plugFastCraft")==0) { Plugins::fastCraft .store(val); return 1; }
+  if(std::strcmp(name, "plugCraftCount")==0) { Plugins::craftCount.store(std::max(0,std::min(500,val))); return 1; }
+  if(std::strcmp(name, "plugLootRight")==0) { Plugins::lootRight.store(val); return 1; }
+  if(std::strcmp(name, "plugLootIcons")==0) { Plugins::lootIcons.store(val); return 1; }
+  if(std::strcmp(name, "plugPotion")==0)    { Plugins::potion   .store(val); return 1; }
+  if(std::strcmp(name, "plugPotCount")==0)  { Plugins::potCount .store(std::max(1,std::min(8,val))); return 1; }
+  if(std::strcmp(name, "plugPotClose")==0)  { Plugins::potClose .store(val); return 1; }
+  if(std::strcmp(name, "potOpen")==0)       { Plugins::potOpen  .store(val); return 1; }
+  if(std::strcmp(name, "potUse")==0)        { Plugins::potUse   .store(val); return 1; }
+  if(std::strcmp(name, "potAssign")==0)     { Plugins::potAssign.store(val); return 1; }
   if(std::strcmp(name, "plugScreenInfo")==0) { Plugins::screenInfo.store(val); return 1; }
   if(std::strcmp(name, "plugTimeScale")==0)  { Plugins::timeScale .store(std::max(10,std::min(2000,val))); return 1; }
   }
@@ -1548,6 +1566,9 @@ void MainWindow::tickAutoLoot(uint64_t dt) {
     // (the plugin setting "steal" allows the theft)
     if(Plugins::steal.load()==0 && (it.handle().owner!=0 || it.handle().owner_guild!=0))
       return;
+    // the things the player has thrown away himself (the owner of a dropped thing is the dropper) stay where they are
+    if(it.handle().owner==int32_t(pl->handle().symbol_index()))
+      return;
     if(std::fabs(it.position().y-p.y)>150.f)
       return;
     items.push_back(&it);
@@ -1617,6 +1638,8 @@ uint64_t MainWindow::tick() {
   inventory.tick(dt);
 #if defined(OG_WEB_UI)
   inventory.quickUpdate();
+  inventory.potUpdate();
+  inventory.lootUpdate();
   if(inventory.quickBackDirty())
     update();
 #endif

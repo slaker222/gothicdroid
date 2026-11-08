@@ -111,6 +111,14 @@
       sent = true;
       try { fetch('/__log', { method: 'POST', body, keepalive: body.length < 60000 }).catch(() => {}); } catch (e) {}
     };
+    // the engine calls it while the world loads ([LOADMEM] lines, og_hb.h): the main thread is busy then (no timers), and an
+    // out of memory crash ends the tab - a beacon is queued by the browser at once and goes out even after that
+    window.__ogLogBeacon = () => {
+      if (!q.length) return;
+      const body = JSON.stringify({ sid, dev: sent ? undefined : dev || { ua: navigator.userAgent }, lines: q.splice(0, 200) });
+      sent = true;
+      try { if (!(navigator.sendBeacon && navigator.sendBeacon('/__log', body))) fetch('/__log', { method: 'POST', body, keepalive: true }).catch(() => {}); } catch (e) {}
+    };
     const base = { ua: navigator.userAgent, screen: screen.width + 'x' + screen.height, inner: innerWidth + 'x' + innerHeight, dpr: devicePixelRatio,
                    touch: navigator.maxTouchPoints, mem: navigator.deviceMemory || null, cores: navigator.hardwareConcurrency || null,
                    page: location.pathname, lang: navigator.language, standalone: !!(navigator.standalone || matchMedia('(display-mode: standalone)').matches) };
@@ -758,6 +766,11 @@
     /* the inventory button: one more block of the quick row, always in its place */
     .tbtn.sq { border-radius: 1.2vmin; border-radius: 1.2cqmin; border: 1px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.3); box-sizing: border-box; }
     .tbtn.sq.down { background: rgba(255, 255, 255, 0.3); }
+    /* the plugin QuickPotions: the arrow over the inventory button and the slots above it */
+    #pot-arrow { position: absolute; z-index: 5; display: none; align-items: center; justify-content: center; box-sizing: border-box; color: #fff; pointer-events: auto; touch-action: none;
+                 border: 1px solid rgba(255, 255, 255, 0.55); border-radius: 1.2vmin; border-radius: 1.2cqmin; background: rgba(0, 0, 0, 0.3); }
+    #pot-arrow svg { width: 60%; height: 80%; fill: none; stroke: currentColor; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; }
+    .pot-slot { pointer-events: auto; touch-action: none; z-index: 5; }
     .tq-slot.empty { border-color: rgba(255, 255, 255, 0.25); background: rgba(0, 0, 0, 0.18); }
     /* "darken behind the slots": the engine paints a dark backing under the icons, the frames stay clear over them */
     #touch-ui.tq-back .tq-slot, #touch-ui.tq-back .tq-slot.empty { background: transparent; }
@@ -3237,6 +3250,8 @@ async function installChunks(m) {
         ['iRight', 'D',     '',      'left:30cqmin;bottom:18cqmin',            'inv'],
         ['use',    'Shift', 'big',   'right:4cqmin;bottom:10cqmin',            'inv'],
         ['drop',   'Space', '',      'right:6cqmin;bottom:32cqmin',            'inv'],
+        // the plugin QuickPotions: puts the item under the cursor on the quick panel (left of the drop button)
+        ['assign', '',      '',      'right:22cqmin;bottom:32cqmin',           'inv'],
         ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
         ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
         ['back',   'Esc',   '',      'right:25cqmin;bottom:8cqmin',            'menu'],
@@ -3317,6 +3332,7 @@ async function installChunks(m) {
                              if (b.id === 'tools') { setTools(!toolsOpen); update(); return; }
                              if (b.id === 'cheat') { ogSet('marvin', 1); update(); return; }
                              if (b.id === 'plugins') { plugOpen(); return; }
+                             if (b.id === 'assign') { if (g_runtimeUp) ogSet('potAssign', 1); return; }
                              if (b.id === 'kbd') { kbdOpen(); return; }
                              if (b.id === 'qsave' || b.id === 'qload') {
                                if (g_runtimeUp) Module.ccall('og_quick', null, ['number'], [b.id === 'qsave' ? 1 : 2]);
@@ -3429,7 +3445,7 @@ async function installChunks(m) {
       applyCfg(false);
       // ---- the plugins: AutoQuickLoot (the loot at once, coloured by categories), ScreenInfo (day / time, numbers on the bars),
       // the game speed (x1 by default). Kept in the controls' config (the app) or in localStorage (a browser)
-      const PLUG_SPEEDS = [1, 2, 3, 5, 10], PLUG_RADII = [1, 2, 3, 5];
+      const PLUG_SPEEDS = [1, 2, 3, 5, 10], PLUG_RADII = [1, 2, 3, 5], PLUG_CRAFT = [1, 10, 50, 0], PLUG_POTS = [2, 3, 4, 5, 6];
       const plug = () => {
         if (!TC.plugins) {
           try { TC.plugins = JSON.parse(localStorage.getItem('og_plugins') || 'null'); } catch (e) {}
@@ -3437,6 +3453,10 @@ async function installChunks(m) {
         }
         const p = TC.plugins;
         p.loot = p.loot ? 1 : 0; p.info = p.info ? 1 : 0; p.auto = p.auto ? 1 : 0; p.steal = p.steal ? 1 : 0; p.weapons = p.weapons ? 1 : 0; p.mini = p.mini ? 1 : 0;
+        p.lootRight = p.lootRight ? 1 : 0; p.lootIcons = p.lootIcons ? 1 : 0;
+        p.craft = p.craft ? 1 : 0; p.potion = p.potion ? 1 : 0; p.potClose = p.potClose ? 1 : 0;
+        p.potN = PLUG_POTS.includes(p.potN) ? p.potN : 4;
+        p.craftN = PLUG_CRAFT.includes(p.craftN) ? p.craftN : 1;
         p.speed = PLUG_SPEEDS.includes(p.speed) ? p.speed : 1;
         p.radius = PLUG_RADII.includes(p.radius) ? p.radius : 2;
         return p;
@@ -3444,10 +3464,12 @@ async function installChunks(m) {
       let plugSent = '';
       function sendPlug() {
         if (!g_runtimeUp) { plugSent = ''; return; }
-        const p = plug(), sig = [p.loot, p.info, p.speed, p.auto, p.radius, p.steal, p.weapons, p.mini].join(',');
+        const p = plug(), sig = [p.loot, p.info, p.speed, p.auto, p.radius, p.steal, p.weapons, p.mini, p.craft, p.craftN, p.potion, p.potN, p.potClose, p.lootRight, p.lootIcons].join(',');
         if (sig === plugSent) return;
         ogSet('plugAutoLoot', p.loot); ogSet('plugScreenInfo', p.info); ogSet('plugTimeScale', p.speed * 100); ogSet('plugAuto', p.auto); ogSet('plugAutoRadius', p.radius);
-        ogSet('plugSteal', p.steal); ogSet('plugWeapons', p.weapons); ogSet('plugMiniMap', p.mini);
+        ogSet('plugSteal', p.steal); ogSet('plugWeapons', p.weapons); ogSet('plugMiniMap', p.mini); ogSet('plugFastCraft', p.craft); ogSet('plugCraftCount', p.craftN);
+        ogSet('plugLootRight', p.lootRight); ogSet('plugLootIcons', p.lootIcons);
+        ogSet('plugPotion', p.potion); ogSet('plugPotCount', p.potN); ogSet('plugPotClose', p.potClose);
         plugSent = sig;
       }
       function plugSave() {
@@ -3466,16 +3488,26 @@ async function installChunks(m) {
             '<div class="pl-set" id="plug-s-loot" hidden><label><input type="checkbox" data-k="auto"><span>Auto<small>Things and dead bodies near you are taken by themselves, no button. Things that belong to somebody are left (unless Steal is on).</small></span></label>' +
               '<label><input type="checkbox" data-k="steal"><span>Steal<small>Auto also takes things that belong to somebody: you can be accused of theft. Off: such things are left.</small></span></label>' +
               '<label><input type="checkbox" data-k="weapons"><span>Take weapons of NPCs<small>The weapons a dead one holds are taken from the body too (the game does not offer them).</small></span></label>' +
+              '<label><input type="checkbox" data-k="lootIcons"><span>Icons<small>An icon of the item beside the name of what is taken.</small></span></label>' +
+              '<div class="plug-chips" id="plug-side"><b>List of the taken things</b><button type="button" data-v="0">Left</button><button type="button" data-v="1">Right</button></div>' +
               chips('plug-radius', 'Radius of Auto', PLUG_RADII, 'm') + '</div>' +
             '<div class="pl-head"><input type="checkbox" data-k="info"><span><b>ScreenInfo</b><small>The day and the time in the top left corner; the numbers (50/100) on the health and mana bars, yours and the one in focus.</small></span><button type="button" class="pl-exp" data-x="info">Settings &#9662;</button></div>' +
             '<div class="pl-set" id="plug-s-info" hidden>' + chips('plug-speed', 'Game speed', PLUG_SPEEDS, 'x') + '</div>' +
             '<div class="pl-head"><input type="checkbox" data-k="mini"><span><b>MiniMap</b><small>The map opens as a small window in the top right corner and you can walk; the cross over it (or the map key again) closes it.</small></span></div>' +
+            '<div class="pl-head"><input type="checkbox" data-k="craft"><span><b>FastCraft</b><small>At an anvil, an alchemy table, a rune table, a still and so on one choice makes several things at once (as many as the ingredients allow). The game makes one.</small></span><button type="button" class="pl-exp" data-x="craft">Settings &#9662;</button></div>' +
+            '<div class="pl-set" id="plug-s-craft" hidden><div class="plug-chips" id="plug-craft"><b>How many</b>' + PLUG_CRAFT.map(v => '<button type="button" data-v="' + v + '">' + (v ? v : 'All') + '</button>').join('') + '</div></div>' +
+            '<div class="pl-head"><input type="checkbox" data-k="potion"><span><b>QuickPotions</b><small>An arrow over the inventory button opens a column of slots with your potions and herbs: a tap drinks one. Put things there with the new button in the inventory (left of Drop).</small></span><button type="button" class="pl-exp" data-x="pot">Settings &#9662;</button></div>' +
+            '<div class="pl-set" id="plug-s-pot" hidden><div class="plug-chips" id="plug-pots"><b>Slots</b>' + PLUG_POTS.map(v => '<button type="button" data-v="' + v + '">' + v + '</button>').join('') + '</div>' +
+              '<label><input type="checkbox" data-k="potClose"><span>Close after drinking<small>The column folds up after a potion is drunk.</small></span></label></div>' +
             '<button type="button" id="plug-close">Close</button></div>';
           (document.getElementById('player') || document.body).appendChild(plugEl);
           const stop = e => e.stopPropagation();
           ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'mousedown', 'mouseup', 'click'].forEach(n => plugEl.addEventListener(n, stop));
           plugEl.addEventListener('change', e => { const k = e.target.dataset && e.target.dataset.k; if (k) { plug()[k] = e.target.checked ? 1 : 0; plugSave(); } });
           plugEl.querySelector('#plug-speed').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().speed = +b.dataset.v; plugShow(); plugSave(); });
+          plugEl.querySelector('#plug-side').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().lootRight = +b.dataset.v; plugShow(); plugSave(); });
+          plugEl.querySelector('#plug-pots').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().potN = +b.dataset.v; plugShow(); plugSave(); });
+          plugEl.querySelector('#plug-craft').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().craftN = +b.dataset.v; plugShow(); plugSave(); });
           plugEl.querySelector('#plug-radius').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; plug().radius = +b.dataset.v; plugShow(); plugSave(); });
           plugEl.querySelectorAll('.pl-exp').forEach(b => b.addEventListener('click', () => {
             const box = plugEl.querySelector('#plug-s-' + b.dataset.x); box.hidden = !box.hidden;
@@ -3494,6 +3526,9 @@ async function installChunks(m) {
         plugEl.querySelectorAll('input[data-k]').forEach(i => { i.checked = !!p[i.dataset.k]; });
         plugEl.querySelectorAll('#plug-speed button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.speed));
         plugEl.querySelectorAll('#plug-radius button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.radius));
+        plugEl.querySelectorAll('#plug-side button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.lootRight));
+        plugEl.querySelectorAll('#plug-pots button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.potN));
+        plugEl.querySelectorAll('#plug-craft button').forEach(b => b.classList.toggle('on', +b.dataset.v === p.craftN));
       }
       // MiniMap: the engine draws the small map with a cross; a touch button over the cross closes it
       const mmClose = document.createElement('div');
@@ -3517,7 +3552,7 @@ async function installChunks(m) {
         cfg: () => TC,
         apply: () => applyCfg(true),
         save: () => { try { AndroidBridge.setControls(JSON.stringify(TC)); } catch (e) {} },
-        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'kbd', 'plugins', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: TC.keys || {}, custom: TC.custom || [] })
+        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'kbd', 'plugins', 'cheat', 'qsave', 'qload', 'aim', 'inv', 'assign'], keys: TC.keys || {}, custom: TC.custom || [] })
       };
       // minimal line icons (24x24); the name is also the button's tooltip
       // TOUCH-ICONS-BEGIN
@@ -3538,6 +3573,7 @@ async function installChunks(m) {
         weapon: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/>',
         weaponOff: '<path d="M14.5 17.5L3 6V3h3l11.5 11.5M13 19l6-6M16 16l4 4M19 21l2-2"/><path d="M3.5 20.5L20.5 3.5" stroke="rgba(0,0,0,.65)" stroke-width="5"/><path d="M3.5 20.5L20.5 3.5" stroke-width="2"/>',
         drop:   '<path d="M6 3h12M8 3v6h8V3M12 12v8M8.5 16.5L12 20l3.5-3.5"/>',
+        assign: '<path d="M9 3h6M10 3v5.5L5.5 17a2 2 0 0 0 1.8 3h9.4a2 2 0 0 0 1.8-3L14 8.5V3M8 14.5h8M19 3v5M16.5 5.5h5"/>',
         jump:   '<path d="M12 20V5M6 11l6-6 6 6"/>',
         // take ten: the arrow into a tray, "10" under it
         take10: '<path d="M12 2.5v9M8 7.8l4 4 4-4M6 14.5h12"/><text x="12" y="22.5" text-anchor="middle" font-size="8.5" font-weight="700" fill="currentColor" stroke="none" font-family="sans-serif">10</text>',
@@ -3573,7 +3609,7 @@ async function installChunks(m) {
       const NAMES = { action: 'Action', talk: 'Talk', take: 'Take', use: 'Use', loot: 'Loot', attack: 'Attack',
         aim: 'Aim (hold the bow drawn)', fist: 'Punch', arrow: 'Shoot', orb: 'Cast', weapon: 'Draw weapon', weaponOff: 'Put the weapon away', jump: 'Jump', take10: 'Take 10', dive: 'Dive', up: 'Surface', block: 'Block',
         sneak: 'Sneak', inv: 'Inventory', log: 'Log', stats: 'Character', map: 'Map', menu: 'Menu', skip: 'Skip',
-        close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', strike: 'Attack',
+        close: 'Close', ok: 'OK', back: 'Back', trade: 'Trade', drop: 'Drop', assign: 'Quick panel: put the item on / take it off', strike: 'Attack',
         camera: 'Camera: first / third person (F)', tools: 'More', plugins: 'Plugins', kbd: 'Keyboard (name of a savegame)', qsave: 'Quick save (F5)', qload: 'Quick load (F9)', cheat: 'Enable cheats',
         console: 'Console (F2)', fly: 'Fly (F8, hold)', kfast: 'Fast forward (K, hold)', possess: 'Take over a character (O)', human: 'Back to human', up1: 'Up', down1: 'Down', left1: 'Left', right1: 'Right' };
       // the icon each button shows unless the situation picks another one
@@ -3581,7 +3617,7 @@ async function installChunks(m) {
         stats: 'stats', map: 'map', menu: 'menu', skip: 'skip', dUp: 'up1', dDown: 'down1', select: 'ok',
         pUp: 'up1', pDown: 'down1', pLeft: 'left1', pRight: 'right1',
         iUp: 'up1', iDown: 'down1', iLeft: 'left1', iRight: 'right1', use: 'use', close: 'close',
-        aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop',
+        aim: 'aim', ok: 'ok', back: 'back', action: 'action', chClose: 'close', drop: 'drop', assign: 'assign',
         tools: 'tools', plugins: 'plugins', kbd: 'kbd', camera: 'camera', qsave: 'qsave', qload: 'qload', cheat: 'cheat', console: 'console', fly: 'fly', kfast: 'kfast',
         possess: 'possess', human: 'human' };
       // TOUCH-ICONS-END
@@ -3990,6 +4026,67 @@ async function installChunks(m) {
         inv.style.top = (vert ? by + per * pitch : by) + 'px';
       }
 
+      // ---- the plugin QuickPotions: an arrow over the inventory button, the slots stand on it. The engine says where
+      // they are (og_potslots, window pixels) and draws the icons; the frames and the taps are here
+      const potArrow = document.createElement('div');
+      potArrow.id = 'pot-arrow';
+      potArrow.innerHTML = '<svg viewBox="0 0 24 24"><path d="M5 16l7-7 7 7"/></svg>';
+      ui.appendChild(potArrow);
+      const potEls = [];
+      const pot = { polled: 0, sig: '', open: 0 };
+      potArrow.addEventListener('pointerdown', e => {
+        e.preventDefault(); e.stopPropagation();
+        pot.open = pot.open ? 0 : 1;
+        if (g_runtimeUp) ogSet('potOpen', pot.open);
+        pot.polled = 0; pot.sig = '';
+      });
+      function potHide() {
+        potArrow.style.display = 'none';
+        potEls.forEach(e => e.style.display = 'none');
+      }
+      function pollPot(force) {
+        const now = performance.now();
+        if (!force && now - pot.polled < 120) return;
+        pot.polled = now;
+        if (!plug().potion || !g_runtimeUp) { potHide(); return; }
+        let raw = '';
+        try { raw = Module.ccall('og_potslots', 'string', [], []); } catch (e) { return; }
+        const cr = document.getElementById('canvas').getBoundingClientRect(), ur = ui.getBoundingClientRect();
+        const sig = raw + '|' + Math.round(cr.left - ur.left) + '|' + Math.round(cr.width) + '|' + Math.round(cr.top - ur.top);
+        if (sig === pot.sig) return;
+        pot.sig = sig;
+        let d = {};
+        try { d = JSON.parse(raw); } catch (e) { return; }
+        if (!d.w || !d.on || !d.b) { potHide(); return; }
+        const k = cr.width / d.w, ox = cr.left - ur.left, oy = cr.top - ur.top;
+        pot.open = d.o ? 1 : 0;
+        potArrow.style.display = 'flex';
+        potArrow.style.left = (ox + d.ax * k) + 'px'; potArrow.style.top = (oy + d.ay * k) + 'px';
+        potArrow.style.width = (d.b * k) + 'px'; potArrow.style.height = (d.ah * k) + 'px';
+        potArrow.firstChild.style.transform = pot.open ? 'rotate(180deg)' : '';
+        const n = pot.open ? d.s.length : 0;
+        while (potEls.length < d.s.length) {
+          const i = potEls.length, el = document.createElement('div');
+          el.className = 'tq-slot pot-slot'; el.innerHTML = '<i></i>';
+          el.addEventListener('pointerdown', e => {
+            e.preventDefault(); e.stopPropagation();
+            if (el.classList.contains('empty')) return;
+            el.classList.add('down'); setTimeout(() => el.classList.remove('down'), 120);
+            if (g_runtimeUp) ogSet('potUse', i);
+          });
+          ui.appendChild(el); potEls.push(el);
+        }
+        potEls.forEach((el, i) => {
+          const sl = d.s[i];
+          if (i >= n || !sl) { el.style.display = 'none'; return; }
+          el.style.display = '';
+          el.style.left = (ox + sl[0] * k) + 'px'; el.style.top = (oy + sl[1] * k) + 'px';
+          el.style.width = el.style.height = (d.b * k) + 'px';
+          el.classList.toggle('empty', sl[2] < 0);
+          el.firstChild.textContent = sl[2] >= 0 ? sl[2] : '';
+        });
+      }
+
       let lastLayout = '';
       function update() {
         if (!document.body.classList.contains('touch-on')) return;
@@ -4012,7 +4109,7 @@ async function installChunks(m) {
         marvinOn = !!(st & (1 << 26));
         if (layout === 'world') pollJournal();
         const isWorld = layout === 'world';
-        if (isWorld) pollQuick();
+        if (isWorld) { pollQuick(); pollPot(); } else potHide();
         tq.els.forEach((e, ln) => e.style.display = isWorld && (!tq.geo || ln < tq.geo.lines) ? '' : 'none');
         tqHit.style.display = isWorld ? '' : 'none';
         const want = isWorld ? 1 : 0;
@@ -4066,6 +4163,7 @@ async function installChunks(m) {
           if (b.id === 'kbd' && !(st & (1 << 20))) show = false;         // only in the save menu
           if (!(st & (1 << 20)) && document.activeElement === kbdIn) kbdIn.blur(); // the name is done: the keyboard goes away
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
+          if (b.id === 'assign' && (!plug().potion || (invMode >= 2 && invMode <= 4) || ogGet('potSel') !== 1)) show = false; // QuickPotions on, the own inventory, food / a potion under the cursor
           b.el.classList.toggle('hidden', !show);
           // action, jump and use pick their icon below from the situation
           if (show && b.id !== 'action' && b.id !== 'jump' && b.id !== 'use' && b.id !== 'drop') setLabel(b, ICON_OF[b.id]);

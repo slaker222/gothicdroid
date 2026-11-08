@@ -27,12 +27,25 @@ struct Plugins final {
   static inline std::atomic<int> miniClose  {0};     // set by the page (the cross over the small map): closes it
   static inline std::atomic<int> miniCross  {0};     // where the cross is (the centre, permille of the window: x | y<<10), 0 - no small map
   static inline std::atomic<int> screenInfo {0};     // the day and the time in the corner, the numbers on the bars
+  static inline std::atomic<int> lootRight  {0};     // the list of the taken things at the right edge (0 - left)
+  static inline std::atomic<int> lootIcons  {0};     // an icon of the item beside the text
+  static inline std::atomic<int> fastCraft  {0};     // the plugin FastCraft: a choice in a workbench window (cook, forge, brew, ...) is made several times
+  static inline std::atomic<int> craftCount {1};     // how many: 1, 10, 50, 0 = as many as the ingredients allow
+  static inline std::atomic<int> potion     {0};     // the plugin QuickPotions: the arrow over the inventory button opens a column of slots with the assigned potions
+  static inline std::atomic<int> potCount   {4};     // slots in the column
+  static inline std::atomic<int> potClose   {0};     // the column closes after a potion is drunk
+  static inline std::atomic<int> potOpen    {0};     // the column is open
+  static inline std::atomic<int> potUse     {-1};    // set by the page: a tap on a slot
+  static inline std::atomic<int> potSel     {0};     // the item under the cursor of the inventory can go to the panel (food, potions, herbs): the page shows its button then
+  static inline std::atomic<int> potAssign  {0};     // set by the page: the button of the inventory (assign the selected item / take it off)
   static inline std::atomic<int> timeScale  {100};   // the speed of the game time, percent (x1 = 100)
 
   struct LootLine final {
     std::string    text;
     Tempest::Color color;
     float          ttl = 0;
+    size_t         cls = size_t(-1);   // the item (for the icon)
+    int            ix = 0, iy = 0, isz = 0;   // where the icon goes (window pixels, set when the line is painted), isz=0 - none
     };
 
   // the colour of the line of a taken item: by its category
@@ -58,10 +71,15 @@ struct Plugins final {
     return Tempest::Color(0.85f,0.85f,0.85f,1.f);     // the rest: grey
     }
 
-  static void addLoot(std::string text, Tempest::Color c) {
+  static void addLoot(std::string text, Tempest::Color c, size_t cls = size_t(-1)) {
     std::lock_guard<std::mutex> lk(mutex());
     auto& v = lines();
-    v.push_back({std::move(text),c,5.f});
+    LootLine l;
+    l.text = std::move(text);
+    l.color = c;
+    l.ttl = 5.f;
+    l.cls = cls;
+    v.push_back(std::move(l));
     if(v.size()>10)
       v.erase(v.begin());
     }
@@ -78,18 +96,39 @@ struct Plugins final {
     return true;
     }
 
-  // the taken things, newest at the bottom, at the left edge; they fade out in the last second
-  static void paintLoot(Tempest::Painter& p, const GthFont& fnt, int /*w*/, int y) {
+  // the taken things, newest at the bottom, at the left (or the right) edge; they fade out in the last second.
+  // With icons the line is as high as the icon, the icon stands at the edge and the text next to it
+  static void paintLoot(Tempest::Painter& p, const GthFont& fnt, int w, int y) {
     std::lock_guard<std::mutex> lk(mutex());
+    const bool right = lootRight.load()!=0, icons = lootIcons.load()!=0;
     for(auto& l:lines()) {
       auto  c  = l.color;
       float a  = std::min(1.f,l.ttl);
       auto  sz = fnt.textSize(l.text);
-      int   x  = 10;
-      fnt.tinted(Tempest::Color(0.f,0.f,0.f,a*0.8f)).drawText(p,x+1,y+1,l.text);
-      fnt.tinted(Tempest::Color(c.r(),c.g(),c.b(),a)).drawText(p,x,y,l.text);
-      y += sz.h+2;
+      const int isz  = icons ? std::max(sz.h*2, 24) : 0;
+      const int step = icons ? isz : sz.h+2;
+      // drawText takes the bottom line of the text: with an icon the text is centred on it
+      const int ty   = icons ? y + (step+sz.h)/2 : y;
+      int x;
+      if(right) {
+        x = w - 10 - sz.w - (icons ? isz+6 : 0);
+        l.ix = w - 10 - isz;
+        } else {
+        x = 10 + (icons ? isz+6 : 0);
+        l.ix = 10;
+        }
+      l.iy  = y;
+      l.isz = (icons && l.cls!=size_t(-1)) ? isz : 0;
+      fnt.tinted(Tempest::Color(0.f,0.f,0.f,a*0.8f)).drawText(p,x+1,ty+1,l.text);
+      fnt.tinted(Tempest::Color(c.r(),c.g(),c.b(),a)).drawText(p,x,ty,l.text);
+      y += step;
       }
+    }
+
+  // for the icons: a copy of the lines
+  static std::vector<LootLine> snapshot() {
+    std::lock_guard<std::mutex> lk(mutex());
+    return lines();
     }
 
   private:

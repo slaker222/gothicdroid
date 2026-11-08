@@ -80,6 +80,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeVideoTake(): String
     private external fun nativeVideoDone()
     private external fun nativeQuickSlots(): String
+    private external fun nativePotSlots(): String
     private external fun nativeQuickPanel(open: Int, first: Int)
     private external fun nativePointer(type: Int, x: Int, y: Int)
     private external fun nativeLook(dx: Int, dy: Int)
@@ -201,6 +202,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 "og_video_take" -> nativeVideoTake()
                 "og_video_done" -> { nativeVideoDone(); "0" }
                 "og_quickslots" -> nativeQuickSlots()
+                "og_potslots" -> nativePotSlots()
                 "og_quickpanel" -> { nativeQuickPanel(a.getInt(0), a.getInt(1)); "0" }
                 "og_pointer" -> { nativePointer(a.getInt(0), a.getInt(1), a.getInt(2)); "0" }
                 "og_input_look" -> { nativeLook(a.getInt(0), a.getInt(1)); "0" }

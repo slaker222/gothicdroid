@@ -60,6 +60,11 @@ class InventoryMenu : public Tempest::Widget {
     // pos: the ring's position in thousandths of a slot (the page scrolls it smoothly)
     void  quickSetOpen(bool on, int pos) { quickOpen = on; quickPos = float(pos)/1000.f; }
     void  quickUpdate();
+    // the plugin QuickPotions: a column of slots with assigned potions over the inventory button of the page
+    void  potUpdate();
+    void  lootUpdate();
+    bool  potVisible() const { return quickOpen && potShown>0 && Plugins_potOpen(); }
+    std::string potJson() const;
     std::string quickJson() const;
     // the dark soft backing under the slots (the page's option), painted in the ui layer under the icons
     void  paintQuickBack(Tempest::Painter& p) const;
@@ -121,6 +126,21 @@ class InventoryMenu : public Tempest::Widget {
     // key: the number key (1..0) of a weapon or spell, -1: an item of the inventory (cls), used by a tap
     struct QuickSlot { int key=-1, x=0, y=0, s=0, line=0; bool on=false; size_t cls=0; uint32_t count=1; int n=-1; const Item* item=nullptr; }; // n: arrows / scrolls left, -1 - not counted
     InventoryRenderer         quickRenderer;
+    struct PotSlot { int x=0, y=0; size_t cls=0; int n=0; const Item* item=nullptr; };
+    InventoryRenderer         potRenderer;
+    struct LootIcon { int x=0, y=0, s=0; size_t cls=0; const Item* item=nullptr; };
+    InventoryRenderer         lootRenderer;
+    std::vector<size_t>       lootSig;
+    int                       lootShown = 0;
+    std::vector<PotSlot>      potSlots;
+    std::vector<size_t>       potSig;
+    std::string               potNames[8];            // instance names of the assigned items ("" - the slot is empty)
+    bool                      potLoaded = false;
+    int                       potShown = 0;           // slots with an item in them (the icons are drawn)
+    int                       potW = 0, potH = 0, potSz = 0, potAx = 0, potAy = 0, potAh = 0, potOn = 0, potMax = 0;
+    int                       quickInvX = 0, quickInvY = 0;
+    static bool               Plugins_potOpen();
+    void  potSave();
     std::vector<QuickSlot>    quickSlots;
     std::vector<size_t>       quickSig;
     bool                      quickOpen = false;

@@ -1,3 +1,4 @@
+#include <map>
 #include "npc.h"
 
 #include <Tempest/Matrix4x4>
@@ -2210,6 +2211,8 @@ void Npc::tickAnimationTags() {
   }
 
 void Npc::tick(uint64_t dt) {
+  if(isPlayer())
+    fastCraftTick(dt);
   static bool dbg = false;
   static int  kId = -1;
   if(dbg && !isPlayer() && hnpc->id!=kId)
@@ -3313,7 +3316,7 @@ Item* Npc::takeItem(Item& item) {
   if(isPlayer() && it!=nullptr)
     owner.sendPassivePerc(*this,*this,*it,PERC_ASSESSTHEFT);
   if(quick && it!=nullptr)
-    Plugins::addLoot(count>1 ? name+" x"+std::to_string(count) : name, Plugins::lootColor(flag,gold));
+    Plugins::addLoot(count>1 ? name+" x"+std::to_string(count) : name, Plugins::lootColor(flag,gold), it->clsId());
 
   if(sq!=nullptr)
     implAniWait(uint64_t(sq->totalTime()));
@@ -4140,6 +4143,124 @@ uint64_t Npc::percNextTime() const {
   return perceptionNextTime;
   }
 
+// the plugin FastCraft at a mob that works on an item (the pan: raw meat -> fried meat, one piece per use): what the player
+// had when he came to the mob, and what he has when he is done. One item less and the same number of another more is a
+// recipe, the rest of the pieces the plugin was asked for is made at once
+namespace {
+struct MobSnap {
+  bool                        on   = false;
+  int64_t                     look = 0;    // ms since the last look at the inventory while the player is at the mob
+  int64_t                     wait = -1;   // ms until the result is looked at (the item exchange of the last animation lands a bit after the mob is left)
+  size_t                      need = size_t(-1);
+  std::map<size_t,size_t>     inv;
+  };
+MobSnap g_mobSnap;
+
+std::map<size_t,size_t> inventoryCounts(const Npc& npc) {
+  std::map<size_t,size_t> r;
+  for(auto i=npc.inventory().iterator(Inventory::T_Inventory); i.isValid(); ++i)
+    r[i->clsId()] += i.count();
+  return r;
+  }
+}
+
+void Npc::fastCraftBegin(Interactive& id) {
+  if(!isPlayer())
+    return;   // only the player's visit is watched: the cooks of the camp go to their pans too
+  Tempest::Log::i("[FASTCRAFT] attach: scheme='",id.schemeName(),"' useWithItem='",id.useItemName(),"' plugin=",Plugins::fastCraft.load()," count=",Plugins::craftCount.load());
+  if(g_mobSnap.on && g_mobSnap.wait>=0)
+    fastCraftFinish(true);
+  g_mobSnap.on   = false;
+  g_mobSnap.look = 0;
+  if(!isPlayer() || Plugins::fastCraft.load()==0 || Plugins::craftCount.load()==1)
+    return;
+  auto& name = id.useItemName();
+  if(name.empty())
+    return;
+  std::string up(name);
+  for(auto& c:up)
+    c = char(std::toupper(static_cast<unsigned char>(c)));   // the symbols of the script are in upper case
+  g_mobSnap.need = owner.script().findSymbolIndex(up);
+  Tempest::Log::i("[FASTCRAFT] item symbol ",up," = ",int(g_mobSnap.need));
+  if(g_mobSnap.need==size_t(-1))
+    return;
+  g_mobSnap.inv = inventoryCounts(*this);
+  g_mobSnap.on  = true;
+  }
+
+void Npc::fastCraftEnd() {
+  if(!isPlayer())
+    return;   // the cooks of the camp leave their pans too
+  Tempest::Log::i("[FASTCRAFT] left the mob, armed=",g_mobSnap.on?1:0);
+  if(g_mobSnap.on)
+    g_mobSnap.wait = 1500;
+  }
+
+void Npc::fastCraftTick(uint64_t dt) {
+  if(!g_mobSnap.on)
+    return;
+  if(g_mobSnap.wait>=0) {
+    // left the mob: a last look
+    g_mobSnap.wait -= int64_t(dt);
+    if(g_mobSnap.wait<0)
+      fastCraftFinish(true);
+    return;
+    }
+  // still at the mob: as soon as the first piece is ready the rest is made, no waiting for the player to step away
+  g_mobSnap.look += int64_t(dt);
+  if(g_mobSnap.look>=100) {
+    g_mobSnap.look = 0;
+    fastCraftFinish(false);
+    }
+  }
+
+void Npc::fastCraftFinish(bool last) {
+  if(!g_mobSnap.on)
+    return;
+  if(!isPlayer() || Plugins::fastCraft.load()==0) {
+    g_mobSnap.on = false;
+    return;
+    }
+  const auto now = inventoryCounts(*this);
+  size_t used = 0, made = 0, madeCls = size_t(-1);
+  bool   ok = true;
+  auto look = [&](size_t cls, size_t was, size_t has) {
+    if(was==has)
+      return;
+    if(cls==g_mobSnap.need && was>has && used==0)
+      used = was-has;
+    else if(has>was && made==0) {
+      made = has-was; madeCls = cls;
+      }
+    else
+      ok = false;
+    };
+  for(auto& a:g_mobSnap.inv) {
+    auto it = now.find(a.first);
+    look(a.first, a.second, it==now.end() ? 0 : it->second);
+    }
+  for(auto& b:now)
+    if(g_mobSnap.inv.find(b.first)==g_mobSnap.inv.end())
+      look(b.first, 0, b.second);
+  const bool recipe = ok && used>0 && used==made && madeCls!=size_t(-1);
+  if(!recipe && !last)
+    return;   // nothing is ready yet
+  g_mobSnap.on   = false;
+  g_mobSnap.wait = -1;
+  Tempest::Log::i("[FASTCRAFT] done: used=",used," made=",made," ok=",ok?1:0," left=",itemCount(g_mobSnap.need)," last=",last?1:0);
+  if(!recipe)
+    return;
+  const int    cnt   = Plugins::craftCount.load();
+  const size_t left  = itemCount(g_mobSnap.need);
+  const size_t want  = cnt<=0 ? used+left : size_t(cnt);
+  const size_t extra = std::min(left, want>used ? want-used : size_t(0));
+  if(extra==0)
+    return;
+  delItem(g_mobSnap.need, uint32_t(extra));
+  addItem(madeCls, extra);
+  Plugins::addLoot("Made x"+std::to_string(used+extra), Tempest::Color(0.55f,0.90f,0.40f,1.f));
+  }
+
 bool Npc::setInteraction(Interactive *id, bool quick) {
   if(currentInteract==id)
     return true;
@@ -4153,6 +4274,7 @@ bool Npc::setInteraction(Interactive *id, bool quick) {
 
   if(id->attach(*this)) {
     currentInteract = id;
+    fastCraftBegin(*id);
     if(!quick) {
       visual.stopAnim(*this,"");
       setAnimRotate(0);
@@ -4170,6 +4292,7 @@ void Npc::quitInteraction() {
     processDefInvTorch();
   setDirectionY(0);
   currentInteract=nullptr;
+  fastCraftEnd();
   }
 
 void Npc::processDefInvTorch() {

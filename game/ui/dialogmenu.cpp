@@ -8,6 +8,9 @@
 #include "utils/gthfont.h"
 #include "utils/string_frm.h"
 #include "world/objects/npc.h"
+#include "game/inventory.h"
+#include "world/objects/item.h"
+#include "plugins.h"
 #include "gothic.h"
 #include "inventorymenu.h"
 #include "menuroot.h"
@@ -398,13 +401,39 @@ void DialogMenu::skipPhrase() {
     }
   }
 
+static uint64_t inventorySignature(const Npc& npc) {
+  uint64_t h = 1469598103934665603ull;
+  for(auto i=npc.inventory().iterator(Inventory::T_Inventory); i.isValid(); ++i) {
+    h ^= uint64_t(i->clsId())*1000003ull + uint64_t(i.count());
+    h *= 1099511628211ull;
+    }
+  return h;
+  }
+
 void DialogMenu::onEntry(const GameScript::DlgChoice &e) {
   if(pl && other) {
     selected = e;
     depth    = 1;
     dlgTrade = e.isTrade;
     except.push_back(e.scriptFn);
+    // the plugin FastCraft: the window of a workbench (an anvil, an alchemy table, a rune table, ...) is a dialog of the player with
+    // himself. The script of a choice makes one thing, takes the ingredients and complains when there are none: it is run again
+    // while it changes the inventory (a menu choice, a failure or a lack of ingredients changes nothing and stops it)
+    const bool craft = (pl==other) && !e.isTrade && Plugins::fastCraft.load()!=0 && Plugins::craftCount.load()!=1;
+    const uint64_t before = craft ? inventorySignature(*pl) : 0;
     Gothic::inst().dialogExec(e,*pl,*other);
+    if(craft && inventorySignature(*pl)!=before) {
+      const int cnt   = Plugins::craftCount.load();
+      const int total = cnt<=0 ? 500 : cnt;
+      int       made  = 1;
+      for(; made<total; ++made) {
+        const uint64_t was = inventorySignature(*pl);
+        Gothic::inst().dialogExec(e,*pl,*other);
+        if(inventorySignature(*pl)==was)
+          break;
+        }
+      Plugins::addLoot("Made x"+std::to_string(made), Tempest::Color(0.55f,0.90f,0.40f,1.f));
+      }
 
     onDoneText();
     }

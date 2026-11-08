@@ -27,6 +27,8 @@ class Interactive : public Vob {
       };
 
     Interactive(Vob* parent, World& world, const zenkit::VMovableObject& vob, Flags flags);
+    // the item the mob is used with (a pan: raw meat), empty - none
+    const std::string& useItemName() const { return useWithItem; }
 
     void                load(Serialize& fin) override;
     void                save(Serialize& fout) const override;

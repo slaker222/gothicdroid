@@ -345,6 +345,10 @@ class Npc final {
     void      useItem    (size_t item);
     void      useItem    (size_t item, uint8_t slotHint, bool force);
     void      setCurrentItem(size_t item);
+    void      fastCraftBegin(Interactive& id);   // the plugin FastCraft at a pan
+    void      fastCraftEnd();
+    void      fastCraftTick(uint64_t dt);
+    void      fastCraftFinish(bool last);
     void      unequipItem(size_t item);
     void      addItem    (size_t id, Interactive& chest, size_t count=1);
     void      addItem    (size_t id, Npc& from,          size_t count=1);

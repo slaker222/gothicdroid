@@ -240,7 +240,7 @@ bool InventoryMenu::quickLoot(Npc& pl, const Inventory& inv, Npc* body, Interact
     std::string txt = t.name;
     if(t.count>1)
       txt += " x" + std::to_string(t.count);
-    Plugins::addLoot(std::move(txt),Plugins::lootColor(t.flag,t.gold));
+    Plugins::addLoot(std::move(txt),Plugins::lootColor(t.flag,t.gold),t.cls);
     }
   Gothic::inst().emitGlobalSound("INV_CHANGE");
   return true;
@@ -998,6 +998,10 @@ void InventoryMenu::draw(Tempest::Encoder<CommandBuffer>& cmd, float sx, float s
 #if defined(OG_WEB_UI)
   if(quickVisible())
     quickRenderer.draw(cmd,sx,sy);
+  if(quickVisible() && potVisible())
+    potRenderer.draw(cmd,sx,sy);
+  if(lootShown>0 && state==State::Closed)
+    lootRenderer.draw(cmd,sx,sy);
 #endif
   }
 
@@ -1091,6 +1095,8 @@ void InventoryMenu::quickUpdate() {
   x0 = std::clamp(x0, 0, std::max(0, ww-boxW-invW));
   y  = std::clamp(y,  0, std::max(0, hh-boxH-invH));
   quickX0 = x0; quickY = y; quickSz = sz; quickPitch = pitch; quickRowW = lenMain;
+  quickInvX = vert ? x0 : x0 + per*pitch;     // the inventory button of the page
+  quickInvY = vert ? y + per*pitch : y;
   quickVert = vert; quickLines = lines; quickPer = per; quickBoxW = boxW; quickBoxH = boxH;
   std::vector<QuickSlot> slots;
   for(int ln=0; ln<lines; ++ln) {
@@ -1199,6 +1205,200 @@ void InventoryMenu::paintQuickBack(Tempest::Painter& p) const {
       p.drawRect(x0, y0, x1-x0, y1-y0);
       }
     }
+  }
+
+bool InventoryMenu::Plugins_potOpen() {
+  return Plugins::potion.load()!=0 && Plugins::potOpen.load()!=0;
+  }
+
+void InventoryMenu::potSave() {
+  std::string s;
+  for(int i=0; i<8; ++i) {
+    if(i>0)
+      s += ',';
+    s += potNames[i];
+    }
+  Gothic::settingsSetS("INTERNAL","webPotions",s);
+  Gothic::flushSettings();
+  }
+
+// the column of potion slots: the arrow is right over the inventory button, the slots go up from it
+// the plugin AutoQuickLoot, "icons": the 3D icons of the taken things beside the lines the main window paints
+void InventoryMenu::lootUpdate() {
+  auto pl = Gothic::inst().player();
+  std::vector<size_t> sig;
+  std::vector<LootIcon> icons;
+  if(pl!=nullptr && Plugins::lootIcons.load()!=0 && Plugins::autoLoot.load()!=0) {
+    for(auto& l:Plugins::snapshot()) {
+      if(l.isz<=0 || l.cls==size_t(-1))
+        continue;
+      LootIcon i;
+      i.x = l.ix; i.y = l.iy; i.s = l.isz;
+      i.item = pl->getItem(l.cls);
+      if(i.item==nullptr)
+        continue;
+      i.cls = l.cls;
+      icons.push_back(i);
+      }
+    }
+  for(auto& i:icons) {
+    sig.push_back(i.cls+1);
+    sig.push_back(size_t(i.s));
+    }
+  const bool changed = (sig!=lootSig);
+  lootShown = int(icons.size());
+  lootRenderer.setClip(0,0,w(),h());
+  if(!changed) {
+    size_t k = 0;
+    for(auto& i:icons)
+      lootRenderer.setItemPos(k++, i.x, i.y);
+    return;
+    }
+  lootSig = std::move(sig);
+  lootRenderer.reset();
+  for(auto& i:icons)
+    lootRenderer.drawItem(i.x,i.y,i.s,i.s,*i.item);
+  }
+
+void InventoryMenu::potUpdate() {
+  auto pl = Gothic::inst().player();
+  auto wr = Gothic::inst().world();
+  if(!potLoaded && wr!=nullptr) {
+    potLoaded = true;
+    std::string s(Gothic::settingsGetS("INTERNAL","webPotions"));
+    size_t i = 0, b = 0;
+    while(i<8 && b<=s.size()) {
+      size_t e = s.find(',',b);
+      if(e==std::string::npos)
+        e = s.size();
+      potNames[i++] = s.substr(b,e-b);
+      b = e+1;
+      }
+    }
+  // the button of the page is for what is drunk or eaten only (food, potions, herbs, elixirs of the attributes)
+  {
+  int ok = 0;
+  if(state==State::Equip && player!=nullptr) {
+    auto& pg  = activePage();
+    auto& sel = activePageSel();
+    auto  it  = pg.get(sel.sel);
+    ok = (it.isValid() && pg.is(&player->inventory()) && (uint32_t(it->mainFlag()) & (ITM_CAT_POTION|ITM_CAT_FOOD))!=0) ? 1 : 0;
+    }
+  Plugins::potSel.store(ok);
+  }
+  const int cmdUse = Plugins::potUse.exchange(-1);
+  const int cmdAsg = Plugins::potAssign.exchange(0);
+  potOn = 0;
+  if(pl==nullptr || wr==nullptr || Plugins::potion.load()==0 || quickSz==0) {
+    potSlots.clear();
+    potShown = 0;
+    return;
+    }
+  auto& vm = wr->script();
+  auto  clsOf = [&](int i) -> size_t { return potNames[i].empty() ? size_t(-1) : vm.findSymbolIndex(potNames[i]); };
+
+  // the button of the inventory: the item under the cursor of the own inventory goes to the first free slot (or off the panel)
+  if(cmdAsg!=0 && state==State::Equip && player!=nullptr) {
+    auto& pg  = activePage();
+    auto& sel = activePageSel();
+    auto  it  = pg.get(sel.sel);
+    if(it.isValid() && pg.is(&player->inventory())) {
+      const size_t cls = it->clsId();
+      auto* sym = vm.findSymbol(cls);
+      if(sym!=nullptr && (uint32_t(it->mainFlag()) & (ITM_CAT_POTION|ITM_CAT_FOOD))!=0) {
+        const std::string name(sym->name());
+        int at = -1, freeSlot = -1;
+        for(int i=0; i<8; ++i) {
+          if(potNames[i]==name)
+            at = i;
+          if(freeSlot<0 && potNames[i].empty())
+            freeSlot = i;
+          }
+        if(at>=0) {
+          potNames[at].clear();
+          Plugins::addLoot("Quick panel: removed "+std::string(it->displayName()), Tempest::Color(0.95f,0.50f,0.95f,1.f));
+          potSave();
+          } else if(freeSlot>=0) {
+          potNames[freeSlot] = name;
+          Plugins::addLoot("Quick panel: added "+std::string(it->displayName()), Tempest::Color(0.95f,0.50f,0.95f,1.f));
+          potSave();
+          } else {
+          Plugins::addLoot("Quick panel is full", Tempest::Color(1.00f,0.45f,0.35f,1.f));
+          }
+        }
+      }
+    }
+
+  const int ww = w(), hh = h();
+  const int sz = quickSz, gp = sz/6, pitch = sz+gp;
+  potSz = sz;
+  potRenderer.setClip(0, 0, ww, hh);   // the scissor of the quick row would stay otherwise and cut the icons off
+  potAh = std::max(8, sz*45/100);
+  potAx = quickInvX + (quickVert ? quickLines*pitch : 0);
+  potAy = quickInvY - gp - potAh;
+  potMax = std::max(0, std::min(8, potAy/pitch));
+  const int cnt = std::min(std::max(1, Plugins::potCount.load()), potMax);
+  potOn = quickOpen ? 1 : 0;
+
+  // a tap on a slot: drink it
+  if(cmdUse>=0 && cmdUse<8 && quickOpen && Plugins::potOpen.load()!=0 && !Gothic::inst().isPause()) {
+    const size_t cls = clsOf(cmdUse);
+    if(cls!=size_t(-1) && pl->itemCount(cls)>0) {
+      pl->useItem(cls);
+      if(Plugins::potClose.load()!=0)
+        Plugins::potOpen.store(0);
+      }
+    }
+
+  std::vector<PotSlot> slots;
+  potShown = 0;
+  for(int i=0; i<cnt; ++i) {
+    PotSlot s;
+    s.x = potAx;
+    s.y = potAy - (i+1)*pitch;
+    const size_t cls = clsOf(i);
+    if(cls!=size_t(-1)) {
+      s.cls = cls;
+      s.n   = int(pl->itemCount(cls));
+      if(s.n>0)
+        s.item = pl->getItem(cls);
+      }
+    if(s.item!=nullptr)
+      ++potShown;
+    slots.push_back(s);
+    }
+  std::vector<size_t> sig;
+  for(auto& s:slots)
+    sig.push_back(s.item!=nullptr ? s.cls+1 : 0);
+  sig.push_back(size_t(sz)); sig.push_back(size_t(ww)); sig.push_back(size_t(hh));
+  const bool changed = (sig!=potSig || slots.size()!=potSlots.size());
+  potW = ww; potH = hh;
+  potSlots = std::move(slots);
+  if(!changed) {
+    size_t k = 0;
+    for(auto& s:potSlots)
+      if(s.item!=nullptr)
+        potRenderer.setItemPos(k++, s.x, s.y);
+    return;
+    }
+  potSig = std::move(sig);
+  potRenderer.reset();
+  for(auto& s:potSlots)
+    if(s.item!=nullptr)
+      potRenderer.drawItem(s.x,s.y,s.item!=nullptr ? sz : sz,sz,*s.item);
+  }
+
+// for the page: the place of the arrow and the slots (window pixels), what is in them
+std::string InventoryMenu::potJson() const {
+  std::string r = "{\"w\":" + std::to_string(w()) + ",\"h\":" + std::to_string(h()) + ",\"on\":" + std::to_string(potOn) +
+                  ",\"o\":" + std::to_string(Plugins::potOpen.load()) + ",\"b\":" + std::to_string(potSz) +
+                  ",\"ax\":" + std::to_string(potAx) + ",\"ay\":" + std::to_string(potAy) + ",\"ah\":" + std::to_string(potAh) + ",\"s\":[";
+  for(size_t i=0; i<potSlots.size(); ++i) {
+    if(i>0)
+      r += ',';
+    r += "[" + std::to_string(potSlots[i].x) + "," + std::to_string(potSlots[i].y) + "," + std::to_string(potSlots[i].item!=nullptr ? potSlots[i].n : -1) + "]";
+    }
+  return r + "]}";
   }
 
 std::string InventoryMenu::quickJson() const {

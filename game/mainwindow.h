@@ -59,6 +59,7 @@ class MainWindow : public Tempest::Window {
     void  webLook(int dx, int dy) { webLookDelta += Tempest::Point(dx, dy); }
     void  webZoom(int steps) { webZoomSteps += steps; }   // pinch: camera distance, like the mouse wheel
     std::string webQuickSlots() const { return inventory.quickJson(); }
+    std::string webPotSlots() const { return inventory.potJson(); }
     void  webQuickPanel(bool open, int first) { inventory.quickSetOpen(open, first); }
     void  webPointer(int type, int x, int y) { inventory.webPointer(type, x, y); }
 #endif
