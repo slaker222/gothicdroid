@@ -1,4 +1,5 @@
 #include <cmath>
+#include <cctype>
 #include "inventorymenu.h"
 
 #include <Tempest/Painter>
@@ -1260,6 +1261,20 @@ void InventoryMenu::lootUpdate() {
     lootRenderer.drawItem(i.x,i.y,i.s,i.s,*i.item);
   }
 
+// does the item restore the health? By the name of the script instance (the item scripts carry no such flag): food and
+// the health potions / herbs do, mana, speed and the elixirs of the attributes do not
+static bool potHeals(const Item& it, const std::string& name) {
+  std::string n(name);
+  for(auto& c:n)
+    c = char(std::tolower((unsigned char)c));
+  auto has = [&](const char* t) { return n.find(t)!=std::string::npos; };
+  if(has("health") || has("heal"))
+    return true;
+  if(has("mana") || has("speed") || has("haste") || has("strength") || has("dex") || has("perm") || has("mega") || has("accel"))
+    return false;
+  return (uint32_t(it.mainFlag()) & ITM_CAT_FOOD)!=0;    // bread, meat, an apple, a plain herb
+  }
+
 void InventoryMenu::potUpdate() {
   auto pl = Gothic::inst().player();
   auto wr = Gothic::inst().world();
@@ -1367,6 +1382,19 @@ void InventoryMenu::potUpdate() {
       ++potShown;
     slots.push_back(s);
     }
+  // the arrow is there only when it can be useful: the hero is hurt, or the panel holds something that is not for the
+  // health (a speed potion, mana, an elixir): those are drunk at full health too
+  if(potOn!=0) {
+    bool useful = pl->attribute(Attribute::ATR_HITPOINTS) < pl->attribute(Attribute::ATR_HITPOINTSMAX);
+    for(auto& s:slots)
+      if(!useful && s.item!=nullptr && !potHeals(*s.item, potNames[&s-slots.data()]))
+        useful = true;
+    if(!useful) {
+      potOn = 0;
+      Plugins::potOpen.store(0);      // the column goes with the arrow
+      }
+    }
+
   std::vector<size_t> sig;
   for(auto& s:slots)
     sig.push_back(s.item!=nullptr ? s.cls+1 : 0);
