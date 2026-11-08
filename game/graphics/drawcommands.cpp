@@ -250,17 +250,36 @@ uint16_t DrawCommands::commandId(const Material& m, Type type, uint32_t bucketId
 static std::mutex g_boundsSync;
 
 bool DrawCommands::DrawCmd::isOutsideOf(const Frustrum& f) const {
-  // the spheres the gpu culls with (see VisualObjects::expandBounds): outside of them all, nothing of it is drawn
   std::lock_guard<std::mutex> guard(g_boundsSync);
+  return isOutsideOfLocked(f);
+  }
+
+bool DrawCommands::DrawCmd::isOutsideOfLocked(const Frustrum& f) const {
+  // the spheres the gpu culls with (see VisualObjects::expandBounds): outside of them all, nothing of it is drawn
   if(type==Type::Pfx)
     return false;
   if(unbounded!=0 || boundsMin.x>boundsMax.x)
     return false;
   if(f.isOutside(boundsMin,boundsMax))
     return true;
-  for(auto& i:cells)
+  if(cells.size()<16 || blocks.size()<2) {
+    for(auto& i:cells)
+      if(!f.isOutside(i.mn,i.mx))
+        return false;
+    return true;
+    }
+  // 0 - not tested, 1 - outside, 2 - not outside
+  thread_local std::vector<uint8_t> blockSt;
+  blockSt.assign(blocks.size(), 0);
+  for(auto& i:cells) {
+    auto& st = blockSt[i.block];
+    if(st==0)
+      st = f.isOutside(blocks[i.block].mn,blocks[i.block].mx) ? 1 : 2;
+    if(st==1)
+      continue;
     if(!f.isOutside(i.mn,i.mx))
       return false;
+    }
   return true;
   }
 
@@ -272,6 +291,7 @@ void DrawCommands::resetDynamicBounds() {
     c.boundsMin = Tempest::Vec3( 1e30f, 1e30f, 1e30f);
     c.boundsMax = Tempest::Vec3(-1e30f,-1e30f,-1e30f);
     c.cells.clear();
+    c.blocks.clear();
     }
   }
 
@@ -284,13 +304,27 @@ void DrawCommands::expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const T
   constexpr float cellSz = 2000.f; // 20 m
   const int32_t   cx     = int32_t(std::floor((mn.x+mx.x)*0.5f/cellSz));
   const int32_t   cz     = int32_t(std::floor((mn.z+mx.z)*0.5f/cellSz));
+  auto grow = [](Tempest::Vec3& bmn, Tempest::Vec3& bmx, const Tempest::Vec3& mn, const Tempest::Vec3& mx) {
+    bmn = Tempest::Vec3(std::min(bmn.x,mn.x), std::min(bmn.y,mn.y), std::min(bmn.z,mn.z));
+    bmx = Tempest::Vec3(std::max(bmx.x,mx.x), std::max(bmx.y,mx.y), std::max(bmx.z,mx.z));
+    };
   for(auto& i:c.cells)
     if(i.x==cx && i.z==cz) {
-      i.mn = Tempest::Vec3(std::min(i.mn.x,mn.x), std::min(i.mn.y,mn.y), std::min(i.mn.z,mn.z));
-      i.mx = Tempest::Vec3(std::max(i.mx.x,mx.x), std::max(i.mx.y,mx.y), std::max(i.mx.z,mx.z));
+      grow(i.mn,i.mx,mn,mx);
+      grow(c.blocks[i.block].mn,c.blocks[i.block].mx,mn,mx);
       return;
       }
-  c.cells.push_back({cx,cz,mn,mx});
+  const int32_t bx = cx>>3, bz = cz>>3; // floor division by 8
+  uint32_t      bId = uint32_t(c.blocks.size());
+  for(size_t i=0; i<c.blocks.size(); ++i)
+    if(c.blocks[i].x==bx && c.blocks[i].z==bz) {
+      bId = uint32_t(i);
+      break;
+      }
+  if(bId==c.blocks.size())
+    c.blocks.push_back({bx,bz,mn,mx}); else
+    grow(c.blocks[bId].mn,c.blocks[bId].mx,mn,mx);
+  c.cells.push_back({cx,cz,mn,mx,bId});
   }
 
 void DrawCommands::addUnbounded(uint16_t cmdId, int delta) {
@@ -459,6 +493,7 @@ void DrawCommands::visibilityPass(Encoder<CommandBuffer>& cmd, int pass) {
     cmd.setBinding(T_Indirect, views[viewport].indirectCmd);
     cmd.setBinding(T_Clusters, clusters.ssbo());
     cmd.setBinding(T_HiZ,      *scene.hiZ);
+    cmd.setBinding(T_Groups,   clusters.groupSsbo());
     cmd.setPushData(push);
     cmd.setPipeline(*pso);
     cmd.dispatchThreads(push.meshletCount);
@@ -628,8 +663,9 @@ bool DrawCommands::hasCommands(Material::AlphaFunc func) const {
 
 bool DrawCommands::hasVisible(Material::AlphaFunc func, const Frustrum& f) const {
   // the same test as in drawCommon: commands that are not recorded draw nothing
+  std::lock_guard<std::mutex> guard(g_boundsSync); // once, not for every command
   for(auto i:ord)
-    if(i->alpha==func && i->maxPayload!=0 && !i->isOutsideOf(f))
+    if(i->alpha==func && i->maxPayload!=0 && !i->isOutsideOfLocked(f))
       return true;
   return false;
   }
@@ -659,6 +695,8 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
     return;
 #endif
 
+  // the boxes are grown by the animation workers before the frame is recorded: the lock once, not for every command
+  std::lock_guard<std::mutex> boundsGuard(g_boundsSync);
   for(auto i=b; i!=e; ++i) {
     auto& cx = **i;
     if(cx.alpha!=func)
@@ -688,7 +726,7 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
     // (not in the browser: the recorded commands are replayed there while nothing changes, the camera is not a part of that)
     // (the shadow views: the same sphere test on the gpu, by the frustum of the view; the sun below the horizon clears it)
     if((viewId==SceneGlobals::V_Main || viewId==SceneGlobals::V_Shadow0 || viewId==SceneGlobals::V_Shadow1) &&
-       !opengothic_debug_no_cmd_cull() && cx.isOutsideOf(scene.frustrum[viewId]))
+       !opengothic_debug_no_cmd_cull() && cx.isOutsideOfLocked(scene.frustrum[viewId]))
       continue;
 #endif
 
@@ -711,6 +749,9 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
   }
 
 void DrawCommands::logGeometryStats() {
+  // the read back below waits for the gpu (a stall of up to a frame every second): only for measurements
+  if(!opengothic_debug_geo_stats())
+    return;
   static uint64_t s_lastLogTime = 0;
   uint64_t now = Application::tickCount();
   if(now - s_lastLogTime < 1000)

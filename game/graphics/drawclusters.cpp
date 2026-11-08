@@ -4,6 +4,9 @@
 #include "graphics/mesh/submesh/staticmesh.h"
 #include "graphics/mesh/submesh/animmesh.h"
 
+#include <limits>
+#include <algorithm>
+
 using namespace Tempest;
 
 DrawClusters::DrawClusters() {
@@ -81,8 +84,10 @@ void DrawClusters::free(uint32_t id, uint32_t numCluster) {
   }
 
 bool DrawClusters::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
-  if(!clustersDurtyBit)
+  if(!clustersDurtyBit) {
+    uploadGroups(fId);
     return false;
+    }
   clustersDurtyBit = false;
 
   std::atomic_thread_fence(std::memory_order_acquire);
@@ -91,6 +96,8 @@ bool DrawClusters::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
 
   auto& device = Resources::device();
   if(clustersGpu.byteSize() == csize) {
+    updateGroups(false);
+    uploadGroups(fId);
     patchClusters(cmd, fId);
     return false;
     }
@@ -98,8 +105,71 @@ bool DrawClusters::commit(Encoder<CommandBuffer>& cmd, uint8_t fId) {
   Resources::recycle(std::move(clustersGpu));
   clustersGpu  = device.ssbo(Tempest::Uninitialized, csize);
   clustersGpu.update(clusters);
+  updateGroups(true);
+  uploadGroups(fId);
   std::fill(clustersDurty.begin(), clustersDurty.end(), 0x0);
   return true;
+  }
+
+void DrawClusters::updateGroups(bool all) {
+  // the dirty bits of the clusters are still set here: the groups of the changed clusters are made again
+  const size_t gCount = (clusters.size() + GroupSize - 1)/GroupSize;
+  if(groups.size()!=gCount) {
+    groups.resize(gCount);
+    all = true;
+    }
+
+  auto build = [this](size_t g) {
+    const float inf = std::numeric_limits<float>::infinity();
+    Vec3 mn = Vec3( inf, inf, inf), mx = Vec3(-inf,-inf,-inf);
+    const size_t b = g*GroupSize, e = std::min(b+GroupSize, clusters.size());
+    for(size_t i=b; i<e; ++i) {
+      auto& c = clusters[i];
+      if(!(c.r>0.f))
+        continue; // disabled or deleted: the shader skips it
+      mn = Vec3(std::min(mn.x,c.pos.x-c.r), std::min(mn.y,c.pos.y-c.r), std::min(mn.z,c.pos.z-c.r));
+      mx = Vec3(std::max(mx.x,c.pos.x+c.r), std::max(mx.y,c.pos.y+c.r), std::max(mx.z,c.pos.z+c.r));
+      }
+    groups[g].mn = Vec4(mn.x,mn.y,mn.z,0);
+    groups[g].mx = Vec4(mx.x,mx.y,mx.z,0);
+    };
+
+  if(all) {
+    for(size_t g=0; g<groups.size(); ++g)
+      build(g);
+    groupGen++;
+    return;
+    }
+
+  static_assert(GroupSize%32==0);
+  constexpr size_t wordsPerGroup = GroupSize/32;
+  bool changed = false;
+  for(size_t i=0; i<clustersDurty.size(); ++i) {
+    if(clustersDurty[i]==0x0)
+      continue;
+    const size_t g = i/wordsPerGroup;
+    build(g);
+    i = (g+1)*wordsPerGroup - 1; // the group is done
+    changed = true;
+    }
+  if(changed)
+    groupGen++;
+  }
+
+void DrawClusters::uploadGroups(uint8_t fId) {
+  groupFId = fId;
+  if(groupGpuGen[fId]==groupGen && !groupGpu[fId].isEmpty())
+    return;
+  auto& device = Resources::device();
+  static const GroupBox none = {Vec4(1,1,1,0), Vec4(-1,-1,-1,0)}; // empty: no buffer of zero size
+  const size_t sz = std::max<size_t>(groups.size(),1)*sizeof(GroupBox);
+  if(groupGpu[fId].byteSize()<sz) {
+    groupGpu[fId] = groups.empty() ? device.ssbo(BufferHeap::Upload, &none, sizeof(none))
+                                   : device.ssbo(BufferHeap::Upload, groups.data(), groups.size()*sizeof(GroupBox));
+    } else if(!groups.empty()) {
+    groupGpu[fId].update(groups.data(), 0, groups.size()*sizeof(GroupBox));
+    }
+  groupGpuGen[fId] = groupGen;
   }
 
 size_t DrawClusters::implAlloc(size_t count) {

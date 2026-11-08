@@ -18,6 +18,8 @@ layout(binding = 3, std140) readonly buffer Bbo { Bucket      bucket[];      };
 layout(binding = 4, std430) buffer IndirectBuf  { IndirectCmd cmd[];         };
 layout(binding = 5, std430) readonly buffer Cbo { Cluster     clusters[];    };
 layout(binding = 7)         uniform sampler2D hiZ;
+// boxes of the groups of 64 clusters (one workgroup), DrawClusters::updateGroups: min.xyz, max.xyz
+layout(binding = 10, std430) readonly buffer Gbo { vec4 groupBox[]; };
 
 layout(push_constant, std430) uniform UboPush {
   uint      firstMeshlet;
@@ -224,7 +226,34 @@ void runCluster(const uint clusterId) {
     payload[writeOffset+i] = uvec4(instanceId, meshletId+i, bucketId, 0);
   }
 
+// A group whose box is wholly outside of a plane has every cluster sphere outside of it (the planes are normalized, so
+// the box corner is at least as far along the normal as any sphere of the group): those clusters would all fail
+// frustrumTest, the group is skipped without reading them. 64 units of margin cover the float rounding.
+bool groupTest(uint g) {
+  const vec3 mn = groupBox[g*2+0].xyz;
+  const vec3 mx = groupBox[g*2+1].xyz;
+  if(mn.x>mx.x)
+    return false; // no enabled cluster in the group
+  for(int i=0; i<6; ++i) {
+    const vec4 p = scene.frustrum[i];
+    const vec3 v = vec3(p.x>=0.0 ? mx.x : mn.x,
+                        p.y>=0.0 ? mx.y : mn.y,
+                        p.z>=0.0 ? mx.z : mn.z);
+    if(dot(v,p.xyz) + p.w < -64.0)
+      return false;
+    }
+  return true;
+  }
+
+shared uint groupVisible;
+
 void main() {
+  if(gl_LocalInvocationIndex==0)
+    groupVisible = groupTest(gl_WorkGroupID.x) ? 1u : 0u;
+  barrier();
+  if(groupVisible==0u)
+    return;
+
   const uint clusterId = gl_GlobalInvocationID.x;
   if(clusterId<push.meshletCount)
     runCluster(clusterId);

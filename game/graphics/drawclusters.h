@@ -36,6 +36,10 @@ class DrawClusters {
 
     auto     ssbo() -> Tempest::StorageBuffer& { return clustersGpu; }
     auto     ssbo() const -> const Tempest::StorageBuffer& { return clustersGpu; }
+    // boxes of groups of 64 clusters (a workgroup of visibility_pass.comp): a group outside of the camera skips its
+    // clusters, every one of them would fail the frustum test. The buffer of the frame of the last commit
+    auto     groupSsbo() const -> const Tempest::StorageBuffer& { return groupGpu[groupFId]; }
+    static constexpr size_t GroupSize = 64;
 
   private:
     struct Range {
@@ -63,6 +67,15 @@ class DrawClusters {
     std::atomic_bool               clustersDurtyBit {false};
 
     ScratchPatch                   scratch;
+
+    struct GroupBox { Tempest::Vec4 mn, mx; };
+    void                           updateGroups(bool all);
+    void                           uploadGroups(uint8_t fId);
+    std::vector<GroupBox>          groups;
+    uint64_t                       groupGen = 1;
+    uint64_t                       groupGpuGen[Resources::MaxFramesInFlight] = {};
+    Tempest::StorageBuffer         groupGpu[Resources::MaxFramesInFlight];
+    uint8_t                        groupFId = 0;
 
     Patch                          patch[Resources::MaxFramesInFlight];
   };

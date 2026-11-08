@@ -47,9 +47,14 @@ class DrawCommands {
       uint32_t                       unbounded    = 0;
       // the same boxes by cells of the XZ grid (boundsMin/Max is their union): a command is outside of the camera when
       // every cell is, a material that is spread over the whole world is not recorded for what is far behind
-      struct Cell { int32_t x, z; Tempest::Vec3 mn, mx; };
+      // blocks of 8x8 cells with the union of their boxes: a block that is outside of the camera has all its cells
+      // outside (a cell box is inside of the block box), their tests are skipped
+      struct Cell  { int32_t x, z; Tempest::Vec3 mn, mx; uint32_t block; };
+      struct Block { int32_t x, z; Tempest::Vec3 mn, mx; };
       std::vector<Cell>              cells;
+      std::vector<Block>             blocks;
       bool                           isOutsideOf(const Frustrum& f) const;
+      bool                           isOutsideOfLocked(const Frustrum& f) const; // g_boundsSync is held
 
       bool                           isForwardShading() const;
       bool                           isShadowmapRequired() const;
@@ -101,6 +106,7 @@ class DrawCommands {
       T_HiZ        = 7,
       T_VsmPages   = 8,
       T_CmdOffsets = 9,
+      T_Groups     = 10,
       };
 
     enum UboLinkpackage : uint8_t {
