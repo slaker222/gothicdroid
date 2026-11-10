@@ -18,6 +18,7 @@
 #include "camera.h"
 #include "graphics/drawcommands.h"
 #include "graphics/mdlvisual.h"
+#include "graphics/dynamic/frustrum.h"
 
 #include <Tempest/Painter>
 #include <Tempest/Application>
@@ -421,6 +422,32 @@ bool WorldObjects::execTriggerEvent(const TriggerEvent& e) {
   return emitted;
   }
 
+namespace {
+// what an npc pose is needed for: the main view and the shadow cascades (see Renderer::updatePoseViews)
+struct PoseViews {
+  Frustrum view[3];
+  size_t   count = 0;
+  };
+PoseViews g_poseViews;
+
+void setupFarPose() {
+  Tempest::Vec3 cam;
+  if(auto c = Gothic::inst().camera()) {
+    auto v = c->view();
+    v.inverse();
+    v.project(cam);
+    }
+  MdlVisual::setFarPose(true, DrawCommands::drawDistance(), cam);
+  }
+}
+
+void WorldObjects::setPoseViews(const Frustrum* views, size_t count) {
+  count = std::min<size_t>(count, 3);
+  for(size_t i=0; i<count; ++i)
+    g_poseViews.view[i] = views[i];
+  g_poseViews.count = count;
+  }
+
 void WorldObjects::updateAnimation(uint64_t dt) {
   static bool doAnim=true;
   if(!doAnim)
@@ -433,20 +460,39 @@ void WorldObjects::updateAnimation(uint64_t dt) {
 #if defined(__EMSCRIPTEN_PTHREADS__)
   // web: audio, effects and GPU resources belong to the main thread. Transforms
   // and animation events run there in order, only poses run on the workers
-  {
-  Tempest::Vec3 cam;
-  if(auto c = Gothic::inst().camera()) {
-    auto v = c->view();
-    v.inverse();
-    v.project(cam);
-    }
-  MdlVisual::setFarPose(Gothic::settingsGetI("INTERNAL","webSkipFarAnim")!=0, DrawCommands::drawDistance(), cam);
-  }
+  setupFarPose();
   for(auto& i:npcArr)
     i->updateAnimationEvents(dt);
-  Workers::parallelTasks(npcArr,[](std::unique_ptr<Npc>& i){
-    i->updateAnimationPose();
-    });
+
+  // A pose is computed in full only for an npc that can change the picture. The animation state
+  // (samples and their blend source) depends on the previous frames, so it is advanced for every
+  // npc in range; the bone matrices of the others are computed when something reads them
+  // (MdlVisual::flushPose) or when the final camera shows them (updateStalePoses)
+  const PoseViews& pv = g_poseViews;
+  poseTasks.clear();
+  for(auto& i:npcArr) {
+    Npc& n = *i;
+    if(n.isPlayer()) {
+      poseTasks.push_back({&n,true});
+      }
+    else if(n.isPoseFar()) {
+      n.skipAnimationPose();
+      }
+    else if(pv.count==0 || n.isPoseNeeded(pv.view,pv.count)) {
+      poseTasks.push_back({&n,true});
+      }
+    else {
+      poseTasks.push_back({&n,false});
+      }
+    }
+  if(poseTasks.size()<poseInlineMax) {
+    for(auto& i:poseTasks)
+      i.npc->updateAnimationPoseLazy(i.full);
+    } else {
+    Workers::parallelTasks(poseTasks,[](PoseTask& i){
+      i.npc->updateAnimationPoseLazy(i.full);
+      });
+    }
   for(auto i:interactiveObj)
     i->updateAnimationEvents(dt);
   interactiveObj.parallelFor([](Interactive& i){
@@ -456,15 +502,7 @@ void WorldObjects::updateAnimation(uint64_t dt) {
 #if defined(__ANDROID__)
   // npc beyond the draw distance are not visible: their pose is not computed
   // (animation events still run); inactive without a distance limit
-  {
-  Tempest::Vec3 cam;
-  if(auto c = Gothic::inst().camera()) {
-    auto v = c->view();
-    v.inverse();
-    v.project(cam);
-    }
-  MdlVisual::setFarPose(true, DrawCommands::drawDistance(), cam);
-  }
+  setupFarPose();
 #endif
   Workers::parallelTasks(npcArr,[dt](std::unique_ptr<Npc>& i){
     i->updateAnimation(dt);
@@ -475,6 +513,22 @@ void WorldObjects::updateAnimation(uint64_t dt) {
 #endif
   for(auto& i:npcArr)
     i->updateBlobShadow();
+  }
+
+void WorldObjects::updateStalePoses() {
+#if defined(__EMSCRIPTEN_PTHREADS__)
+  // the camera moved after the animation: whoever is on screen now gets a pose
+  const PoseViews& pv = g_poseViews;
+  if(pv.count==0)
+    return;
+  setupFarPose();
+  for(auto& i:npcArr) {
+    Npc& n = *i;
+    if(!n.isPoseStale() || n.isPoseFar() || !n.isPoseNeeded(pv.view,pv.count))
+      continue;
+    n.updateAnimationPoseLazy(true);
+    }
+#endif
   }
 
 bool WorldObjects::isTargeted(Npc& dst) {

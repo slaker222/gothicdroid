@@ -2114,6 +2114,15 @@ void MainWindow::render(){
     const uint64_t dt = tick();
     updateAnimation(dt);
     tickCamera(dt);
+#if defined(__EMSCRIPTEN_PTHREADS__)
+    // npc poses are lazy: the camera is final now, whoever it shows gets a pose before the frame is drawn
+    if(auto camera = Gothic::inst().camera()) {
+      if(auto world = Gothic::inst().world()) {
+        renderer.updatePoseViews(*camera);
+        world->updateStalePoses();
+        }
+      }
+#endif
     auto tTick = perfNow() - t0;
 
     auto t1 = perfNow();

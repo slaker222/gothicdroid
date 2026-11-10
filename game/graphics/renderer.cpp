@@ -12,6 +12,8 @@
 #include "camera.h"
 #include "gothic.h"
 #include "world/objects/npc.h"
+#include "world/worldobjects.h"
+#include "graphics/dynamic/frustrum.h"
 #include "gapi/vulkan/vpipelinelogger.h"
 #include "utils/string_frm.h"
 #include "shader.h"
@@ -404,6 +406,25 @@ void Renderer::updateCamera(const Camera& camera) {
   clipInfo.x  = zNear*zFar;
   clipInfo.y  = zNear-zFar;
   clipInfo.z  = zFar;
+  }
+
+void Renderer::updatePoseViews(const Camera& camera) {
+  auto wview = Gothic::inst().worldView();
+  if(wview==nullptr)
+    return;
+  updateCamera(camera);
+
+  Frustrum fr[3];
+  fr[0].make(viewProj,zbuffer.w(),zbuffer.h());
+  size_t count = 1;
+  // no shadow pass in the WebGL 2 renderer
+  if(settings.shadowsEnabled && !Gothic::options().webgl2 && wview->mainLight().dir().y>Camera::minShadowY &&
+     !shadowMap[0].isEmpty() && !shadowMap[1].isEmpty()) {
+    fr[1].make(shadowMatrix[0],shadowMap[0].w(),shadowMap[0].h());
+    fr[2].make(shadowMatrix[1],shadowMap[1].w(),shadowMap[1].h());
+    count = 3;
+    }
+  WorldObjects::setPoseViews(fr,count);
   }
 
 bool Renderer::requiresTlas() const {

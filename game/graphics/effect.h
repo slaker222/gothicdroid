@@ -27,6 +27,7 @@ class Effect final {
 
     Effect&  operator = (Effect&&) = default;
     bool     is(const VisualFx& vfx) const;
+    bool     isEmpty() const { return root==nullptr && pfx.isEmpty(); }
     const VisualFx* handle() const { return root; }
 
     void     tick(uint64_t dt);

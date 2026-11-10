@@ -24,6 +24,8 @@ class Renderer final {
     void onWorldChanged();
     void resetSkyLut() { sky.lutIsInitialized = false; }   // the clouds changed: the sky tables are made again
 
+    // web: the views npc poses are needed for (the camera and the shadow cascades), see WorldObjects::updateStalePoses
+    void updatePoseViews(const Camera &camera);
     void draw(Tempest::Encoder<Tempest::CommandBuffer>& cmd, uint8_t cmdId, size_t imgId,
               Tempest::VectorImage::Mesh& uiLayer, Tempest::VectorImage::Mesh& numOverlay,
               InventoryMenu &inventory, VideoWidget& video);

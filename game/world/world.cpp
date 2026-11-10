@@ -327,6 +327,10 @@ void World::updateAnimation(uint64_t dt) {
   wobj.updateAnimation(dt);
   }
 
+void World::updateStalePoses() {
+  wobj.updateStalePoses();
+  }
+
 void World::resetPositionToTA() {
   wobj.resetPositionToTA();
   }

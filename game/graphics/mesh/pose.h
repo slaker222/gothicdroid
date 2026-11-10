@@ -2,6 +2,8 @@
 
 #include <Tempest/Matrix4x4>
 #include <vector>
+#include <atomic>
+#include <memory>
 
 #include "game/constants.h"
 #include "animation.h"
@@ -47,7 +49,12 @@ class Pose final {
     void               stopAllAnim();
 
     void               setObjectMatrix(const Tempest::Matrix4x4& obj, bool sync);
-    bool               update(uint64_t tickCount, bool force);
+    // defer: the animation state is advanced as usual, but the bone matrices (mkSkeleton) are only
+    // remembered (state, object matrix, head rotation) and computed by flushSkeleton on demand
+    bool               update(uint64_t tickCount, bool force, bool defer = false);
+    // computes the deferred bone matrices, true if there were any (thread safe: one caller computes, the others wait)
+    bool               flushSkeleton();
+    bool               isSkeletonDeferred() const { return skelState.load(std::memory_order_acquire)!=0 || unsynced.load(std::memory_order_acquire); }
 
     void               processLayers(AnimationSolver &solver, uint64_t tickCount);
     bool               processEvents(uint64_t& barrier, uint64_t now, Animation::EvCount &ev) const;
@@ -115,7 +122,10 @@ class Pose final {
 
     auto mkBaseTranslation() -> Tempest::Vec3;
     void mkSkeleton(const Tempest::Matrix4x4 &mt);
-    void implMkSkeleton(const Tempest::Matrix4x4 &mt);
+    void mkSkeleton(const Tempest::Matrix4x4 &mt, float headX, float headY);
+    void deferSkeleton();
+    void computeDeferred() const;
+    void implMkSkeleton(const Tempest::Matrix4x4 &mt, float headX, float headY);
     void implMkSkeleton(const Tempest::Matrix4x4 &mt, size_t parent);
 
     bool updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBlend, uint64_t barrier, uint64_t sTime, uint64_t now);
@@ -146,6 +156,15 @@ class Pose final {
     uint8_t                         hasTransitions = 0;
 
     float                           headRotX = 0, headRotY = 0;
+
+    // deferred mkSkeleton: 0 - tr is current, 1 - tr is out of date (def holds the input), 2 - being computed
+    struct Deferred final {
+      Tempest::Matrix4x4 pos;
+      float              headX = 0, headY = 0;
+      };
+    mutable std::atomic<uint8_t>    skelState{0};
+    std::atomic<bool>               unsynced{false}; // matrices were computed by a reader, the meshes still hold the old ones
+    std::unique_ptr<Deferred>       def;
 
     size_t                          numBones = 0;
     Tempest::Matrix4x4              pos;

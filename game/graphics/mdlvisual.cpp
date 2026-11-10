@@ -8,6 +8,7 @@
 #include "world/objects/item.h"
 #include "world/world.h"
 #include "objvisual.h"
+#include "graphics/dynamic/frustrum.h"
 #include "gothic.h"
 
 using namespace Tempest;
@@ -26,11 +27,13 @@ void MdlVisual::save(Serialize &fout, const Npc&) const {
     fout.write(skeleton->name()); else
     fout.write(std::string(""));
   solver.save(fout);
+  flushPose(); // the save keeps the matrices
   skInst->save(fout);
   }
 
 void MdlVisual::save(Serialize& fout, const Interactive&) const {
   solver.save(fout);
+  flushPose(); // the save keeps the matrices
   skInst->save(fout);
   }
 
@@ -281,6 +284,7 @@ void MdlVisual::dropWeapon(Npc& npc) {
      fgtMode!=WeaponState::Bow && fgtMode!=WeaponState::CBow)
     return;
 
+  flushPose();
   auto p = pos;
   if(att->boneId<pose.boneCount())
     p = pose.bone(att->boneId);
@@ -306,6 +310,7 @@ void MdlVisual::dropShield(Npc& npc) {
   if(fgtMode!=WeaponState::W1H && fgtMode!=WeaponState::W2H)
     return;
 
+  flushPose();
   auto p = pos;
   if(att->boneId<pose.boneCount())
     p = pose.bone(att->boneId);
@@ -416,6 +421,7 @@ void MdlVisual::setFatness(float fatness) {
 void MdlVisual::emitBlockEffect(Npc& dest, Npc& source) {
   auto& world = source.world();
 
+  flushPose();
   auto& pose  = *skInst;
   auto  p     = pos;
   if(sword.boneId<pose.boneCount())
@@ -494,6 +500,7 @@ void MdlVisual::setTorch(bool t, World& owner) {
   torch.view->setVisual(*hitem,owner,false);
   torch.boneId = (skeleton==nullptr ? size_t(-1) : skeleton->findNode("ZS_LEFTHAND"));
 
+  flushPose();
   auto& pose = *skInst;
   auto  p    = pos;
   if(torch.boneId<pose.boneCount())
@@ -574,17 +581,48 @@ void MdlVisual::syncEffects() {
   hnpcVisual.view.setObjMatrix(pos);
   }
 
-bool MdlVisual::updatePose(World& world, bool force) {
+bool MdlVisual::updatePose(World& world, bool force, bool defer) {
   Pose&    pose      = *skInst;
   uint64_t tickCount = world.tickCount();
 
   solver.update(tickCount);
   pose.setObjectMatrix(pos,false);
-  const bool changed = pose.update(tickCount, force);
+  const bool changed = pose.update(tickCount, force, defer);
+  poseStale = defer;
 
-  if(changed)
+  if(changed && !defer)
     view.setPose(pos,pose);
-  return changed;
+  return changed && !defer;
+  }
+
+void MdlVisual::flushPose() const {
+  if(!skInst->isSkeletonDeferred())
+    return;
+  auto self = const_cast<MdlVisual*>(this);
+  if(skInst->flushSkeleton()) {
+    self->view.setPose(pos,*skInst);
+    self->implSyncAttaches();
+    }
+  }
+
+bool MdlVisual::isPoseVisible(const Frustrum* views, size_t count) const {
+  if(torch.view!=nullptr || !effects.empty() || !pfx.view.isEmpty() || !hnpcVisual.view.isEmpty())
+    return true; // light, particles and effects follow the bones
+  if(farPoseR<0)
+    farPoseR = bounds().rConservative;
+  // the scale of the object matrix: the radius is in the units of the mesh
+  float s2 = 0;
+  for(int i=0; i<3; ++i) {
+    s2 = std::max(s2, pos.at(i,0)*pos.at(i,0) + pos.at(i,1)*pos.at(i,1) + pos.at(i,2)*pos.at(i,2));
+    s2 = std::max(s2, pos.at(0,i)*pos.at(0,i) + pos.at(1,i)*pos.at(1,i) + pos.at(2,i)*pos.at(2,i));
+    }
+  // 3 m margin: the weapons and effects are not a part of the bounds
+  const float r = farPoseR*std::sqrt(s2) + 300.f;
+  const Tempest::Vec3 p = {pos.at(3,0), pos.at(3,1), pos.at(3,2)};
+  for(size_t i=0; i<count; ++i)
+    if(views[i].testPoint(p,r))
+      return true;
+  return false;
   }
 
 void MdlVisual::processLayers(World& world) {
@@ -603,6 +641,8 @@ Vec3 MdlVisual::mapBone(const size_t boneId) const {
   Pose&  pose = *skInst;
   if(boneId==size_t(-1))
     return {pos.at(3,0), pos.at(3,1), pos.at(3,2)};
+
+  flushPose();
 
   auto mat = pose.bone(boneId);
   return {mat.at(3,0), mat.at(3,1), mat.at(3,2)};
@@ -855,6 +895,7 @@ Tempest::Vec3 MdlVisual::displayPosition() const {
   }
 
 float MdlVisual::viewDirection() const {
+  flushPose();
   auto p = pos;
   if(nullptr!=skeleton) {
     size_t nodeId = skeleton->findNode("BIP01");
@@ -930,6 +971,11 @@ void MdlVisual::rebindAttaches(Attach<View>& mesh, const Skeleton& to) {
   }
 
 void MdlVisual::syncAttaches() {
+  flushPose();
+  implSyncAttaches();
+  }
+
+void MdlVisual::implSyncAttaches() {
   MdlVisual::MeshAttach* mesh[] = {&head, &sword,&shield,&bow,&ammunition,&stateItm};
   for(auto i:mesh)
     syncAttaches(*i);

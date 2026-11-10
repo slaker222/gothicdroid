@@ -643,6 +643,7 @@ Matrix4x4 Npc::transform() const {
   }
 
 Vec3 Npc::cameraBone(bool isFirstPerson) const {
+  visual.flushPose();
   const size_t head = visual.pose().findNode("BIP01 HEAD");
 
   Vec3 r = {};
@@ -657,6 +658,7 @@ Vec3 Npc::cameraBone(bool isFirstPerson) const {
   }
 
 Matrix4x4 Npc::cameraMatrix(bool isFirstPerson) const {
+  visual.flushPose();
   const size_t head = visual.pose().findNode("BIP01 HEAD");
   if(isFirstPerson && head!=size_t(-1)) {
     return visual.pose().bone(head);
@@ -832,6 +834,7 @@ void Npc::dropTorch(bool burnout) {
   size_t leftHand = sk->findNode("ZS_LEFTHAND");
   if(torchId!=size_t(-1) && leftHand!=size_t(-1)) {
 
+    visual.flushPose();
     auto mat = visual.transform();
     if(leftHand<visual.pose().boneCount())
       mat = visual.pose().bone(leftHand);
@@ -4775,6 +4778,32 @@ void Npc::updateAnimationPose(bool force) {
   bool syncAtt = visual.updatePose(owner,force);
   if(syncAtt)
     visual.syncAttaches();
+  }
+
+bool Npc::isPoseNeeded(const Frustrum* views, size_t count) const {
+  return isPlayer() || visual.isPoseVisible(views,count);
+  }
+
+bool Npc::isPoseFar() const {
+  return !isPlayer() && visual.isFarPose();
+  }
+
+bool Npc::isPoseStale() const {
+  return visual.isPoseStale();
+  }
+
+void Npc::updateAnimationPoseLazy(bool full) {
+  bool syncAtt = visual.updatePose(owner,false,!full);
+  if(syncAtt)
+    visual.syncAttaches();
+  if(!full)
+    visual.syncEffects();
+  }
+
+void Npc::skipAnimationPose() {
+  // beyond the draw distance: nothing is computed, see isFarPose
+  visual.setPoseStale();
+  visual.syncEffects();
   }
 
 void Npc::syncBlobShadow() {

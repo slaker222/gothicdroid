@@ -135,6 +135,13 @@ class Npc final {
     // updateAnimation in two steps: transform and animation events, then the pose
     void       updateAnimationEvents(uint64_t dt);
     void       updateAnimationPose(bool force = false);
+    // web: lazy poses. The pose is computed in full only for an npc that can be seen (isPoseNeeded);
+    // the others advance the animation state only and compute the bones when somebody reads them
+    bool       isPoseNeeded(const Frustrum* views, size_t count) const;
+    bool       isPoseFar() const;
+    bool       isPoseStale() const;
+    void       updateAnimationPoseLazy(bool full);
+    void       skipAnimationPose();
     void       updateTransform();
 
     std::string_view displayName() const;

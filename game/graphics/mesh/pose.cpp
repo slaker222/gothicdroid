@@ -166,6 +166,7 @@ void Pose::load(Serialize &fin, const AnimationSolver& solver) {
     }
   for(auto& i:tr)
     fin.read(i);
+  skelState.store(0,std::memory_order_release);
   }
 
 void Pose::setFlags(Pose::Flags f) {
@@ -198,6 +199,8 @@ void Pose::setSkeleton(const Skeleton* sk) {
   if(skeleton==sk)
     return;
   skeleton = sk;
+  skelState.store(0,std::memory_order_release);
+  unsynced.store(false,std::memory_order_release);
   for(auto& i:tr)
     i.identity();
   if(skeleton!=nullptr) {
@@ -372,14 +375,20 @@ void Pose::processLayers(AnimationSolver& solver, uint64_t tickCount) {
     }
   }
 
-bool Pose::update(uint64_t tickCount, bool force) {
+bool Pose::update(uint64_t tickCount, bool force, bool defer) {
+  // the matrices of an earlier deferred update are brought up to date first, as the full update would have left them
+  const bool flushed = defer ? false : flushSkeleton();
+
   if(lay.size()==0) {
     const bool ret = needToUpdate;
-    if(needToUpdate || lastUpdate==0)
-      mkSkeleton(pos);
+    if(needToUpdate || lastUpdate==0) {
+      if(defer)
+        deferSkeleton(); else
+        mkSkeleton(pos);
+      }
     needToUpdate = false;
     lastUpdate   = tickCount;
-    return ret;
+    return ret || flushed;
     }
 
   bool needMkSkeleton = false;
@@ -403,10 +412,44 @@ bool Pose::update(uint64_t tickCount, bool force) {
     }
 
   if(needMkSkeleton || force) {
-    mkSkeleton(pos);
+    if(defer)
+      deferSkeleton(); else
+      mkSkeleton(pos);
     return true;
     }
-  return false;
+  return flushed;
+  }
+
+void Pose::deferSkeleton() {
+  if(skeleton==nullptr)
+    return;
+  if(def==nullptr)
+    def.reset(new Deferred());
+  def->pos   = pos;
+  def->headX = headRotX;
+  def->headY = headRotY;
+  skelState.store(1,std::memory_order_release);
+  }
+
+bool Pose::flushSkeleton() {
+  computeDeferred();
+  return unsynced.exchange(false,std::memory_order_acq_rel);
+  }
+
+void Pose::computeDeferred() const {
+  auto self = const_cast<Pose*>(this);
+  uint8_t st = 1;
+  if(skelState.compare_exchange_strong(st,2,std::memory_order_acq_rel)) {
+    self->mkSkeleton(def->pos,def->headX,def->headY);
+    // whoever reads the matrices directly (bone) leaves the meshes bound to the pose to flushSkeleton
+    self->unsynced.store(true,std::memory_order_release);
+    skelState.store(0,std::memory_order_release);
+    return;
+    }
+  while(st==2) {
+    // another thread computes the same matrices
+    st = skelState.load(std::memory_order_acquire);
+    }
   }
 
 bool Pose::updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBlend,
@@ -485,16 +528,20 @@ bool Pose::updateFrame(const Animation::Sequence &s, BodyState bs, uint64_t sBle
   }
 
 void Pose::mkSkeleton(const Tempest::Matrix4x4& mt) {
+  mkSkeleton(mt,headRotX,headRotY);
+  }
+
+void Pose::mkSkeleton(const Tempest::Matrix4x4& mt, float headX, float headY) {
   if(skeleton==nullptr)
     return;
   Matrix4x4 m = mt;
   m.translate(mkBaseTranslation());
   if(skeleton->ordered)
-    implMkSkeleton(m); else
+    implMkSkeleton(m,headX,headY); else
     implMkSkeleton(m,size_t(-1));
   }
 
-void Pose::implMkSkeleton(const Matrix4x4 &mt) {
+void Pose::implMkSkeleton(const Matrix4x4 &mt, float headX, float headY) {
   if(skeleton==nullptr)
     return;
   auto& nodes      = skeleton->nodes;
@@ -518,10 +565,10 @@ void Pose::implMkSkeleton(const Matrix4x4 &mt) {
       tr[i] = mt*mat;
 #endif
 
-    if(i==BIP01_HEAD && (headRotX!=0 || headRotY!=0)) {
+    if(i==BIP01_HEAD && (headX!=0 || headY!=0)) {
       Matrix4x4& m = tr[i];
-      m.rotateOY(headRotY);
-      m.rotateOX(headRotX);
+      m.rotateOY(headY);
+      m.rotateOX(headX);
       }
     }
   }
@@ -663,8 +710,10 @@ void Pose::setObjectMatrix(const Tempest::Matrix4x4& obj, bool sync) {
   if(pos==obj)
     return;
   pos = obj;
-  if(sync)
-    mkSkeleton(pos); else
+  if(sync) {
+    mkSkeleton(pos);
+    skelState.store(0,std::memory_order_release); // the matrices are current again
+    } else
     needToUpdate = true;
   }
 
@@ -873,6 +922,7 @@ const Tempest::Matrix4x4 Pose::rootNode() const {
   }
 
 const Matrix4x4 Pose::rootBone() const {
+  computeDeferred();
   size_t id = 0;
   if(skeleton->rootNodes.size())
     id = skeleton->rootNodes[0];
@@ -880,6 +930,7 @@ const Matrix4x4 Pose::rootBone() const {
   }
 
 const Tempest::Matrix4x4& Pose::bone(size_t id) const {
+  computeDeferred();
   return tr[id];
   }
 
@@ -965,6 +1016,7 @@ bool Pose::stopItemStateAnim(const AnimationSolver& solver, uint64_t tickCount) 
   }
 
 const Matrix4x4* Pose::transform() const {
+  computeDeferred();
   return tr;
   }
 

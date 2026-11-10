@@ -12,6 +12,7 @@
 #include "game/constants.h"
 
 class Npc;
+class Frustrum;
 class Item;
 class Vob;
 class StaticObj;
@@ -59,6 +60,10 @@ class WorldObjects final {
     void           removeNpc(Npc& npc);
 
     void           updateAnimation(uint64_t dt);
+    // web: lazy poses of npc. The views (main camera, shadow cascades) of the last frame: what the
+    // npc poses are tested against; updateStalePoses repeats the test with the final camera of the frame
+    static void    setPoseViews(const Frustrum* views, size_t count);
+    void           updateStalePoses();
 
     bool           isTargeted(Npc& npc);
     Npc*           findHero();
@@ -173,6 +178,12 @@ class WorldObjects final {
     std::vector<EffectState>           effects;
 
     std::vector<std::unique_ptr<Npc>>  npcArr;
+    struct PoseTask final {
+      Npc* npc  = nullptr;
+      bool full = false;
+      };
+    std::vector<PoseTask>              poseTasks;
+    static constexpr size_t            poseInlineMax = 32;
     std::vector<std::unique_ptr<Npc>>  npcInvalid; // dead or invalid TA
     std::vector<std::unique_ptr<Npc>>  npcRemoved; // removed, but may have a dangling references in game
     std::vector<Npc*>                  npcNear;

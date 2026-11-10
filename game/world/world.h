@@ -111,6 +111,7 @@ class World final {
     LightGroup::Light    addLight(std::string_view preset);
 
     void                 updateAnimation(uint64_t dt);
+    void                 updateStalePoses();
     void                 resetPositionToTA();
 
     auto                 takeHero() -> std::unique_ptr<Npc>;

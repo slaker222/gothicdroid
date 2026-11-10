@@ -12,6 +12,7 @@ class Serialize;
 class ObjVisual;
 class Npc;
 class Item;
+class Frustrum;
 
 class MdlVisual final {
   public:
@@ -79,7 +80,14 @@ class MdlVisual final {
     bool                           updateAnimation(Npc* npc, Interactive* mobsi, World& world, uint64_t dt, bool force);
     // updateAnimation in two steps: sound/particle events and effects, then the pose
     void                           processAnimEvents(Npc* npc, Interactive* mobsi, World& world, uint64_t dt);
-    bool                           updatePose(World& world, bool force);
+    // defer: the animation state is advanced, the bone matrices are computed later (flushPose)
+    bool                           updatePose(World& world, bool force, bool defer = false);
+    // web: the bone matrices of an npc that is not on screen are computed on demand: before anything reads them
+    void                           flushPose() const;
+    bool                           isPoseStale() const { return poseStale; }
+    void                           setPoseStale()      { poseStale = true; }
+    // the pose can change what is drawn: effects/torch that follow the bones, or the body is inside one of the views
+    bool                           isPoseVisible(const Frustrum* views, size_t count) const;
     // web: npc out of the draw distance (setFarPose), its pose is not computed
     static void                    setFarPose(bool enabled, float drawDistance, const Tempest::Vec3& camera);
     bool                           isFarPose() const;
@@ -163,6 +171,10 @@ class MdlVisual final {
     MeshObjects::Mesh              view;
     // bounds().rConservative for isFarPose (the bounds of the body and head meshes: they change only with the meshes), -1 = not known
     mutable float                  farPoseR = -1.f;
+    // web: the matrices of the pose (and the meshes bound to it) are not up to date, see updatePose(defer)
+    bool                           poseStale = false;
+
+    void implSyncAttaches();
 
     MeshAttach                     head, sword, bow, shield;
     MeshAttach                     ammunition, stateItm;
