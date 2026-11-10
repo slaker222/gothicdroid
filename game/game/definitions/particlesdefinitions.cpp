@@ -33,6 +33,36 @@ const ParticleFx* ParticlesDefinitions::get(const ParticleFx* base, const Visual
   return implGet(*base,*key);
   }
 
+const ParticleFx* ParticlesDefinitions::getBloodVariant(const ParticleFx* base, int kind) {
+  if(base==nullptr || kind<=0)
+    return base;
+  std::lock_guard<std::recursive_mutex> guard(sync);
+  const uint64_t k = (uint64_t(reinterpret_cast<uintptr_t>(base))<<2) | uint64_t(kind&3);
+  auto it = pfxBlood.find(k);
+  if(it!=pfxBlood.end())
+    return it->second.get();
+
+  std::unique_ptr<ParticleFx> p{new ParticleFx(*base)};
+  if(kind==1) {
+    p->ppsValue    *= 2.5f;
+    p->visSizeStart = p->visSizeStart*1.7f;
+    p->velAvg      *= 1.35f;
+    p->velVar      *= 1.35f;
+    } else {
+    // bleeding: the same particles, but the emitter lives 1.5 s with a fading rate
+    const float burst = base->prefferedTime==0 ? base->ppsValue*1000.f : base->maxPps();
+    p->ppsValue        = burst*0.8f;
+    p->ppsScaleKeys    = {1.f,0.8f,0.6f,0.4f,0.25f,0.1f};
+    p->ppsFPS          = 4.f;
+    p->ppsIsLooping    = false;
+    p->ppsIsSmooth     = true;
+    p->prefferedTime   = 1500;
+    p->visSizeStart    = p->visSizeStart*1.3f;
+    }
+  auto elt = pfxBlood.insert(std::make_pair(k,std::move(p)));
+  return elt.first->second.get();
+  }
+
 const ParticleFx* ParticlesDefinitions::implGet(std::string_view name, bool relaxed) {
   auto cname = std::string(name);
   auto it    = pfx.find(cname);

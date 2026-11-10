@@ -1140,7 +1140,9 @@
         </select>
       </label>
       <label class="set-row" title="Rings spread over the water around the character: steps, wading, swimming, and a splash with waves when falling into it. Not for the Low water quality">Water physics <input type="checkbox" data-set="waterPhysics"></label>
-      <label class="set-row" title="Blood splashes from NPCs and the hero when hit">Blood <input type="checkbox" data-set="blood"></label>
+      <label class="set-row" title="Blood splashes from NPCs and the hero when hit: Low = one burst, Medium = two bursts and a splash at death, High = more bursts (grow with the damage) and a big splash at death">Blood
+        <select data-set="blood"><option value="0">Off</option><option value="1">Low</option><option value="2">Medium</option><option value="3">High</option></select>
+      </label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
       <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: no fog on objects. Always off when the world draw distance is below 150 m">Fog
@@ -2845,8 +2847,8 @@ async function installChunks(m) {
       const PRESETS = {
         ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 80,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 3, texQuality: 1 },
         low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 150, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 14, texQuality: 0 },
-        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 11, texQuality: 0 },
-        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 2, resScale: 11, texQuality: 0 },
+        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 3, resScale: 0, texQuality: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {
         const b = e.target.closest('[data-preset]');

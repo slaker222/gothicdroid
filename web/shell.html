@@ -573,6 +573,8 @@
     }
 
     .ctl:hover { color: var(--accent); }
+    #union-btn { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+    html.native label:has(#fulllog-chk) { display: none !important; }
     .ctl-right, .ctl-left { display: flex; align-items: center; }
     .ctl-right { gap: 6px; }
     .fps-opt { gap: 6px; user-select: none; }
@@ -1140,7 +1142,9 @@
         </select>
       </label>
       <label class="set-row" title="Rings spread over the water around the character: steps, wading, swimming, and a splash with waves when falling into it. Not for the Low water quality">Water physics <input type="checkbox" data-set="waterPhysics"></label>
-      <label class="set-row" title="Blood splashes from NPCs and the hero when hit">Blood <input type="checkbox" data-set="blood"></label>
+      <label class="set-row" title="Blood splashes from NPCs and the hero when hit: Low = one burst, Medium = two bursts and a splash at death, High = more bursts (grow with the damage) and a big splash at death">Blood
+        <select data-set="blood"><option value="0">Off</option><option value="1">Low</option><option value="2">Medium</option><option value="3">High</option></select>
+      </label>
       <label class="set-row">Water reflections <input type="checkbox" data-set="reflections"></label>
       <label class="set-row">Ambient occlusion <input type="checkbox" data-set="ssao"></label>
       <label class="set-row" title="Soft sandy haze that thickens with distance and over the horizon, as in the original game on a misty day. Off: no fog on objects. Always off when the world draw distance is below 150 m">Fog
@@ -1180,6 +1184,7 @@
       </div>
       <label class="set-row g1only" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
       <label class="set-row" title="Detailed stats: hardware, resolution, frame time graph">Detailed stats <input type="checkbox" id="perf-chk"></label>
+      <label class="set-row keep" title="Writes everything to the log (the Log window / browser console): every file read, texture, mesh, sound load ... Slower, for bug reports">Full log <input type="checkbox" id="fulllog-chk"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
       <div id="settings-more" aria-hidden="true">&#9660; scroll &#9660;</div>
     </div>
@@ -1201,6 +1206,7 @@
       <div class="ctl-right">
       <label class="ctl fps-opt ico" title="On-screen touch controls (turned on by itself on phones and tablets)" aria-label="Mobile input"><input type="checkbox" id="touch-chk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg></label>
       <label class="ctl fps-opt ico" title="Show FPS" aria-label="Show FPS"><input type="checkbox" id="fps-chk"><span class="fps-badge">FPS</span></label>
+      <button class="ctl" id="union-btn" type="button" title="Plugins (Union)" aria-label="Plugins">Union</button>
       <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
         <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
       </button>
@@ -2239,6 +2245,19 @@ async function installChunks(m) {
     let g_resolveRuntime;
     const g_runtimeReady = new Promise(r => { g_resolveRuntime = r; });
     let g_runtimeUp = false;
+    {
+      const ub = document.getElementById('union-btn');
+      if (ub) ub.addEventListener('click', () => { if (window.ogPlugOpen) window.ogPlugOpen(); ub.blur(); });
+      const fl = document.getElementById('fulllog-chk');
+      if (fl) {
+        try { fl.checked = localStorage.getItem('fullLog') === '1'; } catch (e) {}
+        fl.addEventListener('change', () => {
+          try { localStorage.setItem('fullLog', fl.checked ? '1' : '0'); } catch (e) {}
+          if (g_runtimeUp) ogSet('fullLog', fl.checked ? 1 : 0);
+          fl.blur();
+        });
+      }
+    }
 
     // Calls into the engine. Emscripten binds wasm exports lazily: a call made
     // before the module is instantiated binds them to undefined for good, so
@@ -2845,8 +2864,8 @@ async function installChunks(m) {
       const PRESETS = {
         ultralow: { sun: 1, fog: 1, shadows: 0, drawDist: 4, worldDist: 80,  waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 3, texQuality: 1 },
         low:      { sun: 1, fog: 1, shadows: 3, drawDist: 3, worldDist: 150, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, skipFarAnim: 1, blood: 0, resScale: 14, texQuality: 0 },
-        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 1, resScale: 11, texQuality: 0 },
-        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 1, resScale: 0, texQuality: 0 },
+        classic:  { sun: 1, fog: 1, shadows: 3, drawDist: 2, worldDist: 200, waterQuality: 1, waterPhysics: 0, reflections: 0, ssao: 0, blood: 2, resScale: 11, texQuality: 0 },
+        ultra:    { sun: 0, fog: 0, shadows: 2, drawDist: 0, worldDist: 0,   waterQuality: 2, waterPhysics: 1, reflections: 0, ssao: 1, skipFarAnim: 0, blood: 3, resScale: 0, texQuality: 0 },
       };
       document.getElementById('gfx-presets').addEventListener('click', e => {
         const b = e.target.closest('[data-preset]');
@@ -3689,6 +3708,10 @@ async function installChunks(m) {
         mmClose.style.top = (r.top - u.top + ((v >> 10) & 1023) / 1000 * r.height) + 'px';
         mmClose.style.display = 'block';
       }, 250);
+      window.ogPlugOpen = plugOpen;
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && plugEl && !plugEl.hidden) { e.stopPropagation(); e.preventDefault(); plugEl.hidden = true; }
+      }, true);
       window.ogTouch = {
         cfg: () => TC,
         apply: () => applyCfg(true),
@@ -7219,6 +7242,7 @@ function serveLoop() {
         setTimeout(() => { if (vid === v && v.readyState < 3 && v.currentTime === 0) { console.error('[video] does not start'); vidEnd(); } }, 8000);
       }, 100);
       g_runtimeUp = true;
+      try { if (localStorage.getItem('fullLog') === '1') ogSet('fullLog', 1); } catch (e) {}
       g_resolveRuntime();
       player.classList.add('playing');
       uiOverlay.classList.add('hidden');

@@ -94,7 +94,7 @@ class World final {
     bool                 isOwnedRoomAt(const Tempest::Vec3& pos);
 
     void                 runEffect(Effect&& e);
-    void                 addBloodEffect(const Npc& victim);
+    void                 addBloodEffect(const Npc& victim, int level, int damage, bool killed);
     void                 stopEffect(const VisualFx& vfx);
 
     GlobalFx             addGlobalEffect(std::string_view what, uint64_t len, const std::string* argv, size_t argc);

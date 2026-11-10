@@ -109,6 +109,7 @@ class Gothic final {
 
     auto         loadParticleFx(std::string_view name, bool relaxed=false) -> const ParticleFx*;
     auto         loadParticleFx(const ParticleFx* base, const VisualFx::Key* key) -> const ParticleFx*;
+    auto         bloodVariantFx(const ParticleFx* base, int kind) -> const ParticleFx*;
     auto         loadVisualFx  (std::string_view name) -> const VisualFx*;
 
     void         emitGlobalSound(std::string_view   sfx);
@@ -226,7 +227,7 @@ class Gothic final {
     // web water physics: rings on the water around a wading / swimming / landing character
     bool                                  webWaterPhysics() const { return waterPhysics; }
     // web: blood from the hit NPC (the emitter of its guild from the script)
-    bool                                  webBlood() const { return blood; }
+    int                                   bloodLevel() const { return blood; }   // 0 off, 1 low, 2 medium, 3 high
     // web fog setting: <0 = off, >0 = soft haze (1.6) / dense haze (3); 0 = the engine fog (other platforms)
     float                                 webFogAmount() const { return fogAmount; }
     // fog distances relative to the unlimited world (1), smaller for a shorter world draw distance
@@ -347,7 +348,7 @@ class Gothic final {
     bool                                    blobShadow     = false;
     bool                                    swampWater     = false;
     bool                                    waterPhysics   = false;
-    bool                                    blood          = false;
+    int                                     blood          = 0;
     float                                   fogAmount      = 0;
     float                                   fogScale       = 1;
     int                                     sunMode        = 0;

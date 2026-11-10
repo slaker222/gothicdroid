@@ -321,6 +321,8 @@ extern "C" EMSCRIPTEN_KEEPALIVE const char* og_frame_times() {
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_get(const char* name) {
   if(std::strcmp(name, "renderer")==0)
     return Gothic::options().webgl2 ? 1 : 0; // 1: the OpenGL ES / WebGL 2 renderer runs (chosen, or Vulkan was not usable)
+  if(std::strcmp(name, "fullLog")==0)
+    return Tempest::Log::isVerbose() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "marvin")==0)
     return Gothic::inst().isMarvinEnabled() ? 1 : 0;
   if(g_webSettingsReady && std::strcmp(name, "gameVersion")==0)
@@ -380,6 +382,10 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_barrier_zone(int kind) {
   }
 
 extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
+  if(std::strcmp(name, "fullLog")==0) {
+    Tempest::Log::setVerbose(val!=0);
+    return 1;
+    }
   if(std::strcmp(name, "touchUi")==0) {
     // the page's touch controls are on / off: how a click in a menu works
     MenuRoot::setTouchPointer(val!=0);

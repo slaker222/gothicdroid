@@ -911,8 +911,9 @@ Sound World::addHitEffect(std::string_view src, std::string_view dst, std::strin
   return ret;
   }
 
-// blood of the hit NPC: the particle emitter that the script gives to its guild (PFX_BLOOD for humans)
-void World::addBloodEffect(const Npc& victim) {
+// blood of the hit NPC: the particle emitter that the script gives to its guild (PFX_BLOOD for humans).
+// level 1: one burst per hit; 2: 4 bursts (6 at death); 3: 6..8 big bursts (12 at death + bleeding). At most 13 emitters per call.
+void World::addBloodEffect(const Npc& victim, int level, int damage, bool killed) {
   const auto  gl  = std::min<uint32_t>(victim.guild(),GIL_MAX);
   const auto& gv  = script().guildVal();
   if(gv.blood_disabled[gl]!=0)
@@ -923,14 +924,57 @@ void World::addBloodEffect(const Npc& victim) {
   if(name.empty() || Gothic::inst().loadParticleFx(name,true)==nullptr)
     return;
 
-  Tempest::Matrix4x4 pos;
-  pos.identity();
-  pos.translate(victim.centerPosition());
+  // Low: 1 burst. Medium: 4 per hit, 6 at death. High: 6..8 per hit (grows with the damage), 12 at death + 1.5 s bleeding;
+  // High uses the big cached variant of the emitter (more and larger particles).
+  int count = 1;
+  if(level==2)
+    count = killed ? 6 : 4; else
+  if(level>=3)
+    count = killed ? 12 : 6 + std::min(2,std::max(0,damage)/15);
+  count = std::min(count,12);
 
-  Effect e(PfxEmitter(*this,name),"");
-  e.setObjMatrix(pos);
-  e.setActive(true);
-  runEffect(std::move(e));
+  const ParticleFx* base = Gothic::inst().loadParticleFx(name,true);
+  const ParticleFx* fx   = level>=3 ? Gothic::inst().bloodVariantFx(base,1) : base;
+
+  // cheap deterministic jitter (does not touch the script random generator)
+  static uint32_t seed = 0x9E3779B9u;
+  auto rnd = [&]() {
+    seed = seed*1664525u + 1013904223u;
+    return float((seed>>8)&0xFFFF)/32768.f - 1.f;   // -1..1
+    };
+  const float spread = level>=3 ? 50.f : (level==2 ? 30.f : 16.f);      // cm
+  const auto  bb     = victim.bounds();
+  const auto  center = victim.centerPosition();
+  float yLo = bb.bbox[0].y, yHi = bb.bbox[1].y;
+  if(!(yHi-yLo>20.f) || !(yHi-yLo<1000.f)) {
+    yLo = center.y-60.f;
+    yHi = center.y+60.f;
+    }
+
+  for(int i=0; i<count; ++i) {
+    Tempest::Matrix4x4 pos;
+    pos.identity();
+    if(i==0 && !killed)
+      pos.translate(center); else {
+      const float h = (rnd()*0.5f+0.5f);        // 0..1 from the feet to the head
+      pos.translate(Tempest::Vec3(center.x+rnd()*spread, yLo+(yHi-yLo)*h, center.z+rnd()*spread));
+      }
+
+    Effect e(PfxEmitter(*this,fx),"");
+    e.setObjMatrix(pos);
+    e.setActive(true);
+    runEffect(std::move(e));
+    }
+
+  if(killed && level>=3) {
+    Tempest::Matrix4x4 pos;
+    pos.identity();
+    pos.translate(center);
+    Effect e(PfxEmitter(*this,Gothic::inst().bloodVariantFx(base,2)),"");
+    e.setObjMatrix(pos);
+    e.setActive(true);
+    runEffect(std::move(e));
+    }
   }
 
 bool World::isInSfxRange(const Tempest::Vec3& pos) const {

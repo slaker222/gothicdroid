@@ -208,7 +208,7 @@ Gothic::Gothic() {
   defaults->set("INTERNAL", "webWaterPhysics", 0);
   defaults->set("INTERNAL", "webFog", 1);
   defaults->set("INTERNAL", "webSun", 1);
-  defaults->set("INTERNAL", "webBlood", 1);
+  defaults->set("INTERNAL", "webBlood", 2);
   defaults->set("INTERNAL", "webTexQuality", 0);
 #endif
   defaults->set("ENGINE", "zWindCycleTime",     4);
@@ -445,6 +445,10 @@ const ParticleFx* Gothic::loadParticleFx(std::string_view name, bool relaxed) {
 
 const ParticleFx* Gothic::loadParticleFx(const ParticleFx* base, const VisualFx::Key* key) {
   return particleDef->get(base,key);
+  }
+
+const ParticleFx* Gothic::bloodVariantFx(const ParticleFx* base, int kind) {
+  return particleDef->getBloodVariant(base,kind);
   }
 
 void Gothic::emitGlobalSound(std::string_view sfx) {
@@ -1129,7 +1133,7 @@ void Gothic::setupSettings() {
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
   blobShadow = settingsGetI("INTERNAL","webShadows")==3;
   swampWater = settingsGetI("INTERNAL","webWaterQuality")==2;
-  blood = settingsGetI("INTERNAL","webBlood")!=0;
+  blood = std::max(0,std::min(3,settingsGetI("INTERNAL","webBlood")));
   waterPhysics = settingsGetI("INTERNAL","webWaterPhysics")!=0 && settingsGetI("INTERNAL","webWaterQuality")!=1;
   {
   // webFog: 0 = soft haze (default), 1 = off, 2 = dense haze

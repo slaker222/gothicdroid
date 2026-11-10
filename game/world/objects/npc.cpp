@@ -1967,11 +1967,15 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
 
   if(hitResult.value>0) {
     currentOther = &other;
-    if(Gothic::inst().webBlood())
-      owner.addBloodEffect(*this);
+    const int bloodLevel = Gothic::inst().bloodLevel();
+    if(bloodLevel>0)
+      owner.addBloodEffect(*this,bloodLevel,int(hitResult.value),false);
     if((isPlayer() || other.isPlayer()) && Log::isVerbose())
       Log::v("[game] damage: ",other.displayName()," -> ",displayName()," ",hitResult.value,isSpell ? " (spell)" : "");
+    const bool wasDead = isDead();
     changeAttribute(ATR_HITPOINTS,-hitResult.value,dontKill);
+    if(!wasDead && isDead() && Gothic::inst().bloodLevel()>=2)
+      owner.addBloodEffect(*this,Gothic::inst().bloodLevel(),int(hitResult.value),true);   // the final splash
 
     if(bMask&(COLL_APPLYVICTIMSTATE|COLL_DOEVERYTHING)) {
       owner.sendPassivePerc(*this,other,*this,PERC_ASSESSOTHERSDAMAGE);
