@@ -9,6 +9,8 @@
 #include <atomic>
 #include <vector>
 #include <cstdio>
+#include <cstring>
+#include <cstdint>
 #include <cstdarg>
 #include <ctime>
 #include <sys/time.h>
@@ -78,9 +80,67 @@ static void logStamp(char* out, size_t n) {
   snprintf(out, n, "%02d:%02d:%02d.%03d ", t.tm_hour, t.tm_min, t.tm_sec, int(tv.tv_usec/1000));
   }
 
-void androidAppendLog(const char* text) {
-  if(text == nullptr || text[0] == '\0')
+// Names and texts of the game are in its codepage (the engine does not know which: the fonts are indexed by the byte).
+// Valid UTF-8 stays; otherwise a line with runs of high bytes (Russian words) is cp1251, isolated ones (ä, é ...) cp1252
+static bool utf8Seq(const unsigned char* s, size_t n, size_t i, size_t& len) {
+  const unsigned char c = s[i];
+  len = (c>=0xC2 && c<0xE0) ? 2 : (c>=0xE0 && c<0xF0) ? 3 : (c>=0xF0 && c<0xF5) ? 4 : 0;
+  if(len==0 || i+len>n)
+    return false;
+  for(size_t k=1; k<len; ++k)
+    if((s[i+k]&0xC0)!=0x80)
+      return false;
+  return true;
+  }
+
+static void putUtf8(std::string& out, uint32_t cp) {
+  if(cp<0x80) { out += char(cp); }
+  else if(cp<0x800) { out += char(0xC0|(cp>>6)); out += char(0x80|(cp&0x3F)); }
+  else { out += char(0xE0|(cp>>12)); out += char(0x80|((cp>>6)&0x3F)); out += char(0x80|(cp&0x3F)); }
+  }
+
+static std::string logTextToUtf8(const char* text) {
+  const auto*  s = reinterpret_cast<const unsigned char*>(text);
+  const size_t n = strlen(text);
+  bool valid = true, run = false;
+  for(size_t i=0; i<n; ) {
+    size_t len = 0;
+    if(s[i]<0x80) { ++i; continue; }
+    if(utf8Seq(s,n,i,len)) { i += len; continue; }
+    valid = false;
+    if(i+1<n && s[i+1]>=0x80)
+      run = true;
+    ++i;
+    }
+  if(valid)
+    return std::string(text,n);
+  static const uint16_t cp1251[64] = { // 0x80..0xBF, 0xC0..0xFF = U+0410..U+044F
+    0x0402,0x0403,0x201A,0x0453,0x201E,0x2026,0x2020,0x2021,0x20AC,0x2030,0x0409,0x2039,0x040A,0x040C,0x040B,0x040F,
+    0x0452,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,0x003F,0x2122,0x0459,0x203A,0x045A,0x045C,0x045B,0x045F,
+    0x00A0,0x040E,0x045E,0x0408,0x00A4,0x0490,0x00A6,0x00A7,0x0401,0x00A9,0x0404,0x00AB,0x00AC,0x00AD,0x00AE,0x0407,
+    0x00B0,0x00B1,0x0406,0x0456,0x0491,0x00B5,0x00B6,0x00B7,0x0451,0x2116,0x0454,0x00BB,0x0458,0x0405,0x0455,0x0457 };
+  static const uint16_t cp1252[32] = { // 0x80..0x9F, the rest = Latin-1
+    0x20AC,0x003F,0x201A,0x0192,0x201E,0x2026,0x2020,0x2021,0x02C6,0x2030,0x0160,0x2039,0x0152,0x003F,0x017D,0x003F,
+    0x003F,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,0x02DC,0x2122,0x0161,0x203A,0x0153,0x003F,0x017E,0x0178 };
+  std::string out;
+  out.reserve(n*2);
+  for(size_t i=0; i<n; ++i) {
+    const unsigned char c = s[i];
+    if(c<0x80)
+      out += char(c);
+    else if(run)
+      putUtf8(out, c>=0xC0 ? 0x0410+(c-0xC0) : cp1251[c-0x80]);
+    else
+      putUtf8(out, c>=0xA0 ? c : cp1252[c-0x80]);
+    }
+  return out;
+  }
+
+void androidAppendLog(const char* rawText) {
+  if(rawText == nullptr || rawText[0] == '\0')
     return;
+  const std::string utf8 = logTextToUtf8(rawText);
+  const char* text = utf8.c_str();
   char stamp[24];
   logStamp(stamp, sizeof(stamp));
   std::lock_guard<std::mutex> lk(s_logMutex);

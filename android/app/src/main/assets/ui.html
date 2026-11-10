@@ -641,6 +641,10 @@
     #side-menu .sm-chev svg { width: 26px; height: 26px; fill: currentColor; transition: transform .15s; }
     #side-menu .sm-chev[aria-expanded="true"] svg { transform: rotate(180deg); }
     #side-menu .sm-chev:active { background: rgba(255,255,255,0.1); }
+    /* the extra button of a row (controls, show the log) sits left of the switch, not right of it */
+    #side-menu .sm-row { position: relative; }
+    #side-menu .sm-row .sm-item .sm-label { margin-right: 52px; }
+    #side-menu .sm-row .sm-chev { position: absolute; top: 0; bottom: 0; right: 64px; border-left: 0; }
     #sm-ctl { padding: 4px 18px 12px; display: flex; flex-direction: column; gap: 10px; background: rgba(255,255,255,0.03); }
     #sm-ctl[hidden] { display: none; }
     #sm-ctl .sm-sl { display: grid; grid-template-columns: 1fr auto; row-gap: 2px; font-size: 14px; }
