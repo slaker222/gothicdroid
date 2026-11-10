@@ -4,6 +4,8 @@
 #include <Tempest/SoundEffect>
 
 #include <cctype>
+#include <mutex>
+#include <unordered_map>
 
 #include "game/compatibility/directmemory.h"
 #include "game/definitions/spelldefinitions.h"
@@ -1235,7 +1237,24 @@ int GameScript::invokeManaRelease(Npc &npc, Npc* target, int mana) {
   return vm.call_function<int>(fn,mana);
   }
 
+void GameScript::traceExternal(const std::string& name) {
+  if(!Log::isVerbose())
+    return;
+  static std::mutex                           mx;
+  static std::unordered_map<std::string,uint32_t> cnt;
+  uint32_t n;
+  {
+    std::lock_guard<std::mutex> g(mx);
+    n = ++cnt[name];
+  }
+  if(n<=3 || n%1000==0)
+    Log::v("[script] external ",name," (call #",n,")");
+  }
+
 void GameScript::invokeSpell(Npc &npc, Npc* target, Item &it) {
+  if(Log::isVerbose())
+    Log::v("[game] spell cast: ",npc.displayName()," ",it.displayName(),target!=nullptr ? " -> " : "",
+           target!=nullptr ? target->displayName() : std::string_view());
   auto&      tag = spellFxInstanceNames->get_string(uint16_t(it.spellId()));
   string_frm name("Spell_Cast_",tag);
   auto       fn = vm.find_symbol_by_name(name);
@@ -3355,11 +3374,13 @@ void GameScript::ta_min(std::shared_ptr<zenkit::INpc> npcRef, int start_h, int s
   }
 
 void GameScript::log_createtopic(std::string_view topicName, int section) {
+  Log::v("[game] quest topic created: ",topicName," (section ",section,")");
   if(section==QuestLog::Mission || section==QuestLog::Note)
     quests.add(topicName,QuestLog::Section(section));
   }
 
 void GameScript::log_settopicstatus(std::string_view topicName, int status) {
+  Log::v("[game] quest status: ",topicName," = ",status);
   if(status==int32_t(QuestLog::Status::Running) ||
      status==int32_t(QuestLog::Status::Success) ||
      status==int32_t(QuestLog::Status::Failed ) ||
@@ -3368,6 +3389,7 @@ void GameScript::log_settopicstatus(std::string_view topicName, int status) {
   }
 
 void GameScript::log_addentry(std::string_view topicName, std::string_view entry) {
+  Log::v("[game] quest entry: ",topicName,": ",entry);
   quests.addEntry(topicName,entry);
   }
 

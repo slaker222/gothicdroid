@@ -591,6 +591,8 @@ void WorldObjects::disableTicks(AbstractTrigger& t) {
   }
 
 void WorldObjects::setCurrentCs(CsCamera* cs) {
+  if((cs!=nullptr)!=(currentCsCamera!=nullptr))
+    Log::v("[game] cutscene ",cs!=nullptr ? "start" : "end");
   currentCsCamera = cs;
   }
 

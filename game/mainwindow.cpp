@@ -1,6 +1,8 @@
 #include "mainwindow.h"
 
 #include <cstdio>
+#include <cerrno>
+#include <stdexcept>
 #include <Tempest/Except>
 #include <Tempest/Painter>
 
@@ -415,6 +417,9 @@ extern "C" EMSCRIPTEN_KEEPALIVE int og_setting_set(const char* name, int val) {
   if(std::strcmp(name, "potUse")==0)        { Plugins::potUse   .store(val); return 1; }
   if(std::strcmp(name, "potAssign")==0)     { Plugins::potAssign.store(val); return 1; }
   if(std::strcmp(name, "plugScreenInfo")==0) { Plugins::screenInfo.store(val); return 1; }
+  if(std::strcmp(name, "hudDayX")==0)        { Plugins::dayX.store(val); return 1; }
+  if(std::strcmp(name, "hudDayY")==0)        { Plugins::dayY.store(val); return 1; }
+  if(std::strcmp(name, "hudDayK")==0)        { Plugins::dayK.store(std::max(50,std::min(200,val))); return 1; }
   if(std::strcmp(name, "plugTimeScale")==0)  { Plugins::timeScale .store(std::max(10,std::min(2000,val))); return 1; }
   }
 #endif
@@ -746,13 +751,23 @@ void MainWindow::paintEvent(PaintEvent& event) {
     if(Plugins::screenInfo.load()!=0 && !dialogs.isActive()) {
       // the plugin ScreenInfo: the day and the time in the top left corner
       auto t = world->time();
+      const float dk = std::max(0.5f,std::min(2.f,float(Plugins::dayK.load())/100.f));
+      const auto& fnt = Resources::font(std::round(scale*dk*20.f)/20.f);
       char buf[64]={};
       std::snprintf(buf,sizeof(buf),"Day %d  %02d:%02d",int(t.day())+1,int(t.hour()),int(t.minute()));
       int y = fnt.pixelSize()+5;
       if(Gothic::inst().doFrate())
         y += fnt.pixelSize()+4;
-      fnt.tinted(Color(0.f,0.f,0.f,0.9f)).drawText(p,6,y+1,buf);
-      fnt.tinted(Color(1.f,0.95f,0.7f,1.f)).drawText(p,5,y,buf);
+      int x = 5;
+      const int dx = Plugins::dayX.load(), dy = Plugins::dayY.load();
+      if(dx>=0 && dy>=0) {
+        // placed by the layout editor: the text is centred at the point
+        const int tw = fnt.textSize(buf).w, th = fnt.pixelSize();
+        x = std::max(2,std::min(w()-tw-2, int(float(dx)/1000.f*float(w()))-tw/2));
+        y = std::max(th+2,std::min(h()-4, int(float(dy)/1000.f*float(h()))+th/2));
+        }
+      fnt.tinted(Color(0.f,0.f,0.f,0.9f)).drawText(p,x+1,y+1,buf);
+      fnt.tinted(Color(1.f,0.95f,0.7f,1.f)).drawText(p,x,y,buf);
       }
     // the plugin AutoQuickLoot: what was taken, by the categories' colours
     Plugins::paintLoot(p,fnt,w(),int(float(h())*0.3f));
@@ -1564,7 +1579,8 @@ void MainWindow::tickAutoLoot(uint64_t dt) {
   world->detectItem(p,r,[&](Item& it){
     // not what belongs to somebody (a theft) and not at another floor
     // (the plugin setting "steal" allows the theft)
-    if(Plugins::steal.load()==0 && (it.handle().owner!=0 || it.handle().owner_guild!=0))
+    // the things of the world carry no owner: a house is owned by its portal room (Wld_AssignRoomToGuild)
+    if(Plugins::steal.load()==0 && (it.handle().owner!=0 || it.handle().owner_guild!=0 || world->isOwnedRoomAt(it.position())))
       return;
     // the things the player has thrown away himself (the owner of a dropped thing is the dropper) stay where they are
     if(it.handle().owner==int32_t(pl->handle().symbol_index()))
@@ -1785,6 +1801,7 @@ void MainWindow::loadGame(std::string_view slot) {
     }
 
   Tempest::Log::i("MainWindow::loadGame slot: ", slot);
+  Tempest::Log::v("load: slot ", slot);
   Gothic::inst().setBenchmarkMode(Benchmark::None);
   Gothic::inst().startLoad("LOADING.TGA",[slot=std::string(slot)](std::unique_ptr<GameSession>&& game){
     game = nullptr; // clear world-memory now
@@ -1855,6 +1872,7 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
     }
 
   Tempest::Log::i("MainWindow::saveGame slot: ", slot, " name: ", name);
+  Tempest::Log::v("save: start, slot ", slot, ", screenshot ", pm.w(), "x", pm.h());
   Gothic::inst().startSave(std::move(textureCast<Texture2d&>(tex)),[slot=std::string(slot),name=std::string(name),pm](std::unique_ptr<GameSession>&& game){
     if(!game)
       return std::move(game);
@@ -1874,7 +1892,27 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
       Serialize      s(f);
       game->save(s,name,pm);
     }
-    std::rename(tmp.c_str(),slot.c_str());
+    int rn = std::rename(tmp.c_str(),slot.c_str());
+    if(rn!=0) {
+      // rename over an existing file can fail (FUSE / scoped storage): remove the target and try again
+      // keep the old slot as .bak until the new file is in place: never lose both
+      Tempest::Log::e("save: rename failed (errno ", errno, "), moving the old slot aside and retrying");
+      const std::string bak = slot + ".bak";
+      std::remove(bak.c_str());
+      const bool moved = std::rename(slot.c_str(),bak.c_str())==0;
+      rn = std::rename(tmp.c_str(),slot.c_str());
+      if(rn==0)
+        std::remove(bak.c_str());
+      else if(moved)
+        std::rename(bak.c_str(),slot.c_str());
+      }
+    Tempest::Log::v("save: ", tmp, " -> ", slot, rn==0 ? " renamed" : " rename FAILED");
+    if(rn!=0) {
+      Tempest::Log::e("save: unable to replace slot ", slot, " (errno ", errno, ")");
+      std::remove(tmp.c_str());
+      // the thread of loading turns this into FailedSave: the player gets "unable to write savegame file", the game stays
+      throw std::runtime_error("unable to rename the save file");
+      }
 #endif
     Tempest::Log::i("MainWindow::saveGame successfully wrote slot: ", slot);
 

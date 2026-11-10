@@ -1191,6 +1191,11 @@ int32_t World::guildOfRoom(const Tempest::Vec3& pos) {
   return GIL_NONE;
   }
 
+bool World::isOwnedRoomAt(const Tempest::Vec3& pos) {
+  auto room = portalAt(roomAt(pos));
+  return room!=nullptr && room->guild!=GIL_NONE && room->guild!=GIL_PUBLIC;
+  }
+
 int32_t World::guildOfRoom(std::string_view portalName) {
   size_t b = portalName.find(':');
   if(b==std::string::npos)

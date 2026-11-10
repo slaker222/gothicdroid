@@ -193,7 +193,9 @@ void InventoryMenu::open(Npc &pl, Interactive &ch) {
     return;
   const bool needToPicklock = ch.needToLockpick(pl);
   // the plugin: a chest that opens (not a locked one) is emptied at once, without the animation and the window
-  if(Plugins::autoLoot.load()!=0 && !(needToPicklock && !ch.isCracked()) && quickLoot(pl,ch.inventory(),nullptr,&ch))
+  // the plugin setting "steal" is off: what belongs to somebody is not taken by itself (the usual window opens)
+  const bool theft = Plugins::steal.load()==0 && (ch.isOwned() || (Gothic::inst().world()!=nullptr && Gothic::inst().world()->isOwnedRoomAt(ch.position())));
+  if(Plugins::autoLoot.load()!=0 && !theft && !(needToPicklock && !ch.isCracked()) && quickLoot(pl,ch.inventory(),nullptr,&ch))
     return;
   if(!pl.setInteraction(&ch))
     return;
@@ -1213,13 +1215,9 @@ bool InventoryMenu::Plugins_potOpen() {
   }
 
 void InventoryMenu::potSave() {
-  std::string s;
-  for(int i=0; i<8; ++i) {
-    if(i>0)
-      s += ',';
-    s += potNames[i];
-    }
-  Gothic::settingsSetS("INTERNAL","webPotions",s);
+  // the panel goes into the save game (GameSession::save); the ini keeps the last one as well: an old save without the
+  // entry "plugins/potions" takes it
+  Gothic::settingsSetS("INTERNAL","webPotions",Plugins::potToString());
   Gothic::flushSettings();
   }
 
@@ -1278,18 +1276,7 @@ static bool potHeals(const Item& it, const std::string& name) {
 void InventoryMenu::potUpdate() {
   auto pl = Gothic::inst().player();
   auto wr = Gothic::inst().world();
-  if(!potLoaded && wr!=nullptr) {
-    potLoaded = true;
-    std::string s(Gothic::settingsGetS("INTERNAL","webPotions"));
-    size_t i = 0, b = 0;
-    while(i<8 && b<=s.size()) {
-      size_t e = s.find(',',b);
-      if(e==std::string::npos)
-        e = s.size();
-      potNames[i++] = s.substr(b,e-b);
-      b = e+1;
-      }
-    }
+  auto& potNames = Plugins::potNames;   // set by GameSession: from the save game, empty for a new game
   // the button of the page is for what is drunk or eaten only (food, potions, herbs, elixirs of the attributes)
   {
   int ok = 0;

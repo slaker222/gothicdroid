@@ -1310,6 +1310,7 @@ bool Gothic::hlp_strcmp(std::string_view a, std::string_view b) {
 
 void Gothic::introducechapter(std::string_view title, std::string_view subtitle, std::string_view img, std::string_view sound, int time) {
   pendingChapter = true;
+  Tempest::Log::v("[game] chapter: ",title," / ",subtitle);
   ChapterScreen::Show& s = chapter;
   s.time     = time;
   s.sound    = sound;

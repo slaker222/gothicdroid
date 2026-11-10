@@ -6,6 +6,7 @@
 #include <Tempest/MemReader>
 #include <Tempest/MemWriter>
 #include <cctype>
+#include <chrono>
 
 #include "utils/string_frm.h"
 #include "worldstatestorage.h"
@@ -75,6 +76,7 @@ GameSession::GameSession(std::string file) {
   Gothic::inst().setLoadingProgress(0);
   setupSettings();
   setTime(gtime(8,0));
+  Plugins::potFromString("");   // a new game: the quick potion panel starts empty
 
   vm.reset(new GameScript(*this));
   initPerceptions();
@@ -124,6 +126,7 @@ GameSession::GameSession(std::string file) {
   }
 
 GameSession::GameSession(Serialize &fin) {
+  const auto logT0 = std::chrono::steady_clock::now();
   Gothic::inst().setLoadingProgress(0);
   setupSettings();
 
@@ -131,6 +134,7 @@ GameSession::GameSession(Serialize &fin) {
   fin.setEntry("header");
   fin.read(hdr);
   fin.setGlobalVersion(hdr.version);
+  Tempest::Log::v("[game] savegame: loading '",hdr.name,"' world=",hdr.world);
 
   {
   uint16_t wssSize=0;
@@ -187,13 +191,26 @@ GameSession::GameSession(Serialize &fin) {
   fin.setEntry("game/camera");
   cam->load(fin,wrld->player());
   vm->endTextRefresh();
+
+  // the quick potion panel of this save; a save made before it was saved takes the last panel of the ini
+  {
+  std::string pot;
+  if(fin.setEntry("plugins/potions"))
+    fin.read(pot); else
+    pot = std::string(Gothic::settingsGetS("INTERNAL","webPotions"));
+  Plugins::potFromString(pot);
+  }
   Gothic::inst().setLoadingProgress(96);
+  Tempest::Log::v("[game] savegame: '",hdr.name,"' loaded in ",
+                  int64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-logT0).count())," ms");
   }
 
 GameSession::~GameSession() {
   }
 
 void GameSession::save(Serialize &fout, std::string_view name, const Pixmap& screen) {
+  const auto logT0 = std::chrono::steady_clock::now();
+  Tempest::Log::v("[game] savegame: writing '",name,"' world=",wrld->name());
   SaveGameHeader hdr;
   hdr.version   = Serialize::Version::Current;
   hdr.name      = name;
@@ -246,7 +263,13 @@ void GameSession::save(Serialize &fout, std::string_view name, const Pixmap& scr
 
   fout.setEntry("game/symbols");
   vm->saveSymbolNames(fout);
+
+  // a separate entry: the zip of the save keeps the rest as it was, an older build skips it
+  fout.setEntry("plugins/potions");
+  fout.write(Plugins::potToString());
   Gothic::inst().setLoadingProgress(80);
+  Tempest::Log::v("[game] savegame: '",name,"' written in ",
+                  int64_t(std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now()-logT0).count())," ms");
   }
 
 void GameSession::setTextRefresh(Serialize& fin) {
@@ -268,6 +291,8 @@ void GameSession::setWorld(std::unique_ptr<World> &&w) {
       visitedWorlds.emplace_back(*wrld);
     }
   wrld = std::move(w);
+  if(wrld)
+    Tempest::Log::v("[game] world set: ",wrld->name());
   }
 
 std::unique_ptr<World> GameSession::clearWorld() {
@@ -402,6 +427,7 @@ auto GameSession::implChangeWorld(std::unique_ptr<GameSession>&& game,
     return std::move(game);
     }
 
+  Tempest::Log::v("[game] world change: ",wrld->name()," -> ",world," (waypoint ",wayPoint,")");
   HeroStorage hdata;
   if(auto hero = wrld->player())
     hdata.save(*hero);

@@ -27,6 +27,9 @@ struct Plugins final {
   static inline std::atomic<int> miniClose  {0};     // set by the page (the cross over the small map): closes it
   static inline std::atomic<int> miniCross  {0};     // where the cross is (the centre, permille of the window: x | y<<10), 0 - no small map
   static inline std::atomic<int> screenInfo {0};     // the day and the time in the corner, the numbers on the bars
+  static inline std::atomic<int> dayX       {-1};    // the place of the day counter (centre, permille of the screen), -1 = the corner
+  static inline std::atomic<int> dayY       {-1};
+  static inline std::atomic<int> dayK       {100};   // the size of the day counter, percent
   static inline std::atomic<int> lootRight  {0};     // the list of the taken things at the right edge (0 - left)
   static inline std::atomic<int> lootIcons  {0};     // an icon of the item beside the text
   static inline std::atomic<int> fastCraft  {0};     // the plugin FastCraft: a choice in a workbench window (cook, forge, brew, ...) is made several times
@@ -39,6 +42,33 @@ struct Plugins final {
   static inline std::atomic<int> potSel     {0};     // the item under the cursor of the inventory can go to the panel (food, potions, herbs): the page shows its button then
   static inline std::atomic<int> potAssign  {0};     // set by the page: the button of the inventory (assign the selected item / take it off)
   static inline std::atomic<int> timeScale  {100};   // the speed of the game time, percent (x1 = 100)
+
+  // QuickPotions: the instance names of the items on the panel ("" - the slot is empty). They belong to the game:
+  // saved into the save game (entry "plugins/potions"), cleared by a new game. Game thread only
+  static inline std::string potNames[8];
+
+  static std::string potToString() {
+    std::string s;
+    for(int i=0; i<8; ++i) {
+      if(i>0)
+        s += ',';
+      s += potNames[i];
+      }
+    return s;
+    }
+
+  static void potFromString(const std::string& s) {
+    for(auto& n:potNames)
+      n.clear();
+    size_t i = 0, b = 0;
+    while(i<8 && b<=s.size()) {
+      size_t e = s.find(',',b);
+      if(e==std::string::npos)
+        e = s.size();
+      potNames[i++] = s.substr(b,e-b);
+      b = e+1;
+      }
+    }
 
   struct LootLine final {
     std::string    text;

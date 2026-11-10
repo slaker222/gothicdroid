@@ -33,6 +33,7 @@ Interactive::Interactive(Vob* parent, World &world, const zenkit::VMovableObject
   bbox[0]       = {vob.bbox.min.x, vob.bbox.min.y, vob.bbox.min.z};
   bbox[1]       = {vob.bbox.max.x, vob.bbox.max.y, vob.bbox.max.z};
   owner         = vob.owner;
+  ownerGuild    = vob.owner_guild;
   focOver       = vob.focus_override;
   showVisual    = vob.show_visual;
 
@@ -496,6 +497,19 @@ std::string_view Interactive::schemeName() const {
     return mesh->scheme;
   Tempest::Log::i("unable to recognize mobsi{",focName,", ",mdlVisual,"}");
   return "";
+  }
+
+bool Interactive::isShrine() const {
+  auto has = [](std::string_view hay) {
+    std::string u(hay);
+    for(auto& c:u)
+      c = char(std::toupper(static_cast<unsigned char>(c)));
+    for(const char* k : {"PRAY","INNOS","BELIAR","ADANOS","SHRINE","IDOL","STATUE","ALTAR","DONAT"})
+      if(u.find(k)!=std::string::npos)
+        return true;
+    return false;
+    };
+  return has(schemeName()) || has(onStateFunc) || has(conditionFunc) || has(focName) || has(vobName) || has(mdlVisual);
   }
 
 std::string_view Interactive::posSchemeName() const {

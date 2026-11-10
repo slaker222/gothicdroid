@@ -29,6 +29,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         const val EXTRA_GAME_DIR = "extra_game_dir"
         const val EXTRA_SKY_DIR = "extra_sky_dir"   // folder with the sky pack (g1, g2) for the sky setting
         const val AUTOSAVE_SLOT = 99               // save_slot_99.sav: the hidden slot of MainWindow::autoSave
+        const val VERBOSE_MARK = "verbose_log"      // in the app files: the full log is on
         const val RESUME_MARK = ".og_resume"       // in the game folder: the game was saved on onStop and not closed since
         const val EXTRA_MOD = "extra_mod"   // the ini of a mod in the game folder (Archolos), "" - none
         const val EXTRA_GAME_VERSION = "extra_game_version"   // 1 or 2 (-g1/-g2 of the engine), 0 - the engine guesses
@@ -51,10 +52,20 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         }
     }
 
+    private external fun nativeAppendLog(text: String)
+    @Volatile private var verboseOn = false
+    // logcat + opengothic_log.txt ("[app] ..."): the lines of the activity are in the file the owner sends
+    private fun flog(level: String, msg: String) {
+        when (level) { "E" -> Log.e(TAG, msg); "W" -> Log.w(TAG, msg); else -> Log.i(TAG, msg) }
+        try { nativeAppendLog("[app] " + (if (level == "I") "" else "$level ") + msg) } catch (e: Throwable) {}
+    }
+    private fun flog(msg: String) = flog("I", msg)
+
     private external fun nativeSetSurface(surface: Surface, gameDir: String)
     private external fun nativeSetSkyDir(dir: String)
     private external fun nativeSetMod(mod: String)
     private external fun nativeSetGameVersion(version: Int)
+    private external fun nativeSetVerboseLog(on: Boolean)
     private external fun nativeSurfaceChanged(width: Int, height: Int)
     private external fun nativeSetDensity(density: Float)
     private external fun nativeDestroySurface()
@@ -95,7 +106,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.i(TAG, "GameActivity onCreate")
+        flog("GameActivity onCreate: intent game dir=${intent.getStringExtra(EXTRA_GAME_DIR)}, mod=${intent.getStringExtra(EXTRA_MOD)}, version=${intent.getIntExtra(EXTRA_GAME_VERSION, 0)}")
 
         requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -119,7 +130,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         if (marker.exists()) {
             marker.delete()
             if (File(gameDir, "save_slot_$AUTOSAVE_SLOT.sav").isFile) {
-                Log.i(TAG, "the process was killed in the background: loading the autosave")
+                flog("I", "the process was killed in the background: loading the autosave")
                 nativeSetLoadSlot(AUTOSAVE_SLOT)
             }
         }
@@ -130,14 +141,14 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             val crashMsg = "=== JAVA CRASH IN GAMEACTIVITY ===\n" +
                     "Thread: ${thread.name}\n" +
                     Log.getStackTraceString(throwable)
-            Log.e(TAG, crashMsg)
+            flog("E", crashMsg)
             try {
                 val f = File(filesDir, "last_crash.txt")
                 f.writeText(crashMsg)
                 val sdF = File(gameDir, "crash.log")
                 sdF.writeText(crashMsg)
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to write crash log: ${e.message}")
+                flog("E", "Failed to write crash log: ${e.message}")
             }
             defaultHandler?.uncaughtException(thread, throwable)
         }
@@ -197,13 +208,13 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 "og_frames" -> nativeFrames().toString()
                 "og_perf_info" -> nativePerfInfo()
                 "og_frame_times" -> nativeFrameTimes()
-                "og_quick" -> { nativeQuick(a.getInt(0)); "0" }
+                "og_quick" -> { flog("page: og_quick(${a.getInt(0)})"); nativeQuick(a.getInt(0)); "0" }
                 "og_quests" -> nativeQuests()
                 "og_video_take" -> nativeVideoTake()
                 "og_video_done" -> { nativeVideoDone(); "0" }
                 "og_quickslots" -> nativeQuickSlots()
                 "og_potslots" -> nativePotSlots()
-                "og_quickpanel" -> { nativeQuickPanel(a.getInt(0), a.getInt(1)); "0" }
+                "og_quickpanel" -> { if (verboseOn) flog("page: quick panel ${a.getInt(0)}"); nativeQuickPanel(a.getInt(0), a.getInt(1)); "0" }
                 "og_pointer" -> { nativePointer(a.getInt(0), a.getInt(1), a.getInt(2)); "0" }
                 "og_input_look" -> { nativeLook(a.getInt(0), a.getInt(1)); "0" }
                 "og_input_zoom" -> { nativeZoom(a.getInt(0)); "0" }
@@ -213,7 +224,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         // the renderer (web/shell.html #renderer-sel): "webgl2" = OpenGL ES, else Vulkan; the game restarts with it
         @JavascriptInterface
-        fun setRenderer(v: String) = runOnUiThread { switchRenderer(v == "webgl2") }
+        fun setRenderer(v: String) { flog("page: setRenderer($v)"); runOnUiThread { switchRenderer(v == "webgl2") } }
 
         // the layout of the touch controls from the app's Controls tab (written by MainActivity)
         @JavascriptInterface
@@ -221,7 +232,82 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         @JavascriptInterface
         fun setControls(json: String) {
-            try { org.json.JSONObject(json); File(filesDir, "controls.json").writeText(json) } catch (e: Exception) { Log.e(TAG, "controls: ${e.message}") }
+            try { org.json.JSONObject(json); File(filesDir, "controls.json").writeText(json) } catch (e: Exception) { flog("E", "controls: ${e.message}") }
+        }
+
+        // side menu, Logs: the full log (every file read, save, Vulkan object ...). A marker file keeps the choice
+        @JavascriptInterface
+        fun verboseLog(): Boolean = File(filesDir, VERBOSE_MARK).exists()
+
+        @JavascriptInterface
+        fun setVerboseLog(on: Boolean) {
+            try { val f = File(filesDir, VERBOSE_MARK); if (on) f.writeText("1") else f.delete() } catch (e: Exception) { flog("W", "verbose mark: ${e.message}") }
+            verboseOn = on
+            nativeSetVerboseLog(on)
+        }
+
+        // the log viewer (side menu): the file tail from a byte offset, as JSON {off,size,text}
+        @JavascriptInterface
+        fun logRead(off: Long): String {
+            val o = org.json.JSONObject()
+            try {
+                val f = File(gameDir, "opengothic_log.txt")
+                val size = f.length()
+                var start = if (off < 0) maxOf(0L, size - 262144) else off
+                if (start > size) start = 0
+                var n = minOf(size - start, 262144L).toInt()
+                val buf = ByteArray(n)
+                java.io.RandomAccessFile(f, "r").use { it.seek(start); it.readFully(buf) }
+                // chunk boundaries must not split a UTF-8 character: skip a cut head (first chunk), back off a cut tail
+                var from = 0
+                if (off < 0) while (from < n && from < 4 && (buf[from].toInt() and 0xC0) == 0x80) from++
+                var end = n
+                if (start + n < size) {
+                    var k = n - 1; var back = 0
+                    while (k > from && back < 3 && (buf[k].toInt() and 0xC0) == 0x80) { k--; back++ }
+                    val lead = buf[k].toInt() and 0xFF
+                    val need = if (lead >= 0xF0) 4 else if (lead >= 0xE0) 3 else if (lead >= 0xC0) 2 else 1
+                    if (need > 1 && n - k < need) end = k
+                }
+                o.put("off", start + end); o.put("size", size); o.put("text", String(buf, from, end - from, Charsets.UTF_8))
+            } catch (e: Exception) { o.put("off", 0); o.put("size", 0); o.put("text", "") }
+            return o.toString()
+        }
+
+        @JavascriptInterface
+        fun logCopy() {
+            try {
+                val f = File(gameDir, "opengothic_log.txt")
+                val n = minOf(f.length(), 200000L).toInt() // the clipboard goes through Binder (~1 MB limit)
+                val buf = ByteArray(n)
+                java.io.RandomAccessFile(f, "r").use { it.seek(f.length() - n); it.readFully(buf) }
+                var from = 0
+                while (from < n && from < 4 && (buf[from].toInt() and 0xC0) == 0x80) from++ // cut in the middle of a character
+                val text = String(buf, from, n - from, Charsets.UTF_8)
+                runOnUiThread {
+                    try {
+                        val cm = getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                        cm.setPrimaryClip(android.content.ClipData.newPlainText("opengothic log", text))
+                        android.widget.Toast.makeText(this@GameActivity, "Log copied", android.widget.Toast.LENGTH_SHORT).show()
+                    } catch (e: Exception) { flog("W", "log copy: ${e.message}") }
+                }
+            } catch (e: Exception) { flog("W", "log copy: ${e.message}") }
+        }
+
+        @JavascriptInterface
+        fun logSave(): String {
+            try {
+                val name = "opengothic_log_" + java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date()) + ".txt"
+                val cv = android.content.ContentValues().apply {
+                    put(android.provider.MediaStore.Downloads.DISPLAY_NAME, name)
+                    put(android.provider.MediaStore.Downloads.MIME_TYPE, "text/plain")
+                    put(android.provider.MediaStore.Downloads.RELATIVE_PATH, "Download/")
+                }
+                val uri = contentResolver.insert(android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI, cv) ?: return ""
+                contentResolver.openOutputStream(uri)?.use { out -> File(gameDir, "opengothic_log.txt").inputStream().use { it.copyTo(out) } }
+                runOnUiThread { android.widget.Toast.makeText(this@GameActivity, "Saved to Download/$name", android.widget.Toast.LENGTH_LONG).show() }
+                return name
+            } catch (e: Exception) { flog("W", "log save: ${e.message}"); return "" }
         }
 
         // the phone's processor: "SoC name|cores|max MHz"
@@ -231,7 +317,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         // "Exit": to the app's main menu. The game runs in its own process (":game", it cannot be started twice),
         // which ends with the screen; the main menu is the activity under it
         @JavascriptInterface
-        fun exitGame() { runOnUiThread { leaveGame() } }
+        fun exitGame() { flog("page: exitGame"); runOnUiThread { leaveGame() } }
 
         // the sky setting: the textures of the other game come from the server once; the page asks for the download and
         // watches `skyStatus` ("idle" / "loading <percent>" / "ready" / "error <text>")
@@ -242,7 +328,22 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         fun skyStatus(): String = SkyPack.status
 
         @JavascriptInterface
-        fun key(action: Int, code: String) = nativeWebKey(action, code)
+        fun key(action: Int, code: String) {
+            if (verboseOn) flog("key ${if (action == 0) "down" else "up"} $code")
+            nativeWebKey(action, code)
+        }
+
+        // the page's own events (taps of buttons, menu choices): the full log only, at most 30 a second
+        private var logSec = 0L
+        private var logCnt = 0
+        @JavascriptInterface
+        fun log(text: String) {
+            if (!verboseOn) return
+            val now = System.currentTimeMillis() / 1000
+            if (now != logSec) { logSec = now; logCnt = 0 }
+            if (++logCnt > 30) return
+            try { nativeAppendLog("[page] " + text.take(300)) } catch (e: Throwable) {}
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
@@ -264,8 +365,11 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             override fun getDefaultVideoPoster(): android.graphics.Bitmap? =
                 android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888).also { it.eraseColor(Color.BLACK) }
 
+            override fun onShowFileChooser(w: WebView?, cb: android.webkit.ValueCallback<Array<android.net.Uri>>,
+                                           p: FileChooserParams): Boolean = showFileChooser(cb, p)
+
             override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
-                Log.i(TAG, "ui: ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                flog("I", "ui: ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
                 return true
             }
         }
@@ -276,8 +380,28 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         return wv
     }
 
+    // <input type="file"> of the page: the WebView needs onShowFileChooser, one request at a time
+    private var fileCb: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+    private val fileChooser = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+        val cb = fileCb; fileCb = null
+        cb?.onReceiveValue(if (r.resultCode == android.app.Activity.RESULT_OK)
+            android.webkit.WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data) else null)
+    }
+    private fun showFileChooser(cb: android.webkit.ValueCallback<Array<android.net.Uri>>, p: android.webkit.WebChromeClient.FileChooserParams): Boolean {
+        // always returns true: the callback is invoked exactly once (cancel / result / a failed launch / a newer request)
+        fileCb?.onReceiveValue(null)
+        fileCb = cb
+        try {
+            fileChooser.launch(p.createIntent())
+        } catch (e: Exception) {
+            fileCb = null; cb.onReceiveValue(null)
+        }
+        return true
+    }
+
     override fun onResume() {
         super.onResume()
+        flog("GameActivity onResume")
         // back from the background with the process alive: nothing to restore
         try { File(gameDir, RESUME_MARK).delete() } catch (e: Exception) {}
         hideSystemBars()
@@ -286,19 +410,31 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     // the app leaves the screen (home, the screen is off, another app): Android may end the process of the game there,
     // so the game is saved first (the hidden slot 99, "Autosave") and a marker is left in the game folder. If the process
     // is killed, the next start of the game (also the one Android makes when the player comes back) loads the slot
+    override fun onPause() {
+        flog("GameActivity onPause")
+        super.onPause()
+    }
+
+    override fun onDestroy() {
+        flog("GameActivity onDestroy: finishing=$isFinishing")
+        super.onDestroy()
+    }
+
     override fun onStop() {
+        flog("GameActivity onStop: switching=$switching finishing=$isFinishing gameRunning=${try { nativeIsGameRunning() } catch (e: Throwable) { false }}")
         try {
             if (!switching && !isFinishing && nativeIsGameRunning() && nativeAutoSave() == 1) {
+                flog("onStop: autosave started")
                 // the game thread does it (it needs no window: here the surface is already gone): 1 asked, 2 runs, 3 written, 4 not possible
                 val end = System.currentTimeMillis() + 7000
                 var st = nativeSaveBusy()
                 while ((st == 1 || st == 2) && System.currentTimeMillis() < end) { Thread.sleep(50); st = nativeSaveBusy() }
-                Log.i(TAG, "onStop: autosave " + when (st) { 3 -> "written"; 4 -> "not possible now"; else -> "not finished" })
+                flog("I", "onStop: autosave " + when (st) { 3 -> "written"; 4 -> "not possible now"; else -> "not finished" })
                 // the marker only after a finished save: a save that was cut off is not loaded
                 if (st == 3) File(gameDir, RESUME_MARK).writeText("1")
             }
         } catch (e: Throwable) {
-            Log.w(TAG, "autosave: ${e.message}")
+            flog("W", "autosave: ${e.message}")
         }
         super.onStop()
     }
@@ -336,9 +472,9 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     saved = (st == 3)
                 }
             } catch (e: Throwable) {
-                Log.w(TAG, "renderer switch: ${e.message}")
+                flog("W", "renderer switch: ${e.message}")
             }
-            Log.i(TAG, "renderer switch to " + (if (gl) "OpenGL ES" else "Vulkan") + ", saved=$saved")
+            flog("I", "renderer switch to " + (if (gl) "OpenGL ES" else "Vulkan") + ", saved=$saved")
             runOnUiThread {
                 try { if (saved) File(gameDir, RESUME_MARK).writeText("1") } catch (e: Exception) {}
                 val back = Intent(this, MainActivity::class.java).apply {
@@ -359,26 +495,28 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        Log.i(TAG, "GameActivity surfaceCreated: valid=${holder.surface.isValid}")
+        flog("I", "GameActivity surfaceCreated: valid=${holder.surface.isValid}")
         surfaceHolder = holder
+        verboseOn = File(filesDir, VERBOSE_MARK).exists()
+        nativeSetVerboseLog(verboseOn)
         nativeSetSurface(holder.surface, gameDir)
         // the game's own menu "Exit" ends the engine loop: go back to the app's main menu
         if (exitWatch == null) exitWatch = Thread {
             while (true) {
                 try { Thread.sleep(250) } catch (e: InterruptedException) { return@Thread }
-                if (nativeExitRequested()) { Log.i(TAG, "game requested exit"); runOnUiThread { leaveGame() }; return@Thread }
+                if (nativeExitRequested()) { flog("I", "game requested exit"); runOnUiThread { leaveGame() }; return@Thread }
             }
         }.also { it.isDaemon = true; it.start() }
     }
 
     override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-        Log.i(TAG, "GameActivity surfaceChanged: ${width}x${height}, format=$format")
+        flog("I", "GameActivity surfaceChanged: ${width}x${height}, format=$format")
         nativeSetDensity(resources.displayMetrics.density)
         nativeSurfaceChanged(width, height)
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        Log.i(TAG, "GameActivity surfaceDestroyed")
+        flog("I", "GameActivity surfaceDestroyed")
         nativeDestroySurface()
         surfaceHolder = null
     }

@@ -211,8 +211,11 @@ class GameScript final {
     template <class F>
     void bindExternal(const std::string& name, F function) {
       vm.register_external(name, std::function<typename DetermineSignature<F>::signature> (
-                                   [this, function](auto ... v) { return (this->*function)(v...); }));
+                                   [this, function, name](auto ... v) { traceExternal(name); return (this->*function)(v...); }));
       }
+
+    // full log: names of the called Daedalus externals (the first calls of each, then every 1000th)
+    static void traceExternal(const std::string& name);
 
     void  initCommon();
     void  initSettings();

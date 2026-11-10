@@ -90,6 +90,8 @@ class World final {
     void                 assignRoomToGuild(std::string_view room, int32_t guildId);
     int32_t              guildOfRoom(const Tempest::Vec3& pos);
     int32_t              guildOfRoom(std::string_view portalName);
+    // a portal room at the point belongs to a guild (Wld_AssignRoomToGuild, not GIL_PUBLIC): taking things there is a theft
+    bool                 isOwnedRoomAt(const Tempest::Vec3& pos);
 
     void                 runEffect(Effect&& e);
     void                 addBloodEffect(const Npc& victim);

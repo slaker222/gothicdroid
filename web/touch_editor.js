@@ -1,8 +1,11 @@
 /* Layout editor of the touch buttons (Android app). One file for the main menu (launcher.html) and the game's page (ui.html):
-   TouchEditor.open({ defs, ICONS, ICON_OF, NAMES, TGROUP, KEYS, SPECIAL, keys, custom, items, opacity, bg, orient(on), onSave(items, keys, custom), onClose() })
-   defs: the buttons of the game (without the player's ones); KEYS: names of the keys that can be assigned; SPECIAL: ids of buttons that do not just press a key
+   TouchEditor.open({ defs, ICONS, ICON_OF, NAMES, TGROUP, KEYS, ACTIONS, keys, custom, items, hidden, icons, opacity, bg, orient(on), onSave(items, keys, custom, quick, extra), onClose() })
+   defs: the buttons of the game (without the player's ones); KEYS: names of the keys that can be assigned;
+   ACTIONS: { id: label } - what a button can do instead of pressing keys; such a value is '@id' (keys: 'Shift+S'), never combined with keys
+   hidden: [ids] - deleted buttons of the game; icons: { id: dataURL } - own pictures of buttons; onSave gets them as extra = { hidden, icons }
    keys: { id: 'Shift+S' } - other keys of the buttons (the stick: stickW / stickS / stickQ / stickE); custom: [{id, label, key, layouts}] - buttons made by the player
    items: { key: {x, y, k} } - x, y: the centre of a button in % of the screen, k: size factor. The key is TGROUP[id] || id.
+   huds: { fps: bool, day: bool, fpsTop: px } - the counters that are on (items.fps / items.day: their centres)
    quick: { cols: 4..10, back: bool, vert: bool, split: bool } - the quick bar of the number keys (items.quick: the centre of
    its slots, without the inventory block); vert: a column, split: two rows (columns); onSave gets it as the 4th argument. */
 (function() {
@@ -16,6 +19,8 @@
     #ted-btns { position: absolute; inset: 0; opacity: var(--tpa, 1); }
     #ted-btns .tbtn { cursor: grab; touch-action: none; pointer-events: auto; }
     #ted-btns .tbtn .clabel { font: 700 3.4cqmin/1.05 sans-serif; text-align: center; max-width: 92%; overflow: hidden; word-break: break-word; pointer-events: none; }
+    #ted-btns .tbtn.deleted { opacity: .3; border-style: dashed; }
+    .tbtn .uicon { width: 70%; height: 70%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
     #ted-btns .tbtn.sel, #ted-btns .ted-stick.sel { outline: 2px dashed #ffd54a; outline-offset: 3px; }
     .ted-stick { position: absolute; width: calc(26cqmin * var(--k, 1)); height: calc(26cqmin * var(--k, 1)); border-radius: 50%; border: 1px solid rgba(255,255,255,.45); background: rgba(0,0,0,.25); touch-action: none; transform: translate(-50%, -50%); }
     /* the quick bar: as the engine draws it - a slot is 12% of the screen height, the gap 1/6 of a slot, the inventory
@@ -30,11 +35,15 @@
     .ted-quick.sel { outline: 2px dashed #ffd54a; outline-offset: 3px; }
     #ted-keyrow .qn { min-width: 34px; text-align: center; font-size: 16px; font-weight: 700; color: #fff; }
     #ted-keyrow label.qb { display: flex; align-items: center; gap: 6px; color: #ddd; flex-basis: 100%; }
+    .ted-hud { position: absolute; touch-action: none; white-space: nowrap; pointer-events: auto; cursor: grab; }
+    .ted-hud.fps { font: 700 13px/1 monospace; color: #6f6; background: rgba(0,0,0,.55); padding: 3px 6px; border-radius: 4px; }
+    .ted-hud.day { font: 500 15px/1 sans-serif; color: #f0e6b4; text-shadow: 1px 1px 2px #000, 0 0 3px #000; padding: 2px 4px; }
+    .ted-hud.sel { outline: 2px dashed #ffd54a; outline-offset: 3px; }
     .ted-stick::after { content: ''; position: absolute; left: 50%; top: 50%; width: 42%; height: 42%; margin: -21% 0 0 -21%; border-radius: 50%; background: rgba(255,255,255,.4); }
-    #ted-panel { position: absolute; left: 50%; top: 50%; width: min(360px, 62vw); transform: translate(-50%, -50%); background: rgba(16,16,16,.95); border: 1px solid #555; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
+    #ted-panel { position: absolute; left: 50%; top: 8px; width: min(360px, 62vw); transform: translateX(-50%); max-height: calc(100vh - 16px); display: flex; flex-direction: column; background: rgba(16,16,16,.95); border: 1px solid #555; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
     #ted-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: move; touch-action: none; border-bottom: 1px solid #3a3a3a; font-weight: 600; color: #fff; }
     #ted-head button { font: inherit; background: none; border: 0; color: #999; font-size: 20px; line-height: 1; padding: 0 4px; cursor: pointer; }
-    #ted-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; }
+    #ted-body { padding: 8px 12px 10px; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; min-height: 0; }
     #ted-panel.min #ted-body { display: none; }
     #ted-tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; }
     #ted-tabs button { flex: none; font: inherit; font-size: 12px; padding: 5px 10px; color: #ddd; background: #262626; border: 1px solid #3a3a3a; border-radius: 14px; cursor: pointer; }
@@ -117,6 +126,7 @@
       const k = +$('ted-k').value;
       item(el).k = k;
       el.style.setProperty('--k', k);
+      if (el.classList.contains('ted-hud')) el.style.fontSize = (el.classList.contains('fps') ? 13 : 15) * k + 'px';
       $('ted-kv').textContent = Math.round(k * 100) + '%';
       if (st.sel === 'quick') build();   // the slots are measured in pixels
     });
@@ -125,14 +135,14 @@
       if (!b) return;
       st.tab = +b.dataset.i; st.sel = null; tabs(); build();
     });
-    $('ted-reset').addEventListener('click', () => { st.items = {}; st.keys = {}; st.quick = { cols: 4, back: false, vert: false, split: false }; st.sel = null; build(); });
+    $('ted-reset').addEventListener('click', () => { st.items = {}; st.keys = {}; st.hidden = []; st.icons = {}; st.quick = { cols: 4, back: false, vert: false, split: false }; st.sel = null; build(); });
     $('ted-add').addEventListener('click', addButton);
     $('ted-lab').addEventListener('input', () => {
       const c = selCustom();
       if (!c) return;
       c.label = $('ted-lab').value.trim();
       const el = $('ted-btns').querySelector('[data-ck="' + c.id + '"]');
-      if (el) { el.firstChild.textContent = c.label || keyText(c.key); el.dataset.name = c.label || keyText(c.key); $('ted-sel').textContent = el.dataset.name; }
+      if (el) { paintFace(el, c.id, c, faceCtx()); el.dataset.name = c.label || keyText(c.key); $('ted-sel').textContent = el.dataset.name; }
     });
     $('ted-keyrow').addEventListener('change', e => {
       if (e.target.id === 'ted-holdc') { const c = selCustom(); if (c) c.hold = e.target.checked; return; }
@@ -148,14 +158,18 @@
       if (!b) return;
       if (b.id === 'ted-del') {
         const c = selCustom();
-        if (c) { st.custom = st.custom.filter(x => x !== c); delete st.items[c.id]; st.sel = null; build(); }
+        if (c) { st.custom = st.custom.filter(x => x !== c); delete st.items[c.id]; delete st.icons[c.id]; st.hidden = st.hidden.filter(x => x !== c.id); st.sel = null; build(); return; }
+        const id = selId();
+        if (id) { for (const x of covered(id)) if (!st.hidden.includes(x)) st.hidden.push(x); build(); }
         return;
       }
+      if (b.id === 'ted-rest') { const id = selId(); if (id) { const cv = covered(id); st.hidden = st.hidden.filter(x => !cv.includes(x)); build(); } return; }
+      if (b.id === 'ted-icon') { pickIcon(); return; }
       if (b.dataset.reset) { delete st.keys[b.dataset.reset]; showKey(); return; }
       if (b.dataset.q) { st.quick.cols = Math.min(10, Math.max(4, quickCols() + +b.dataset.q)); build(); return; }
       if (b.dataset.id) chooseKey(b.dataset.id, b.dataset.dflt, +b.dataset.max, b.dataset.title);
     });
-    $('ted-save').addEventListener('click', () => { const it = st.items; close(); if (o.onSave) o.onSave(it, cleanKeys(), st.custom.filter(c => c.key), { cols: quickCols(), back: !!st.quick.back, vert: !!st.quick.vert, split: !!st.quick.split }); });
+    $('ted-save').addEventListener('click', () => { const it = st.items; close(); if (o.onSave) o.onSave(it, cleanKeys(), st.custom.filter(c => c.key), { cols: quickCols(), back: !!st.quick.back, vert: !!st.quick.vert, split: !!st.quick.split }, { hidden: st.hidden.slice(), icons: Object.assign({}, st.icons) }); });
     $('ted-cancel').addEventListener('click', close);
     // the panel is moved by its title
     const panel = $('ted-panel'), head = $('ted-head');
@@ -180,10 +194,32 @@
 
   const ckOf = id => o.TGROUP[id] || id;
   const KLABEL = { Up: '↑', Down: '↓', Left: '←', Right: '→', Ctrl: 'Ctrl', CapsLock: 'Caps', Backspace: 'Backsp', Space: 'Space' };
-  const keyText = k => k ? k.split('+').map(x => KLABEL[x] || x).join(' + ') : '—';
+  // the text of a value: keys joined by '+', an action ('@id') by its label
+  function kText(k, A) { return k ? (k[0] === '@' ? ((A || {})[k.slice(1)] || k.slice(1)) : k.split('+').map(x => KLABEL[x] || x).join(' + ')) : '—'; }
+  const keyText = k => kText(k, o && o.ACTIONS);
+  // the face of a button: its own picture, the icon of its action (a button of the player without text), its text or the icon of the game
+  function paintFace(el, id, cu, c) {
+    const u = c.icons && c.icons[id];
+    el.textContent = '';
+    if (u) { const i = new Image(); i.className = 'uicon'; i.draggable = false; i.alt = ''; i.src = u; el.appendChild(i); return; }
+    if (cu) {
+      const a = !cu.label && cu.key && cu.key[0] === '@' ? cu.key.slice(1) : '';
+      if (a && c.ICONS[c.ICON_OF[a]]) { el.innerHTML = '<svg viewBox="0 0 24 24">' + c.ICONS[c.ICON_OF[a]] + '</svg>'; return; }
+      const sp = document.createElement('span'); sp.className = 'clabel'; sp.textContent = cu.label || kText(cu.key, c.ACTIONS); el.appendChild(sp); return;
+    }
+    el.innerHTML = '<svg viewBox="0 0 24 24">' + c.ICONS[c.ICON_OF[id] || id] + '</svg>';
+  }
+  const faceCtx = () => ({ ICONS: o.ICONS, ICON_OF: o.ICON_OF, ACTIONS: o.ACTIONS, icons: st.icons });
+  // the id of the selected button; the ids a delete / an own icon covers: the ones that share its place (TGROUP) and stand on this tab
+  const selId = () => { const el = st.sel && $('ted-btns').querySelector('[data-ck="' + st.sel + '"]'); return el && el.dataset.id; };
+  const covered = id => {
+    if (customOf(id)) return [id];
+    const ck = ckOf(id), tab = TABS[st.tab];
+    return o.defs.filter(d => d[0] !== 'inv' && ckOf(d[0]) === ck && tab[1]({ id: d[0], layouts: d[4].split(' ') })).map(d => d[0]);
+  };
   const customOf = id => st.custom.find(c => c.id === id);
   const selCustom = () => st.sel && customOf(st.sel);
-  const nameOf = id => { const c = customOf(id); return id === 'stick' ? 'Stick' : id === 'quick' ? 'Quick bar' : (c ? (c.label || keyText(c.key)) : (o.NAMES[o.ICON_OF[id] || id] || id)); };
+  const nameOf = id => { const c = customOf(id); return id === 'stick' ? 'Stick' : id === 'quick' ? 'Quick bar' : id === 'fps' ? 'FPS counter' : id === 'day' ? 'Day counter' : (c ? (c.label || keyText(c.key)) : (o.NAMES[o.ICON_OF[id] || id] || id)); };
   // the buttons of the game and the ones of the player; the layouts of a button of the player depend on the tab it was made on
   const allDefs = () => o.defs.concat(st.custom.map(c => [c.id, c.key, 'custom', 'left:50%;top:45%;transform:translate(-50%,-50%)', c.layouts || 'world']));
   const dfltOf = id => { const c = customOf(id); if (c) return c.key; const d = o.defs.find(x => x[0] === id); return d ? d[1] : ''; };
@@ -239,9 +275,8 @@
       el.className = 'tbtn ' + cls;
       el.style.cssText = pos;
       el.dataset.id = id;
-      const cu = customOf(id);
-      if (cu) { el.innerHTML = '<span class="clabel"></span>'; el.firstChild.textContent = cu.label || keyText(cu.key); }   // a button made by the player: its text
-      else el.innerHTML = svgOf(o.ICON_OF[id] || id);
+      paintFace(el, id, customOf(id), faceCtx());
+      if (st.hidden.includes(id)) el.classList.add('deleted');
       btns.appendChild(el);
       // the default place of the button: measured, as the game's page puts it
       const r = el.getBoundingClientRect(), a = area.getBoundingClientRect();
@@ -269,6 +304,20 @@
       const m = Math.min(W, H);
       mk('stick', 'Stick', el, 20 * m / W, (H - m * 0.24) / H * 100);
     }
+    if (tab[2] && o.huds) {
+      // the counters of the game: the FPS of the page (top left, under the top bar of the touch layer) and the day of the engine
+      const hud = (ck, cls, text, left, top) => {
+        const el = document.createElement('div');
+        el.className = 'ted-hud ' + cls; el.textContent = text;
+        const hk = st.items[ck] && st.items[ck].k; if (hk) el.style.fontSize = (cls === 'fps' ? 13 : 15) * hk + 'px';
+        el.style.left = left + 'px'; el.style.top = top + 'px';
+        btns.appendChild(el);
+        const r = el.getBoundingClientRect(), a = area.getBoundingClientRect();
+        mk(ck, nameOf(ck), el, (r.left + r.width / 2 - a.left) / W * 100, (r.top + r.height / 2 - a.top) / H * 100);
+      };
+      if (o.huds.fps) hud('fps', 'fps', '60 FPS', 8, o.huds.fpsTop || 8);
+      if (o.huds.day) hud('day', 'day', 'Day 1  08:00', 5, 5);
+    }
     select(st.sel && btns.querySelector('[data-ck="' + st.sel + '"]') ? st.sel : null);
   }
   function select(ck) {
@@ -291,6 +340,10 @@
     row.classList.toggle('col', ck === 'stick');
     if (!ck) { row.hidden = true; return; }
     row.hidden = false;
+    if (ck === 'fps' || ck === 'day') {
+      row.innerHTML = '<span class="kl">' + (ck === 'fps' ? 'Shown while the FPS counter is on in the settings.' : 'Shown while the day counter is on in the plugins.') + ' Drag to move; the slider sets the size.</span>';
+      return;
+    }
     const kb = (id, title, max, label) => {
       const d = id.startsWith('stick') ? id.slice(5) : dfltOf(id), cur = keyOf(id), mod = !customOf(id) && cur !== d;
       return '<span class="kl">' + label + '</span><button type="button" data-id="' + id + '" data-dflt="' + d + '" data-max="' + max + '" data-title="' + title + '" class="' + (mod ? 'mod' : '') + '">' + keyText(cur) + '</button>' +
@@ -314,8 +367,11 @@
     }
     const el = $('ted-btns').querySelector('[data-ck="' + ck + '"]'), id = el && el.dataset.id;
     if (!id) { row.hidden = true; return; }
-    if ((o.SPECIAL || []).includes(id)) { row.innerHTML = '<span class="kl">Key</span><button type="button" disabled>special button</button>'; return; }
-    row.innerHTML = kb(id, el.dataset.name, 3, 'Key') + (c ? '<span class="sp"></span><label id="ted-hold"><input type="checkbox" id="ted-holdc"' + (c.hold ? ' checked' : '') + '> Hold</label><button type="button" class="del" id="ted-del">Delete</button>' : '');
+    const gone = !c && st.hidden.includes(id);
+    row.innerHTML = kb(id, el.dataset.name, 3, 'Key') + '<span class="sp"></span>' +
+      (c ? '<label id="ted-hold"><input type="checkbox" id="ted-holdc"' + (c.hold ? ' checked' : '') + '> Hold</label>' : '') +
+      '<button type="button" id="ted-icon">Icon…</button>' + '' +
+      (gone ? '<button type="button" id="ted-rest">Restore</button>' : '<button type="button" class="del" id="ted-del">Delete</button>');
   }
   // the picker of the keys (several are pressed together)
   const KGROUPS = [
@@ -326,36 +382,70 @@
     ['Modifiers', ['Shift', 'Ctrl', 'Alt']],
     ['F1 – F12', Array.from({ length: 12 }, (_, i) => 'F' + (i + 1))]
   ];
-  function pickKey(title, cur, max, cb, onCancel) {
-    const ok = new Set(o.KEYS || []), kp = $('ted-kp'), box = $('ted-kpbox');
-    let sel = (cur || '').split('+').filter(k => ok.has(k)).slice(0, max);
+  function pickKey(title, cur, max, cb, onCancel, noAct) {
+    const ok = new Set(o.KEYS || []), kp = $('ted-kp'), box = $('ted-kpbox'), A = noAct ? {} : (o.ACTIONS || {});
+    let act = cur && cur[0] === '@' && A[cur.slice(1)] ? cur.slice(1) : '';
+    let sel = act ? [] : (cur || '').split('+').filter(k => ok.has(k)).slice(0, max);
     box.innerHTML = '<h3></h3><div id="ted-kpsel"></div>' +
+      (Object.keys(A).length ? '<div class="ted-kg">Actions</div><div class="ted-kr">' + Object.keys(A).map(a => '<button type="button" data-a="' + a + '">' + A[a].replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</button>').join('') + '</div>' : '') +
       KGROUPS.map(g => '<div class="ted-kg">' + g[0] + '</div><div class="ted-kr">' + g[1].filter(k => ok.has(k)).map(k => '<button type="button" data-k="' + k + '">' + (KLABEL[k] || k) + '</button>').join('') + '</div>').join('') +
       '<div id="ted-kpbtns"><button type="button" id="ted-kpno">Cancel</button><button type="button" id="ted-kpclr">Clear</button><button type="button" id="ted-kpok" class="primary">OK</button></div>';
     box.querySelector('h3').textContent = title + (max > 1 ? ' - tap the keys pressed together (up to ' + max + ')' : '');
     const draw = () => {
-      $('ted-kpsel').textContent = sel.length ? keyText(sel.join('+')) : 'No key';
+      $('ted-kpsel').textContent = act ? A[act] : sel.length ? keyText(sel.join('+')) : 'No key';
       box.querySelectorAll('[data-k]').forEach(b => b.classList.toggle('on', sel.includes(b.dataset.k)));
-      $('ted-kpok').disabled = !sel.length;
+      box.querySelectorAll('[data-a]').forEach(b => b.classList.toggle('on', act === b.dataset.a));
+      $('ted-kpok').disabled = !sel.length && !act;
     };
+    box.querySelectorAll('[data-a]').forEach(b => b.onclick = () => { act = act === b.dataset.a ? '' : b.dataset.a; sel = []; draw(); });
     box.querySelectorAll('[data-k]').forEach(b => b.onclick = () => {
       const k = b.dataset.k;
+      act = '';
       if (sel.includes(k)) sel = sel.filter(x => x !== k); else if (max === 1) sel = [k]; else if (sel.length < max) sel.push(k);
       draw();
     });
-    $('ted-kpclr').onclick = () => { sel = []; draw(); };
+    $('ted-kpclr').onclick = () => { sel = []; act = ''; draw(); };
     $('ted-kpno').onclick = () => { kp.hidden = true; if (onCancel) onCancel(); };
-    $('ted-kpok').onclick = () => { kp.hidden = true; cb(sel.join('+')); };
+    $('ted-kpok').onclick = () => { kp.hidden = true; cb(act ? '@' + act : sel.join('+')); };
     kp.hidden = false; box.scrollTop = 0;
     draw();
   }
   function chooseKey(id, dflt, max, title) {
     pickKey(title || 'Key', keyOf(id), max || 3, k => {
       const c = customOf(id);
-      if (c) { c.key = k; const el = $('ted-btns').querySelector('[data-ck="' + id + '"]'); if (el && !c.label) { el.firstChild.textContent = keyText(k); el.dataset.name = keyText(k); $('ted-sel').textContent = keyText(k); } }
+      if (c) { c.key = k; const el = $('ted-btns').querySelector('[data-ck="' + id + '"]'); if (el) { paintFace(el, id, c, faceCtx()); if (!c.label) { el.dataset.name = keyText(k); $('ted-sel').textContent = keyText(k); } } }
       else if (k === dflt) delete st.keys[id]; else st.keys[id] = k;
       showKey();
+    }, null, id.startsWith('stick'));
+  }
+  // an own picture for the selected button: scaled to fit 128x128 (transparent padding), PNG (WebP when it is big)
+  function pickIcon() {
+    const id = selId();
+    if (!id) return;
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = 'image/*'; inp.hidden = true;
+    root.appendChild(inp);
+    inp.addEventListener('change', () => {
+      const f = inp.files && inp.files[0];
+      inp.remove();
+      if (!f) return;
+      const url = URL.createObjectURL(f), img = new Image();
+      img.onload = () => {
+        try {
+          const cv = document.createElement('canvas'); cv.width = cv.height = 128;
+          const sc = Math.min(128 / img.naturalWidth, 128 / img.naturalHeight), w = img.naturalWidth * sc, h = img.naturalHeight * sc;
+          cv.getContext('2d').drawImage(img, (128 - w) / 2, (128 - h) / 2, w, h);
+          let d = cv.toDataURL('image/png');
+          if (d.length > 60 * 1024) d = cv.toDataURL('image/webp', 0.85);
+          for (const x of covered(id)) st.icons[x] = d;
+          build();
+        } catch (e) {}
+        URL.revokeObjectURL(url);
+      };
+      img.onerror = () => URL.revokeObjectURL(url);
+      img.src = url;
     });
+    inp.click();
   }
   // "+": a new simple button on the current tab; its key is chosen at once, the place - by dragging
   function addButton() {
@@ -410,7 +500,7 @@
   function open(opts) {
     if (!root) init();
     o = opts;
-    st = { tab: 0, items: JSON.parse(JSON.stringify(o.items || {})), keys: Object.assign({}, o.keys || {}), custom: JSON.parse(JSON.stringify(o.custom || [])).filter(c => c && c.id && c.key), quick: Object.assign({ cols: 4, back: false, vert: false, split: false }, o.quick || {}), sel: null, snap: $('ted-snap').checked };
+    st = { tab: 0, items: JSON.parse(JSON.stringify(o.items || {})), keys: Object.assign({}, o.keys || {}), hidden: Array.from(o.hidden || []), icons: Object.assign({}, o.icons || {}), custom: JSON.parse(JSON.stringify(o.custom || [])).filter(c => c && c.id && c.key), quick: Object.assign({ cols: 4, back: false, vert: false, split: false }, o.quick || {}), sel: null, snap: $('ted-snap').checked };
     $('ted-area').style.setProperty('--ted-bg', o.bg || 'rgba(0,0,0,.45)');
     root.hidden = false;
     if (o.orient) o.orient(true);
@@ -443,11 +533,12 @@
       const wrap = document.createElement('div');
       wrap.style.cssText = 'position:absolute;inset:0;opacity:' + (opts.opacity > 0 ? opts.opacity : 1);
       box.appendChild(wrap);
+      const hid = new Set(opts.hidden || []), pctx = { ICONS: opts.ICONS, ICON_OF: opts.ICON_OF, ACTIONS: opts.ACTIONS, icons: opts.icons || {} };
       const svg = n => '<svg viewBox="0 0 24 24">' + opts.ICONS[n] + '</svg>';
       const seen = new Set();
       const defs = opts.defs.concat(custom.map(c => [c.id, c.key, 'custom', 'left:50%;top:45%;transform:translate(-50%,-50%)', c.layouts || 'world']));
       for (const [id, , cls, pos, layouts] of defs) {
-        if (id === 'inv' || id === 'aim' || !layouts.split(' ').includes('world')) continue;
+        if (id === 'inv' || id === 'aim' || hid.has(id) || !layouts.split(' ').includes('world')) continue;
         const ck = opts.TGROUP[id] || id;
         if (seen.has(ck)) continue;
         seen.add(ck);
@@ -455,8 +546,7 @@
         el.className = 'tbtn ' + cls;
         el.style.cssText = pos;
         const cu = custom.find(c => c.id === id);
-        if (cu) { el.innerHTML = '<span class="clabel"></span>'; el.firstChild.textContent = cu.label || (cu.key || '').split('+').map(x => KLABEL[x] || x).join(' + '); }
-        else el.innerHTML = svg(opts.ICON_OF[id] || id);
+        paintFace(el, id, cu, pctx);
         const it = items[ck];
         if (it) { el.style.left = it.x + '%'; el.style.top = it.y + '%'; el.style.right = el.style.bottom = 'auto'; el.style.transform = 'translate(-50%,-50%)'; if (it.k) el.style.setProperty('--k', it.k); }
         wrap.appendChild(el);
@@ -479,6 +569,17 @@
       qe.innerHTML = Array.from({ length: n }, (_, i) => '<i style="' + bx + at(i % per, Math.floor(i / per)) + '"><span>' + ((i + 1) % 10) + '</span></i>').join('') +
         '<i class="inv" style="' + bx + at(per, 0) + '">' + (opts.ICONS.inv ? svg('inv') : '') + '</i>';
       wrap.appendChild(qe);
+      if (opts.huds) {
+        const hd = (ck, cls, text, dx, dy) => {
+          const e = document.createElement('div'), i = items[ck];
+          e.className = 'ted-hud ' + cls; e.textContent = text; e.style.pointerEvents = 'none';
+          e.style.fontSize = (cls === 'fps' ? 13 : 15) * H / 380 * (items[ck] && items[ck].k || 1) + 'px';
+          if (i) { e.style.left = i.x + '%'; e.style.top = i.y + '%'; e.style.transform = 'translate(-50%,-50%)'; } else { e.style.left = dx * H / 380 + 'px'; e.style.top = dy * H / 380 + 'px'; }
+          wrap.appendChild(e);
+        };
+        if (opts.huds.fps) hd('fps', 'fps', '60 FPS', 8, opts.huds.fpsTop || 8);
+        if (opts.huds.day) hd('day', 'day', 'Day 1  08:00', 5, 5);
+      }
     };
     if (box._tedPv) box._tedPv.disconnect();
     if (window.ResizeObserver) { const ro = new ResizeObserver(draw); ro.observe(box); box._tedPv = ro; }

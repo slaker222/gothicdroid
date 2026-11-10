@@ -605,6 +605,17 @@
     #perf-box #perf-fps { display: block; margin-top: 2px; font-size: 20px; line-height: 1.2; font-weight: bold; color: #ff3b30; }
     #perf-box canvas { display: block; width: 100%; height: 64px; margin: 4px 0 2px; background: rgba(255,255,255,0.06); }
     /* side menu (Android app: the back button) */
+    #log-ov { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100000; display: none; flex-direction: column; background: #0b0b0d; color: #cfd2d6;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: auto; }
+    #log-ov.open { display: flex; }
+    #log-ov .lg-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #18181c; border-bottom: 1px solid #333; font: 600 14px system-ui, sans-serif; }
+    #log-ov .lg-bar b { flex: 1; }
+    #log-ov .lg-bar label { display: flex; align-items: center; gap: 4px; font-weight: 400; }
+    #log-ov .lg-bar input[type=search] { flex: 1 1 80px; min-width: 60px; max-width: 220px; height: 30px; padding: 0 8px; border: 1px solid #444; border-radius: 6px; background: #0b0b0d; color: #eee; font: 14px system-ui, sans-serif; }
+    #log-ov .lg-bar b { flex: 0 0 auto; margin-right: auto; }
+    #log-ov .lg-bar button { min-height: 34px; padding: 0 12px; border: 1px solid #444; border-radius: 6px; background: #2a2a30; color: #eee; font: 14px system-ui, sans-serif; }
+    #log-ov .lg-bar button:active { background: #3a3a42; }
+    #log-text { flex: 1; margin: 0; padding: 6px 10px; overflow: auto; white-space: pre-wrap; word-break: break-all; font: 11px/1.3 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; }
     #side-scrim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: none; background: rgba(0, 0, 0, 0.45); }
     #side-menu { position: absolute; top: 0; bottom: 0; left: 0; z-index: 31; width: 36%; min-width: 230px; max-width: 380px;
       display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) 0 8px; box-sizing: border-box;
@@ -646,7 +657,8 @@
       left: 8px;
       z-index: 15;
       padding: 2px 8px;
-      font: 13px monospace;
+      font: calc(13px * var(--k, 1)) monospace;
+      white-space: nowrap;
       color: #5dff8a;
       background: rgba(0, 0, 0, 0.55);
       pointer-events: none;
@@ -720,6 +732,7 @@
     .tbtn.small { --s: 10cqmin; font-size: clamp(9px, 2.2vmin, 13px); font-size: clamp(9px, 2.2cqmin, 13px); }
     .tbtn.down, .tbtn.on { background: rgba(255, 255, 255, 0.35); }
     .tbtn.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); }
+    .tbtn .uicon { width: 70%; height: 70%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
     .tbtn svg { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 2;
                 stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
     .tbtn.cheat { border-color: #f2c200; color: #ffe066; }
@@ -1045,7 +1058,7 @@
       </div>
       <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
       <button class="sm-item" id="sm-perf" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M3 3v18h18v-2H5V3H3zm4 10h2v4H7zm4-6h2v10h-2zm4 3h2v7h-2z"/></svg><span class="sm-label">Performance stats</span><span class="sm-sw"></span></button>
-      <button class="sm-item" id="sm-log" type="button" role="switch" aria-checked="false" title="Writes everything to opengothic_log.txt: every file read, savegame writes, game resources, Vulkan objects and queue activity. The log gets big and the game slower; applies at once"><svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM9.5 3v18M12.5 8h4M12.5 12h4M12.5 16h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sm-label">Logs (full)</span><span class="sm-sw"></span></button>
+      <div class="sm-row"><button class="sm-item" id="sm-log" type="button" role="switch" aria-checked="false" title="Writes everything to opengothic_log.txt: every file read, savegame writes, game resources, Vulkan objects and queue activity. The log gets big and the game slower; applies at once"><svg viewBox="0 0 24 24"><path d="M6 3h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6zM9.5 3v18M12.5 8h4M12.5 12h4M12.5 16h2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="sm-label">Logs (full)</span><span class="sm-sw"></span></button><button class="sm-chev" id="sm-log-view" type="button" title="Show the log" aria-label="Show the log"><svg viewBox="0 0 24 24"><path d="M12 5C7 5 2.7 8.1 1 12c1.7 3.9 6 7 11 7s9.3-3.1 11-7c-1.7-3.9-6-7-11-7zm0 11.5a4.5 4.5 0 1 1 0-9 4.5 4.5 0 0 1 0 9zm0-7a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z"/></svg></button></div>
       <div class="sm-spacer"></div>
       <button class="sm-item sm-exit" id="sm-exit" type="button"><svg viewBox="0 0 24 24"><path d="M10.09 15.59 11.5 17l5-5-5-5-1.41 1.41L12.67 11H3v2h9.67l-2.58 2.59zM19 3H5a2 2 0 0 0-2 2v4h2V5h14v14H5v-4H3v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/></svg><span class="sm-label">Exit</span></button>
     </div>
@@ -2193,6 +2206,7 @@ async function installChunks(m) {
 }
   </script>
 
+  <div id="log-ov"><div class="lg-bar"><b>Log</b><input type="search" id="log-filter" placeholder="Filter" autocomplete="off" spellcheck="false"><label><input type="checkbox" id="log-hideperf" checked>Hide PERF</label><label><input type="checkbox" id="log-follow" checked>Follow</label><button type="button" id="log-copy">Copy</button><button type="button" id="log-save">Download</button><button type="button" id="log-close" aria-label="Close">&times;</button></div><pre id="log-text"></pre></div>
   <script type="text/javascript">
     'use strict';
 
@@ -2345,6 +2359,8 @@ async function installChunks(m) {
       function apply() {
         box.style.display = chk.checked ? 'block' : 'none';
         try { localStorage.setItem('showFps', chk.checked ? '1' : '0'); } catch (e) {}
+        // the app: the launcher's layout editor lives in another process and reads the flag from the controls' config
+        if (NATIVE && window.ogTouch) { const c = window.ogTouch.cfg(); if (!!c.showFps !== chk.checked) { c.showFps = chk.checked; window.ogTouch.save(); } }
         clearInterval(timer);
         if (chk.checked) {
           frames = 0; last = performance.now(); nativeFrames = -1;
@@ -2484,7 +2500,70 @@ async function installChunks(m) {
         smFps.setAttribute('aria-checked', fpsChk.checked ? 'true' : 'false');
       };
       const setOpen = o => { if (o) sync(); player.classList.toggle('side-open', o); };
-      window.ogBackMenu = () => setOpen(!player.classList.contains('side-open'));
+      // the log viewer: polls AndroidBridge.logRead, Copy / Download (GameActivity.kt)
+      const logOv = document.getElementById('log-ov'), logTx = document.getElementById('log-text'), logFol = document.getElementById('log-follow');
+      let logTimer = 0, logOff = -1, logBusy = false;
+      // lines are kept (1 MB at most) and shown through the filter: a substring (any case) and "Hide PERF"
+      const logFilt = document.getElementById('log-filter'), logHide = document.getElementById('log-hideperf');
+      let logLines = [], logSize = 0, logCarry = '';
+      const logShow = l => {
+        if (logHide.checked && /\[(PERF|SWAP_PERF|DRAW_PERF|GPU_PASS)\]/.test(l)) return false;
+        const f = logFilt.value.trim().toLowerCase();
+        return !f || l.toLowerCase().indexOf(f) >= 0;
+      };
+      const logRebuild = () => {
+        logTx.textContent = logLines.filter(logShow).map(l => l + '\n').join('');
+        if (logFol.checked) { logTx.scrollTop = logTx.scrollHeight; logTx.__auto = Date.now(); }
+      };
+      const logReset = () => { logLines = []; logSize = 0; logCarry = ''; logTx.textContent = ''; };
+      let logFiltTimer = 0;
+      logFilt.addEventListener('input', () => { clearTimeout(logFiltTimer); logFiltTimer = setTimeout(logRebuild, 200); });
+      logHide.addEventListener('change', logRebuild);
+      const logPoll = () => {
+        if (logBusy) return; logBusy = true;
+        try {
+          const r = JSON.parse(AndroidBridge.logRead(logOff));
+          if (r.size < logOff) { logOff = 0; logReset(); }
+          else {
+            if (r.text) {
+              const parts = (logCarry + r.text).split('\n');
+              logCarry = parts.pop();
+              if (parts.length) {
+                let shown = '';
+                for (const l of parts) { logLines.push(l); logSize += l.length + 1; if (logShow(l)) shown += l + '\n'; }
+                let cut = false;
+                while (logLines.length > 1 && logSize > 1000000) { logSize -= logLines.shift().length + 1; cut = true; }
+                if (cut) logRebuild();
+                else if (shown) logTx.appendChild(document.createTextNode(shown));
+                if (logFol.checked) { logTx.scrollTop = logTx.scrollHeight; logTx.__auto = Date.now(); }
+              }
+            }
+            logOff = r.off;
+          }
+        } catch (e) {}
+        logBusy = false;
+      };
+      const logClose = () => { logOv.classList.remove('open'); clearInterval(logTimer); logTimer = 0; };
+      document.getElementById('sm-log-view').addEventListener('click', e => {
+        e.stopPropagation(); setOpen(false);
+        logReset(); logOff = -1; logFol.checked = true;
+        logOv.classList.add('open'); logPoll(); logTimer = setInterval(logPoll, 500);
+      });
+      logTx.addEventListener('scroll', () => {
+        if (Date.now() - (logTx.__auto || 0) < 150) return;
+        logFol.checked = logTx.scrollHeight - logTx.scrollTop - logTx.clientHeight < 8;
+      });
+      logFol.addEventListener('change', () => { if (logFol.checked) logTx.scrollTop = logTx.scrollHeight; });
+      document.getElementById('log-close').addEventListener('click', logClose);
+      document.getElementById('log-copy').addEventListener('click', () => { try { AndroidBridge.logCopy(); } catch (e) {} });
+      document.getElementById('log-save').addEventListener('click', () => { try { AndroidBridge.logSave(); } catch (e) {} });
+      // the full log: the buttons of the touch layer and of the side menu (the bridge drops them when the full log is off)
+      document.addEventListener('pointerdown', e => {
+        const b = e.target && e.target.closest && e.target.closest('.tbtn, .sm-item, button');
+        if (b) { try { AndroidBridge.log('tap ' + (b.title || b.id || b.textContent || b.className).toString().trim().slice(0, 60)); } catch (x) {} }
+      }, true);
+      const backMenu0 = () => setOpen(!player.classList.contains('side-open'));
+      window.ogBackMenu = () => { if (logOv.classList.contains('open')) logClose(); else backMenu0(); };
       document.getElementById('side-scrim').addEventListener('click', () => setOpen(false));
       smTouch.addEventListener('click', () => { touch.checked = !document.body.classList.contains('touch-on'); touch.dispatchEvent(new Event('change')); sync(); });
       smLog.addEventListener('click', () => { try { AndroidBridge.setVerboseLog(!logOn()); } catch (e) {} sync(); });
@@ -2516,7 +2595,8 @@ async function installChunks(m) {
         TouchEditor.open(Object.assign(window.ogTouch.editorData(), {
           items: c.items, opacity: c.opacity, quick: c.quick,
           // keys and buttons of the player work at once
-          onSave: (items, keys, custom, quick) => { c.items = items; c.keys = keys; c.custom = custom; c.quick = quick; window.ogTouch.save(); window.ogTouch.apply(); }
+          hidden: c.hidden || [], icons: c.icons || {}, ACTIONS: window.ogTouch.editorData().ACTIONS,
+          onSave: (items, keys, custom, quick, extra) => { c.items = items; c.keys = keys; c.custom = custom; c.quick = quick; c.hidden = (extra && extra.hidden) || []; c.icons = (extra && extra.icons) || {}; window.ogTouch.save(); window.ogTouch.apply(); }
         }));
       });
       document.getElementById('sm-exit').addEventListener('click', () => AndroidBridge.exitGame());
@@ -3168,6 +3248,9 @@ async function installChunks(m) {
         F1: ['F1', 'F1', 112], F2: ['F2', 'F2', 113], F3: ['F3', 'F3', 114], F4: ['F4', 'F4', 115], F5: ['F5', 'F5', 116], F6: ['F6', 'F6', 117],
         F7: ['F7', 'F7', 118], F8: ['F8', 'F8', 119], F9: ['F9', 'F9', 120], F10: ['F10', 'F10', 121], F11: ['F11', 'F11', 122], F12: ['F12', 'F12', 123],
       };
+      // actions a button can be bound to instead of keys: the value '@id' (never combined with keys)
+      const ACTIONS = { tools: 'More bar', cheat: 'Cheat menu', plugins: 'Plugins', qsave: 'Quick save', qload: 'Quick load',
+        kbd: 'Keyboard (savegame name)', assign: 'Quick panel: put item', aim: 'Aim the bow' };
       // TOUCH-KEYS-END
       const held = new Map(); // key -> press count
       // force: send a fresh key-down even if the key is already held (the
@@ -3230,7 +3313,7 @@ async function installChunks(m) {
         ['action', 'Shift', 'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
-        ['aim',    'Shift', '',      'right:28cqmin;bottom:24cqmin',           'world'],
+        ['aim',    '@aim', '',      'right:28cqmin;bottom:24cqmin',           'world'],
         // after a transformation spell: back to the human shape (the game's Enter)
         ['human',  'Enter', '',      'right:42cqmin;bottom:8cqmin',            'world'],
         ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
@@ -3239,15 +3322,15 @@ async function installChunks(m) {
         ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
         // the tool bar: a button next to the menu opens a row of buttons to its right
-        ['tools',  '',      'small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
-        ['qsave',  '',      'small', 'left:38cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['qload',  '',      'small', 'left:48.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['tools',  '@tools','small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
+        ['qsave',  '@qsave','small', 'left:38cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['qload',  '@qload','small', 'left:48.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         ['log',    'N',     'small', 'left:59cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // camera: first / third person (the game's F key), left of the cheat buttons
         ['camera', 'F',     'small', 'left:69.5cqmin;top:calc(36px + 1cqmin)',              'wtools'],
-        ['cheat',  '',      'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['cheat',  '@cheat','small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // the plugins (a parody of Union): a green button left of the cheat one, opens the list with the check boxes
-        ['plugins','',      'small plug', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['plugins','@plugins','small plug', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         ['console','F2',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         ['fly',    'F8',    'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         ['kfast',  'K',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
@@ -3271,12 +3354,12 @@ async function installChunks(m) {
         ['use',    'Shift', 'big',   'right:4cqmin;bottom:10cqmin',            'inv'],
         ['drop',   'Space', '',      'right:6cqmin;bottom:32cqmin',            'inv'],
         // the plugin QuickPotions: puts the item under the cursor on the quick panel (left of the drop button)
-        ['assign', '',      '',      'right:22cqmin;bottom:32cqmin',           'inv'],
+        ['assign', '@assign','',     'right:22cqmin;bottom:32cqmin',           'inv'],
         ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
         ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
         ['back',   'Esc',   '',      'right:25cqmin;bottom:8cqmin',            'menu'],
         // the save menu: the phone's keyboard to type a name of the savegame
-        ['kbd',    '',      'small', 'right:7.6cqmin;bottom:32cqmin',                  'menu'],
+        ['kbd',    '@kbd',  'small', 'right:7.6cqmin;bottom:32cqmin',                  'menu'],
         // new chapter screen: only a way out
         ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
       ];
@@ -3317,12 +3400,29 @@ async function installChunks(m) {
       let TC = {};
       try { if (typeof AndroidBridge !== 'undefined') TC = JSON.parse(AndroidBridge.controls() || '{}') || {}; } catch (e) {}
       // the key a button presses: the one chosen in the Controls tab, otherwise the default one ('Shift+S': pressed together)
-      const keyOfBtn = (id, dflt) => { const o = TC.keys && TC.keys[id]; return o && o.split('+').every(k => k in KEYS) ? o : dflt; };
+      // a value is valid when it is keys ('Shift+S') or exactly one action ('@qsave')
+      const validKey = v => typeof v === 'string' && !!v && (v[0] === '@' ? v.slice(1) in ACTIONS : v.split('+').every(k => k in KEYS));
+      const keyLabel = k => k[0] === '@' ? ACTIONS[k.slice(1)] : k.split('+').join(' + ');
+      const keyOfBtn = (id, dflt) => { const o = TC.keys && TC.keys[id]; return validKey(o) ? o : dflt; };
+      // the buttons the player deleted and the pictures he gave them (the Controls editor)
+      let hiddenIds = new Set();
+      const userIcon = id => (TC.icons && typeof TC.icons[id] === 'string' && TC.icons[id].startsWith('data:image/')) ? TC.icons[id] : '';
+      const userImg = u => { const i = new Image(); i.className = 'uicon'; i.draggable = false; i.alt = ''; i.src = u; return i; };
+      // what a button bound to an action does
+      function runAction(a) {
+        if (a === 'tools') { setTools(!toolsOpen); update(); }
+        else if (a === 'cheat') { if (!marvinOn) { ogSet('marvin', 1); setTools(true); } else setTools(!toolsOpen); update(); }
+        else if (a === 'plugins') plugOpen();
+        else if (a === 'assign') { if (g_runtimeUp) ogSet('potAssign', 1); }
+        else if (a === 'kbd') kbdOpen();
+        else if (a === 'qsave' || a === 'qload') { if (g_runtimeUp) Module.ccall('og_quick', null, ['number'], [a === 'qsave' ? 1 : 2]); }
+        else if (a === 'aim') aimToggle();
+      }
       // buttons made by the player: [id, key, class, position, layouts]; the label is text
       const CUSTOM = {};
       const customList = () => {
         for (const k in CUSTOM) delete CUSTOM[k];
-        return (Array.isArray(TC.custom) ? TC.custom : []).filter(c => c && c.id && c.key && c.key.split('+').every(k => k in KEYS)).map(c => {
+        return (Array.isArray(TC.custom) ? TC.custom : []).filter(c => c && c.id && validKey(c.key)).map(c => {
           CUSTOM[c.id] = c;
           return [c.id, c.key, 'custom', 'left:50%;top:45%;transform:translate(-50%,-50%)', c.layouts || 'world'];
         });
@@ -3341,24 +3441,16 @@ async function installChunks(m) {
         if (CUSTOM[id]) {
           b.custom = true;
           el.innerHTML = '<span class="clabel"></span>';
-          el.firstChild.textContent = CUSTOM[id].label || k.split('+').join(' + ');
+          el.firstChild.textContent = CUSTOM[id].label || keyLabel(k);
         }
         // Gothic strikes and blocks with key combinations: Shift held, then a
         // direction (W strikes, S blocks). With a weapon out the action button
         // strikes, so it presses Shift+W instead of Shift alone (a bow shoots on Shift alone).
         const keysOf = () => (b.id === 'action' && weaponOut && !bowOut) ? ['Shift', 'W'] : keyOfBtn(b.id, b.key).split('+');
         const press = e => { e.preventDefault(); e.stopPropagation(); if (el.classList.contains('down')) return;
-                             // buttons that act on the page or the engine instead of pressing a key
-                             if (b.id === 'tools') { setTools(!toolsOpen); update(); return; }
-                             if (b.id === 'cheat') { ogSet('marvin', 1); update(); return; }
-                             if (b.id === 'plugins') { plugOpen(); return; }
-                             if (b.id === 'assign') { if (g_runtimeUp) ogSet('potAssign', 1); return; }
-                             if (b.id === 'kbd') { kbdOpen(); return; }
-                             if (b.id === 'qsave' || b.id === 'qload') {
-                               if (g_runtimeUp) Module.ccall('og_quick', null, ['number'], [b.id === 'qsave' ? 1 : 2]);
-                               return;
-                             }
-                             if (b.id === 'aim') { aimToggle(); return; }
+                             // a button bound to an action (the page or the engine) instead of keys
+                             const val = CUSTOM[b.id] ? CUSTOM[b.id].key : keyOfBtn(b.id, b.key);
+                             if (val[0] === '@') { runAction(val.slice(1)); return; }
                              // a button made by the player with "Hold": a tap switches the key on, the next tap off
                              if (CUSTOM[b.id] && CUSTOM[b.id].hold) {
                                if (b.held) { b.held.slice().reverse().forEach(k => key(k, false)); b.held = null; el.classList.remove('on'); }
@@ -3427,7 +3519,7 @@ async function installChunks(m) {
           let b = byId[d[0]];
           if (!b) { b = makeButton(d); buttons.push(b); byId[b.id] = b; continue; }
           b.key = d[1]; b.layouts = d[4].split(' ');
-          if (b.el.firstChild) b.el.firstChild.textContent = CUSTOM[b.id].label || d[1].split('+').join(' + ');
+          b.cface = '';   // update() draws the text / icon again
         }
       }
       const tcItem = id => (TC.items || {})[TGROUP[id] || id];
@@ -3435,19 +3527,35 @@ async function installChunks(m) {
       // the config can change while the game runs (the side menu): the buttons are put again
       function applyCfg(started) {
         syncCustom();
+        hiddenIds = new Set(Array.isArray(TC.hidden) ? TC.hidden : []);
         lookSens = Math.min(4, Math.max(0.2, +TC.sens || 1));
         if (TC.opacity >= 0.1 && TC.opacity <= 1) ui.style.setProperty('--tpa', String(TC.opacity)); else ui.style.removeProperty('--tpa');
         for (const b of buttons) {
           if (b.id === 'inv') continue;   // follows the quick bar of the engine
+          if (!b.custom) b.label = '';    // the icon may have changed (own picture)
+          b.cface = '';
+          if (hiddenIds.has(b.id)) {      // deleted: its keys go up
+            (b.pressed || []).slice().reverse().forEach(k => key(k, false)); b.pressed = null;
+            (b.held || []).slice().reverse().forEach(k => key(k, false)); b.held = null;
+            strikeCancel(b); b.el.classList.remove('down', 'on');
+          }
           const o = tcItem(b.id);
           b.el.style.cssText = o ? 'left:' + o.x + '%;top:' + o.y + '%;transform:translate(-50%,-50%)' : b.pos;
           if (o && o.k) b.el.style.setProperty('--k', String(o.k));
+        }
+        const fi = tcItem('fps'), fe = document.getElementById('fps-counter');
+        if (fe) {
+          if (fi) { fe.style.left = fi.x + '%'; fe.style.top = fi.y + '%'; fe.style.transform = 'translate(-50%,-50%)'; }
+          else { fe.style.left = fe.style.top = fe.style.transform = ''; }
+          if (fi && fi.k) fe.style.setProperty('--k', String(fi.k)); else fe.style.removeProperty('--k');
         }
         stickCfg = tcItem('stick');
         stickK = stickCfg && stickCfg.k > 0 ? stickCfg.k : 1;
         if (stickK !== 1) stickEl.style.setProperty('--k', String(stickK)); else stickEl.style.removeProperty('--k');
         if (started && !stick) stickHome();
         sendQuickCfg();
+        sendDayCfg();
+        if (started) { try { update(); } catch (e) {} }
       }
       // the quick bar (layout editor): visible slots 4..10, the centre of the row, its size, the dark backing
       let quickSent = '';
@@ -3461,6 +3569,15 @@ async function installChunks(m) {
         if (sig === quickSent) return;
         ['quickCols', 'quickX', 'quickY', 'quickK', 'quickBack', 'quickVert', 'quickSplit'].forEach((n, i) => ogSet(n, cfg[i]));
         quickSent = sig;
+      }
+      // the day counter of the engine (the layout editor): the centre in permille of the screen, -1 = the corner
+      let daySent = '';
+      function sendDayCfg() {
+        if (!g_runtimeUp) { daySent = ''; return; }
+        const it = tcItem('day'), v = it ? [Math.round(it.x * 10), Math.round(it.y * 10), it.k ? Math.round(it.k * 100) : 100] : [-1, -1, 100], sig = v.join(',');
+        if (sig === daySent) return;
+        ogSet('hudDayX', v[0]); ogSet('hudDayY', v[1]); ogSet('hudDayK', v[2]);
+        daySent = sig;
       }
       applyCfg(false);
       // ---- the plugins: AutoQuickLoot (the loot at once, coloured by categories), ScreenInfo (day / time, numbers on the bars),
@@ -3572,8 +3689,10 @@ async function installChunks(m) {
         cfg: () => TC,
         apply: () => applyCfg(true),
         save: () => { try { AndroidBridge.setControls(JSON.stringify(TC)); } catch (e) {} },
-        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'kbd', 'plugins', 'cheat', 'qsave', 'qload', 'aim', 'inv', 'assign'], keys: TC.keys || {}, custom: TC.custom || [] })
+        editorData: () => ({ defs, TGROUP, ICONS, NAMES, ICON_OF, KEYS: Object.keys(KEYS), keys: TC.keys || {}, custom: TC.custom || [], ACTIONS, hidden: TC.hidden || [], icons: TC.icons || {},
+          huds: { fps: !!(document.getElementById('fps-chk') || {}).checked, day: !!plug().info, fpsTop: document.body.classList.contains('touch-on') ? 40 : 8 } })
       };
+      if (NATIVE) { const fc = document.getElementById('fps-chk'); if (fc && !!TC.showFps !== fc.checked) { TC.showFps = fc.checked; window.ogTouch.save(); } }
       // minimal line icons (24x24); the name is also the button's tooltip
       // TOUCH-ICONS-BEGIN
       const ICONS = {
@@ -3642,11 +3761,28 @@ async function installChunks(m) {
         possess: 'possess', human: 'human' };
       // TOUCH-ICONS-END
       stickEl.insertAdjacentHTML('beforeend', '<div class="stick-icon"><svg viewBox="0 0 24 24">' + ICONS.sneak + '</svg></div>');
+      // a button made by the player: its text, the icon of its action or its own picture
+      function faceCustom(b) {
+        const c = CUSTOM[b.id];
+        if (!c) return;
+        const u = userIcon(b.id), a = !c.label && c.key[0] === '@' ? c.key.slice(1) : '';
+        const sig = u ? 'u' + u : a ? 'a' + a : 't' + (c.label || c.key);
+        if (b.cface === sig) return;
+        b.cface = sig;
+        b.el.textContent = '';
+        if (u) b.el.appendChild(userImg(u));
+        else if (a && ICONS[ICON_OF[a]]) b.el.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[ICON_OF[a]] + '</svg>';
+        else { const sp = document.createElement('span'); sp.className = 'clabel'; sp.textContent = c.label || keyLabel(c.key); b.el.appendChild(sp); }
+        b.el.title = c.label || keyLabel(c.key);
+      }
       function setLabel(b, icon) {
-        if (b.custom || b.label === icon) return;
-        b.label = icon;
-        b.el.classList.toggle('strike', icon === 'strike');
-        b.el.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[icon] + '</svg>';
+        if (b.custom) return;
+        const u = userIcon(b.id), sig = u || icon;   // the own picture wins over the icons of the situation
+        if (b.label === sig) return;
+        b.label = sig;
+        b.el.classList.toggle('strike', !u && icon === 'strike');
+        if (u) { b.el.textContent = ''; b.el.appendChild(userImg(u)); }
+        else b.el.innerHTML = '<svg viewBox="0 0 24 24">' + ICONS[icon] + '</svg>';
         b.el.title = NAMES[icon];
         b.el.setAttribute('aria-label', NAMES[icon]);
       }
@@ -4125,6 +4261,7 @@ async function installChunks(m) {
           }
         }
         if (g_runtimeUp && !quickSent) sendQuickCfg();
+        if (g_runtimeUp && !daySent) sendDayCfg();
         if (g_runtimeUp) sendPlug();
         marvinOn = !!(st & (1 << 26));
         if (layout === 'world') pollJournal();
@@ -4184,7 +4321,9 @@ async function installChunks(m) {
           if (!(st & (1 << 20)) && document.activeElement === kbdIn) kbdIn.blur(); // the name is done: the keyboard goes away
           if (b.id === 'map' && !(st & (1 << 24))) show = false;         // no map carried
           if (b.id === 'assign' && (!plug().potion || (invMode >= 2 && invMode <= 4) || ogGet('potSel') !== 1)) show = false; // QuickPotions on, the own inventory, food / a potion under the cursor
+          if (hiddenIds.has(b.id)) show = false;                         // deleted in the layout editor
           b.el.classList.toggle('hidden', !show);
+          if (show && b.custom) faceCustom(b);
           // action, jump and use pick their icon below from the situation
           if (show && b.id !== 'action' && b.id !== 'jump' && b.id !== 'use' && b.id !== 'drop') setLabel(b, ICON_OF[b.id]);
         }
@@ -5040,7 +5179,19 @@ function serveLoop() {
           } finally {
             GameFS.liveHandles.delete(fh); GameFS.liveHandles.delete(d);
           }
-        }).catch(err => console.warn('OPFS persist failed:', e.path, err));
+        }).catch(err => {
+          console.warn('OPFS persist failed:', e.path, err);
+          GameFS.persistFailed = (GameFS.persistFailed || 0) + 1;
+          const quota = err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message || err)));
+          const why = quota ? 'the browser storage is full (free some disk space or delete old saves)'
+                            : String((err && (err.message || err.name)) || err);
+          try {
+            if (window.ogBanner) window.ogBanner('persist-failed', '<b>Could not write to the browser storage:</b> ' +
+              esc(e.path) + '<br>Reason: ' + esc(why) + '.<br>' +
+              (/\.sav$/i.test(e.path) ? 'This save will be missing after a reload. ' : 'Changes may be lost after a reload. ') +
+              'Free some space and save again.');
+          } catch (e2) {}
+        });
       },
 
       deleteOpfsAsync(path) {
@@ -5278,6 +5429,7 @@ function serveLoop() {
         }
       }
       if (!GameFS.lazy) {
+        checkPreloadAllowed(totalBytes, canLazy);
         await preloadAllFiles(listing);
       }
 
@@ -6414,6 +6566,24 @@ function serveLoop() {
       });
     }
 
+    // Without the lazy backend the whole of Data/ is read into the JS heap. Phones kill the tab long before that
+    // finishes (OOM), so there it is refused. On desktop it is allowed while the data fits into about half of
+    // the reported device memory (navigator.deviceMemory is capped at 8 GB; unknown -> up to 1 GiB).
+    function checkPreloadAllowed(totalBytes, isolated) {
+      const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+                     (navigator.maxTouchPoints > 1 && matchMedia('(pointer: coarse)').matches);
+      const limit = (navigator.deviceMemory || 2) * 0.5 * 1073741824;
+      if (!mobile && totalBytes <= limit) return;
+      const mb = (totalBytes / 1048576).toFixed(0);
+      const e = new Error('The page is not cross-origin isolated: loading ' + mb + ' MB into memory is refused');
+      e.html = 'The game needs <b>cross-origin isolation</b> (the COOP/COEP headers: <code>Cross-Origin-Opener-Policy: same-origin</code> and ' +
+        '<code>Cross-Origin-Embedder-Policy: require-corp</code>) to read its ' + esc(mb) + ' MB of files on demand. ' +
+        (isolated ? 'The page is isolated, but the file reader could not start (see the console). ' : 'This page is not isolated, so SharedArrayBuffer is unavailable. ') +
+        'Without it everything would have to be loaded into memory at once, and ' + (mobile ? 'a phone browser would crash the tab' : 'this device does not have enough memory') +
+        '. Open the game from the official address (or a server that sends these headers, e.g. <code>web/serve.py</code>) and reload.';
+      throw e;
+    }
+
     async function preloadAllFiles(listing) {
       const dir = await opfsGameDir(false);
       const totalBytes = listing.reduce((a, f) => a + f.size, 0);
@@ -6526,6 +6696,7 @@ function serveLoop() {
           // no cross-origin isolation: everything has to be read into memory
           let done = 0;
           const total = list.reduce((a, f) => a + f.file.size, 0);
+          checkPreloadAllowed(total, false);
           for (const f of list) {
             const e = GameFS.files.get(GameFS.lower(f.rel));
             e.mem = new Uint8Array(await f.file.arrayBuffer());
@@ -6876,6 +7047,59 @@ function serveLoop() {
       try { const u = new URL(location.href); u.searchParams.set('renderer', 'webgl2'); location.href = u.toString(); }
       catch (e) { showGpuLost(info); }
     }
+
+    function esc(x) { return String(x).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
+    // a red closable banner at the top of the page (html must be pre-escaped); one per id
+    function ogBanner(id, html, reloadBtn) {
+      id = 'ogb-' + id;
+      let d = document.getElementById(id);
+      if (!d) {
+        d = document.createElement('div');
+        d.id = id;
+        d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,640px);' +
+          'padding:12px 38px 12px 14px;border-radius:10px;background:#3a1414;border:1px solid #a33;color:#fff;font:14px/1.45 system-ui,sans-serif;box-shadow:0 4px 24px #000a';
+        const t = document.createElement('div'); t.className = 'ogb-t';
+        const x = document.createElement('button');
+        x.textContent = '\u00d7';
+        x.style.cssText = 'position:absolute;top:4px;right:8px;border:0;background:none;color:#fff;font-size:22px;cursor:pointer';
+        x.onclick = () => d.remove();
+        d.append(t, x);
+        if (reloadBtn) {
+          const b = document.createElement('button');
+          b.textContent = 'Reload the page';
+          b.style.cssText = 'display:block;margin-top:8px;padding:6px 14px;border:0;border-radius:6px;background:#fff;color:#3a1414;font:600 14px system-ui,sans-serif;cursor:pointer';
+          b.onclick = () => location.reload();
+          d.appendChild(b);
+        }
+        document.body.appendChild(d);
+      }
+      d.querySelector('.ogb-t').innerHTML = html;
+    }
+    window.ogBanner = ogBanner;
+
+    // the WebGL 2 context was taken away (GPU reset, memory pressure): nothing can be drawn any more;
+    // a real restore is not supported by the renderer, so offer a reload. Never fires on the WebGPU path.
+    (function () {
+      const cv = document.getElementById('canvas');
+      if (!cv) return;
+      cv.addEventListener('webglcontextlost', ev => {
+        ev.preventDefault();
+        if (!useWebGL()) return;
+        console.error('[WebGL] context lost');
+        ogBanner('gl-lost', '<b>The graphics context was lost.</b> The browser stopped the GPU, so nothing is drawn any more. ' +
+          'Reload the page (your last save is kept).', true);
+      }, false);
+    })();
+
+    // closing the tab while the OPFS write queue is not empty loses the save: ask the browser to confirm
+    function hasPendingWrites() { return GameFS.persistQueue && GameFS.persistQueue.size > 0; }
+    window.addEventListener('beforeunload', ev => {
+      if (!hasPendingWrites()) return;
+      ev.preventDefault();
+      ev.returnValue = '';
+      return '';
+    });
 
     function showGpuLost(info) {
       if (document.getElementById('gpu-lost')) return;

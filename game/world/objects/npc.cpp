@@ -579,6 +579,9 @@ bool Npc::checkHealth(bool onChange, bool allowUnconscious) {
   }
 
 void Npc::onNoHealth(bool death, HitSound sndMask) {
+  if(Log::isVerbose())
+    Log::v("[game] npc ",death ? "died: " : "knocked out: ",displayName(),
+           lastHit!=nullptr ? " (by " : "", lastHit!=nullptr ? lastHit->displayName() : std::string_view(), lastHit!=nullptr ? ")" : "");
   invent.switchActiveWeapon(*this,Item::NSLOT);
   visual.dropWeapon(*this);
   visual.dropShield(*this);
@@ -1966,6 +1969,8 @@ void Npc::takeDamage(Npc& other, const Bullet* b, const CollideMask bMask, int32
     currentOther = &other;
     if(Gothic::inst().webBlood())
       owner.addBloodEffect(*this);
+    if((isPlayer() || other.isPlayer()) && Log::isVerbose())
+      Log::v("[game] damage: ",other.displayName()," -> ",displayName()," ",hitResult.value,isSpell ? " (spell)" : "");
     changeAttribute(ATR_HITPOINTS,-hitResult.value,dontKill);
 
     if(bMask&(COLL_APPLYVICTIMSTATE|COLL_DOEVERYTHING)) {
@@ -3263,7 +3268,15 @@ void Npc::resumeAiRoutine() {
     }
   }
 
+// verbose log: the name of an item instance
+static std::string_view logItemName(World& w, size_t id) {
+  auto s = w.script().findSymbol(id);
+  return s==nullptr ? std::string_view("?") : std::string_view(s->name());
+  }
+
 Item* Npc::addItem(const size_t item, size_t count) {
+  if(isPlayer() && Log::isVerbose())
+    Log::v("[game] item added: ",logItemName(owner,item)," x",count);
   return invent.addItem(item,count,owner);
   }
 
@@ -3274,6 +3287,8 @@ Item* Npc::addItem(std::unique_ptr<Item>&& i) {
 Item* Npc::takeItem(Item& item) {
   if(interactive()!=nullptr)
     return nullptr;
+  if(isPlayer() && Log::isVerbose())
+    Log::v("[game] item picked up: ",item.displayName()," x",item.count());
   if(item.isTorchBurn() && (isUsingTorch() || weaponState()!=WeaponState::NoWeapon))
     return nullptr;
 
@@ -3370,6 +3385,8 @@ void Npc::buyItem(size_t id, Npc &from, size_t count) {
 void Npc::dropItem(size_t id, size_t count) {
   if(id==size_t(-1))
     return;
+  if(isPlayer() && Log::isVerbose())
+    Log::v("[game] item dropped: ",logItemName(owner,id)," x",count);
   size_t cnt = invent.itemCount(id);
   if(count>cnt)
     count = cnt;
@@ -3509,6 +3526,8 @@ Item *Npc::getItem(size_t id) {
   }
 
 void Npc::delItem(size_t item, uint32_t amount) {
+  if(isPlayer() && Log::isVerbose())
+    Log::v("[game] item removed: ",logItemName(owner,item)," x",amount);
   invent.delItem(item,amount,*this);
   }
 
@@ -3517,6 +3536,8 @@ void Npc::useItem(size_t item) {
   }
 
 void Npc::useItem(size_t item, uint8_t slotHint, bool force) {
+  if(isPlayer() && Log::isVerbose())
+    Log::v("[game] item used/equipped: ",logItemName(owner,item));
   invent.use(item,*this,slotHint,force);
   }
 
@@ -3525,6 +3546,8 @@ void Npc::setCurrentItem(size_t item) {
   }
 
 void Npc::unequipItem(size_t item) {
+  if(isPlayer() && Log::isVerbose())
+    Log::v("[game] item unequipped: ",logItemName(owner,item));
   invent.unequip(item,*this);
   }
 
@@ -4174,6 +4197,10 @@ void Npc::fastCraftBegin(Interactive& id) {
   g_mobSnap.look = 0;
   if(!isPlayer() || Plugins::fastCraft.load()==0 || Plugins::craftCount.load()==1)
     return;
+  if(id.isShrine()) {
+    Tempest::Log::i("[FASTCRAFT] shrine/statue, skipped");
+    return;
+    }
   auto& name = id.useItemName();
   if(name.empty())
     return;

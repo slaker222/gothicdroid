@@ -55,6 +55,17 @@
     .about-logo small { color: var(--dim); font-size: 13px; }
     .about p { font-size: 14px; line-height: 1.5; color: var(--text); margin-bottom: 10px; }
     .about p.dim { color: var(--dim); font-size: 12px; }
+    .upd-notes { max-height: 42vh; overflow-y: auto; margin: 10px 0 12px; font-size: 13px; line-height: 1.45; }
+    .upd-notes h3 { font-size: 14px; color: var(--accent); margin: 10px 0 4px; }
+    .upd-notes li { margin: 0 0 3px 18px; }
+    .upd-notes p { margin: 0 0 4px; }
+    .upd-btns { display: flex; flex-direction: column; gap: 8px; }
+    .upd-btns button { padding: 12px; font: inherit; font-size: 15px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+    .upd-btns button.pri { background: var(--accent); border-color: var(--accent); color: #000; font-weight: 600; }
+    .upd-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 8px 0; }
+    .upd-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+    .upd-err { color: #ff8a80; font-size: 13px; margin: 6px 0; }
+    .about-dot { display: inline-block; width: 8px; height: 8px; margin-left: 5px; border-radius: 50%; background: #ff5252; vertical-align: top; }
     .link-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-top: 8px; font: inherit; text-align: left; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
     .link-card.main { background: #fff; border-color: #fff; color: #000; }
     .link-card.main svg { color: #000; }
@@ -310,6 +321,13 @@
       <p class="dim">GothicDroid is a fork of the open source engine OpenGothic by Try (MIT license).</p>
       <button class="link-card" onclick="Launcher.openUrl('https://github.com/Try/OpenGothic')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>OpenGothic (original project)</b><span>github.com/Try/OpenGothic</span></div></button>
     </div>
+    <div class="card" id="upd-card">
+      <h2>Updates</h2>
+      <p class="dim" id="upd-line">Checking…</p>
+      <div class="upd-bar" id="upd-card-bar" hidden><i></i></div>
+      <div class="upd-err" id="upd-card-err" hidden></div>
+      <div class="upd-btns"><button type="button" class="pri" id="upd-card-go" hidden></button><button type="button" id="upd-card-check">Check for updates</button></div>
+    </div>
     <div class="card">
       <h2>Log</h2>
       <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
@@ -333,6 +351,21 @@
     <textarea id="ex-ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   </div>
   <div id="sheet"><div class="box" id="sheet-box"></div></div>
+  <div id="upd-modal" class="dn-overlay" hidden>
+    <div class="dn-box" role="dialog" aria-modal="true">
+      <h2 id="upd-title">Update available</h2>
+      <p class="dn-sub" id="upd-sub"></p>
+      <div class="upd-notes" id="upd-notes"></div>
+      <div class="upd-bar" id="upd-bar" hidden><i></i></div>
+      <div class="upd-err" id="upd-err" hidden></div>
+      <div class="upd-btns">
+        <button type="button" class="pri" id="upd-go">Download and update</button>
+        <button type="button" id="upd-later">Later</button>
+        <button type="button" id="upd-never">Don't show again</button>
+      </div>
+    </div>
+  </div>
+
   {{DONATE}}
   <script>
     'use strict';
@@ -403,6 +436,7 @@
         el.querySelector('.folder').addEventListener('click', () => Launcher.pick(g.id));
         const dl = el.querySelector('.dl');
         if (dl) dl.addEventListener('click', () => g.downloaded ? confirmDelete(g) : openSheet(g, 'all'));
+        el.dataset.found = found ? '1' : '';
         el.querySelector('.home').style.display = found ? '' : 'none';
         el.querySelector('.home').addEventListener('click', () => Launcher.pin(g.id));
         el.querySelector('.dl-cancel').addEventListener('click', () => Launcher.cancelDownload());
@@ -451,6 +485,8 @@
         const info = el.querySelector('.dl-info'), play = el.querySelector('.play'), path = el.querySelector('.path');
         const dl = el.querySelector('.dl');
         if (dl) dl.disabled = !!st.running;
+        // the shortcut to the home screen: only for a game that is there, not while it is being installed
+        el.querySelector('.home').style.display = el.dataset.found && !mine ? '' : 'none';
         if (!mine) { info.style.display = 'none'; if (play.classList.contains('busy')) play.textContent = 'Play'; play.classList.remove('busy'); play.style.background = ''; return; }
         if (st.running) {
           const now = performance.now();
@@ -910,6 +946,7 @@
       if (TouchEditor.isOpen()) { TouchEditor.close(); return true; }
       if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
       if (!$('gset').hidden) { $('gset').hidden = true; return true; }
+      if (!$('upd-modal').hidden) { $('upd-modal').hidden = true; updLater = true; return true; }
       if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
       if ($('ex-edit').classList.contains('on')) { edClose(); return true; }
       if (curTab === 'explore') { if (EX.sel.size) { EX.sel.clear(); exRender(); return true; } if (EX.path !== rootPath()) { exUp(); return true; } }
@@ -918,6 +955,58 @@
     };
     try { const ic = Launcher.appIcon(); if (ic) $('app-icon').src = ic; } catch (e) {}
     try { $('ver').textContent = 'Android port of OpenGothic' + (Launcher.version() ? '  ·  v' + Launcher.version() : ''); } catch (e) {}
+
+
+    // ---- updates from GitHub (UpdateChecker.kt): the dialog once per start, the button in About stays
+    let updLater = false, updShown = false;
+    const updNotes = t => {   // the release text (markdown) as simple html
+      let h = '', ul = false;
+      for (const raw of String(t).split('\n')) {
+        const l = raw.trim(), li = /^[-*]\s+(.*)/.exec(l);
+        if (li && !ul) { h += '<ul>'; ul = true; } else if (!li && ul) { h += '</ul>'; ul = false; }
+        const b = x => esc(x).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+        if (li) h += '<li>' + b(li[1]) + '</li>';
+        else if (/^#+\s/.test(l)) h += '<h3>' + b(l.replace(/^#+\s*/, '')) + '</h3>';
+        else if (l) h += '<p>' + b(l) + '</p>';
+      }
+      return h + (ul ? '</ul>' : '');
+    };
+    const updGet = () => { try { return JSON.parse(Launcher.updateState()); } catch (e) { return null; } };
+    function updPaint() {
+      const u = updGet(); if (!u) return;
+      const pct = u.total ? Math.min(100, u.done * 100 / u.total) : 0;
+      const label = u.downloading ? 'Downloading… ' + Math.round(pct) + '%' : (u.ready ? 'Install' : 'Download and update');
+      // About
+      document.querySelector('#nav button[data-tab="about"]').querySelectorAll('.about-dot').forEach(e => e.remove());
+      if (u.available) document.querySelector('#nav button[data-tab="about"]').insertAdjacentHTML('beforeend', '<span class="about-dot"></span>');
+      $('upd-line').textContent = u.available ? 'Version ' + u.latest + ' is available (installed ' + u.current + ', ' + fmt(u.size) + ').'
+        : (u.checking ? 'Checking…' : (u.error && !u.last ? u.error : 'GothicDroid ' + u.current + ' is up to date.'));
+      $('upd-card-go').hidden = !u.available; $('upd-card-go').textContent = label; $('upd-card-go').disabled = u.downloading;
+      $('upd-card-check').disabled = u.checking || u.downloading;
+      $('upd-card-bar').hidden = !u.downloading; $('upd-card-bar').firstElementChild.style.width = pct + '%';
+      $('upd-card-err').hidden = !u.error; $('upd-card-err').textContent = u.error || '';
+      // the dialog
+      const m = $('upd-modal');
+      if (u.available && !u.ignored && !updLater && !updShown && m.hidden && curTab !== 'controls') {
+        updShown = true; m.hidden = false;
+        $('upd-title').textContent = 'Update ' + u.latest;
+        $('upd-sub').textContent = 'Installed: ' + u.current + ' · Download: ' + fmt(u.size);
+        $('upd-notes').innerHTML = u.notes.map(n => (u.notes.length > 1 ? '<h3>' + esc(n.v) + '</h3>' : '') + updNotes(n.text)).join('');
+      }
+      if (!m.hidden) {
+        $('upd-go').textContent = label; $('upd-go').disabled = u.downloading;
+        $('upd-bar').hidden = !u.downloading; $('upd-bar').firstElementChild.style.width = pct + '%';
+        $('upd-err').hidden = !u.error; $('upd-err').textContent = u.error || '';
+      }
+    }
+    window.onUpdate = updPaint;
+    $('upd-go').onclick = $('upd-card-go').onclick = () => { try { Launcher.installUpdate(); } catch (e) {} };
+    $('upd-later').onclick = () => { updLater = true; $('upd-modal').hidden = true; };
+    $('upd-never').onclick = () => { try { Launcher.ignoreUpdate(); } catch (e) {} $('upd-modal').hidden = true; updPaint(); };
+    $('upd-card-check').onclick = () => { try { Launcher.checkUpdate(true); } catch (e) {} updPaint(); };
+    setInterval(() => { const u = updGet(); if (u && u.downloading) updPaint(); }, 500);
+    try { Launcher.checkUpdate(false); } catch (e) {}
+    updPaint();
 
     // ---- controls: look sensitivity, transparency of the buttons, positions of the buttons (controls.json in the app,
     // the game process reads it when it starts)
@@ -931,7 +1020,9 @@
     const sensEl = $('sens'), opaEl = $('opa');
     const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
     // the picture of the current layout (the same one the editor shows), drawn again after every change
-    const drawPv = () => { try { TouchEditor.preview($('pv'), { defs, ICONS, ICON_OF, TGROUP, items: ctl.items, custom: ctl.custom, quick: ctl.quick, opacity: +opaEl.value / 100,
+    // the counters the game shows: the day (plugin ScreenInfo, kept in the controls' config), the FPS (a flag of the page, may be unreachable here)
+    const hudsNow = () => { let f = ctl.showFps; if (f === undefined) { try { f = localStorage.getItem('showFps') === '1'; } catch (e) {} } f = !!f; return { fps: f, day: !!(ctl.plugins && ctl.plugins.info) }; };
+    const drawPv = () => { try { TouchEditor.preview($('pv'), { defs, ICONS, ICON_OF, TGROUP, ACTIONS, hidden: ctl.hidden, icons: ctl.icons, items: ctl.items, custom: ctl.custom, quick: ctl.quick, huds: hudsNow(), opacity: +opaEl.value / 100,
       bg: 'linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), url(img/g2.png) center / cover' }); } catch (e) {} };
     function showCtl() {
       $('sens-val').textContent = (+sensEl.value).toFixed(2);
@@ -946,17 +1037,17 @@
     sensEl.addEventListener('change', () => { ctl.sens = +(+sensEl.value).toFixed(2); saveCtl(); });
     opaEl.addEventListener('change', () => { ctl.opacity = +opaEl.value / 100; saveCtl(); });
     $('ctl-reset').addEventListener('click', () => {
-      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick }; saveCtl();
+      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick, hidden: ctl.hidden || [], icons: ctl.icons || {}, showFps: ctl.showFps, plugins: ctl.plugins }; saveCtl();
       sensEl.value = '1'; opaEl.value = '100'; showCtl();
     });
 
     // ---- the layout editor (web/touch_editor.js, the same one the game's side menu opens)
     $('ed-open').addEventListener('click', () => TouchEditor.open({
-      defs, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: ctl.keys, custom: ctl.custom,
-      ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity, quick: ctl.quick,
+      defs, KEYS: Object.keys(KEYS), ACTIONS, hidden: ctl.hidden || [], icons: ctl.icons || {}, keys: ctl.keys, custom: ctl.custom,
+      ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity, quick: ctl.quick, huds: hudsNow(),
       bg: 'linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover',
       orient: on => Launcher.editor(on),
-      onSave: (items, keys, custom, quick) => { ctl.items = items; ctl.keys = keys; ctl.custom = custom; ctl.quick = quick; saveCtl(); drawPv(); }
+      onSave: (items, keys, custom, quick, extra) => { ctl.items = items; ctl.keys = keys; ctl.custom = custom; ctl.quick = quick; ctl.hidden = (extra && extra.hidden) || []; ctl.icons = (extra && extra.icons) || {}; saveCtl(); drawPv(); }
     }));
 
 

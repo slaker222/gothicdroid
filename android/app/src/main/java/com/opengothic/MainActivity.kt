@@ -850,6 +850,25 @@ class MainActivity : AppCompatActivity() {
         return sm.requestPinShortcut(info, null)
     }
 
+    // <input type="file"> of the page: the WebView needs onShowFileChooser, one request at a time
+    private var fileCb: android.webkit.ValueCallback<Array<android.net.Uri>>? = null
+    private val fileChooser = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { r ->
+        val cb = fileCb; fileCb = null
+        cb?.onReceiveValue(if (r.resultCode == android.app.Activity.RESULT_OK)
+            android.webkit.WebChromeClient.FileChooserParams.parseResult(r.resultCode, r.data) else null)
+    }
+    private fun showFileChooser(cb: android.webkit.ValueCallback<Array<android.net.Uri>>, p: android.webkit.WebChromeClient.FileChooserParams): Boolean {
+        // always returns true: the callback is invoked exactly once (cancel / result / a failed launch / a newer request)
+        fileCb?.onReceiveValue(null)
+        fileCb = cb
+        try {
+            fileChooser.launch(p.createIntent())
+        } catch (e: Exception) {
+            fileCb = null; cb.onReceiveValue(null)
+        }
+        return true
+    }
+
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
     private fun createUiView(): View {
         val wv = WebView(this)
@@ -858,6 +877,10 @@ class MainActivity : AppCompatActivity() {
         wv.settings.domStorageEnabled = true
         wv.addJavascriptInterface(LauncherBridge(), "Launcher")
         wv.webViewClient = WebViewClient()
+        wv.webChromeClient = object : android.webkit.WebChromeClient() {
+            override fun onShowFileChooser(w: WebView?, cb: android.webkit.ValueCallback<Array<android.net.Uri>>,
+                                           p: FileChooserParams): Boolean = showFileChooser(cb, p)
+        }
         wv.loadUrl("file:///android_asset/launcher.html")
         webView = wv
         return wv

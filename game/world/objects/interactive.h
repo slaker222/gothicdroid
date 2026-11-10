@@ -29,6 +29,8 @@ class Interactive : public Vob {
     Interactive(Vob* parent, World& world, const zenkit::VMovableObject& vob, Flags flags);
     // the item the mob is used with (a pan: raw meat), empty - none
     const std::string& useItemName() const { return useWithItem; }
+    // a statue / shrine / idol (praying, donating gold): the plugins FastCraft must never repeat anything there
+    bool               isShrine() const;
 
     void                load(Serialize& fin) override;
     void                save(Serialize& fout) const override;
@@ -45,6 +47,8 @@ class Interactive : public Vob {
     std::string_view    focusName() const;
     bool                checkMobName(std::string_view dest) const;
     std::string_view    ownerName() const;
+    // the chest / mob belongs to somebody (an NPC or a guild): taking from it is a theft
+    bool                isOwned() const { return !owner.empty() || !ownerGuild.empty(); }
 
     bool                overrideFocus() const;
 
@@ -149,6 +153,7 @@ class Interactive : public Vob {
     std::string         mdlVisual;
     Tempest::Vec3       bbox[2]={};
     std::string         owner;
+    std::string         ownerGuild;   // from the world file only (not saved)
     bool                focOver=false;
     bool                showVisual=true;
     Tempest::Vec3       displayOffset;

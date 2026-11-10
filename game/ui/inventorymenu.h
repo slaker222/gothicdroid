@@ -134,8 +134,6 @@ class InventoryMenu : public Tempest::Widget {
     int                       lootShown = 0;
     std::vector<PotSlot>      potSlots;
     std::vector<size_t>       potSig;
-    std::string               potNames[8];            // instance names of the assigned items ("" - the slot is empty)
-    bool                      potLoaded = false;
     int                       potShown = 0;           // slots with an item in them (the icons are drawn)
     int                       potW = 0, potH = 0, potSz = 0, potAx = 0, potAy = 0, potAh = 0, potOn = 0, potMax = 0;
     int                       quickInvX = 0, quickInvY = 0;

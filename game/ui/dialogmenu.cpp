@@ -4,12 +4,14 @@
 #include <Tempest/Log>
 #include <algorithm>
 #include <cassert>
+#include <map>
 
 #include "utils/gthfont.h"
 #include "utils/string_frm.h"
 #include "world/objects/npc.h"
 #include "game/inventory.h"
 #include "world/objects/item.h"
+#include "world/objects/interactive.h"
 #include "plugins.h"
 #include "gothic.h"
 #include "inventorymenu.h"
@@ -273,6 +275,7 @@ bool DialogMenu::hasContent() const {
   }
 
 bool DialogMenu::onStart(Npc &p, Npc &ot) {
+  Tempest::Log::v("[game] dialog start: ",ot.displayName());
   choice         = ot.dialogChoices(p,except,state==State::PreStart);
   state          = State::Active;
   depth          = 0;
@@ -344,6 +347,8 @@ void DialogMenu::onDoneText() {
   }
 
 void DialogMenu::close() {
+  if(other)
+    Tempest::Log::v("[game] dialog end: ",other->displayName());
   auto prevPl  = pl;
   auto prevNpc = other;
 
@@ -401,6 +406,13 @@ void DialogMenu::skipPhrase() {
     }
   }
 
+static std::map<size_t,size_t> inventoryCounts(const Npc& npc) {
+  std::map<size_t,size_t> r;
+  for(auto i=npc.inventory().iterator(Inventory::T_Inventory); i.isValid(); ++i)
+    r[i->clsId()] += i.count();
+  return r;
+  }
+
 static uint64_t inventorySignature(const Npc& npc) {
   uint64_t h = 1469598103934665603ull;
   for(auto i=npc.inventory().iterator(Inventory::T_Inventory); i.isValid(); ++i) {
@@ -411,6 +423,8 @@ static uint64_t inventorySignature(const Npc& npc) {
   }
 
 void DialogMenu::onEntry(const GameScript::DlgChoice &e) {
+  if(other)
+    Tempest::Log::v("[game] dialog choice: ",other->displayName(),": '",e.title,"' (info #",e.scriptFn,")");
   if(pl && other) {
     selected = e;
     depth    = 1;
@@ -419,17 +433,30 @@ void DialogMenu::onEntry(const GameScript::DlgChoice &e) {
     // the plugin FastCraft: the window of a workbench (an anvil, an alchemy table, a rune table, ...) is a dialog of the player with
     // himself. The script of a choice makes one thing, takes the ingredients and complains when there are none: it is run again
     // while it changes the inventory (a menu choice, a failure or a lack of ingredients changes nothing and stops it)
-    const bool craft = (pl==other) && !e.isTrade && Plugins::fastCraft.load()!=0 && Plugins::craftCount.load()!=1;
+    const bool shrine = pl!=nullptr && pl->interactive()!=nullptr && pl->interactive()->isShrine();   // praying / donating: never repeat
+    const bool craft = (pl==other) && !shrine && !e.isTrade && Plugins::fastCraft.load()!=0 && Plugins::craftCount.load()!=1;
     const uint64_t before = craft ? inventorySignature(*pl) : 0;
+    const auto     cntBefore = craft ? inventoryCounts(*pl) : std::map<size_t,size_t>();
     Gothic::inst().dialogExec(e,*pl,*other);
-    if(craft && inventorySignature(*pl)!=before) {
+    // something must be gained (a product): spending only (gold for a donation) is not crafting
+    auto gained = [&](const std::map<size_t,size_t>& was) {
+      const auto now = inventoryCounts(*pl);
+      for(auto& b:now) {
+        auto it = was.find(b.first);
+        if(it==was.end() || it->second<b.second)
+          return true;
+        }
+      return false;
+      };
+    if(craft && inventorySignature(*pl)!=before && gained(cntBefore)) {
       const int cnt   = Plugins::craftCount.load();
       const int total = cnt<=0 ? 500 : cnt;
       int       made  = 1;
       for(; made<total; ++made) {
         const uint64_t was = inventorySignature(*pl);
+        const auto     wasCnt = inventoryCounts(*pl);
         Gothic::inst().dialogExec(e,*pl,*other);
-        if(inventorySignature(*pl)==was)
+        if(inventorySignature(*pl)==was || !gained(wasCnt))
           break;
         }
       Plugins::addLoot("Made x"+std::to_string(made), Tempest::Color(0.55f,0.90f,0.40f,1.f));

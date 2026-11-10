@@ -137,6 +137,7 @@ void Resources::mountWork(const std::filesystem::path& path) {
 bool Resources::mountOver(const std::filesystem::path& path) {
   std::lock_guard<std::recursive_mutex> g(inst->sync);
   try {
+    Log::v("mount archive: ", path.string());
     inst->gothicAssets.mount_disk(path, zenkit::VfsOverwriteBehavior::ALL);
     return true;
     }
@@ -220,6 +221,7 @@ bool Resources::mountTextArchive(const std::filesystem::path& path) {
       inst->textOverride.insert(lowerCase(f.second));
       }
     inst->textArchiveNames.insert(lowerBaseName(path));
+    Log::v("mount text archive: ", path.string());
     inst->gothicAssets.mount_disk(path, zenkit::VfsOverwriteBehavior::ALL);
     return true;
     }
@@ -461,6 +463,7 @@ bool Resources::hasFile(std::string_view name) {
 
 bool Resources::getFileData(std::string_view name, std::vector<uint8_t> &dat) {
   dat.clear();
+  Log::v("game file: ", name);
 
   const auto* entry = Resources::vdfsIndex().find(name);
   if(entry==nullptr)
@@ -611,6 +614,7 @@ int64_t Resources::vdfTimestamp(const std::u16string& name) {
 Tempest::Texture2d* Resources::implLoadTexture(std::string_view cname, bool forceMips, const zenkit::Vfs* vfs) {
   if(cname.empty())
     return nullptr;
+  Log::v("load texture: ", cname);
 
   //TODO: __cpp_lib_generic_unordered_lookup
   std::string name = std::string(cname);
@@ -708,6 +712,7 @@ Texture2d Resources::implLoadTextureUncached(std::string_view name, zenkit::Read
 ProtoMesh* Resources::implLoadMesh(std::string_view name) {
   if(name.size()==0)
     return nullptr;
+  Log::v("load mesh: ", name);
 
   auto cname = std::string(name);
   auto it    = aniMeshCache.find(cname);
@@ -944,6 +949,7 @@ ProtoMesh* Resources::implDecalMesh(const zenkit::VisualDecal& decal) {
 std::unique_ptr<Animation> Resources::implLoadAnimation(std::string name) {
   if(name.size()<4)
     return nullptr;
+  Log::v("load animation: ", name);
 
   if(Gothic::inst().version().game==2)
     FileExt::exchangeExt(name,"MDS","MSB");
@@ -988,6 +994,7 @@ DmSegment* Resources::implLoadMusicSegment(char const* name) {
 Tempest::Sound Resources::implLoadSoundBuffer(std::string_view name) {
   if(name.empty())
     return Tempest::Sound();
+  Log::v("load sound: ", name);
 
   if(!getFileData(name,fBuff))
     return Tempest::Sound();
@@ -1465,6 +1472,7 @@ void Resources::recycle(Tempest::AccelerationStructure&& rtas) {
   }
 
 const Resources::VobTree* Resources::implLoadVobBundle(std::string_view filename) {
+  Log::v("load vob bundle: ", filename);
   auto cname = std::string(filename);
   auto i     = zenCache.find(cname);
   if(i!=zenCache.end())

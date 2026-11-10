@@ -9,12 +9,28 @@
 #include <atomic>
 #include <vector>
 #include <cstdio>
+#include <cstdarg>
+#include <ctime>
+#include <sys/time.h>
 #include <system/api/androidapi.h>
 #include <Tempest/Log>
 
 #define LOG_TAG "OpenGothic"
-#define LOGI(...) __android_log_print(ANDROID_LOG_INFO,  LOG_TAG, __VA_ARGS__)
-#define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
+void androidAppendLog(const char* text);
+// logcat + opengothic_log.txt ("[jni]")
+static void jniLog(int prio, const char* fmt, ...) __attribute__((format(printf,2,3)));
+static void jniLog(int prio, const char* fmt, ...) {
+  char buf[600];
+  va_list ap;
+  va_start(ap, fmt);
+  vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+  __android_log_print(prio, LOG_TAG, "%s", buf);
+  std::string line = std::string(prio>=ANDROID_LOG_ERROR ? "[jni] ERROR " : "[jni] ") + buf;
+  androidAppendLog(line.c_str());
+  }
+#define LOGI(...) jniLog(ANDROID_LOG_INFO,  __VA_ARGS__)
+#define LOGE(...) jniLog(ANDROID_LOG_ERROR, __VA_ARGS__)
 
 extern int opengothic_main(int argc, const char** argv);
 
@@ -52,22 +68,44 @@ static std::string       s_recentLog;
 static std::string       s_logFilePath = "/sdcard/Gothic2/opengothic_log.txt";
 static std::atomic_bool  s_gameRunning{false};
 static FILE*             s_logFile = nullptr; // opengothic_log.txt, open while the game runs
+static bool              s_logPathSet = false; // the game folder is known: before that lines wait in s_earlyLog
+static std::string       s_earlyLog;           // lines of the activity/page before the game thread opened the file
+
+// "HH:MM:SS.mmm " wall clock
+static void logStamp(char* out, size_t n) {
+  timeval tv; gettimeofday(&tv, nullptr);
+  tm t; time_t sec = tv.tv_sec; localtime_r(&sec, &t);
+  snprintf(out, n, "%02d:%02d:%02d.%03d ", t.tm_hour, t.tm_min, t.tm_sec, int(tv.tv_usec/1000));
+  }
 
 void androidAppendLog(const char* text) {
   if(text == nullptr || text[0] == '\0')
     return;
+  char stamp[24];
+  logStamp(stamp, sizeof(stamp));
   std::lock_guard<std::mutex> lk(s_logMutex);
   if(s_recentLog.size() > 400000) {
     s_recentLog.erase(0, 100000);
   }
+  s_recentLog += stamp;
   s_recentLog += text;
   s_recentLog += "\n";
 
+  if(!s_logPathSet) {
+    // the folder of the game is not known yet: the game thread writes this to the file when it opens it
+    if(s_earlyLog.size() < 100000) {
+      s_earlyLog += stamp;
+      s_earlyLog += text;
+      s_earlyLog += "\n";
+    }
+    return;
+  }
   // the file stays open: an open and a close for every line went through the FUSE of the shared storage (a few lines every
   // ten frames, ~ms of the game thread); fflush hands every line to the kernel as fclose did
   if(s_logFile == nullptr)
     s_logFile = fopen(s_logFilePath.c_str(), "a");
   if(s_logFile != nullptr) {
+    fputs(stamp, s_logFile);
     fputs(text, s_logFile);
     fputc('\n', s_logFile);
     fflush(s_logFile);
@@ -90,7 +128,13 @@ static void runGameThread(std::string gameDir) {
     }
     s_logFilePath = gameDir + "/opengothic_log.txt";
     FILE* f = fopen(s_logFilePath.c_str(), "w");
-    if(f) fclose(f);
+    if(f) {
+      if(!s_earlyLog.empty())
+        fputs(s_earlyLog.c_str(), f); // what the activity logged before
+      fclose(f);
+    }
+    s_earlyLog.clear();
+    s_logPathSet = true;
   }
 
   // Switch process working directory to game directory so relative paths (save_slot_*.sav, Gothic.ini)
@@ -107,11 +151,17 @@ static void runGameThread(std::string gameDir) {
 
   LOGI("OpenGothic native game thread started with game dir: %s", gameDir.c_str());
   androidAppendLog("=== OpenGothic Android Session Start ===");
+  if(Tempest::Log::isVerbose())
+    androidAppendLog("Full log: ON (side menu, Logs)");
   androidAppendLog(("Game directory: " + gameDir).c_str());
   androidAppendLog(("Saves directory: " + savesDir).c_str());
 
   Tempest::Log::setOutputCallback([](Tempest::Log::Mode mode, const char* text) {
     (void)mode;
+    // the per-frame timing lines only in the full log (logcat keeps them anyway: Log prints there itself)
+    if(!Tempest::Log::isVerbose() && text[0]=='[' && (strncmp(text,"[PERF",5)==0 || strncmp(text,"[SWAP_PERF",10)==0 ||
+                                                       strncmp(text,"[DRAW_PERF",10)==0 || strncmp(text,"[GPU_PASS",9)==0))
+      return;
     androidAppendLog(text);
 
   });
@@ -301,16 +351,55 @@ Java_com_opengothic_GameActivity_nativeOnKey(JNIEnv*, jobject, jint action, jint
   Tempest::AndroidApi::pushKeyEvent(action, keyCode);
 }
 
+// The log holds text in the codepage of the game (cp1251 ...), and NewStringUTF needs valid modified UTF-8
+// (CheckJNI aborts otherwise): keep valid 1-3 byte sequences, replace everything else with '?'.
+static std::string sanitizeUtf8(const std::string& in) {
+  std::string out;
+  out.reserve(in.size());
+  const size_t n = in.size();
+  size_t i = 0;
+  while(i<n) {
+    const unsigned char c = static_cast<unsigned char>(in[i]);
+    size_t len = 0;
+    if(c>=0x01 && c<0x80)      len = 1;
+    else if(c>=0xC2 && c<0xE0) len = 2;
+    else if(c>=0xE0 && c<0xF0) len = 3;
+    bool ok = len>0 && i+len<=n;
+    for(size_t k=1; ok && k<len; ++k)
+      ok = (static_cast<unsigned char>(in[i+k])&0xC0)==0x80;
+    if(ok && len==3) {
+      const unsigned char c1 = static_cast<unsigned char>(in[i+1]);
+      if((c==0xE0 && c1<0xA0) || (c==0xED && c1>=0xA0))
+        ok = false; // overlong / surrogates
+      }
+    if(ok) {
+      out.append(in, i, len);
+      i += len;
+      } else {
+      out += '?';
+      ++i;
+      }
+    }
+  return out;
+}
+
+static jstring lastLogString(JNIEnv* env) {
+  std::string copy;
+  {
+    std::lock_guard<std::mutex> lk(s_logMutex);
+    copy = sanitizeUtf8(s_recentLog);
+  }
+  return env->NewStringUTF(copy.c_str());
+}
+
 JNIEXPORT jstring JNICALL
 Java_com_opengothic_MainActivity_nativeGetLastLog(JNIEnv* env, jobject) {
-  std::lock_guard<std::mutex> lk(s_logMutex);
-  return env->NewStringUTF(s_recentLog.c_str());
+  return lastLogString(env);
 }
 
 JNIEXPORT jstring JNICALL
 Java_com_opengothic_GameActivity_nativeGetLastLog(JNIEnv* env, jobject) {
-  std::lock_guard<std::mutex> lk(s_logMutex);
-  return env->NewStringUTF(s_recentLog.c_str());
+  return lastLogString(env);
 }
 
 JNIEXPORT jboolean JNICALL
@@ -355,6 +444,22 @@ Java_com_opengothic_GameActivity_nativeSetMod(JNIEnv* env, jobject, jstring jMod
   const char* c = env->GetStringUTFChars(jMod, nullptr);
   s_modArg = c;
   env->ReleaseStringUTFChars(jMod, c);
+}
+
+// the side menu's "Logs" switch: Tempest::Log::v lines (files, saves, Vulkan, game resources) go to opengothic_log.txt too
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetVerboseLog(JNIEnv*, jobject, jboolean on) {
+  Tempest::Log::setVerbose(on!=JNI_FALSE);
+  if(s_gameRunning.load())
+    androidAppendLog(on ? "=== full log: ON ===" : "=== full log: OFF ===");
+}
+
+// lines of the activity ("[app] ...") and of the page ("[ui] ...") into opengothic_log.txt
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeAppendLog(JNIEnv* env, jobject, jstring jText) {
+  if(jText==nullptr) return;
+  const char* c = env->GetStringUTFChars(jText, nullptr);
+  if(c) { androidAppendLog(c); env->ReleaseStringUTFChars(jText, c); }
 }
 
 JNIEXPORT void JNICALL

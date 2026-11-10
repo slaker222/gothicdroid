@@ -411,6 +411,17 @@
     #perf-box #perf-fps { display: block; margin-top: 2px; font-size: 20px; line-height: 1.2; font-weight: bold; color: #ff3b30; }
     #perf-box canvas { display: block; width: 100%; height: 64px; margin: 4px 0 2px; background: rgba(255,255,255,0.06); }
     /* side menu (Android app: the back button) */
+    #log-ov { position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 100000; display: none; flex-direction: column; background: #0b0b0d; color: #cfd2d6;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left); touch-action: auto; }
+    #log-ov.open { display: flex; }
+    #log-ov .lg-bar { flex: none; display: flex; align-items: center; gap: 8px; padding: 6px 10px; background: #18181c; border-bottom: 1px solid #333; font: 600 14px system-ui, sans-serif; }
+    #log-ov .lg-bar b { flex: 1; }
+    #log-ov .lg-bar label { display: flex; align-items: center; gap: 4px; font-weight: 400; }
+    #log-ov .lg-bar input[type=search] { flex: 1 1 80px; min-width: 60px; max-width: 220px; height: 30px; padding: 0 8px; border: 1px solid #444; border-radius: 6px; background: #0b0b0d; color: #eee; font: 14px system-ui, sans-serif; }
+    #log-ov .lg-bar b { flex: 0 0 auto; margin-right: auto; }
+    #log-ov .lg-bar button { min-height: 34px; padding: 0 12px; border: 1px solid #444; border-radius: 6px; background: #2a2a30; color: #eee; font: 14px system-ui, sans-serif; }
+    #log-ov .lg-bar button:active { background: #3a3a42; }
+    #log-text { flex: 1; margin: 0; padding: 6px 10px; overflow: auto; white-space: pre-wrap; word-break: break-all; font: 11px/1.3 ui-monospace, Menlo, monospace; -webkit-user-select: text; user-select: text; }
     #side-scrim { position: absolute; top: 0; right: 0; bottom: 0; left: 0; z-index: 30; display: none; background: rgba(0, 0, 0, 0.45); }
     #side-menu { position: absolute; top: 0; bottom: 0; left: 0; z-index: 31; width: 36%; min-width: 230px; max-width: 380px;
       display: flex; flex-direction: column; padding: env(safe-area-inset-top, 0) 0 8px; box-sizing: border-box;
@@ -452,7 +463,8 @@
       left: 8px;
       z-index: 15;
       padding: 2px 8px;
-      font: 13px monospace;
+      font: calc(13px * var(--k, 1)) monospace;
+      white-space: nowrap;
       color: #5dff8a;
       background: rgba(0, 0, 0, 0.55);
       pointer-events: none;
@@ -526,6 +538,7 @@
     .tbtn.small { --s: 10cqmin; font-size: clamp(9px, 2.2vmin, 13px); font-size: clamp(9px, 2.2cqmin, 13px); }
     .tbtn.down, .tbtn.on { background: rgba(255, 255, 255, 0.35); }
     .tbtn.active { border-color: #fff; background: rgba(255, 255, 255, 0.2); }
+    .tbtn .uicon { width: 70%; height: 70%; object-fit: contain; pointer-events: none; -webkit-user-drag: none; }
     .tbtn svg { width: 52%; height: 52%; fill: none; stroke: currentColor; stroke-width: 2;
                 stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 1px #000); }
     .tbtn.cheat { border-color: #f2c200; color: #ffe066; }
@@ -752,6 +765,13 @@
     #settings-panel .set-note { margin-top: 6px; font-size: 12px; color: var(--dim); }
     #settings-panel.disabled .set-row { opacity: 0.45; pointer-events: none; }
     #settings-panel.disabled .set-row.keep { opacity: 1; pointer-events: auto; }
+    /* the page chose the WebGL 2 renderer on its own: a notice (red frame), closable */
+    #gl-notice { position: absolute; z-index: 400; top: 2cqmin; right: 2cqmin; width: min(46cqw, 420px); box-sizing: border-box;
+                 display: none; padding: 1.6cqmin 4.5cqmin 1.6cqmin 2cqmin; font-size: clamp(11px, 2.1cqmin, 14px); line-height: 1.4; color: #fff; background: rgba(20, 8, 8, .94);
+                 border: 2px solid #e53935; border-radius: 10px; box-shadow: 0 8px 30px rgba(0, 0, 0, .55); }
+    #gl-notice.on { display: block; }
+    #gl-notice b { color: #ff8a80; }
+    #gl-notice button { position: absolute; top: 4px; right: 6px; width: 30px; height: 30px; border: 0; background: transparent; color: #fff; font-size: 22px; line-height: 1; cursor: pointer; }
     /* WebGL 2 compatibility renderer: effects it does not draw are hidden */
     html:not(.webgl) #gl-presets,
     html.webgl select[data-set="shadows"] option[value="1"], html.webgl select[data-set="shadows"] option[value="2"],
@@ -1073,7 +1093,7 @@
       </div>
       <label class="set-row keep" title="WebGPU: the full renderer. WebGL 2: for devices without WebGPU. The game is saved and comes back after the page reloads">Renderer
         <select id="renderer-sel">
-          <option value="webgpu">WebGPU</option><option value="webgl2">WebGL 2 (simple)</option>
+          <option value="webgpu">WebGPU (recommended)</option><option value="webgl2">WebGL 2 (low FPS)</option>
         </select>
       </label>
       <label class="set-row" title="Frame rate limit, from 25 up to the display refresh rate (the right end: frames follow the monitor, no limit)">FPS limit
@@ -1245,7 +1265,6 @@
     <textarea id="ex-ta" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off"></textarea>
   </div>
   <div id="sheet"><div class="box" id="sheet-box"></div></div>
-  
   <div id="upd-modal" class="dn-overlay" hidden>
     <div class="dn-box" role="dialog" aria-modal="true">
       <h2 id="upd-title">Update available</h2>
@@ -1261,6 +1280,7 @@
     </div>
   </div>
 
+  
   <div id="donate-modal" class="dn-overlay" hidden>
     <div class="dn-box" role="dialog" aria-modal="true" aria-labelledby="dn-title">
       <button type="button" class="dn-x" onclick="closeDonate()" aria-label="Close">&times;</button>
@@ -2039,7 +2059,7 @@
         ['action', 'Shift', 'big huge', 'right:4cqmin;bottom:10cqmin',         'world'],
         ['weapon', 'Space', '',      'right:28cqmin;bottom:8cqmin',            'world'],
         ['jump',   'Alt',   '',      'right:6cqmin;bottom:35cqmin',            'world'],
-        ['aim',    'Shift', '',      'right:28cqmin;bottom:24cqmin',           'world'],
+        ['aim',    '@aim', '',      'right:28cqmin;bottom:24cqmin',           'world'],
         // after a transformation spell: back to the human shape (the game's Enter)
         ['human',  'Enter', '',      'right:42cqmin;bottom:8cqmin',            'world'],
         ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
@@ -2048,15 +2068,15 @@
         ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
         // the tool bar: a button next to the menu opens a row of buttons to its right
-        ['tools',  '',      'small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
-        ['qsave',  '',      'small', 'left:38cqmin;top:calc(36px + 1cqmin)',                'wtools'],
-        ['qload',  '',      'small', 'left:48.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['tools',  '@tools','small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
+        ['qsave',  '@qsave','small', 'left:38cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['qload',  '@qload','small', 'left:48.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         ['log',    'N',     'small', 'left:59cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // camera: first / third person (the game's F key), left of the cheat buttons
         ['camera', 'F',     'small', 'left:69.5cqmin;top:calc(36px + 1cqmin)',              'wtools'],
-        ['cheat',  '',      'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['cheat',  '@cheat','small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // the plugins (a parody of Union): a green button left of the cheat one, opens the list with the check boxes
-        ['plugins','',      'small plug', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        ['plugins','@plugins','small plug', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         ['console','F2',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         ['fly',    'F8',    'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         ['kfast',  'K',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
@@ -2080,12 +2100,12 @@
         ['use',    'Shift', 'big',   'right:4cqmin;bottom:10cqmin',            'inv'],
         ['drop',   'Space', '',      'right:6cqmin;bottom:32cqmin',            'inv'],
         // the plugin QuickPotions: puts the item under the cursor on the quick panel (left of the drop button)
-        ['assign', '',      '',      'right:22cqmin;bottom:32cqmin',           'inv'],
+        ['assign', '@assign','',     'right:22cqmin;bottom:32cqmin',           'inv'],
         ['close',  'Tab',   '',      'right:25cqmin;bottom:8cqmin',            'inv'],
         ['ok',     'Enter', 'big',   'right:4cqmin;bottom:10cqmin',            'menu'],
         ['back',   'Esc',   '',      'right:25cqmin;bottom:8cqmin',            'menu'],
         // the save menu: the phone's keyboard to type a name of the savegame
-        ['kbd',    '',      'small', 'right:7.6cqmin;bottom:32cqmin',                  'menu'],
+        ['kbd',    '@kbd',  'small', 'right:7.6cqmin;bottom:32cqmin',                  'menu'],
         // new chapter screen: only a way out
         ['chClose','Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'chapter'],
       ];
@@ -2174,6 +2194,9 @@
         F1: ['F1', 'F1', 112], F2: ['F2', 'F2', 113], F3: ['F3', 'F3', 114], F4: ['F4', 'F4', 115], F5: ['F5', 'F5', 116], F6: ['F6', 'F6', 117],
         F7: ['F7', 'F7', 118], F8: ['F8', 'F8', 119], F9: ['F9', 'F9', 120], F10: ['F10', 'F10', 121], F11: ['F11', 'F11', 122], F12: ['F12', 'F12', 123],
       };
+      // actions a button can be bound to instead of keys: the value '@id' (never combined with keys)
+      const ACTIONS = { tools: 'More bar', cheat: 'Cheat menu', plugins: 'Plugins', qsave: 'Quick save', qload: 'Quick load',
+        kbd: 'Keyboard (savegame name)', assign: 'Quick panel: put item', aim: 'Aim the bow' };
       
     let ctl = {};
     try { ctl = JSON.parse(Launcher.controls() || '{}') || {}; } catch (e) {}
@@ -2182,7 +2205,9 @@
     const sensEl = $('sens'), opaEl = $('opa');
     const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
     // the picture of the current layout (the same one the editor shows), drawn again after every change
-    const drawPv = () => { try { TouchEditor.preview($('pv'), { defs, ICONS, ICON_OF, TGROUP, items: ctl.items, custom: ctl.custom, quick: ctl.quick, opacity: +opaEl.value / 100,
+    // the counters the game shows: the day (plugin ScreenInfo, kept in the controls' config), the FPS (a flag of the page, may be unreachable here)
+    const hudsNow = () => { let f = ctl.showFps; if (f === undefined) { try { f = localStorage.getItem('showFps') === '1'; } catch (e) {} } f = !!f; return { fps: f, day: !!(ctl.plugins && ctl.plugins.info) }; };
+    const drawPv = () => { try { TouchEditor.preview($('pv'), { defs, ICONS, ICON_OF, TGROUP, ACTIONS, hidden: ctl.hidden, icons: ctl.icons, items: ctl.items, custom: ctl.custom, quick: ctl.quick, huds: hudsNow(), opacity: +opaEl.value / 100,
       bg: 'linear-gradient(rgba(0,0,0,.45), rgba(0,0,0,.45)), url(img/g2.png) center / cover' }); } catch (e) {} };
     function showCtl() {
       $('sens-val').textContent = (+sensEl.value).toFixed(2);
@@ -2197,17 +2222,17 @@
     sensEl.addEventListener('change', () => { ctl.sens = +(+sensEl.value).toFixed(2); saveCtl(); });
     opaEl.addEventListener('change', () => { ctl.opacity = +opaEl.value / 100; saveCtl(); });
     $('ctl-reset').addEventListener('click', () => {
-      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick }; saveCtl();
+      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick, hidden: ctl.hidden || [], icons: ctl.icons || {}, showFps: ctl.showFps, plugins: ctl.plugins }; saveCtl();
       sensEl.value = '1'; opaEl.value = '100'; showCtl();
     });
 
     // ---- the layout editor (web/touch_editor.js, the same one the game's side menu opens)
     $('ed-open').addEventListener('click', () => TouchEditor.open({
-      defs, KEYS: Object.keys(KEYS), SPECIAL: ['tools', 'cheat', 'qsave', 'qload', 'aim', 'inv'], keys: ctl.keys, custom: ctl.custom,
-      ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity, quick: ctl.quick,
+      defs, KEYS: Object.keys(KEYS), ACTIONS, hidden: ctl.hidden || [], icons: ctl.icons || {}, keys: ctl.keys, custom: ctl.custom,
+      ICONS, ICON_OF, NAMES, TGROUP, items: ctl.items, opacity: ctl.opacity, quick: ctl.quick, huds: hudsNow(),
       bg: 'linear-gradient(rgba(0,0,0,.55), rgba(0,0,0,.55)), url(img/g2.png) center / cover',
       orient: on => Launcher.editor(on),
-      onSave: (items, keys, custom, quick) => { ctl.items = items; ctl.keys = keys; ctl.custom = custom; ctl.quick = quick; saveCtl(); drawPv(); }
+      onSave: (items, keys, custom, quick, extra) => { ctl.items = items; ctl.keys = keys; ctl.custom = custom; ctl.quick = quick; ctl.hidden = (extra && extra.hidden) || []; ctl.icons = (extra && extra.icons) || {}; saveCtl(); drawPv(); }
     }));
 
 
