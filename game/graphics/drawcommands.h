@@ -95,6 +95,9 @@ class DrawCommands {
     static float worldDistance();
 
   private:
+    void     implExpandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const Tempest::Vec3& mx);
+    void     applyPendingBounds() const;
+
     enum TaskLinkpackage : uint8_t {
       T_Scene      = 0,
       T_Payload    = 1,

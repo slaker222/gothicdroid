@@ -1,6 +1,7 @@
 #include "drawcommands.h"
 
 #include <mutex>
+#include <atomic>
 
 #include <Tempest/Log>
 #include <Tempest/Application>
@@ -69,6 +70,7 @@ DrawCommands::DrawCommands(VisualObjects& owner, DrawBuckets& buckets, DrawClust
   }
 
 DrawCommands::~DrawCommands() {
+  applyPendingBounds(); // the lists must not keep a pointer to this object
   }
 
 bool DrawCommands::isViewEnabled(SceneGlobals::VisCamera viewport) const {
@@ -283,7 +285,44 @@ bool DrawCommands::DrawCmd::isOutsideOfLocked(const Frustrum& f) const {
   return true;
   }
 
+// The boxes are grown by many threads at once (the npc pose workers), a lock for every call was 4-7% of each thread.
+// Each thread only appends to its own list; the lists are applied (under the lock) before anyone reads or resets the boxes.
+// min/max do not depend on the order, the result is the same boxes.
+namespace {
+  struct PendingBox { DrawCommands* owner; uint16_t cmdId; Tempest::Vec3 mn, mx; };
+  struct PendingList { std::vector<PendingBox> box; };
+
+  std::mutex                g_pendingSync;     // the registry of lists and the drain
+  std::vector<PendingList*> g_pendingLists;
+  std::atomic<bool>         g_pendingAny{false};
+
+  PendingList& pendingList() {
+    thread_local PendingList* l = nullptr;
+    if(l==nullptr) {
+      l = new PendingList(); // lives as long as the process
+      std::lock_guard<std::mutex> guard(g_pendingSync);
+      g_pendingLists.push_back(l);
+      }
+    return *l;
+    }
+  }
+
+void DrawCommands::applyPendingBounds() const {
+  if(!g_pendingAny.load(std::memory_order_acquire))
+    return;
+  // callers: the thread that records the frame (all workers are idle by then), the destructor
+  std::lock_guard<std::mutex> guard(g_pendingSync);
+  std::lock_guard<std::mutex> bounds(g_boundsSync);
+  g_pendingAny.store(false, std::memory_order_relaxed);
+  for(auto l:g_pendingLists) {
+    for(auto& i:l->box)
+      i.owner->implExpandBounds(i.cmdId, i.mn, i.mx);
+    l->box.clear();
+    }
+  }
+
 void DrawCommands::resetDynamicBounds() {
+  applyPendingBounds(); // what was added before the reset is dropped by it, as it always was
   std::lock_guard<std::mutex> guard(g_boundsSync);
   for(auto& c:cmd) {
     if(c.type!=Type::Movable && c.type!=Type::Animated && c.type!=Type::Morph)
@@ -296,7 +335,13 @@ void DrawCommands::resetDynamicBounds() {
   }
 
 void DrawCommands::expandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const Tempest::Vec3& mx) {
-  std::lock_guard<std::mutex> guard(g_boundsSync);
+  pendingList().box.push_back({this,cmdId,mn,mx});
+  if(!g_pendingAny.load(std::memory_order_relaxed))
+    g_pendingAny.store(true, std::memory_order_release);
+  }
+
+void DrawCommands::implExpandBounds(uint16_t cmdId, const Tempest::Vec3& mn, const Tempest::Vec3& mx) {
+  // g_boundsSync is held
   auto& c = cmd[cmdId];
   c.boundsMin = Tempest::Vec3(std::min(c.boundsMin.x,mn.x), std::min(c.boundsMin.y,mn.y), std::min(c.boundsMin.z,mn.z));
   c.boundsMax = Tempest::Vec3(std::max(c.boundsMax.x,mx.x), std::max(c.boundsMax.y,mx.y), std::max(c.boundsMax.z,mx.z));
@@ -663,6 +708,7 @@ bool DrawCommands::hasCommands(Material::AlphaFunc func) const {
 
 bool DrawCommands::hasVisible(Material::AlphaFunc func, const Frustrum& f) const {
   // the same test as in drawCommon: commands that are not recorded draw nothing
+  applyPendingBounds();
   std::lock_guard<std::mutex> guard(g_boundsSync); // once, not for every command
   for(auto i:ord)
     if(i->alpha==func && i->maxPayload!=0 && !i->isOutsideOfLocked(f))
@@ -696,6 +742,7 @@ void DrawCommands::drawCommon(Tempest::Encoder<Tempest::CommandBuffer>& cmd, Sce
 #endif
 
   // the boxes are grown by the animation workers before the frame is recorded: the lock once, not for every command
+  applyPendingBounds();
   std::lock_guard<std::mutex> boundsGuard(g_boundsSync);
   for(auto i=b; i!=e; ++i) {
     auto& cx = **i;
