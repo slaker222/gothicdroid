@@ -2203,7 +2203,12 @@ void MainWindow::render(){
 #endif
 
     if(++s_pCnt % 10 == 0) {
-      Log::i("[PERF] frame=", (t-time), "ms (tick=", tTick, " wait=", tWait, " draw=", tDraw, " sub=", tSub, " gpu=", tGpu, " pres=", tPres, ") fps=", fps.get());
+      // the console is slow on the web (printf -> console.log): the line goes out once a second, with the latest sample
+      static uint64_t s_pLast = 0;
+      if(s_pLast==0 || t-s_pLast>=1000) {
+        s_pLast = t;
+        Log::i("[PERF] frame=", (t-time), "ms (tick=", tTick, " wait=", tWait, " draw=", tDraw, " sub=", tSub, " gpu=", tGpu, " pres=", tPres, ") fps=", fps.get());
+        }
     }
     if(Gothic::inst().isBenchmarkMode() && Gothic::inst().world()!=nullptr && Gothic::inst().world()->currentCs()!=nullptr)
       benchmark.push(t-time);

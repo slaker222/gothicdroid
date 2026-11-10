@@ -980,7 +980,13 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
   auto tPost = perfNow() - t6;
 
   if(++s_dCnt % 10 == 0) {
-    Log::i("[DRAW_PERF] vis0=", tVis0, " hiz=", tHiZ, " gbuf=", tGBuf, " sh=", tShadow, " light=", tLight, " trans=", tTrans, " post=", tPost);
+    // once a second (the console is slow on the web), with the latest sample
+    static uint64_t s_dLast = 0;
+    const uint64_t  tNow = Application::tickCount();
+    if(s_dLast==0 || tNow-s_dLast>=1000) {
+      s_dLast = tNow;
+      Log::i("[DRAW_PERF] vis0=", tVis0, " hiz=", tHiZ, " gbuf=", tGBuf, " sh=", tShadow, " light=", tLight, " trans=", tTrans, " post=", tPost);
+      }
   }
 
   wview->postFrameupdate();
