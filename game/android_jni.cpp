@@ -15,6 +15,11 @@
 #include <ctime>
 #include <sys/time.h>
 #include <system/api/androidapi.h>
+#include <dlfcn.h>
+#include <cerrno>
+#include <adrenotools/driver.h>
+#include <adrenotools/priv.h>
+#include <Tempest/VulkanApi>
 #include <Tempest/Log>
 
 #define LOG_TAG "OpenGothic"
@@ -60,6 +65,7 @@ extern "C" void og_input_zoom(int steps);
 static pthread_t         s_gameThread = 0;
 static std::mutex        s_gameMutex;
 static std::string       s_gameDir;
+static std::string       s_drvDir, s_drvLib, s_drvHookDir, s_drvTmpDir; // custom Vulkan driver (nativeSetVulkanDriver)
 static bool              s_glRenderer = false; // the OpenGL ES renderer is chosen (-gl)
 static int               s_loadSlot = -1;   // >=0: the game starts with -save <slot> (the autosave after the process was killed)
 static std::string       s_skyArg;   // folder with the sky pack (g1/, g2/) for the sky setting (OG_SKY_PACK_DIR)
@@ -551,6 +557,26 @@ Java_com_opengothic_GameActivity_nativeSetLoadSlot(JNIEnv*, jobject, jint slot) 
 JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeSetRenderer(JNIEnv*, jobject, jboolean gl) { s_glRenderer = gl; }
 
+static std::string jstr(JNIEnv* env, jstring j) {
+  if(j==nullptr)
+    return {};
+  const char* c = env->GetStringUTFChars(j, nullptr);
+  std::string r = c ? c : "";
+  if(c)
+    env->ReleaseStringUTFChars(j, c);
+  return r;
+  }
+
+JNIEXPORT void JNICALL
+Java_com_opengothic_GameActivity_nativeSetVulkanDriver(JNIEnv* env, jobject, jstring driverDir, jstring libName, jstring hookDir, jstring tmpDir) {
+  s_drvDir     = jstr(env, driverDir);
+  s_drvLib     = jstr(env, libName);
+  s_drvHookDir = jstr(env, hookDir);
+  s_drvTmpDir  = jstr(env, tmpDir);
+  if(!s_drvDir.empty() && s_drvDir.back()!='/')
+    s_drvDir += '/';
+  }
+
 JNIEXPORT jint JNICALL
 Java_com_opengothic_GameActivity_nativeAutoSave(JNIEnv*, jobject) { return og_autosave(); }
 
@@ -595,5 +621,24 @@ JNIEXPORT void JNICALL
 Java_com_opengothic_GameActivity_nativeVideoDone(JNIEnv*, jobject) { og_video_done(); }
 
 } // extern "C"
+
+// Opens the custom Adreno driver (libadrenotools) right before the Vulkan api is made; no driver set: nothing happens
+void og_android_apply_vulkan_driver() {
+  static bool done = false;
+  if(done || s_drvLib.empty())
+    return;
+  done = true;
+  errno = 0;
+  void* h = adrenotools_open_libvulkan(RTLD_NOW, ADRENOTOOLS_DRIVER_CUSTOM, s_drvTmpDir.c_str(), s_drvHookDir.c_str(),
+                                       s_drvDir.c_str(), s_drvLib.c_str(), nullptr, nullptr);
+  if(h==nullptr) {
+    const char* e = dlerror();
+    __android_log_print(ANDROID_LOG_WARN, LOG_TAG, "[DRIVER] custom driver failed to load, using the system driver (%s, errno %d)",
+                        e ? e : "no dlerror", errno);
+    return;
+    }
+  Tempest::VulkanApi::setVulkanLibrary(h);
+  __android_log_print(ANDROID_LOG_INFO, LOG_TAG, "[DRIVER] custom driver loaded: %s from %s", s_drvLib.c_str(), s_drvDir.c_str());
+  }
 
 #endif

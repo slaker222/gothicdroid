@@ -50,6 +50,7 @@ echo "=== Копирование библиотек в Android-проект ==="
 JNILIBS_DIR="${PROJECT_ROOT}/android/app/src/main/jniLibs/arm64-v8a"
 mkdir -p "${JNILIBS_DIR}"
 cp "${BUILD_DIR}/opengothic/libopengothic.so" "${JNILIBS_DIR}/libopengothic.so"
+cp "${BUILD_DIR}"/opengothic/lib{hook_impl,main_hook,file_redirect_hook,gsl_alloc_hook}.so "${JNILIBS_DIR}/"
 cp "${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/libc++_shared.so" "${JNILIBS_DIR}/libc++_shared.so"
 
 echo "=== Сборка APK (Gradle assembleDebug) ==="

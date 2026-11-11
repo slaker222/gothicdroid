@@ -12,6 +12,9 @@
 #if defined(TEMPEST_BUILD_VULKAN)
 #include <Tempest/VulkanApi>
 #endif
+#if defined(__ANDROID__)
+void og_android_apply_vulkan_driver(); // android_jni.cpp: custom Adreno driver, before the Vulkan api is made
+#endif
 
 #if defined(_MSC_VER) && defined(TEMPEST_BUILD_DIRECTX12)
 #include <Tempest/DirectX12Api>
@@ -75,6 +78,9 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
 #endif
     case CommandLine::Vulkan:
 #if defined(TEMPEST_BUILD_VULKAN)
+#if defined(__ANDROID__)
+      og_android_apply_vulkan_driver();
+#endif
       return std::make_unique<Tempest::VulkanApi>(flg);
 #else
       break;
@@ -84,6 +90,9 @@ std::unique_ptr<Tempest::AbstractGraphicsApi> mkApi(const CommandLine& g) {
 #if defined(__APPLE__) && defined(TEMPEST_BUILD_METAL)
   return std::make_unique<Tempest::MetalApi>(flg);
 #elif defined(TEMPEST_BUILD_VULKAN)
+#if defined(__ANDROID__)
+  og_android_apply_vulkan_driver();
+#endif
   return std::make_unique<Tempest::VulkanApi>(flg);
 #elif defined(__EMSCRIPTEN__)
   return std::make_unique<Tempest::WebGapi>(flg);

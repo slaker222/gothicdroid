@@ -329,6 +329,23 @@ class MainActivity : AppCompatActivity() {
         webView?.evaluateJavascript("window.onModJob && onModJob()", null)
     }
 
+    // custom Vulkan drivers (DriverStore): a package from the file picker or from the repository, installed on a thread,
+    // the page gets onDriverDone({error, id, name}) and onDriverProgress(done, total)
+    @Volatile private var driverBusy = false
+    private fun driverDone(r: DriverStore.Result) {
+        r.driver?.let { DriverStore.select(this, it.id) }
+        val o = JSONObject().put("error", r.error ?: "").put("id", r.driver?.id ?: "").put("name", r.driver?.name ?: "")
+        driverBusy = false
+        runOnUiThread { webView?.evaluateJavascript("window.onDriverDone && onDriverDone($o)", null) }
+    }
+    private val driverPicker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) { driverBusy = false; return@registerForActivityResult }
+        Thread {
+            driverDone(try { contentResolver.openInputStream(uri)?.use { DriverStore.importZip(this, it) } ?: DriverStore.Result(null, "Cannot open the file") }
+                       catch (e: Exception) { DriverStore.Result(null, "Cannot open the file") })
+        }.start()
+    }
+
     private var pickFor = 1
     private val picker = registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.OpenDocumentTree()) { uri ->
         val p = uri?.let { pathOfTree(it) }
@@ -652,6 +669,49 @@ class MainActivity : AppCompatActivity() {
 
         @JavascriptInterface
         fun get(name: String): Int { detectedGameDir = findGameDirectory(); return settings[name]?.let { iniGet(it) } ?: -1 }
+
+        // custom Vulkan drivers: {supported, selected, failed (once), list:[{id,name,description,author,version}]}
+        @JavascriptInterface
+        fun drivers(): String = DriverStore.stateJson(this@MainActivity)
+
+        @JavascriptInterface
+        fun setDriver(id: String) = DriverStore.select(this@MainActivity, id)
+
+        @JavascriptInterface
+        fun removeDriver(id: String) = DriverStore.remove(this@MainActivity, id)
+
+        // asks for a driver .zip with the system picker, installs and selects it: onDriverDone
+        @JavascriptInterface
+        fun importDriver(): Boolean {
+            if (driverBusy) return false
+            driverBusy = true
+            runOnUiThread { driverPicker.launch(arrayOf("application/zip", "application/x-zip-compressed", "application/octet-stream", "*/*")) }
+            return true
+        }
+
+        // the packages of the repository: onDriverReleases({error, list:[{release,date,name,size,url}]})
+        @JavascriptInterface
+        fun driverReleases() {
+            Thread {
+                val o = JSONObject()
+                try { o.put("error", "").put("list", JSONArray(DriverRepo.releasesJson(DriverRepo.fetchReleases()))) }
+                catch (e: Exception) { o.put("error", e.message ?: "Error").put("list", JSONArray()) }
+                runOnUiThread { webView?.evaluateJavascript("window.onDriverReleases && onDriverReleases($o)", null) }
+            }.start()
+        }
+
+        // downloads a package of the repository, installs and selects it: onDriverProgress, onDriverDone
+        @JavascriptInterface
+        fun downloadDriver(url: String): Boolean {
+            if (driverBusy) return false
+            driverBusy = true
+            Thread {
+                driverDone(DriverRepo.download(this@MainActivity, url) { d, t ->
+                    runOnUiThread { webView?.evaluateJavascript("window.onDriverProgress && onDriverProgress($d, $t)", null) }
+                })
+            }.start()
+            return true
+        }
 
         // the renderer for every game (RendererPref): the values of the page's select, webgpu = Vulkan, webgl2 = OpenGL ES
         @JavascriptInterface

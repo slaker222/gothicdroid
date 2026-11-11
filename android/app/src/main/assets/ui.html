@@ -573,6 +573,8 @@
     }
 
     .ctl:hover { color: var(--accent); }
+    #union-btn { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+    html.native label:has(#fulllog-chk) { display: none !important; }
     .ctl-right, .ctl-left { display: flex; align-items: center; }
     .ctl-right { gap: 6px; }
     .fps-opt { gap: 6px; user-select: none; }
@@ -1182,6 +1184,7 @@
       </div>
       <label class="set-row g1only" title="Show the marked lethal zones of the barrier as translucent red boxes (and the one being marked, from its first corner to you)">Show barrier zones <input type="checkbox" data-set="barrierZoneShow"></label>
       <label class="set-row" title="Detailed stats: hardware, resolution, frame time graph">Detailed stats <input type="checkbox" id="perf-chk"></label>
+      <label class="set-row keep" title="Writes everything to the log (the Log window / browser console): every file read, texture, mesh, sound load ... Slower, for bug reports">Full log <input type="checkbox" id="fulllog-chk"></label>
       <div class="set-note" id="settings-note">Start the game to change settings.</div>
       <div id="settings-more" aria-hidden="true">&#9660; scroll &#9660;</div>
     </div>
@@ -1203,6 +1206,7 @@
       <div class="ctl-right">
       <label class="ctl fps-opt ico" title="On-screen touch controls (turned on by itself on phones and tablets)" aria-label="Mobile input"><input type="checkbox" id="touch-chk"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg></label>
       <label class="ctl fps-opt ico" title="Show FPS" aria-label="Show FPS"><input type="checkbox" id="fps-chk"><span class="fps-badge">FPS</span></label>
+      <button class="ctl" id="union-btn" type="button" title="Plugins (Union)" aria-label="Plugins">Union</button>
       <button class="ctl" id="settings-btn" aria-label="Graphics settings" title="Graphics settings" aria-expanded="false">
         <svg viewBox="0 0 24 24"><path d="M19.4 13a7.6 7.6 0 0 0 0-2l2.1-1.6-2-3.5-2.5 1a7.4 7.4 0 0 0-1.7-1L15 3h-4l-.4 2.7a7.4 7.4 0 0 0-1.7 1l-2.5-1-2 3.5L6.6 11a7.6 7.6 0 0 0 0 2l-2.1 1.6 2 3.5 2.5-1c.5.4 1.1.7 1.7 1L11 21h4l.4-2.7c.6-.3 1.2-.6 1.7-1l2.5 1 2-3.5L19.4 13zM13 15.5a3.5 3.5 0 1 1 0-7 3.5 3.5 0 0 1 0 7z" transform="translate(-1 0)"/></svg>
       </button>
@@ -2241,6 +2245,19 @@ async function installChunks(m) {
     let g_resolveRuntime;
     const g_runtimeReady = new Promise(r => { g_resolveRuntime = r; });
     let g_runtimeUp = false;
+    {
+      const ub = document.getElementById('union-btn');
+      if (ub) ub.addEventListener('click', () => { if (window.ogPlugOpen) window.ogPlugOpen(); ub.blur(); });
+      const fl = document.getElementById('fulllog-chk');
+      if (fl) {
+        try { fl.checked = localStorage.getItem('fullLog') === '1'; } catch (e) {}
+        fl.addEventListener('change', () => {
+          try { localStorage.setItem('fullLog', fl.checked ? '1' : '0'); } catch (e) {}
+          if (g_runtimeUp) ogSet('fullLog', fl.checked ? 1 : 0);
+          fl.blur();
+        });
+      }
+    }
 
     // Calls into the engine. Emscripten binds wasm exports lazily: a call made
     // before the module is instantiated binds them to undefined for good, so
@@ -3691,6 +3708,10 @@ async function installChunks(m) {
         mmClose.style.top = (r.top - u.top + ((v >> 10) & 1023) / 1000 * r.height) + 'px';
         mmClose.style.display = 'block';
       }, 250);
+      window.ogPlugOpen = plugOpen;
+      window.addEventListener('keydown', e => {
+        if (e.key === 'Escape' && plugEl && !plugEl.hidden) { e.stopPropagation(); e.preventDefault(); plugEl.hidden = true; }
+      }, true);
       window.ogTouch = {
         cfg: () => TC,
         apply: () => applyCfg(true),
@@ -5185,7 +5206,19 @@ function serveLoop() {
           } finally {
             GameFS.liveHandles.delete(fh); GameFS.liveHandles.delete(d);
           }
-        }).catch(err => console.warn('OPFS persist failed:', e.path, err));
+        }).catch(err => {
+          console.warn('OPFS persist failed:', e.path, err);
+          GameFS.persistFailed = (GameFS.persistFailed || 0) + 1;
+          const quota = err && (err.name === 'QuotaExceededError' || /quota/i.test(String(err.message || err)));
+          const why = quota ? 'the browser storage is full (free some disk space or delete old saves)'
+                            : String((err && (err.message || err.name)) || err);
+          try {
+            if (window.ogBanner) window.ogBanner('persist-failed', '<b>Could not write to the browser storage:</b> ' +
+              esc(e.path) + '<br>Reason: ' + esc(why) + '.<br>' +
+              (/\.sav$/i.test(e.path) ? 'This save will be missing after a reload. ' : 'Changes may be lost after a reload. ') +
+              'Free some space and save again.');
+          } catch (e2) {}
+        });
       },
 
       deleteOpfsAsync(path) {
@@ -5423,6 +5456,7 @@ function serveLoop() {
         }
       }
       if (!GameFS.lazy) {
+        checkPreloadAllowed(totalBytes, canLazy);
         await preloadAllFiles(listing);
       }
 
@@ -6559,6 +6593,24 @@ function serveLoop() {
       });
     }
 
+    // Without the lazy backend the whole of Data/ is read into the JS heap. Phones kill the tab long before that
+    // finishes (OOM), so there it is refused. On desktop it is allowed while the data fits into about half of
+    // the reported device memory (navigator.deviceMemory is capped at 8 GB; unknown -> up to 1 GiB).
+    function checkPreloadAllowed(totalBytes, isolated) {
+      const mobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) ||
+                     (navigator.maxTouchPoints > 1 && matchMedia('(pointer: coarse)').matches);
+      const limit = (navigator.deviceMemory || 2) * 0.5 * 1073741824;
+      if (!mobile && totalBytes <= limit) return;
+      const mb = (totalBytes / 1048576).toFixed(0);
+      const e = new Error('The page is not cross-origin isolated: loading ' + mb + ' MB into memory is refused');
+      e.html = 'The game needs <b>cross-origin isolation</b> (the COOP/COEP headers: <code>Cross-Origin-Opener-Policy: same-origin</code> and ' +
+        '<code>Cross-Origin-Embedder-Policy: require-corp</code>) to read its ' + esc(mb) + ' MB of files on demand. ' +
+        (isolated ? 'The page is isolated, but the file reader could not start (see the console). ' : 'This page is not isolated, so SharedArrayBuffer is unavailable. ') +
+        'Without it everything would have to be loaded into memory at once, and ' + (mobile ? 'a phone browser would crash the tab' : 'this device does not have enough memory') +
+        '. Open the game from the official address (or a server that sends these headers, e.g. <code>web/serve.py</code>) and reload.';
+      throw e;
+    }
+
     async function preloadAllFiles(listing) {
       const dir = await opfsGameDir(false);
       const totalBytes = listing.reduce((a, f) => a + f.size, 0);
@@ -6671,6 +6723,7 @@ function serveLoop() {
           // no cross-origin isolation: everything has to be read into memory
           let done = 0;
           const total = list.reduce((a, f) => a + f.file.size, 0);
+          checkPreloadAllowed(total, false);
           for (const f of list) {
             const e = GameFS.files.get(GameFS.lower(f.rel));
             e.mem = new Uint8Array(await f.file.arrayBuffer());
@@ -7022,6 +7075,59 @@ function serveLoop() {
       catch (e) { showGpuLost(info); }
     }
 
+    function esc(x) { return String(x).replace(/[<>&"]/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c])); }
+
+    // a red closable banner at the top of the page (html must be pre-escaped); one per id
+    function ogBanner(id, html, reloadBtn) {
+      id = 'ogb-' + id;
+      let d = document.getElementById(id);
+      if (!d) {
+        d = document.createElement('div');
+        d.id = id;
+        d.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:9999;max-width:min(92vw,640px);' +
+          'padding:12px 38px 12px 14px;border-radius:10px;background:#3a1414;border:1px solid #a33;color:#fff;font:14px/1.45 system-ui,sans-serif;box-shadow:0 4px 24px #000a';
+        const t = document.createElement('div'); t.className = 'ogb-t';
+        const x = document.createElement('button');
+        x.textContent = '\u00d7';
+        x.style.cssText = 'position:absolute;top:4px;right:8px;border:0;background:none;color:#fff;font-size:22px;cursor:pointer';
+        x.onclick = () => d.remove();
+        d.append(t, x);
+        if (reloadBtn) {
+          const b = document.createElement('button');
+          b.textContent = 'Reload the page';
+          b.style.cssText = 'display:block;margin-top:8px;padding:6px 14px;border:0;border-radius:6px;background:#fff;color:#3a1414;font:600 14px system-ui,sans-serif;cursor:pointer';
+          b.onclick = () => location.reload();
+          d.appendChild(b);
+        }
+        document.body.appendChild(d);
+      }
+      d.querySelector('.ogb-t').innerHTML = html;
+    }
+    window.ogBanner = ogBanner;
+
+    // the WebGL 2 context was taken away (GPU reset, memory pressure): nothing can be drawn any more;
+    // a real restore is not supported by the renderer, so offer a reload. Never fires on the WebGPU path.
+    (function () {
+      const cv = document.getElementById('canvas');
+      if (!cv) return;
+      cv.addEventListener('webglcontextlost', ev => {
+        ev.preventDefault();
+        if (!useWebGL()) return;
+        console.error('[WebGL] context lost');
+        ogBanner('gl-lost', '<b>The graphics context was lost.</b> The browser stopped the GPU, so nothing is drawn any more. ' +
+          'Reload the page (your last save is kept).', true);
+      }, false);
+    })();
+
+    // closing the tab while the OPFS write queue is not empty loses the save: ask the browser to confirm
+    function hasPendingWrites() { return GameFS.persistQueue && GameFS.persistQueue.size > 0; }
+    window.addEventListener('beforeunload', ev => {
+      if (!hasPendingWrites()) return;
+      ev.preventDefault();
+      ev.returnValue = '';
+      return '';
+    });
+
     function showGpuLost(info) {
       if (document.getElementById('gpu-lost')) return;
       const d = document.createElement('div');
@@ -7136,6 +7242,7 @@ function serveLoop() {
         setTimeout(() => { if (vid === v && v.readyState < 3 && v.currentTime === 0) { console.error('[video] does not start'); vidEnd(); } }, 8000);
       }, 100);
       g_runtimeUp = true;
+      try { if (localStorage.getItem('fullLog') === '1') ogSet('fullLog', 1); } catch (e) {}
       g_resolveRuntime();
       player.classList.add('playing');
       uiOverlay.classList.add('hidden');

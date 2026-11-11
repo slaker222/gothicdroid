@@ -3,6 +3,7 @@
 # installs the given libopengothic.so, starts a new game, prints the mean of the last 20 [PERF] frames
 D="$(cd "$(dirname "$0")" && pwd)"; ROOT="$D/.."
 cp "$1" "$ROOT/android/app/src/main/jniLibs/arm64-v8a/libopengothic.so"
+cp "$(dirname "$1")"/lib{hook_impl,main_hook,file_redirect_hook,gsl_alloc_hook}.so "$ROOT/android/app/src/main/jniLibs/arm64-v8a/" 2>/dev/null || true # adrenotools hooks, if next to the lib
 ( cd "$ROOT/android" && ANDROID_HOME="${ANDROID_HOME:-$HOME/android-sdk}" ./gradlew assembleDebug --offline > ../gradle.log 2>&1 ) || { tail -20 "$ROOT/gradle.log"; exit 1; }
 adb install -r "$ROOT/android/app/build/outputs/apk/debug/app-debug.apk" > /dev/null
 adb shell am force-stop com.gothic.droid

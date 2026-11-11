@@ -85,6 +85,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private external fun nativeQuick(kind: Int)
     private external fun nativeSetLoadSlot(slot: Int)
     private external fun nativeSetRenderer(gl: Boolean)
+    private external fun nativeSetVulkanDriver(driverDir: String, libName: String, hookDir: String, tmpDir: String)
     private external fun nativeAutoSave(): Int
     private external fun nativeSaveBusy(): Int
     private external fun nativeQuests(): String
@@ -124,6 +125,12 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         nativeSetGameVersion(intent.getIntExtra(EXTRA_GAME_VERSION, 0))
         nativeSetSkyDir(intent.getStringExtra(EXTRA_SKY_DIR) ?: "")
         nativeSetRenderer(RendererPref.isGl(this))
+        // a custom Vulkan driver (DriverStore): Vulkan only; a driver that crashed the last start is dropped there
+        if (!RendererPref.isGl(this)) DriverStore.startInfo(this)?.let { d ->
+            flog("I", "Vulkan driver: ${d.name} (${d.libraryName})")
+            nativeSetVulkanDriver(d.dir.absolutePath, d.libraryName, applicationInfo.nativeLibraryDir, File(cacheDir, "adrenotools").also { it.mkdirs() }.absolutePath)
+            watchDriver()
+        }
         // the process was killed in the background after an autosave (the marker is there): the game goes on from it.
         // The marker goes at once: a save that cannot be loaded must not make a loop of restarts
         val marker = File(gameDir, RESUME_MARK)
@@ -455,6 +462,21 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private var exitWatch: Thread? = null
+
+    // the custom driver is trusted once the engine has drawn frames with it (the Vulkan device is created, the first loading
+    // screen frames are out: a few seconds after the start); a crash or hang before that leaves the marker of DriverStore
+    private fun watchDriver() {
+        Thread {
+            while (true) {
+                try { Thread.sleep(500) } catch (e: InterruptedException) { return@Thread }
+                if (try { nativeFrames() } catch (e: Throwable) { 0 } >= 30) {
+                    DriverStore.markWorking(this)
+                    flog("I", "Vulkan driver works: frames are drawn")
+                    return@Thread
+                }
+            }
+        }.also { it.isDaemon = true; it.start() }
+    }
     // the renderer is chosen at start: the game is saved (the hidden slot 99), the app's main menu starts it again in a new
     // process (this one ends) and the new start loads the slot - the player comes back where he was
     private fun switchRenderer(gl: Boolean) {

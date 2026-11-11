@@ -153,6 +153,9 @@ if(WIN32)
   target_link_libraries(${PROJECT_NAME} shlwapi DbgHelp)
 elseif(ANDROID)
   target_link_libraries(${PROJECT_NAME} android log)
+  # custom Adreno vulkan driver; its hook libs are SHARED targets, built into the same dir as libopengothic.so
+  add_subdirectory(lib/libadrenotools)
+  target_link_libraries(${PROJECT_NAME} adrenotools)
 elseif(EMSCRIPTEN)
   # Emscripten provides built-in browser runtime and audio
 elseif(UNIX)

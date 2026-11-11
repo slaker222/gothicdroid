@@ -65,6 +65,21 @@
     .upd-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 8px 0; }
     .upd-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
     .upd-err { color: #ff8a80; font-size: 13px; margin: 6px 0; }
+    /* the Vulkan driver row of the settings window and its repository list */
+    #drv-row { flex-wrap: wrap; row-gap: 6px; }
+    #drv-row > .drv-name { flex: 1 1 auto; }
+    #drv-row .drv-ctl { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 4px; flex: 1 1 200px; min-width: 0; }
+    #drv-sel { flex: 1 1 120px; min-width: 0; max-width: 100%; }
+    #drv-row button { font: inherit; font-size: 12px; padding: 2px 8px; color: var(--text); background: #222; border: 1px solid var(--line); cursor: pointer; }
+    #drv-row button:disabled { opacity: .45; cursor: default; }
+    #drv-msg { flex: 1 1 100%; font-size: 12px; color: var(--dim); }
+    #drv-msg.err { color: #ff8a80; }
+    #drv-msg:empty { display: none; }
+    #drv-list { display: flex; flex-direction: column; gap: 4px; margin: 8px 0; max-height: 50vh; overflow-y: auto; }
+    #drv-list button { text-align: left; font: inherit; font-size: 13px; padding: 8px 10px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; overflow-wrap: anywhere; }
+    #drv-list button small { display: block; color: var(--dim); font-size: 11px; }
+    #drv-list button:disabled { opacity: .5; }
+    #drv-list .drv-empty { font-size: 13px; color: var(--dim); }
     .about-dot { display: inline-block; width: 8px; height: 8px; margin-left: 5px; border-radius: 50%; background: #ff5252; vertical-align: top; }
     .link-card { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; margin-top: 8px; font: inherit; text-align: left; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
     .link-card.main { background: #fff; border-color: #fff; color: #000; }
@@ -366,6 +381,16 @@
     </div>
   </div>
 
+  <div id="drv-modal" class="dn-overlay" hidden>
+    <div class="dn-box" role="dialog" aria-modal="true">
+      <h2>Vulkan drivers</h2>
+      <p class="dn-sub">Mesa Turnip builds (K11MCH1/AdrenoToolsDrivers), newest first. Tap one to download and install it. Qualcomm repacks need a matching Android version.</p>
+      <div id="drv-list"></div>
+      <div class="upd-bar" id="drv-bar" hidden><i></i></div>
+      <div class="upd-err" id="drv-err" hidden></div>
+      <div class="upd-btns"><button type="button" id="drv-close">Close</button></div>
+    </div>
+  </div>
   {{DONATE}}
   <script>
     'use strict';
@@ -750,6 +775,97 @@
         rsel.addEventListener('change', () => { try { Launcher.setRenderer(rsel.value); } catch (e) {} syncR(); });
       }
     }
+    // custom Vulkan driver (Adreno only): a row above the Renderer row, built here because the panel is shared with the browser
+    {
+      const hesc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const rsel = $('renderer-sel');
+      const rrow = rsel && rsel.parentElement;
+      if (rrow) {
+        const row = document.createElement('div');
+        row.className = 'set-row keep'; row.id = 'drv-row';
+        row.title = 'A custom Vulkan driver (Mesa Turnip) instead of the system one. It applies at the next start of the game. ' +
+                    'A driver that fails to start is switched back to the system one automatically.';
+        row.innerHTML = '<span class="drv-name">Vulkan driver</span><span class="drv-ctl"><select id="drv-sel"></select>' +
+          '<button type="button" id="drv-imp">Import…</button><button type="button" id="drv-dl">Download…</button>' +
+          '<button type="button" id="drv-del">Delete</button></span><span id="drv-msg"></span>';
+        rrow.parentElement.insertBefore(row, rrow);
+        const sel = $('drv-sel'), msg = $('drv-msg');
+        let st = { supported: false, selected: '', list: [] }, busy = false;
+        const say = (t, err) => { msg.textContent = t || ''; msg.classList.toggle('err', !!err); };
+        const paint = () => {
+          const gl = $('renderer-sel').value === 'webgl2';
+          const off = gl || !st.supported;
+          sel.innerHTML = '<option value="">System (default)</option>' + st.list.map(d =>
+            '<option value="' + hesc(d.id) + '">' + hesc(d.name + (d.version ? ' · ' + d.version : '')) + '</option>').join('');
+          sel.value = st.list.some(d => d.id === st.selected) ? st.selected : '';
+          sel.disabled = $('drv-imp').disabled = $('drv-dl').disabled = off || busy;
+          $('drv-del').disabled = off || busy || !sel.value;
+          row.style.opacity = off ? '.5' : '';
+          if (busy) return;
+          if (!st.supported) say('Adreno (Snapdragon) GPUs only');
+          else if (gl) say('Vulkan only: switch the renderer to Vulkan');
+          else if (!msg.classList.contains('err')) say('Applies at the next game start. A driver that fails to start is replaced by the system one.');
+        };
+        const dload = () => {
+          try { st = JSON.parse(Launcher.drivers()); } catch (e) {}
+          if (st.failed) say('Driver ' + st.failed + ' did not start, the system driver was restored.', true);
+          paint();
+        };
+        window.refreshDrivers = dload;
+        sel.addEventListener('change', () => { try { Launcher.setDriver(sel.value); } catch (e) {} say(''); dload(); });
+        $('drv-del').addEventListener('click', () => {
+          if (!sel.value) return;
+          try { Launcher.removeDriver(sel.value); } catch (e) {}
+          say(''); dload();
+        });
+        $('drv-imp').addEventListener('click', () => {
+          say('');
+          try { busy = Launcher.importDriver(); } catch (e) {}
+          if (busy) { say('Installing…'); paint(); }
+        });
+        // the repository list
+        const dm = $('drv-modal'), dlist = $('drv-list'), dbar = $('drv-bar'), derr = $('drv-err');
+        const fsz = n => (n / 1048576).toFixed(1) + ' MB';
+        const dErr = t => { derr.hidden = !t; derr.textContent = t || ''; };
+        const listBusy = on => dlist.querySelectorAll('button').forEach(b => { b.disabled = on; });
+        $('drv-dl').addEventListener('click', () => {
+          dm.hidden = false; dErr(''); dbar.hidden = true;
+          dlist.innerHTML = '<div class="drv-empty">Loading…</div>';
+          try { Launcher.driverReleases(); } catch (e) { dlist.innerHTML = ''; dErr('Not available'); }
+        });
+        window.onDriverReleases = r => {
+          dlist.innerHTML = '';
+          if (r.error) { dErr(r.error); return; }
+          if (!r.list.length) dlist.innerHTML = '<div class="drv-empty">Nothing found</div>';
+          for (const a of r.list) {
+            const b = document.createElement('button');
+            b.type = 'button'; b.dataset.url = a.url;
+            b.innerHTML = hesc(a.name) + '<small>' + hesc(a.release) + ' · ' + hesc(a.date) + ' · ' + fsz(a.size) + '</small>';
+            dlist.appendChild(b);
+          }
+        };
+        dlist.addEventListener('click', e => {
+          const b = e.target.closest('button[data-url]');
+          if (!b || busy) return;
+          dErr('');
+          let ok = false;
+          try { ok = Launcher.downloadDriver(b.dataset.url); } catch (e2) {}
+          if (!ok) { dErr('Another operation is running'); return; }
+          busy = true; listBusy(true); dbar.hidden = false; dbar.firstElementChild.style.width = '0%'; paint();
+        });
+        window.onDriverProgress = (d, t) => { dbar.firstElementChild.style.width = (t > 0 ? Math.min(100, d * 100 / t) : 50) + '%'; };
+        window.onDriverDone = r => {
+          busy = false; listBusy(false); dbar.hidden = true;
+          if (r.error) { dErr(r.error); say(r.error, true); dload(); return; }
+          dm.hidden = true; dErr(''); say('Installed: ' + r.name);
+          dload();
+        };
+        $('drv-close').addEventListener('click', () => { dm.hidden = true; });
+        dm.addEventListener('click', e => { if (e.target === dm) dm.hidden = true; });
+        rsel.addEventListener('change', paint);
+        dload();
+      }
+    }
     $('gset-x').addEventListener('click', () => { $('gset').hidden = true; });
     $('gset').addEventListener('click', e => { if (e.target === $('gset')) $('gset').hidden = true; });
     $('log-show').addEventListener('click', () => {
@@ -945,6 +1061,7 @@
     window.onBack = () => {
       if (TouchEditor.isOpen()) { TouchEditor.close(); return true; }
       if (sheet.classList.contains('open')) { sheet.classList.remove('open'); return true; }
+      if (!$('drv-modal').hidden) { $('drv-modal').hidden = true; return true; }
       if (!$('gset').hidden) { $('gset').hidden = true; return true; }
       if (!$('upd-modal').hidden) { $('upd-modal').hidden = true; updLater = true; return true; }
       if (!$('donate-modal').hidden) { $('donate-modal').hidden = true; return true; }
@@ -1052,7 +1169,7 @@
 
 
 
-    window.onResumed = () => { refresh(); if (curTab === 'explore' && EX.roots.length) exPoll(); modPoll(); };
+    window.onResumed = () => { refresh(); window.refreshDrivers && refreshDrivers(); if (curTab === 'explore' && EX.roots.length) exPoll(); modPoll(); };
     refresh();
   </script>
 </body>
