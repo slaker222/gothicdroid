@@ -1,5 +1,7 @@
 #include "shaders.h"
 
+#include <cstring>
+
 #include <Tempest/Application>
 #include <Tempest/Device>
 #include <Tempest/Log>
@@ -361,6 +363,12 @@ void Shaders::compileShaders() {
 
 bool Shaders::isVsmSupported() {
   auto& gpu = Resources::device().properties();
+#if defined(__ANDROID__)
+  // Turnip (custom Adreno driver): the vsm shaders with barrier() and 1024 threads make the driver call exit()
+  // inside vkCreateComputePipelines on small Adreno ("impossible to have enough concurrent waves")
+  if(std::strstr(gpu.name,"Turnip")!=nullptr)
+    return false;
+#endif
   if(gpu.compute.maxInvocations>=1024 && gpu.render.maxClipCullDistances>=4 &&
      gpu.render.maxViewportSize.w>=8192 && gpu.render.maxViewportSize.h>=8192) {
     return true;
