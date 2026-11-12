@@ -82,7 +82,6 @@
     #ted-kpbtns button { flex: 1; font: inherit; font-weight: 600; height: 38px; color: #ddd; background: #222; border: 1px solid #3a3a3a; border-radius: 10px; cursor: pointer; }
     #ted-kpbtns button.primary { color: #000; background: #fff; border-color: #fff; }
     #ted-kpbtns button:disabled { opacity: .4; }
-    #ted-hint { font-size: 11px; color: #999; }
     #ted-body .row { display: flex; gap: 10px; }
     #ted-body .row button { flex: 1; font: inherit; font-size: 13px; font-weight: 600; height: 38px; color: #ddd; background: #222; border: 1px solid #3a3a3a; border-radius: 10px; cursor: pointer; }
     #ted-body .row button.primary { color: #000; background: #fff; border-color: #fff; }`;
@@ -96,7 +95,6 @@
         <div id="ted-cust" hidden><input id="ted-lab" type="text" maxlength="8" placeholder="Text on the button" autocapitalize="off" autocomplete="off"></div>
         <div id="ted-keyrow" hidden></div>
         <label class="snap"><input type="checkbox" id="ted-snap" checked> Snap to the grid</label>
-        <div id="ted-hint">Drag a button to move it, tap it to change its key. Add makes a button of your own. Drag this window by its title.</div>
         <div class="row"><button id="ted-reset">Reset</button><button id="ted-cancel">Cancel</button><button id="ted-save" class="primary">Save</button></div>
       </div>
     </div>
@@ -570,11 +568,16 @@
         '<i class="inv" style="' + bx + at(per, 0) + '">' + (opts.ICONS.inv ? svg('inv') : '') + '</i>';
       wrap.appendChild(qe);
       if (opts.huds) {
+        // the element is laid out at its real size (real font, padding, radius) and scaled down as a whole,
+        // so no minimum font size applies and the parts stay in proportion
+        const s = H / 380;
         const hd = (ck, cls, text, dx, dy) => {
           const e = document.createElement('div'), i = items[ck];
           e.className = 'ted-hud ' + cls; e.textContent = text; e.style.pointerEvents = 'none';
-          e.style.fontSize = (cls === 'fps' ? 13 : 15) * H / 380 * (items[ck] && items[ck].k || 1) + 'px';
-          if (i) { e.style.left = i.x + '%'; e.style.top = i.y + '%'; e.style.transform = 'translate(-50%,-50%)'; } else { e.style.left = dx * H / 380 + 'px'; e.style.top = dy * H / 380 + 'px'; }
+          e.style.position = 'absolute'; e.style.whiteSpace = 'nowrap';
+          e.style.fontSize = (cls === 'fps' ? 13 : 15) * ((i && i.k) || 1) + 'px';
+          if (i) { e.style.left = i.x + '%'; e.style.top = i.y + '%'; e.style.transform = 'translate(-50%,-50%) scale(' + s + ')'; }
+          else { e.style.left = dx * s + 'px'; e.style.top = dy * s + 'px'; e.style.transformOrigin = '0 0'; e.style.transform = 'scale(' + s + ')'; }
           wrap.appendChild(e);
         };
         if (opts.huds.fps) hd('fps', 'fps', '60 FPS', 8, opts.huds.fpsTop || 8);

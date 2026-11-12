@@ -574,6 +574,8 @@
 
     .ctl:hover { color: var(--accent); }
     #union-btn { font-size: 12px; font-weight: 600; letter-spacing: 0.02em; }
+    /* the touch layer has its own Plugins button in the More bar */
+    body.touch-on #union-btn { display: none; }
     html.native label:has(#fulllog-chk) { display: none !important; }
     .ctl-right, .ctl-left { display: flex; align-items: center; }
     .ctl-right { gap: 6px; }
@@ -3342,7 +3344,6 @@ async function installChunks(m) {
         ['block',  'Shift+S', '',    'right:28cqmin;bottom:24cqmin',           'world'],
         ['inv',    'Tab',   'small', 'left:calc(50% + 31cqmin);bottom:2.5cqmin',                       'world'],
         ['stats',  'B',     'small', 'left:16cqmin;top:calc(36px + 1cqmin)',               'world'],
-        ['map',    'M',     'small', 'right:28cqmin;top:calc(36px + 1cqmin)',               'world'],
         ['menu',   'Esc',   'small', 'left:4cqmin;top:calc(36px + 1cqmin)',                 'world'],
         // the tool bar: a button next to the menu opens a row of buttons to its right
         ['tools',  '@tools','small', 'left:28cqmin;top:calc(36px + 1cqmin)',                'world'],
@@ -3354,10 +3355,12 @@ async function installChunks(m) {
         ['cheat',  '@cheat','small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         // the plugins (a parody of Union): a green button left of the cheat one, opens the list with the check boxes
         ['plugins','@plugins','small plug', 'left:80cqmin;top:calc(36px + 1cqmin)',                'wtools'],
+        // the map is in the More bar, right of the cheat button, and only while the hero carries a map (see b.id === 'map' in update())
+        ['map',    'M',     'small', 'left:101cqmin;top:calc(36px + 1cqmin)',                'wtools'],
         ['console','F2',    'small cheat', 'left:90.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['fly',    'F8',    'small cheat', 'left:101cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
-        ['kfast',  'K',     'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
-        ['possess','O',     'small cheat', 'left:122cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['fly',    'F8',    'small cheat', 'left:111.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
+        ['kfast',  'K',     'small cheat', 'left:122cqmin;top:calc(36px + 1cqmin)',              'wcheat'],
+        ['possess','O',     'small cheat', 'left:132.5cqmin;top:calc(36px + 1cqmin)',                'wcheat'],
         // dialog
         ['skip',   'Esc',   'big',   'right:4cqmin;bottom:10cqmin',            'talk cutscene'],
         ['dUp',    'Up',    '',      'left:6cqmin;bottom:28cqmin',             'choice'],
