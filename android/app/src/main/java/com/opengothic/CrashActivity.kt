@@ -232,9 +232,6 @@ class CrashActivity : Activity() {
         val btnCopyAll = makeButton("Copy full") { copyAllLog() }
         bar.addView(btnCopyAll, btnParams)
 
-        val btnShare = makeButton("Share") { shareLog() }
-        bar.addView(btnShare, btnParams)
-
         val btnRestart = makeButton("Restart") { restartGame() }
         bar.addView(btnRestart, btnParams)
 
@@ -306,31 +303,31 @@ class CrashActivity : Activity() {
         logEntries.clear()
         val dir = File(gameDir)
 
-        // 1. Current crash.log
-        val crashLog = File(dir, "crash.log")
-        if (crashLog.exists() && crashLog.length() > 0) {
-            logEntries.add(LogEntry("crash.log (current crash)", crashLog, true))
-        }
-
-        // 2. Current session log opengothic_log.txt
+        // 1. Primary: Detailed session log opengothic_log.txt
         val sessionLog = File(dir, "opengothic_log.txt")
         if (sessionLog.exists() && sessionLog.length() > 0) {
-            logEntries.add(LogEntry("opengothic_log.txt (current session)", sessionLog, false))
+            logEntries.add(LogEntry("opengothic_log.txt (full log)", sessionLog, false))
         }
 
-        // 3. Historical crash logs (crash_1.log .. crash_5.log)
-        for (i in 1..LogManager.MAX_LOGS) {
-            val f = File(dir, "crash_$i.log")
-            if (f.exists() && f.length() > 0) {
-                logEntries.add(LogEntry("crash_$i.log (crash #$i)", f, true))
-            }
+        // 2. Current crash stacktrace
+        val crashLog = File(dir, "crash.log")
+        if (crashLog.exists() && crashLog.length() > 0) {
+            logEntries.add(LogEntry("crash.log (stacktrace only)", crashLog, true))
         }
 
-        // 4. Historical session logs (opengothic_log_1.txt .. opengothic_log_5.txt)
+        // 3. Historical session logs (opengothic_log_1.txt .. opengothic_log_5.txt)
         for (i in 1..LogManager.MAX_LOGS) {
             val f = File(dir, "opengothic_log_$i.txt")
             if (f.exists() && f.length() > 0) {
                 logEntries.add(LogEntry("opengothic_log_$i.txt (session #$i)", f, false))
+            }
+        }
+
+        // 4. Historical crash logs (crash_1.log .. crash_5.log)
+        for (i in 1..LogManager.MAX_LOGS) {
+            val f = File(dir, "crash_$i.log")
+            if (f.exists() && f.length() > 0) {
+                logEntries.add(LogEntry("crash_$i.log (crash #$i)", f, true))
             }
         }
 
@@ -364,7 +361,7 @@ class CrashActivity : Activity() {
             override fun onNothingSelected(parent: AdapterView<*>?) {}
         }
 
-        // Default to first item
+        // Default to first item (detailed session log)
         displayLogFile(logEntries[0].file)
     }
 
@@ -376,7 +373,26 @@ class CrashActivity : Activity() {
         }
 
         try {
-            currentLogText = file.readText()
+            var text = file.readText()
+            if (file.name.startsWith("opengothic_log")) {
+                // If viewing session log, append corresponding crash stacktrace if available
+                val crashFile = if (file.name == "opengothic_log.txt") {
+                    File(file.parentFile, "crash.log")
+                } else {
+                    val idx = file.name.substringAfter("opengothic_log_").substringBefore(".txt")
+                    File(file.parentFile, "crash_$idx.log")
+                }
+                if (crashFile.exists() && crashFile.length() > 0) {
+                    val crashText = crashFile.readText().trim()
+                    if (crashText.isNotEmpty()) {
+                        text = text.trimEnd() + "\n\n" +
+                               "=================== CRASH STACKTRACE ===================\n" +
+                               crashText + "\n" +
+                               "=======================================================\n"
+                    }
+                }
+            }
+            currentLogText = text
             applyFilter(etFilter.text?.toString().orEmpty())
         } catch (e: Exception) {
             tvLog.text = "Error reading ${file.name}: ${e.message}"
@@ -430,19 +446,6 @@ class CrashActivity : Activity() {
         val clip = ClipData.newPlainText("OpenGothic Full Log", currentLogText)
         clipboard.setPrimaryClip(clip)
         Toast.makeText(this, "Copied full log (${currentLogText.length} chars)", Toast.LENGTH_SHORT).show()
-    }
-
-    private fun shareLog() {
-        if (currentLogText.isBlank()) {
-            Toast.makeText(this, "Log is empty", Toast.LENGTH_SHORT).show()
-            return
-        }
-        val shareIntent = Intent(Intent.ACTION_SEND).apply {
-            type = "text/plain"
-            putExtra(Intent.EXTRA_SUBJECT, "OpenGothic Log - $crashSource")
-            putExtra(Intent.EXTRA_TEXT, currentLogText)
-        }
-        startActivity(Intent.createChooser(shareIntent, "Share log"))
     }
 
     private fun restartGame() {
