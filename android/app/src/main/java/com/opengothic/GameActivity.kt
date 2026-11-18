@@ -1,10 +1,15 @@
 package com.opengothic
 
+import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.ServiceConnection
 import android.content.pm.ActivityInfo
+import android.os.Binder
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
+import android.os.IBinder
 import android.os.Looper
 import android.util.Log
 import android.annotation.SuppressLint
@@ -50,6 +55,14 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                 Log.e(TAG, "Failed to load opengothic: ${e.message}")
             }
         }
+    }
+
+    private val clientToken = Binder()
+    private val crashWatcherConn = object : ServiceConnection {
+        override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+            (service as? CrashWatcherService.CrashWatcherBinder)?.watch(clientToken, gameDir)
+        }
+        override fun onServiceDisconnected(name: ComponentName?) {}
     }
 
     private external fun nativeAppendLog(text: String)
@@ -121,6 +134,12 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         hideSystemBars()
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
+        try {
+            val watcherIntent = Intent(this, CrashWatcherService::class.java)
+            bindService(watcherIntent, crashWatcherConn, Context.BIND_AUTO_CREATE)
+        } catch (e: Exception) {
+            flog("W", "bind CrashWatcher: ${e.message}")
+        }
         try {
             val gd = File(gameDir)
             LogManager.rotateLogs(gd)
@@ -443,6 +462,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
     override fun onDestroy() {
         flog("GameActivity onDestroy: finishing=$isFinishing")
+        try { unbindService(crashWatcherConn) } catch (e: Exception) {}
         super.onDestroy()
     }
 
