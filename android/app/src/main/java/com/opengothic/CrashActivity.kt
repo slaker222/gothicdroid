@@ -56,6 +56,15 @@ class CrashActivity : Activity() {
         loadLogList()
     }
 
+    override fun onNewIntent(intent: Intent?) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        gameDir = intent?.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
+        crashSource = intent?.getStringExtra(EXTRA_CRASH_SOURCE) ?: "Unknown Crash"
+        crashDetails = intent?.getStringExtra(EXTRA_CRASH_DETAILS)
+        loadLogList()
+    }
+
     private fun dp(v: Int): Int {
         return TypedValue.applyDimension(
             TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), resources.displayMetrics

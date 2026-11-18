@@ -212,6 +212,7 @@ static void runGameThread(std::string gameDir) {
   s_gameRunning.store(true);
   opengothic_debug_set_game_dir(gameDir.c_str()); // debug.cfg and logs of this game, not of the first Gothic2 folder
   CrashLog::setGameDir(gameDir);
+  CrashLog::setup();
   rotateLogs(gameDir);
   {
     std::lock_guard<std::mutex> lk(s_logMutex);
