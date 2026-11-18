@@ -1242,6 +1242,18 @@
         <input type="range" class="big" id="opa" min="10" max="100" step="5" value="100">
         <div id="pv"></div>
       </div>
+      <div class="ctl-row">
+        <label class="lab" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between">
+          <span>Gyroscope camera</span>
+          <input type="checkbox" id="gyro-chk" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer">
+        </label>
+        <small>Tilt or rotate the phone to turn the camera.</small>
+      </div>
+      <div class="ctl-row" id="gyro-sens-row">
+        <div class="lab"><span>Gyroscope sensitivity</span><output id="gyro-sens-val">1.00</output></div>
+        <input type="range" class="big" id="gyro-sens" min="0.2" max="4" step="0.05" value="1">
+        <small>Camera rotation speed when tilting the phone.</small>
+      </div>
     </div>
     <div class="card">
       <h2>On-screen buttons</h2>
@@ -2336,6 +2348,7 @@
     if (!ctl.items) ctl.items = {};
     const saveCtl = () => { try { Launcher.setControls(JSON.stringify(ctl)); } catch (e) {} };
     const sensEl = $('sens'), opaEl = $('opa');
+    const gyroChk = $('gyro-chk'), gyroSensEl = $('gyro-sens'), gyroSensRow = $('gyro-sens-row');
     const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
     // the picture of the current layout (the same one the editor shows), drawn again after every change
     // the counters the game shows: the day (plugin ScreenInfo, kept in the controls' config), the FPS (a flag of the page, may be unreachable here)
@@ -2346,18 +2359,31 @@
     function showCtl() {
       $('sens-val').textContent = (+sensEl.value).toFixed(2);
       $('opa-val').textContent = opaEl.value + '%';
+      if (gyroSensEl) $('gyro-sens-val').textContent = (+gyroSensEl.value).toFixed(2);
+      if (gyroSensRow && gyroChk) {
+        gyroSensRow.style.opacity = gyroChk.checked ? '1' : '0.45';
+        gyroSensRow.style.pointerEvents = gyroChk.checked ? 'auto' : 'none';
+      }
       drawPv();
     }
     sensEl.value = String(ctl.sens > 0 ? ctl.sens : 1);
     opaEl.value = String(Math.round((ctl.opacity > 0 ? ctl.opacity : 1) * 100));
+    if (gyroChk) gyroChk.checked = !!ctl.gyro;
+    if (gyroSensEl) gyroSensEl.value = String(ctl.gyroSens > 0 ? ctl.gyroSens : 1);
     showCtl();
     sensEl.addEventListener('input', showCtl);
     opaEl.addEventListener('input', showCtl);
+    if (gyroSensEl) gyroSensEl.addEventListener('input', showCtl);
     sensEl.addEventListener('change', () => { ctl.sens = +(+sensEl.value).toFixed(2); saveCtl(); });
     opaEl.addEventListener('change', () => { ctl.opacity = +opaEl.value / 100; saveCtl(); });
+    if (gyroChk) gyroChk.addEventListener('change', () => { ctl.gyro = gyroChk.checked; saveCtl(); showCtl(); });
+    if (gyroSensEl) gyroSensEl.addEventListener('change', () => { ctl.gyroSens = +(+gyroSensEl.value).toFixed(2); saveCtl(); });
     $('ctl-reset').addEventListener('click', () => {
-      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick, hidden: ctl.hidden || [], icons: ctl.icons || {}, showFps: ctl.showFps, plugins: ctl.plugins }; saveCtl();
-      sensEl.value = '1'; opaEl.value = '100'; showCtl();
+      ctl = { items: {}, keys: ctl.keys || {}, custom: ctl.custom || [], quick: ctl.quick, hidden: ctl.hidden || [], icons: ctl.icons || {}, showFps: ctl.showFps, plugins: ctl.plugins, gyro: false, gyroSens: 1.0 }; saveCtl();
+      sensEl.value = '1'; opaEl.value = '100';
+      if (gyroChk) gyroChk.checked = false;
+      if (gyroSensEl) gyroSensEl.value = '1';
+      showCtl();
     });
 
     // ---- the layout editor (web/touch_editor.js, the same one the game's side menu opens)

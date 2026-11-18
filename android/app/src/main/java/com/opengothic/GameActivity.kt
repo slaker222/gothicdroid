@@ -14,6 +14,10 @@ import android.os.Looper
 import android.util.Log
 import android.annotation.SuppressLint
 import android.graphics.Color
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.view.*
 import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
@@ -117,6 +121,136 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     private var surfaceHolder: SurfaceHolder? = null
     private var gameDir: String = "/sdcard/Gothic2"
     private var switching = false // the renderer is being switched: saved already, no second autosave in onStop
+
+    private var gyroEnabled = false
+    private var gyroSens = 1.0f
+    private var sensorManager: SensorManager? = null
+    private var gyroSensor: Sensor? = null
+    private var gyroListener: SensorEventListener? = null
+    private var lastGyroTimestamp = 0L
+    private var gyroAccumX = 0f
+    private var gyroAccumY = 0f
+
+    private fun loadGyroConfig() {
+        try {
+            val f = File(filesDir, "controls.json")
+            if (f.exists()) {
+                val obj = org.json.JSONObject(f.readText())
+                gyroEnabled = obj.optBoolean("gyro", false)
+                gyroSens = obj.optDouble("gyroSens", 1.0).toFloat().coerceIn(0.1f, 10.0f)
+            } else {
+                gyroEnabled = false
+                gyroSens = 1.0f
+            }
+        } catch (e: Exception) {
+            gyroEnabled = false
+            gyroSens = 1.0f
+        }
+    }
+
+    private fun updateGyroState() {
+        loadGyroConfig()
+        if (gyroEnabled) {
+            startGyro()
+        } else {
+            stopGyro()
+        }
+    }
+
+    private fun startGyro() {
+        if (!gyroEnabled) return
+        if (gyroListener != null) return
+        val sm = sensorManager ?: (getSystemService(Context.SENSOR_SERVICE) as? SensorManager)?.also { sensorManager = it } ?: return
+        val gyro = gyroSensor ?: sm.getDefaultSensor(Sensor.TYPE_GYROSCOPE)?.also { gyroSensor = it } ?: run {
+            flog("W", "No TYPE_GYROSCOPE sensor found on device")
+            return
+        }
+
+        lastGyroTimestamp = 0L
+        gyroAccumX = 0f
+        gyroAccumY = 0f
+
+        val listener = object : SensorEventListener {
+            override fun onSensorChanged(event: SensorEvent) {
+                if (event.sensor.type != Sensor.TYPE_GYROSCOPE) return
+                val ts = event.timestamp
+                if (lastGyroTimestamp == 0L) {
+                    lastGyroTimestamp = ts
+                    return
+                }
+                val dt = (ts - lastGyroTimestamp) * 1e-9f
+                lastGyroTimestamp = ts
+                if (dt <= 0f || dt > 0.1f) return
+
+                val rot = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    display?.rotation ?: Surface.ROTATION_90
+                } else {
+                    @Suppress("DEPRECATION")
+                    windowManager.defaultDisplay.rotation
+                }
+
+                // In landscape (ROTATION_90), top of phone is left:
+                // - Yaw: turning right is clockwise around vertical axis (device -X and -Z)
+                // - Pitch: tilting top away is looking up (device -Y)
+                // In reverse landscape (ROTATION_270), axes invert accordingly.
+                var rawYaw = if (rot == Surface.ROTATION_270) {
+                    event.values[0] - event.values[2] * 0.75f
+                } else {
+                    -event.values[0] - event.values[2] * 0.75f
+                }
+                var rawPitch = if (rot == Surface.ROTATION_270) {
+                    -event.values[1]
+                } else {
+                    event.values[1]
+                }
+
+                // Small deadzone to suppress resting jitter
+                if (Math.abs(rawYaw) < 0.005f) rawYaw = 0f
+                if (Math.abs(rawPitch) < 0.005f) rawPitch = 0f
+                if (rawYaw == 0f && rawPitch == 0f) return
+
+                val dm = resources.displayMetrics
+                val w = maxOf(surfaceView.width, maxOf(dm.widthPixels, dm.heightPixels)).toFloat()
+                val h = maxOf(surfaceView.height, minOf(dm.widthPixels, dm.heightPixels)).toFloat()
+
+                // At sens=1.0: 1 rad real rotation = 1 rad in-game camera rotation.
+                // In mainwindow.cpp: angleDeg = dx / w * 270 deg.
+                // To rotate thetaRad = dx / w * 270 * (PI / 180) => dx = thetaRad * w * 0.2122066f
+                val radToPx = 0.2122066f * gyroSens
+                val kx = w * radToPx
+                val ky = h * radToPx
+
+                gyroAccumX += rawYaw * dt * kx
+                gyroAccumY += rawPitch * dt * ky
+
+                val sendX = gyroAccumX.toInt()
+                val sendY = gyroAccumY.toInt()
+
+                if (sendX != 0 || sendY != 0) {
+                    gyroAccumX -= sendX
+                    gyroAccumY -= sendY
+                    nativeLook(sendX, sendY)
+                }
+            }
+
+            override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
+        }
+
+        sm.registerListener(listener, gyro, SensorManager.SENSOR_DELAY_GAME)
+        gyroListener = listener
+        flog("I", "Gyroscope started (sens=$gyroSens)")
+    }
+
+    private fun stopGyro() {
+        gyroListener?.let {
+            sensorManager?.unregisterListener(it)
+            gyroListener = null
+            lastGyroTimestamp = 0L
+            gyroAccumX = 0f
+            gyroAccumY = 0f
+            flog("I", "Gyroscope stopped")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -277,7 +411,11 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
 
         @JavascriptInterface
         fun setControls(json: String) {
-            try { org.json.JSONObject(json); File(filesDir, "controls.json").writeText(json) } catch (e: Exception) { flog("E", "controls: ${e.message}") }
+            try {
+                org.json.JSONObject(json)
+                File(filesDir, "controls.json").writeText(json)
+                runOnUiThread { updateGyroState() }
+            } catch (e: Exception) { flog("E", "controls: ${e.message}") }
         }
 
         // side menu, Logs: the full log (every file read, save, Vulkan object ...). A marker file keeps the choice
@@ -450,6 +588,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         // back from the background with the process alive: nothing to restore
         try { File(gameDir, RESUME_MARK).delete() } catch (e: Exception) {}
         hideSystemBars()
+        updateGyroState()
     }
 
     // the app leaves the screen (home, the screen is off, another app): Android may end the process of the game there,
@@ -457,11 +596,13 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     // is killed, the next start of the game (also the one Android makes when the player comes back) loads the slot
     override fun onPause() {
         flog("GameActivity onPause")
+        stopGyro()
         super.onPause()
     }
 
     override fun onDestroy() {
         flog("GameActivity onDestroy: finishing=$isFinishing")
+        stopGyro()
         try { unbindService(crashWatcherConn) } catch (e: Exception) {}
         super.onDestroy()
     }

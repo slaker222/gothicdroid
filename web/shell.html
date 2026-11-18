@@ -1062,6 +1062,8 @@
       <div id="sm-ctl" hidden>
         <label class="sm-sl"><span>Look sensitivity</span><output id="sm-sens-v">1.00</output><input type="range" id="sm-sens" min="0.2" max="3" step="0.05" value="1"></label>
         <label class="sm-sl"><span>Button transparency</span><output id="sm-opa-v">100%</output><input type="range" id="sm-opa" min="10" max="100" step="5" value="100"></label>
+        <label class="sm-sl" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer"><span>Gyroscope camera</span><input type="checkbox" id="sm-gyro" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"></label>
+        <label class="sm-sl" id="sm-gyro-box"><span>Gyroscope sensitivity</span><output id="sm-gyro-sens-v">1.00</output><input type="range" id="sm-gyro-sens" min="0.2" max="4" step="0.05" value="1"></label>
         <button type="button" id="sm-edit">Edit layout</button>
       </div>
       <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
@@ -2597,22 +2599,42 @@ async function installChunks(m) {
       // the controls under the checkbox: sensitivity, transparency, the layout editor (web/touch_editor.js)
       const more = document.getElementById('sm-touch-more'), box = document.getElementById('sm-ctl');
       const sens = document.getElementById('sm-sens'), opa = document.getElementById('sm-opa');
+      const gyro = document.getElementById('sm-gyro'), gyroSens = document.getElementById('sm-gyro-sens'), gyroBox = document.getElementById('sm-gyro-box');
       const showCtl = () => {
         document.getElementById('sm-sens-v').textContent = (+sens.value).toFixed(2);
         document.getElementById('sm-opa-v').textContent = opa.value + '%';
+        if (gyroSens) document.getElementById('sm-gyro-sens-v').textContent = (+gyroSens.value).toFixed(2);
+        if (gyroBox && gyro) {
+          gyroBox.style.opacity = gyro.checked ? '1' : '0.45';
+          gyroBox.style.pointerEvents = gyro.checked ? 'auto' : 'none';
+        }
       };
       more.addEventListener('click', () => {
         const open = box.hidden;
         box.hidden = !open; more.setAttribute('aria-expanded', open ? 'true' : 'false');
         if (open && window.ogTouch) {
           const c = window.ogTouch.cfg();
-          sens.value = String(c.sens > 0 ? c.sens : 1); opa.value = String(Math.round((c.opacity > 0 ? c.opacity : 1) * 100)); showCtl();
+          sens.value = String(c.sens > 0 ? c.sens : 1); opa.value = String(Math.round((c.opacity > 0 ? c.opacity : 1) * 100));
+          if (gyro) gyro.checked = !!c.gyro;
+          if (gyroSens) gyroSens.value = String(c.gyroSens > 0 ? c.gyroSens : 1);
+          showCtl();
         }
       });
       sens.addEventListener('input', () => { showCtl(); if (window.ogTouch) { window.ogTouch.cfg().sens = +sens.value; window.ogTouch.apply(); } });
       opa.addEventListener('input', () => { showCtl(); if (window.ogTouch) { window.ogTouch.cfg().opacity = +opa.value / 100; window.ogTouch.apply(); } });
       sens.addEventListener('change', () => window.ogTouch && window.ogTouch.save());
       opa.addEventListener('change', () => window.ogTouch && window.ogTouch.save());
+      if (gyro) gyro.addEventListener('change', () => {
+        if (window.ogTouch) { window.ogTouch.cfg().gyro = gyro.checked; window.ogTouch.save(); }
+        showCtl();
+      });
+      if (gyroSens) {
+        gyroSens.addEventListener('input', () => {
+          showCtl();
+          if (window.ogTouch) { window.ogTouch.cfg().gyroSens = +(+gyroSens.value).toFixed(2); }
+        });
+        gyroSens.addEventListener('change', () => window.ogTouch && window.ogTouch.save());
+      }
       document.getElementById('sm-edit').addEventListener('click', () => {
         if (!window.ogTouch || !window.TouchEditor) return;
         setOpen(false);
