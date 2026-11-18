@@ -34,6 +34,8 @@ class CrashActivity : Activity() {
         const val EXTRA_GAME_DIR = "game_dir"
         const val EXTRA_CRASH_SOURCE = "crash_source"
         const val EXTRA_CRASH_DETAILS = "crash_details"
+
+        private var activeInstance: CrashActivity? = null
     }
 
     private var gameDir: String = "/sdcard/Gothic2"
@@ -44,6 +46,7 @@ class CrashActivity : Activity() {
     private lateinit var svLog: ScrollView
     private lateinit var spLogs: Spinner
     private lateinit var etFilter: EditText
+    private lateinit var tvInfo: TextView
 
     private data class LogEntry(val label: String, val file: File, val isCrash: Boolean)
 
@@ -52,6 +55,14 @@ class CrashActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Close any previously opened instance so windows never stack
+        activeInstance?.let { old ->
+            if (old != this && !old.isFinishing) {
+                old.finish()
+            }
+        }
+        activeInstance = this
 
         window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
         window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
@@ -65,12 +76,23 @@ class CrashActivity : Activity() {
         loadLogList()
     }
 
+    override fun onDestroy() {
+        super.onDestroy()
+        if (activeInstance == this) {
+            activeInstance = null
+        }
+    }
+
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         setIntent(intent)
         gameDir = intent?.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
         crashSource = intent?.getStringExtra(EXTRA_CRASH_SOURCE) ?: "Unknown Crash"
         crashDetails = intent?.getStringExtra(EXTRA_CRASH_DETAILS)
+        val timeStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
+        if (::tvInfo.isInitialized) {
+            tvInfo.text = "Reason: $crashSource   |   Time: $timeStr   |   Dir: $gameDir"
+        }
         loadLogList()
     }
 
@@ -280,7 +302,7 @@ class CrashActivity : Activity() {
         }
 
         val timeStr = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
-        val tvInfo = TextView(this).apply {
+        tvInfo = TextView(this).apply {
             text = "Reason: $crashSource   |   Time: $timeStr   |   Dir: $gameDir"
             setTextColor(Color.parseColor("#888d96"))
             setTextSize(TypedValue.COMPLEX_UNIT_SP, 11f)

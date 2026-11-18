@@ -67,7 +67,7 @@ class CrashWatcherService : Service() {
         val crashIntent = Intent(this, CrashActivity::class.java).apply {
             putExtra(CrashActivity.EXTRA_GAME_DIR, dir)
             putExtra(CrashActivity.EXTRA_CRASH_SOURCE, crashReason)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
         }
         startActivity(crashIntent)
     }
