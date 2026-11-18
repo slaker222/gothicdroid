@@ -104,6 +104,15 @@ class MainWindow : public Tempest::Window {
     void startGame(std::string_view slot);
     void loadGame (std::string_view slot);
     void saveGame (std::string_view slot, std::string_view name);
+    void writeSave(std::string slot, std::string name, Tempest::Pixmap pm, Tempest::Texture2d&& tex);
+    void flushPendingSave();
+
+    // a savegame waits for the next frame: its picture is that frame's world, copied before the interface
+    struct PendingSave {
+      std::string slot, name;
+      int         frames = 0;
+      };
+    std::unique_ptr<PendingSave> savePending;
 
     void onVideo(std::string_view fname);
     void onStartLoading();

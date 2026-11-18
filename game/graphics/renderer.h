@@ -5,6 +5,7 @@
 #include <Tempest/Matrix4x4>
 #include <Tempest/Widget>
 #include <Tempest/Device>
+#include <Tempest/Pixmap>
 #include <Tempest/UniformBuffer>
 #include <Tempest/VectorImage>
 
@@ -33,6 +34,15 @@ class Renderer final {
     void dbgDraw(Tempest::Painter& painter);
 
     Tempest::Attachment screenshoot(uint8_t frameId);
+
+    // the savegame preview: the next frame copies the world (before the interface is drawn over it).
+    // A separate full-frame submit for the picture is not used: on the Turnip driver of the Adreno 619
+    // the fence of such a submit never signals, the game thread waits in it forever
+    void requestSaveShot();
+    bool hasSaveShot() const { return saveShotReady; }
+    // the frame's own submit already copied the preview into a host-visible buffer;
+    // waits for the device and reads the pixels (no separate transfer submit)
+    Tempest::Pixmap takeSaveShot(Tempest::Texture2d* outTex = nullptr);
 
     // render resolution in percent of the screen (the stats overlay)
     // the size the game draws in: the swapchain's, with the width and the height swapped when its images are turned
@@ -285,6 +295,11 @@ class Renderer final {
 
     Tempest::TextureFormat    shadowFormat  = Tempest::TextureFormat::Depth16;
     Tempest::TextureFormat    zBufferFormat = Tempest::TextureFormat::Depth16;
+
+    bool                      saveShotRequested = false;
+    bool                      saveShotReady     = false;
+    Tempest::Attachment       saveShot;
+    Tempest::StorageBuffer    saveShotBuf;
 
     Shaders                   shaders;
   };

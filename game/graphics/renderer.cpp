@@ -979,6 +979,27 @@ void Renderer::draw(Tempest::Attachment& result, Encoder<CommandBuffer>& cmd, ui
     }
   auto tPost = perfNow() - t6;
 
+  if(saveShotRequested) {
+    // the frame is complete and still has no interface on it: this is the picture of a savegame slot.
+    // It goes into the frame's own command buffer, not a separate submit (see requestSaveShot).
+    // Note: 'result' is a swapchain image, which cannot be bound as a sampled texture (null handler / no SAMPLED flag).
+    // Instead, render tonemapping directly from sceneLinear into the saveShot attachment.
+    saveShotRequested = false;
+    auto& device = Resources::device();
+    saveShot = device.attachment(Tempest::TextureFormat::RGBA8, uint32_t(result.w()), uint32_t(result.h()));
+    cmd.setDebugMarker("Savegame preview");
+    drawTonemapping(saveShot, cmd, *wview);
+    // Dynamic rendering pass on saveShot must end before copying to buffer,
+    // otherwise vkCmdCopyImageToBuffer runs inside the active render pass,
+    // which is invalid in Vulkan and reads un-flushed GMEM tile memory on Turnip.
+    cmd.setFramebuffer({});
+    // copy the picture into host-visible memory in this very submit: a separate transfer submit
+    // (Device::readPixels) hangs on the Turnip driver of the Adreno 619 - its fence never signals
+    saveShotBuf = device.ssbo(Tempest::BufferHeap::Readback, Tempest::Uninitialized, size_t(result.w())*size_t(result.h())*4);
+    cmd.copy(saveShot, 0, saveShotBuf, 0);
+    saveShotReady = true;
+    }
+
   if(++s_dCnt % 10 == 0) {
     // once a second (the console is slow on the web), with the latest sample
     static uint64_t s_dLast = 0;
@@ -2649,6 +2670,37 @@ void Renderer::drawAmbient(Encoder<CommandBuffer>& cmd, const WorldView& view) {
     cmd.setPipeline(shaders.ambientLight);
     }
   cmd.draw(nullptr, 0, 3);
+  }
+
+void Renderer::requestSaveShot() {
+  saveShotRequested = true;
+  }
+
+Tempest::Pixmap Renderer::takeSaveShot(Tempest::Texture2d* outTex) {
+  saveShotReady = false;
+  if(saveShot.isEmpty() || saveShotBuf.byteSize() == 0) {
+    saveShotBuf = Tempest::StorageBuffer();
+    saveShot    = Tempest::Attachment();
+    if(outTex!=nullptr)
+      *outTex   = Tempest::Texture2d();
+    return Tempest::Pixmap();
+    }
+  auto& device = Resources::device();
+  Tempest::Pixmap pm(uint32_t(saveShot.w()), uint32_t(saveShot.h()), Tempest::TextureFormat::RGBA8);
+  device.waitIdle();
+  device.readBytes(saveShotBuf, pm.data(), pm.dataSize());
+  saveShotBuf = Tempest::StorageBuffer();
+
+  // Ensure alpha is 255 (fully opaque) so preview thumbnail has no transparent holes
+  auto* px = reinterpret_cast<uint8_t*>(pm.data());
+  for(size_t i=0, sz = size_t(pm.w())*size_t(pm.h()); i<sz; ++i) {
+    px[i*4 + 3] = 255;
+    }
+
+  if(outTex!=nullptr)
+    *outTex = std::move(textureCast<Tempest::Texture2d&>(saveShot));
+  saveShot = Tempest::Attachment();
+  return pm;
   }
 
 Tempest::Attachment Renderer::screenshoot(uint8_t frameId) {

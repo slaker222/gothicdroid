@@ -1864,33 +1864,13 @@ int MainWindow::switchText() {
   }
 #endif
 
-void MainWindow::saveGame(std::string_view slot, std::string_view name) {
-  auto tex = renderer.screenshoot(cmdId);
-  auto pm  = device.readPixels(textureCast<const Texture2d&>(tex));
-
-  if(dialogs.isActive()) {
-    Tempest::Log::i("MainWindow::saveGame skipped: dialog is active");
-    return;
-    }
-  if(auto w = Gothic::inst().world(); w!=nullptr && w->currentCs()!=nullptr) {
-    Tempest::Log::i("MainWindow::saveGame skipped: cutscene is active");
-    return;
-    }
-
+void MainWindow::writeSave(std::string slot, std::string name, Tempest::Pixmap pm, Tempest::Texture2d&& tex) {
   Tempest::Log::i("MainWindow::saveGame slot: ", slot, " name: ", name);
   Tempest::Log::v("save: start, slot ", slot, ", screenshot ", pm.w(), "x", pm.h());
-  Gothic::inst().startSave(std::move(textureCast<Texture2d&>(tex)),[slot=std::string(slot),name=std::string(name),pm](std::unique_ptr<GameSession>&& game){
+  Gothic::inst().startSave(std::move(tex),[slot=std::move(slot),name=std::move(name),pm=std::move(pm)](std::unique_ptr<GameSession>&& game){
     if(!game)
       return std::move(game);
 
-#if defined(__EMSCRIPTEN__)
-    Tempest::WFile f(slot);
-    Serialize      s(f);
-    // web: the screenshot is read back asynchronously, it arrives by now
-    Tempest::Pixmap shot = pm;
-    Tempest::WebGapi::takeReadback(shot);
-    game->save(s,name,shot);
-#else
     // a temporary file first, then renamed: a write that is cut off (the process is ended) keeps the old slot
     const std::string tmp = slot + ".tmp";
     {
@@ -1919,7 +1899,6 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
       // the thread of loading turns this into FailedSave: the player gets "unable to write savegame file", the game stays
       throw std::runtime_error("unable to rename the save file");
       }
-#endif
     Tempest::Log::i("MainWindow::saveGame successfully wrote slot: ", slot);
 
     // no print yet, because threading
@@ -1928,6 +1907,93 @@ void MainWindow::saveGame(std::string_view slot, std::string_view name) {
     });
 
   update();
+  }
+
+void MainWindow::saveGame(std::string_view slot, std::string_view name) {
+  if(dialogs.isActive()) {
+    Tempest::Log::i("MainWindow::saveGame skipped: dialog is active");
+    return;
+    }
+  if(auto w = Gothic::inst().world(); w!=nullptr && w->currentCs()!=nullptr) {
+    Tempest::Log::i("MainWindow::saveGame skipped: cutscene is active");
+    return;
+    }
+
+#if defined(__EMSCRIPTEN__)
+  auto tex = renderer.screenshoot(cmdId);
+  auto pm  = device.readPixels(textureCast<const Texture2d&>(tex));
+  Tempest::Log::i("MainWindow::saveGame slot: ", slot, " name: ", name);
+  Tempest::Log::v("save: start, slot ", slot, ", screenshot ", pm.w(), "x", pm.h());
+  Gothic::inst().startSave(std::move(textureCast<Texture2d&>(tex)),[slot=std::string(slot),name=std::string(name),pm](std::unique_ptr<GameSession>&& game){
+    if(!game)
+      return std::move(game);
+
+    Tempest::WFile f(slot);
+    Serialize      s(f);
+    // web: the screenshot is read back asynchronously, it arrives by now
+    Tempest::Pixmap shot = pm;
+    Tempest::WebGapi::takeReadback(shot);
+    game->save(s,name,shot);
+    Tempest::Log::i("MainWindow::saveGame successfully wrote slot: ", slot);
+    return std::move(game);
+    });
+  update();
+#else
+  // the picture of the slot is the world the next frame draws, before the interface: it goes into that
+  // frame's own submit. A full frame rendered only for the picture (Renderer::screenshoot) hangs the
+  // game on the Turnip driver of the Adreno 619: its fence never signals (see renderer.h)
+  if(savePending) {
+    Tempest::Log::i("MainWindow::saveGame skipped: a savegame is being written already");
+    return;
+    }
+  savePending = std::make_unique<PendingSave>();
+  savePending->slot = slot;
+  savePending->name = name;
+  Tempest::Log::i("MainWindow::saveGame queued: slot ", slot, " name: ", name);
+  renderer.requestSaveShot();
+  update();
+#endif
+  }
+
+void MainWindow::flushPendingSave() {
+  if(!savePending)
+    return;
+
+  if(renderer.hasSaveShot()) {
+    auto slot = std::move(savePending->slot);
+    auto name = std::move(savePending->name);
+    savePending.reset();
+
+    Tempest::Texture2d tex;
+    auto pm = renderer.takeSaveShot(&tex);
+    if(pm.isEmpty()) {
+      auto sz = Gothic::options().saveGameImageSize;
+      if(sz.w<=0 || sz.h<=0)
+        sz = Tempest::Size(160,120);
+      pm = Tempest::Pixmap(uint32_t(sz.w),uint32_t(sz.h),Tempest::TextureFormat::RGBA8);
+      std::memset(pm.data(),0,size_t(sz.w)*size_t(sz.h)*4);
+      }
+    writeSave(std::move(slot),std::move(name),std::move(pm),std::move(tex));
+    return;
+    }
+
+  // the world is not drawn (loading, a video, no surface): the slot is written without a picture
+  if(++savePending->frames < 30) {
+    update();
+    return;
+    }
+  auto slot = std::move(savePending->slot);
+  auto name = std::move(savePending->name);
+  savePending.reset();
+
+  Tempest::Log::e("save: the world was not drawn for the picture, the slot gets no preview");
+  auto sz = Gothic::options().saveGameImageSize;
+  if(sz.w<=0 || sz.h<=0)
+    sz = Tempest::Size(160,120);
+  Tempest::Pixmap pm(uint32_t(sz.w),uint32_t(sz.h),Tempest::TextureFormat::RGBA8);
+  std::memset(pm.data(),0,size_t(sz.w)*size_t(sz.h)*4);
+
+  writeSave(std::move(slot),std::move(name),std::move(pm),Tempest::Texture2d());
   }
 
 void MainWindow::onVideo(std::string_view fname) {
@@ -2167,6 +2233,8 @@ void MainWindow::render(){
     auto t3 = perfNow();
     sync = device.submit(cmd);
     auto tSub = perfNow() - t3;
+    if(savePending)
+      Tempest::Log::i("save: frame submitted");
 
     // no wait for the gpu here: the cpu records the next frame while it renders this one, the
     // fence of the slot is checked before the slot is reused (frame time: max of cpu and gpu, not their sum)
@@ -2176,6 +2244,11 @@ void MainWindow::render(){
     device.present(swapchain);
     auto tPres = perfNow() - t4;
     cmdId = (cmdId+1u)%Resources::MaxFramesInFlight;
+
+    if(savePending)
+      Tempest::Log::i("save: frame presented");
+    // the frame that carries the picture of a savegame slot is submitted: the pixels can be read
+    flushPendingSave();
 
     auto t = Application::tickCount();
     if(t-time<16 && !Gothic::inst().isInGame() && !video.isActive()) {

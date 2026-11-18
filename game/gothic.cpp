@@ -392,7 +392,11 @@ void Gothic::setLoadingProgress(int v) {
   }
 
 const Tempest::Texture2d* Gothic::loadingBanner() const {
-  return loadTex.isEmpty() ? &saveTex : &loadTex;
+  if(!loadTex.isEmpty())
+    return &loadTex;
+  if(!saveTex.isEmpty())
+    return &saveTex;
+  return nullptr;
   }
 
 SoundFx *Gothic::loadSoundFx(std::string_view name) {
