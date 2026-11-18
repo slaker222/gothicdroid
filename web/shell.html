@@ -1061,9 +1061,14 @@
       <div class="sm-row"><button class="sm-item" id="sm-touch" type="button" role="switch" aria-checked="true"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg><span class="sm-label">Mobile input</span><span class="sm-sw"></span></button><button class="sm-chev" id="sm-touch-more" type="button" aria-expanded="false" aria-label="Controls"><svg viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg></button></div>
       <div id="sm-ctl" hidden>
         <label class="sm-sl"><span>Look sensitivity</span><output id="sm-sens-v">1.00</output><input type="range" id="sm-sens" min="0.2" max="3" step="0.05" value="1"></label>
+        <div class="sm-sl" id="sm-gyro-box">
+          <label for="sm-gyro" style="cursor:pointer;user-select:none">Gyroscope sensitivity</label><output id="sm-gyro-sens-v">1.00</output>
+          <div style="grid-column: 1 / 3; display:flex; align-items:center; gap:8px">
+            <input type="checkbox" id="sm-gyro" style="width:18px;height:18px;flex:none;accent-color:var(--accent);cursor:pointer">
+            <input type="range" id="sm-gyro-sens" min="0.2" max="4" step="0.05" value="1" style="flex:1;height:28px">
+          </div>
+        </div>
         <label class="sm-sl"><span>Button transparency</span><output id="sm-opa-v">100%</output><input type="range" id="sm-opa" min="10" max="100" step="5" value="100"></label>
-        <label class="sm-sl" style="display:flex;align-items:center;justify-content:space-between;cursor:pointer"><span>Gyroscope camera</span><input type="checkbox" id="sm-gyro" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer"></label>
-        <label class="sm-sl" id="sm-gyro-box"><span>Gyroscope sensitivity</span><output id="sm-gyro-sens-v">1.00</output><input type="range" id="sm-gyro-sens" min="0.2" max="4" step="0.05" value="1"></label>
         <button type="button" id="sm-edit">Edit layout</button>
       </div>
       <button class="sm-item" id="sm-fps" type="button" role="switch" aria-checked="false"><svg viewBox="0 0 24 24"><path d="M13 2.05v3.03c3.39.49 6 3.39 6 6.92 0 .9-.18 1.75-.5 2.54l2.6 1.53c.56-1.24.9-2.62.9-4.07 0-5.18-3.95-9.45-9-9.95zM12 19c-3.87 0-7-3.13-7-7 0-3.53 2.61-6.43 6-6.92V2.05c-5.06.5-9 4.76-9 9.95 0 5.52 4.47 10 9.99 10 3.31 0 6.24-1.61 8.06-4.09l-2.6-1.53C16.17 17.98 14.21 19 12 19z"/></svg><span class="sm-label">Show FPS</span><span class="sm-sw"></span></button>
@@ -2604,9 +2609,11 @@ async function installChunks(m) {
         document.getElementById('sm-sens-v').textContent = (+sens.value).toFixed(2);
         document.getElementById('sm-opa-v').textContent = opa.value + '%';
         if (gyroSens) document.getElementById('sm-gyro-sens-v').textContent = (+gyroSens.value).toFixed(2);
-        if (gyroBox && gyro) {
-          gyroBox.style.opacity = gyro.checked ? '1' : '0.45';
-          gyroBox.style.pointerEvents = gyro.checked ? 'auto' : 'none';
+        if (gyroSens && gyro) {
+          const on = gyro.checked;
+          gyroSens.disabled = !on;
+          gyroSens.style.opacity = on ? '1' : '0.35';
+          document.getElementById('sm-gyro-sens-v').style.opacity = on ? '1' : '0.35';
         }
       };
       more.addEventListener('click', () => {

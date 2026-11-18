@@ -1237,22 +1237,18 @@
         <input type="range" class="big" id="sens" min="0.2" max="3" step="0.05" value="1">
         <small>How far the camera turns for a swipe on the screen.</small>
       </div>
+      <div class="ctl-row" id="gyro-row">
+        <div class="lab"><label for="gyro-chk" style="cursor:pointer;user-select:none">Gyroscope sensitivity</label><output id="gyro-sens-val">1.00</output></div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <input type="checkbox" id="gyro-chk" style="width:22px;height:22px;flex:none;accent-color:var(--accent);cursor:pointer" title="Enable gyroscope camera">
+          <input type="range" class="big" id="gyro-sens" min="0.2" max="4" step="0.05" value="1" style="flex:1">
+        </div>
+        <small>Tilt or rotate the phone to turn the camera.</small>
+      </div>
       <div class="ctl-row">
         <div class="lab"><span>Button transparency</span><output id="opa-val">100%</output></div>
         <input type="range" class="big" id="opa" min="10" max="100" step="5" value="100">
         <div id="pv"></div>
-      </div>
-      <div class="ctl-row">
-        <label class="lab" style="cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between">
-          <span>Gyroscope camera</span>
-          <input type="checkbox" id="gyro-chk" style="width:20px;height:20px;accent-color:var(--accent);cursor:pointer">
-        </label>
-        <small>Tilt or rotate the phone to turn the camera.</small>
-      </div>
-      <div class="ctl-row" id="gyro-sens-row">
-        <div class="lab"><span>Gyroscope sensitivity</span><output id="gyro-sens-val">1.00</output></div>
-        <input type="range" class="big" id="gyro-sens" min="0.2" max="4" step="0.05" value="1">
-        <small>Camera rotation speed when tilting the phone.</small>
       </div>
     </div>
     <div class="card">
@@ -2348,7 +2344,7 @@
     if (!ctl.items) ctl.items = {};
     const saveCtl = () => { try { Launcher.setControls(JSON.stringify(ctl)); } catch (e) {} };
     const sensEl = $('sens'), opaEl = $('opa');
-    const gyroChk = $('gyro-chk'), gyroSensEl = $('gyro-sens'), gyroSensRow = $('gyro-sens-row');
+    const gyroChk = $('gyro-chk'), gyroSensEl = $('gyro-sens');
     const svgOf = n => '<svg viewBox="0 0 24 24">' + ICONS[n] + '</svg>';
     // the picture of the current layout (the same one the editor shows), drawn again after every change
     // the counters the game shows: the day (plugin ScreenInfo, kept in the controls' config), the FPS (a flag of the page, may be unreachable here)
@@ -2360,9 +2356,11 @@
       $('sens-val').textContent = (+sensEl.value).toFixed(2);
       $('opa-val').textContent = opaEl.value + '%';
       if (gyroSensEl) $('gyro-sens-val').textContent = (+gyroSensEl.value).toFixed(2);
-      if (gyroSensRow && gyroChk) {
-        gyroSensRow.style.opacity = gyroChk.checked ? '1' : '0.45';
-        gyroSensRow.style.pointerEvents = gyroChk.checked ? 'auto' : 'none';
+      if (gyroSensEl && gyroChk) {
+        const on = gyroChk.checked;
+        gyroSensEl.disabled = !on;
+        gyroSensEl.style.opacity = on ? '1' : '0.35';
+        $('gyro-sens-val').style.opacity = on ? '1' : '0.35';
       }
       drawPv();
     }
