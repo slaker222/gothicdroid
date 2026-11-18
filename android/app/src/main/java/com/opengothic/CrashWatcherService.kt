@@ -57,10 +57,17 @@ class CrashWatcherService : Service() {
         }
 
         Log.w(TAG, "Launching CrashActivity due to crash: $crashReason")
+        // 1. Ensure MainActivity (launcher) is active in background
+        val mainIntent = Intent(this, MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        startActivity(mainIntent)
+
+        // 2. Open CrashActivity dialog on top of launcher
         val crashIntent = Intent(this, CrashActivity::class.java).apply {
             putExtra(CrashActivity.EXTRA_GAME_DIR, dir)
             putExtra(CrashActivity.EXTRA_CRASH_SOURCE, crashReason)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         startActivity(crashIntent)
     }

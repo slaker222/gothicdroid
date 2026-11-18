@@ -46,13 +46,11 @@
         <activity
             android:name=".CrashActivity"
             android:process=":crash"
-            android:taskAffinity="com.gothic.droid.crash"
-            android:launchMode="singleTask"
             android:exported="true"
             android:screenOrientation="sensorLandscape"
             android:resizeableActivity="false"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
-            android:theme="@style/Theme.OpenGothic.Fullscreen" />
+            android:theme="@style/Theme.OpenGothic.Dialog" />
 
         <service
             android:name=".CrashWatcherService"

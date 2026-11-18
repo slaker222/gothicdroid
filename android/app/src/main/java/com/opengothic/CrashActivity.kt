@@ -6,9 +6,12 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Outline
 import android.graphics.Typeface
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
+import android.os.Build
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextUtils
@@ -17,6 +20,8 @@ import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewOutlineProvider
+import android.view.WindowManager
 import android.widget.*
 import java.io.File
 import java.text.SimpleDateFormat
@@ -47,6 +52,10 @@ class CrashActivity : Activity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        window.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+        window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+        window.setDimAmount(0.60f)
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
         crashSource = intent.getStringExtra(EXTRA_CRASH_SOURCE) ?: "Unknown Crash"
@@ -80,7 +89,7 @@ class CrashActivity : Activity() {
             typeface = Typeface.SANS_SERIF
             minHeight = 0
             minimumHeight = dp(32)
-            setPadding(dp(12), 0, dp(12), 0)
+            setPadding(dp(10), 0, dp(10), 0)
 
             val normal = GradientDrawable().apply {
                 setColor(Color.parseColor("#2a2a30"))
@@ -135,18 +144,33 @@ class CrashActivity : Activity() {
     }
 
     private fun buildUi(): View {
-        val root = LinearLayout(this).apply {
+        val root = FrameLayout(this).apply {
+            setBackgroundColor(Color.TRANSPARENT)
+            setOnClickListener { closeToLauncher() }
+        }
+
+        val dm = resources.displayMetrics
+        val dialogW = (dm.widthPixels * 0.86f).toInt()
+        val dialogH = (dm.heightPixels * 0.84f).toInt()
+        val cornerRadiusPx = dp(16).toFloat()
+
+        val dialogBox = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.parseColor("#0b0b0d"))
-            fitsSystemWindows = false
-            setOnApplyWindowInsetsListener { _, insets ->
-                setPadding(
-                    insets.systemWindowInsetLeft,
-                    insets.systemWindowInsetTop,
-                    insets.systemWindowInsetRight,
-                    insets.systemWindowInsetBottom
-                )
-                insets
+            isClickable = true
+            val bg = GradientDrawable().apply {
+                setColor(Color.parseColor("#0b0b0d"))
+                setStroke(dp(2), Color.parseColor("#444955"))
+                cornerRadius = cornerRadiusPx
+            }
+            background = bg
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                outlineProvider = object : ViewOutlineProvider() {
+                    override fun getOutline(view: View, outline: Outline) {
+                        outline.setRoundRect(0, 0, view.width, view.height, cornerRadiusPx)
+                    }
+                }
+                clipToOutline = true
+                elevation = dp(24).toFloat()
             }
         }
 
@@ -160,16 +184,16 @@ class CrashActivity : Activity() {
         val bar = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(dp(10), dp(6), dp(10), dp(6))
+            setPadding(dp(12), dp(6), dp(16), dp(6))
         }
 
         // Title "Crash Log"
         val tvBarTitle = TextView(this).apply {
             text = "Crash Log"
             setTextColor(Color.parseColor("#eeeeee"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 14f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 13.5f)
             typeface = Typeface.DEFAULT_BOLD
-            setPadding(0, 0, dp(10), 0)
+            setPadding(0, 0, dp(8), 0)
         }
         bar.addView(tvBarTitle)
 
@@ -188,7 +212,7 @@ class CrashActivity : Activity() {
             })
         }
         val spParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(32)).apply {
-            marginEnd = dp(8)
+            marginEnd = dp(6)
         }
         bar.addView(spLogs, spParams)
 
@@ -197,7 +221,7 @@ class CrashActivity : Activity() {
             hint = "Filter"
             setHintTextColor(Color.parseColor("#777777"))
             setTextColor(Color.parseColor("#eeeeee"))
-            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12.5f)
+            setTextSize(TypedValue.COMPLEX_UNIT_SP, 12f)
             typeface = Typeface.SANS_SERIF
             setSingleLine(true)
             minHeight = 0
@@ -216,14 +240,14 @@ class CrashActivity : Activity() {
                 override fun afterTextChanged(s: Editable?) {}
             })
         }
-        val filterParams = LinearLayout.LayoutParams(dp(130), dp(32)).apply {
-            marginEnd = dp(8)
+        val filterParams = LinearLayout.LayoutParams(dp(85), dp(32)).apply {
+            marginEnd = dp(6)
         }
         bar.addView(etFilter, filterParams)
 
         // Buttons
         val btnParams = LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(32)).apply {
-            marginEnd = dp(6)
+            marginEnd = dp(5)
         }
 
         val btnCopy500 = makeButton("Copy 500") { copyLast500Lines() }
@@ -239,13 +263,13 @@ class CrashActivity : Activity() {
         bar.addView(btnClose, LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, dp(32)))
 
         barScroll.addView(bar)
-        root.addView(barScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        dialogBox.addView(barScroll, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Divider below toolbar (1px #333333)
         val div1 = View(this).apply {
             setBackgroundColor(Color.parseColor("#333333"))
         }
-        root.addView(div1, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
+        dialogBox.addView(div1, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
 
         // --- 2. Compact Info Bar ---
         val infoBar = LinearLayout(this).apply {
@@ -265,13 +289,13 @@ class CrashActivity : Activity() {
             ellipsize = TextUtils.TruncateAt.END
         }
         infoBar.addView(tvInfo)
-        root.addView(infoBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+        dialogBox.addView(infoBar, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
 
         // Divider below info bar (1px #222226)
         val div2 = View(this).apply {
             setBackgroundColor(Color.parseColor("#222226"))
         }
-        root.addView(div2, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
+        dialogBox.addView(div2, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
 
         // --- 3. Monospace Log Viewer ---
         svLog = ScrollView(this).apply {
@@ -294,7 +318,12 @@ class CrashActivity : Activity() {
         ).apply {
             weight = 1.0f
         }
-        root.addView(svLog, logParams)
+        dialogBox.addView(svLog, logParams)
+
+        val boxParams = FrameLayout.LayoutParams(dialogW, dialogH).apply {
+            gravity = Gravity.CENTER
+        }
+        root.addView(dialogBox, boxParams)
 
         return root
     }
@@ -306,20 +335,20 @@ class CrashActivity : Activity() {
         // 1. Primary: Detailed session log opengothic_log.txt
         val sessionLog = File(dir, "opengothic_log.txt")
         if (sessionLog.exists() && sessionLog.length() > 0) {
-            logEntries.add(LogEntry("opengothic_log.txt (full log)", sessionLog, false))
+            logEntries.add(LogEntry("opengothic_log.txt (full)", sessionLog, false))
         }
 
         // 2. Current crash stacktrace
         val crashLog = File(dir, "crash.log")
         if (crashLog.exists() && crashLog.length() > 0) {
-            logEntries.add(LogEntry("crash.log (stacktrace only)", crashLog, true))
+            logEntries.add(LogEntry("crash.log (stack)", crashLog, true))
         }
 
         // 3. Historical session logs (opengothic_log_1.txt .. opengothic_log_5.txt)
         for (i in 1..LogManager.MAX_LOGS) {
             val f = File(dir, "opengothic_log_$i.txt")
             if (f.exists() && f.length() > 0) {
-                logEntries.add(LogEntry("opengothic_log_$i.txt (session #$i)", f, false))
+                logEntries.add(LogEntry("opengothic_log_$i.txt (#$i)", f, false))
             }
         }
 
@@ -327,7 +356,7 @@ class CrashActivity : Activity() {
         for (i in 1..LogManager.MAX_LOGS) {
             val f = File(dir, "crash_$i.log")
             if (f.exists() && f.length() > 0) {
-                logEntries.add(LogEntry("crash_$i.log (crash #$i)", f, true))
+                logEntries.add(LogEntry("crash_$i.log (#$i)", f, true))
             }
         }
 
@@ -458,10 +487,6 @@ class CrashActivity : Activity() {
     }
 
     private fun closeToLauncher() {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-        }
-        startActivity(intent)
         finish()
     }
 }
