@@ -24,6 +24,7 @@
 #include <unwind.h>
 #include <dlfcn.h>
 #include <cxxabi.h>
+#include <unistd.h>
 #endif
 
 #if defined(__WINDOWS__)
@@ -119,10 +120,19 @@ void CrashLog::setup() {
   std::set_terminate(terminateHandler);
   }
 
+static char s_gameDir[512] = "";
+
 void CrashLog::setGpu(std::string_view name) {
   if(name.empty())
     return;
   std::strncpy(gpuName,name.data(),sizeof(gpuName)-1);
+  }
+
+void CrashLog::setGameDir(std::string_view dir) {
+  if(!dir.empty()) {
+    std::strncpy(s_gameDir, dir.data(), sizeof(s_gameDir)-1);
+    s_gameDir[sizeof(s_gameDir)-1] = '\0';
+    }
   }
 
 void CrashLog::dumpStack(const char *sig, const char *extGpuLog) {
@@ -150,7 +160,11 @@ void CrashLog::dumpStack(const char *sig, const char *extGpuLog) {
   std::cout << std::endl;
 
 #if defined(__ANDROID__)
-  const char* crashFilePath = "/sdcard/Gothic2/crash.log";
+  char crashFilePath[1024];
+  if(s_gameDir[0] != '\0')
+    std::snprintf(crashFilePath, sizeof(crashFilePath), "%s/crash.log", s_gameDir);
+  else
+    std::snprintf(crashFilePath, sizeof(crashFilePath), "/sdcard/Gothic2/crash.log");
 #else
   const char* crashFilePath = "crash.log";
 #endif
@@ -169,6 +183,30 @@ void CrashLog::dumpStack(const char *sig, const char *extGpuLog) {
   tracebackLinux(fout);
 #endif
   fout.flush();
+
+#if defined(__ANDROID__)
+  // Write crash marker file so MainActivity immediately detects the crash if resumed
+  if(s_gameDir[0] != '\0') {
+    char markerPath[1024];
+    std::snprintf(markerPath, sizeof(markerPath), "%s/crash_marker.txt", s_gameDir);
+    std::ofstream mf(markerPath);
+    if(mf) {
+      mf << "SIGNAL: " << sig << std::endl;
+      mf.flush();
+      }
+    }
+
+  // Attempt to spawn CrashActivity directly
+  pid_t pid = fork();
+  if(pid == 0) {
+    const char* gdir = (s_gameDir[0] != '\0') ? s_gameDir : "/sdcard/Gothic2";
+    execl("/system/bin/am", "am", "start", "-n", "com.gothic.droid/com.opengothic.CrashActivity",
+          "--es", "game_dir", gdir,
+          "--es", "crash_source", sig,
+          (char*)nullptr);
+    _exit(0);
+    }
+#endif
   }
 
 void CrashLog::tracebackStd(std::ostream &out) {

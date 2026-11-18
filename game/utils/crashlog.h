@@ -1,11 +1,13 @@
 #pragma once
 
 #include <ostream>
+#include <string_view>
 
 class CrashLog final {
   public:
     static void setup();
     static void setGpu(std::string_view name);
+    static void setGameDir(std::string_view dir);
 
     static void dumpStack(const char* sig, const char* extGpuLog);
 

@@ -121,6 +121,15 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         hideSystemBars()
 
         gameDir = intent.getStringExtra(EXTRA_GAME_DIR) ?: "/sdcard/Gothic2"
+        try {
+            val gd = File(gameDir)
+            LogManager.rotateLogs(gd)
+            File(gd, "game_running.marker").createNewFile()
+            File(gd, "crash_marker.txt").delete()
+            File(gd, "normal_exit.marker").delete()
+        } catch (e: Exception) {
+            flog("W", "marker/log setup: ${e.message}")
+        }
         nativeSetMod(intent.getStringExtra(EXTRA_MOD) ?: "")
         nativeSetGameVersion(intent.getIntExtra(EXTRA_GAME_VERSION, 0))
         nativeSetSkyDir(intent.getStringExtra(EXTRA_SKY_DIR) ?: "")
@@ -150,12 +159,22 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
                     Log.getStackTraceString(throwable)
             flog("E", crashMsg)
             try {
-                val f = File(filesDir, "last_crash.txt")
-                f.writeText(crashMsg)
-                val sdF = File(gameDir, "crash.log")
-                sdF.writeText(crashMsg)
+                File(filesDir, "last_crash.txt").writeText(crashMsg)
+                File(gameDir, "crash.log").writeText(crashMsg)
+                File(gameDir, "crash_marker.txt").writeText("JAVA: " + throwable.javaClass.simpleName)
             } catch (e: Exception) {
                 flog("E", "Failed to write crash log: ${e.message}")
+            }
+            try {
+                val crashIntent = Intent(this@GameActivity, CrashActivity::class.java).apply {
+                    putExtra(CrashActivity.EXTRA_GAME_DIR, gameDir)
+                    putExtra(CrashActivity.EXTRA_CRASH_SOURCE, "Java Exception: " + throwable.javaClass.simpleName)
+                    putExtra(CrashActivity.EXTRA_CRASH_DETAILS, crashMsg)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                }
+                startActivity(crashIntent)
+            } catch (e: Exception) {
+                flog("E", "Failed to launch CrashActivity: ${e.message}")
             }
             defaultHandler?.uncaughtException(thread, throwable)
         }
@@ -484,6 +503,7 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
             return
         RendererPref.set(this, gl)
         switching = true
+        try { File(gameDir, "game_running.marker").delete() } catch (e: Exception) {}
         Thread {
             var saved = false
             try {
@@ -511,7 +531,12 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     }
 
     private fun leaveGame() {
-        try { File(gameDir, RESUME_MARK).delete() } catch (e: Exception) {}
+        try {
+            File(gameDir, RESUME_MARK).delete()
+            File(gameDir, "game_running.marker").delete()
+            File(gameDir, "crash_marker.txt").delete()
+            File(gameDir, "normal_exit.marker").createNewFile()
+        } catch (e: Exception) {}
         finish()
         Handler(Looper.getMainLooper()).postDelayed({ android.os.Process.killProcess(android.os.Process.myPid()) }, 400)
     }

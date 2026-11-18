@@ -42,6 +42,15 @@
             android:resizeableActivity="false"
             android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
             android:theme="@style/Theme.OpenGothic.Fullscreen" />
+
+        <activity
+            android:name=".CrashActivity"
+            android:process=":crash"
+            android:exported="true"
+            android:screenOrientation="sensorLandscape"
+            android:resizeableActivity="false"
+            android:configChanges="orientation|keyboardHidden|screenSize|screenLayout|density|uiMode"
+            android:theme="@style/Theme.OpenGothic.Fullscreen" />
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

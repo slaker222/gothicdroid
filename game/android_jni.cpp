@@ -182,10 +182,37 @@ void androidAppendLog(const char* rawText) {
 #include <sys/stat.h>
 #include <pthread.h>
 #include <memory>
+#include "utils/crashlog.h"
+
+static void rotateFile(const std::string& baseName, const std::string& ext, int maxCopies = 5) {
+  std::string cur = baseName + ext;
+  struct stat st;
+  if(stat(cur.c_str(), &st) != 0 || st.st_size == 0)
+    return; // Don't rotate empty/missing file
+
+  std::string oldest = baseName + "_" + std::to_string(maxCopies) + ext;
+  std::remove(oldest.c_str());
+
+  for(int i = maxCopies - 1; i >= 1; --i) {
+    std::string src = baseName + "_" + std::to_string(i) + ext;
+    std::string dst = baseName + "_" + std::to_string(i + 1) + ext;
+    std::rename(src.c_str(), dst.c_str());
+    }
+
+  std::string dst1 = baseName + "_1" + ext;
+  std::rename(cur.c_str(), dst1.c_str());
+  }
+
+static void rotateLogs(const std::string& gameDir) {
+  rotateFile(gameDir + "/opengothic_log", ".txt", 5);
+  rotateFile(gameDir + "/crash", ".log", 5);
+  }
 
 static void runGameThread(std::string gameDir) {
   s_gameRunning.store(true);
   opengothic_debug_set_game_dir(gameDir.c_str()); // debug.cfg and logs of this game, not of the first Gothic2 folder
+  CrashLog::setGameDir(gameDir);
+  rotateLogs(gameDir);
   {
     std::lock_guard<std::mutex> lk(s_logMutex);
     if(s_logFile != nullptr) {

@@ -113,7 +113,47 @@ class MainActivity : AppCompatActivity() {
 
     override fun onResume() {
         super.onResume()
+        checkGameCrash()
         webView?.evaluateJavascript("window.onResumed && onResumed()", null)
+    }
+
+    private fun checkGameCrash() {
+        val dir = prefs().getString("last_game_dir", null) ?: detectedGameDir
+        if (dir.isNullOrBlank()) return
+        val gdir = File(dir)
+        val runningMarker = File(gdir, "game_running.marker")
+        val crashMarker = File(gdir, "crash_marker.txt")
+        val resumeMark = File(gdir, "resume.marker")
+        val normalExit = File(gdir, "normal_exit.marker")
+
+        if (normalExit.exists()) {
+            normalExit.delete()
+            runningMarker.delete()
+            return
+        }
+
+        if (resumeMark.exists()) {
+            // autosaved background kill, not an active crash
+            return
+        }
+
+        if (runningMarker.exists() || crashMarker.exists()) {
+            runningMarker.delete()
+            val crashReason = if (crashMarker.exists()) {
+                val reason = try { crashMarker.readText().trim() } catch (e: Exception) { "" }
+                crashMarker.delete()
+                if (reason.isNotBlank()) reason else "Crash Detected"
+            } else {
+                "Game Process Terminated"
+            }
+
+            val intent = Intent(this, CrashActivity::class.java).apply {
+                putExtra(CrashActivity.EXTRA_GAME_DIR, dir)
+                putExtra(CrashActivity.EXTRA_CRASH_SOURCE, crashReason)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            startActivity(intent)
+        }
     }
 
     private fun checkAndRequestStoragePermissions() {
@@ -469,7 +509,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun launchMod(m: ModInfo) {
         // the settings of the page are the ones of the game the mod belongs to
-        prefs().edit().putInt("sel", m.game).apply()
+        prefs().edit().putInt("sel", m.game).putString("last_game_dir", m.dir.path).apply()
         detectedGameDir = m.dir.path
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
@@ -481,8 +521,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun launchGame(id: Int = selectedGame()) {
-        prefs().edit().putInt("sel", id).apply()
         detectedGameDir = findGameDirectory()
+        prefs().edit().putInt("sel", id).putString("last_game_dir", detectedGameDir).apply()
         val intent = Intent(this, GameActivity::class.java).apply {
             putExtra(GameActivity.EXTRA_GAME_DIR, detectedGameDir)
             skyPackDir()?.let { putExtra(GameActivity.EXTRA_SKY_DIR, it) }
