@@ -65,6 +65,39 @@
     .upd-bar { height: 6px; border-radius: 3px; background: var(--line); overflow: hidden; margin: 8px 0; }
     .upd-bar i { display: block; height: 100%; width: 0; background: var(--accent); }
     .upd-err { color: #ff8a80; font-size: 13px; margin: 6px 0; }
+    .lang-btn {
+      display: flex; align-items: center; justify-content: space-between;
+      width: 100%; padding: 12px 14px;
+      font: inherit; font-size: 15px; color: var(--text);
+      background: #222; border: 1px solid var(--line); border-radius: 10px;
+      cursor: pointer; -webkit-tap-highlight-color: transparent;
+    }
+    .lang-btn:active { border-color: var(--accent); }
+    .lang-btn .lpb-left { display: flex; align-items: center; gap: 10px; }
+    .lang-btn .lpb-ico { width: 22px; height: 22px; fill: var(--accent); flex: none; }
+    .lang-btn .lpb-right { display: flex; align-items: center; gap: 6px; color: var(--accent); }
+    .lang-btn .lpb-right b { font-weight: 600; font-size: 14px; }
+    .lang-btn .lpb-arr { width: 18px; height: 18px; fill: var(--dim); flex: none; }
+    .lang-sheet-list { display: flex; flex-direction: column; gap: 8px; }
+    .lang-sheet-opt {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #222; border: 1px solid var(--line); border-radius: 10px;
+      padding: 14px 16px; font: inherit; font-size: 15px; color: var(--text);
+      cursor: pointer; text-align: left; -webkit-tap-highlight-color: transparent;
+    }
+    .lang-sheet-opt:active { border-color: var(--accent); }
+    .lang-sheet-opt.sel {
+      border-color: var(--accent);
+      color: var(--accent);
+      background: rgba(255, 212, 0, 0.08);
+      font-weight: 600;
+    }
+    .lang-sheet-opt .lso-chk {
+      width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+    }
+    .lang-sheet-opt.sel .lso-chk::after {
+      content: '✓'; font-weight: bold; font-size: 16px; color: var(--accent);
+    }
     /* the Vulkan driver row of the settings window and its repository list */
     #settings-panel #drv-row { display: flex; flex-direction: column; align-items: stretch; gap: 8px; padding: 10px 0; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
     #settings-panel #drv-row .drv-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -143,7 +176,7 @@
     .game .btns { display: flex; gap: 8px; flex-wrap: wrap; }
     .game button { font: inherit; font-size: 14px; color: var(--text); background: #222; border: 1px solid var(--line); border-radius: 6px; padding: 9px 14px; cursor: pointer; }
     .game button:active { border-color: var(--accent); }
-    .game button.play { flex: none; width: 68px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; }
+    .game button.play { flex: none; width: 68px; color: #000; background: var(--accent); border-color: var(--accent); font-weight: 600; text-align: center; padding-left: 0; padding-right: 0; }
     .game button.play:disabled { opacity: .35; }
     .game button.play.busy { opacity: 1; color: #fff; border-color: var(--line); padding: 0 2px; line-height: 1.15; white-space: nowrap; }
     .game button.play.busy span { display: block; mix-blend-mode: difference; color: #fff; font-size: 9px; font-weight: 600; }
@@ -154,6 +187,8 @@
     .game button:disabled { opacity: .4; }
     .game button.play, .game button.folder, .game button.dl { box-sizing: border-box; height: 40px; overflow: hidden; }
     .game button.folder, .game button.dl { flex: none; width: 88px; padding-left: 6px; padding-right: 6px; white-space: nowrap; }
+    html[lang="ru"] .game button, .lang-ru .game button { font-size: 12px; }
+    html[lang="ru"] .game button.play, .lang-ru .game button.play { font-size: 12.5px; }
 
     /* Explore: a file manager */
     #tab-explore { gap: 10px; }
@@ -338,18 +373,6 @@
     <div class="card">
       <div class="about-logo"><img id="app-icon" src="img/icon_g2.png" alt=""><div><h2>GothicDroid</h2><small id="ver">Android</small></div></div>
     </div>
-    <div class="card" id="lang-card">
-      <div class="ctl-row" style="padding:0">
-        <div class="lab"><span data-i18n="about_lang">Interface language</span></div>
-        <select id="lang-sel" class="big" style="width:100%;height:38px;background:#18181c;color:#fff;border:1px solid var(--line);border-radius:8px;padding:0 12px;font:inherit;font-size:15px;cursor:pointer">
-          <option value="auto" data-i18n="lang_auto">System default (Auto)</option>
-          <option value="en">English</option>
-          <option value="ru">Русский</option>
-          <option value="pl">Polski</option>
-        </select>
-        <small data-i18n="about_lang_hint">Interface language of the GothicDroid application.</small>
-      </div>
-    </div>
     <div class="card">
       <h2 data-i18n="about_project">The project</h2>
       <p id="about-desc"><b>GothicDroid</b> brings Gothic and Gothic II (and the Chronicles of Myrtana: Archolos mod) to Android phones: a launcher that finds or downloads the games, touch controls with an editable layout, graphics settings and a renderer made for mobile GPUs. It needs the game files of your own copy of the game.</p>
@@ -365,7 +388,20 @@
       <p class="dim" id="upd-line">Checking…</p>
       <div class="upd-bar" id="upd-card-bar" hidden><i></i></div>
       <div class="upd-err" id="upd-card-err" hidden></div>
-      <div class="upd-btns"><button type="button" class="pri" id="upd-card-go" hidden></button><button type="button" id="upd-card-check" data-i18n="about_upd_check">Check for updates</button></div>
+      <div class="upd-btns">
+        <button type="button" class="pri" id="upd-card-go" hidden></button>
+        <button type="button" id="upd-card-check" data-i18n="about_upd_check">Check for updates</button>
+        <button type="button" id="lang-btn" class="lang-btn" onclick="openLangSheet()">
+          <span class="lpb-left">
+            <svg class="lpb-ico" viewBox="0 0 24 24"><path d="M12.87 15.07l-2.54-2.51.03-.03c1.74-1.94 2.98-4.17 3.71-6.53H17V4h-7V2H8v2H1v1.99h11.17C11.5 7.92 10.44 9.75 9 11.35 8.07 10.32 7.3 9.19 6.69 8h-2c.73 1.63 1.73 3.17 2.98 4.56l-5.09 5.02L4 19l5-5 3.11 3.11.76-2.04zM18.5 10h-2L12 22h2l1.12-3h4.75L21 22h2l-4.5-12zm-2.62 7l1.62-4.33L19.12 17h-3.24z"/></svg>
+            <span data-i18n="about_lang">Interface language</span>
+          </span>
+          <span class="lpb-right">
+            <b id="lang-cur-label">English</b>
+            <svg class="lpb-arr" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5z"/></svg>
+          </span>
+        </button>
+      </div>
     </div>
     <div class="card">
       <h2 data-i18n="about_log">Log</h2>
@@ -503,7 +539,72 @@
         preset_ultralow: "Ultra low",
         preset_low: "Low",
         preset_classic: "Classic",
-        preset_ultra: "Ultra"
+        preset_ultra: "Ultra",
+        set_renderer: "Renderer",
+        set_fps_limit: "FPS limit",
+        set_res_scale: "Render resolution",
+        set_screen_sharp: "Screen sharpness",
+        set_tex_quality: "Texture quality",
+        set_shadows: "Shadows",
+        set_draw_dist: "Object draw distance",
+        set_world_dist: "World draw distance",
+        set_skip_anim: "Skip hidden NPC animation",
+        set_water_quality: "Water quality",
+        set_water_physics: "Water physics",
+        set_blood: "Blood",
+        set_water_reflections: "Water reflections",
+        set_ambient_occlusion: "Ambient occlusion",
+        set_fog: "Fog",
+        set_sun: "Sun",
+        set_sunset: "Sunset",
+        set_sky: "Sky",
+        set_barrier: "Barrier",
+        set_barrier_vol: "Barrier volume",
+        set_barrier_zones: "Barrier zones",
+        set_barrier_show: "Show barrier zones",
+        set_detailed_stats: "Detailed stats",
+        set_full_log: "Full log",
+        set_note: "Start the game to change settings.",
+        set_vulkan_drv: "Vulkan driver",
+        btn_import_dots: "Import…",
+        btn_download_dots: "Download…",
+        btn_zone_corner: "Corner",
+        btn_zone_undo: "Undo",
+        btn_zone_clear: "Clear",
+        opt_webgpu: "WebGPU (recommended)",
+        opt_webgl2: "WebGL 2 (low FPS)",
+        opt_auto: "Auto",
+        opt_native: "Native",
+        opt_sharp_high: "High (2x)",
+        opt_sharp_med: "Medium (1.5x)",
+        opt_sharp_low: "Low (1x)",
+        opt_high: "High",
+        opt_tex_med: "Medium (1/2)",
+        opt_tex_low: "Low (1/4)",
+        opt_tex_lowest: "Lowest (1/8)",
+        opt_low: "Low",
+        opt_shadows_high: "High",
+        opt_shadows_low: "Low",
+        opt_shadows_circles: "Ultra low (circles)",
+        opt_off: "Off",
+        opt_on: "On",
+        opt_unlimited: "Unlimited",
+        opt_dist_far: "Far (150 m)",
+        opt_dist_med: "Medium (80 m)",
+        opt_dist_near: "Near (40 m)",
+        opt_dist_nearest: "Nearest (20 m)",
+        opt_water_ultra: "Ultra high",
+        opt_blood_low: "Low",
+        opt_blood_med: "Medium",
+        opt_blood_high: "High",
+        opt_fog_dense: "Dense",
+        opt_sunset_soft: "Soft",
+        opt_sunset_vivid: "Vivid",
+        opt_sky_game: "As in the game",
+        opt_sky_g2_blue: "Gothic 2 Blue",
+        opt_barrier_classic: "Classic",
+        opt_barrier_constant: "Constant",
+        opt_sys_default: "System (default)"
       },
       ru: {
         nav_main: "Главная",
@@ -587,7 +688,72 @@
         preset_ultralow: "Ультра низкие",
         preset_low: "Низкие",
         preset_classic: "Классика",
-        preset_ultra: "Ультра"
+        preset_ultra: "Ультра",
+        set_renderer: "Рендерер",
+        set_fps_limit: "Лимит кадров",
+        set_res_scale: "Разрешение рендера",
+        set_screen_sharp: "Резкость экрана",
+        set_tex_quality: "Качество текстур",
+        set_shadows: "Тени",
+        set_draw_dist: "Дальность прорисовки объектов",
+        set_world_dist: "Дальность прорисовки мира",
+        set_skip_anim: "Пропуск анимаций скрытых NPC",
+        set_water_quality: "Качество воды",
+        set_water_physics: "Физика воды",
+        set_blood: "Кровь",
+        set_water_reflections: "Отражения в воде",
+        set_ambient_occlusion: "Затенение (SSAO)",
+        set_fog: "Туман",
+        set_sun: "Солнце",
+        set_sunset: "Закат",
+        set_sky: "Небо",
+        set_barrier: "Барьер",
+        set_barrier_vol: "Громкость барьера",
+        set_barrier_zones: "Зоны барьера",
+        set_barrier_show: "Показать зоны барьера",
+        set_detailed_stats: "Подробная статистика",
+        set_full_log: "Полный лог",
+        set_note: "Запустите игру, чтобы изменить настройки.",
+        set_vulkan_drv: "Драйвер Vulkan",
+        btn_import_dots: "Импорт…",
+        btn_download_dots: "Скачать…",
+        btn_zone_corner: "Угол",
+        btn_zone_undo: "Отмена",
+        btn_zone_clear: "Очистить",
+        opt_webgpu: "WebGPU (рекомендуется)",
+        opt_webgl2: "WebGL 2 (низкий FPS)",
+        opt_auto: "Авто",
+        opt_native: "Родное",
+        opt_sharp_high: "Высокая (2x)",
+        opt_sharp_med: "Средняя (1.5x)",
+        opt_sharp_low: "Низкая (1x)",
+        opt_high: "Высокое",
+        opt_tex_med: "Среднее (1/2)",
+        opt_tex_low: "Низкое (1/4)",
+        opt_tex_lowest: "Минимальное (1/8)",
+        opt_low: "Низкое",
+        opt_shadows_high: "Высокие",
+        opt_shadows_low: "Низкие",
+        opt_shadows_circles: "Ультра низкие (круги)",
+        opt_off: "Выкл",
+        opt_on: "Вкл",
+        opt_unlimited: "Без ограничений",
+        opt_dist_far: "Далеко (150 м)",
+        opt_dist_med: "Средне (80 м)",
+        opt_dist_near: "Близко (40 м)",
+        opt_dist_nearest: "Минимум (20 м)",
+        opt_water_ultra: "Ультра высокое",
+        opt_blood_low: "Мало",
+        opt_blood_med: "Средне",
+        opt_blood_high: "Много",
+        opt_fog_dense: "Густой",
+        opt_sunset_soft: "Мягкий",
+        opt_sunset_vivid: "Насыщенный",
+        opt_sky_game: "Как в игре",
+        opt_sky_g2_blue: "Gothic 2 (Синее)",
+        opt_barrier_classic: "Классический",
+        opt_barrier_constant: "Постоянный",
+        opt_sys_default: "Системный (по умолчанию)"
       },
       pl: {
         nav_main: "Główna",
@@ -671,7 +837,72 @@
         preset_ultralow: "Najniższe",
         preset_low: "Niskie",
         preset_classic: "Klasyczne",
-        preset_ultra: "Ultra"
+        preset_ultra: "Ultra",
+        set_renderer: "Renderer",
+        set_fps_limit: "Limit FPS",
+        set_res_scale: "Rozdzielczość renderowania",
+        set_screen_sharp: "Ostrość ekranu",
+        set_tex_quality: "Jakość tekstur",
+        set_shadows: "Cienie",
+        set_draw_dist: "Zasięg rysowania obiektów",
+        set_world_dist: "Zasięg rysowania świata",
+        set_skip_anim: "Pomiń animacje odległych NPC",
+        set_water_quality: "Jakość wody",
+        set_water_physics: "Fizyka wody",
+        set_blood: "Krew",
+        set_water_reflections: "Odbicia na wodzie",
+        set_ambient_occlusion: "Okluzja otoczenia (SSAO)",
+        set_fog: "Mgła",
+        set_sun: "Słońce",
+        set_sunset: "Zachód słońca",
+        set_sky: "Niebo",
+        set_barrier: "Bariera",
+        set_barrier_vol: "Głośność bariery",
+        set_barrier_zones: "Strefy bariery",
+        set_barrier_show: "Pokaż strefy bariery",
+        set_detailed_stats: "Szczegółowe statystyki",
+        set_full_log: "Pełny dziennik",
+        set_note: "Uruchom grę, aby zmienić ustawienia.",
+        set_vulkan_drv: "Sterownik Vulkan",
+        btn_import_dots: "Importuj…",
+        btn_download_dots: "Pobierz…",
+        btn_zone_corner: "Róg",
+        btn_zone_undo: "Cofnij",
+        btn_zone_clear: "Wyczyść",
+        opt_webgpu: "WebGPU (zalecane)",
+        opt_webgl2: "WebGL 2 (niski FPS)",
+        opt_auto: "Auto",
+        opt_native: "Natywna",
+        opt_sharp_high: "Wysoka (2x)",
+        opt_sharp_med: "Średnia (1.5x)",
+        opt_sharp_low: "Niska (1x)",
+        opt_high: "Wysoka",
+        opt_tex_med: "Średnia (1/2)",
+        opt_tex_low: "Niska (1/4)",
+        opt_tex_lowest: "Najniższa (1/8)",
+        opt_low: "Niska",
+        opt_shadows_high: "Wysokie",
+        opt_shadows_low: "Niskie",
+        opt_shadows_circles: "Najniższe (okręgi)",
+        opt_off: "Wył.",
+        opt_on: "Wł.",
+        opt_unlimited: "Bez ograniczeń",
+        opt_dist_far: "Daleki (150 m)",
+        opt_dist_med: "Średni (80 m)",
+        opt_dist_near: "Bliski (40 m)",
+        opt_dist_nearest: "Najbliższy (20 m)",
+        opt_water_ultra: "Bardzo wysoka",
+        opt_blood_low: "Mało",
+        opt_blood_med: "Średnio",
+        opt_blood_high: "Dużo",
+        opt_fog_dense: "Gęsta",
+        opt_sunset_soft: "Delikatny",
+        opt_sunset_vivid: "Wyrazisty",
+        opt_sky_game: "Jak w grze",
+        opt_sky_g2_blue: "Gothic 2 Błękit",
+        opt_barrier_classic: "Klasyczna",
+        opt_barrier_constant: "Ciągła",
+        opt_sys_default: "Systemowy (domyślny)"
       }
     };
 
@@ -751,12 +982,64 @@
         });
       }
 
-      const sel = $('lang-sel');
-      if (sel) sel.value = getSavedLang();
+      const saved = getSavedLang();
+      const curLbl = $('lang-cur-label');
+      if (curLbl) {
+        if (saved === 'auto') curLbl.textContent = t('lang_auto', 'System default (Auto)');
+        else if (saved === 'ru') curLbl.textContent = 'Русский';
+        else if (saved === 'pl') curLbl.textContent = 'Polski';
+        else curLbl.textContent = 'English';
+      }
+
+      const drvName = document.querySelector('.drv-name');
+      if (drvName) drvName.textContent = t('set_vulkan_drv');
+      const drvImp = $('drv-imp');
+      if (drvImp) drvImp.textContent = t('btn_import_dots');
+      const drvDl = $('drv-dl');
+      if (drvDl) drvDl.textContent = t('btn_download_dots');
+      const drvDel = $('drv-del');
+      if (drvDel) drvDel.textContent = t('btn_del');
+
+      document.documentElement.lang = cur;
+      document.body.classList.toggle('lang-ru', cur === 'ru');
 
       exUpdateLang();
       if (typeof refresh === 'function') refresh();
       if (typeof exRender === 'function' && typeof curTab !== 'undefined' && curTab === 'explore') exRender();
+    }
+
+    function openLangSheet() {
+      const sheet = $('sheet'), box = $('sheet-box');
+      const cur = getSavedLang();
+      const langs = [
+        { id: 'auto', nameKey: 'lang_auto', fallback: 'System default (Auto)' },
+        { id: 'en', name: 'English' },
+        { id: 'ru', name: 'Русский' },
+        { id: 'pl', name: 'Polski' }
+      ];
+      box.innerHTML = '<div class="sh-head"><h2 data-i18n="about_lang">' + t('about_lang') + '</h2><p data-i18n="about_lang_hint">' + t('about_lang_hint') + '</p></div>' +
+        '<div class="lang-sheet-list">' +
+          langs.map(l => {
+            const label = l.nameKey ? t(l.nameKey, l.fallback) : l.name;
+            const isSel = (l.id === cur);
+            return '<button type="button" class="lang-sheet-opt' + (isSel ? ' sel' : '') + '" data-lang="' + l.id + '">' +
+              '<span class="lso-title">' + label + '</span>' +
+              '<span class="lso-chk"></span>' +
+            '</button>';
+          }).join('') +
+        '</div>' +
+        '<button type="button" class="sec" id="lang-sheet-cancel">' + t('btn_cancel') + '</button>';
+      sheet.classList.add('open');
+      $('lang-sheet-cancel').addEventListener('click', () => sheet.classList.remove('open'));
+      box.querySelectorAll('.lang-sheet-opt').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const lang = btn.dataset.lang;
+          try { if (typeof Launcher !== 'undefined' && Launcher.setAppLang) Launcher.setAppLang(lang); } catch (e) {}
+          try { localStorage.setItem('gothic_app_lang', lang); } catch (e) {}
+          sheet.classList.remove('open');
+          applyLang();
+        });
+      });
     }
     const PICS = { 1: 'img/g1.png', 2: 'img/g2.png', 3: 'img/myrtana.jpg' };
     const POS = { 1: '25%', 2: '80%', 3: '12%' };
@@ -1148,9 +1431,9 @@
         row.className = 'set-row keep'; row.id = 'drv-row';
         row.title = 'A custom Vulkan driver (Mesa Turnip) instead of the system one. It applies at the next start of the game. ' +
                     'A driver that fails to start is switched back to the system one automatically.';
-        row.innerHTML = '<span class="drv-top"><span class="drv-name">Vulkan driver</span><select id="drv-sel"></select></span>' +
-          '<span class="drv-ctl"><button type="button" id="drv-imp">Import…</button><button type="button" id="drv-dl">Download…</button>' +
-          '<button type="button" id="drv-del">Delete</button></span><span id="drv-msg"></span>';
+        row.innerHTML = '<span class="drv-top"><span class="drv-name" data-i18n="set_vulkan_drv">' + t('set_vulkan_drv') + '</span><select id="drv-sel"></select></span>' +
+          '<span class="drv-ctl"><button type="button" id="drv-imp" data-i18n="btn_import_dots">' + t('btn_import_dots') + '</button><button type="button" id="drv-dl" data-i18n="btn_download_dots">' + t('btn_download_dots') + '</button>' +
+          '<button type="button" id="drv-del" data-i18n="btn_del">' + t('btn_del') + '</button></span><span id="drv-msg"></span>';
         rrow.parentElement.insertBefore(row, rrow);
         const sel = $('drv-sel'), msg = $('drv-msg');
         let st = { supported: false, selected: '', list: [] }, busy = false;
@@ -1158,7 +1441,7 @@
         const paint = () => {
           const gl = $('renderer-sel').value === 'webgl2';
           const off = gl || !st.supported;
-          sel.innerHTML = '<option value="">System (default)</option>' + st.list.map(d =>
+          sel.innerHTML = '<option value="" data-i18n="opt_sys_default">' + t('opt_sys_default') + '</option>' + st.list.map(d =>
             '<option value="' + hesc(d.id) + '">' + hesc(d.name + (d.version ? ' · ' + d.version : '')) + '</option>').join('');
           sel.value = st.list.some(d => d.id === st.selected) ? st.selected : '';
           sel.disabled = $('drv-imp').disabled = $('drv-dl').disabled = off || busy;
@@ -1549,15 +1832,8 @@
 
 
 
-    const langSel = $('lang-sel');
-    if (langSel) {
-      langSel.addEventListener('change', e => {
-        const val = e.target.value;
-        try { if (typeof Launcher !== 'undefined' && Launcher.setAppLang) Launcher.setAppLang(val); } catch (err) {}
-        try { localStorage.setItem('gothic_app_lang', val); } catch (err) {}
-        applyLang();
-      });
-    }
+    const langBtn = $('lang-btn');
+    if (langBtn) langBtn.addEventListener('click', openLangSheet);
 
     window.onResumed = () => { applyLang(); window.refreshDrivers && refreshDrivers(); if (curTab === 'explore' && EX.roots.length) exPoll(); modPoll(); };
     applyLang();

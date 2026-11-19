@@ -405,6 +405,11 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
         @JavascriptInterface
         fun setRenderer(v: String) { flog("page: setRenderer($v)"); runOnUiThread { switchRenderer(v == "webgl2") } }
 
+        @JavascriptInterface
+        fun getAppLang(): String = try {
+            getSharedPreferences("prefs", Context.MODE_PRIVATE).getString("app_lang", "auto") ?: "auto"
+        } catch (e: Exception) { "auto" }
+
         // the layout of the touch controls from the app's Controls tab (written by MainActivity)
         @JavascriptInterface
         fun controls(): String = try { File(filesDir, "controls.json").readText() } catch (e: Exception) { "{}" }
