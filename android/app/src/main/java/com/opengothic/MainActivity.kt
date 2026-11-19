@@ -126,26 +126,18 @@ class MainActivity : AppCompatActivity() {
         val resumeMark = File(gdir, "resume.marker")
         val normalExit = File(gdir, "normal_exit.marker")
 
-        if (normalExit.exists()) {
-            normalExit.delete()
-            runningMarker.delete()
-            return
-        }
+        normalExit.delete()
+        runningMarker.delete()
 
         if (resumeMark.exists()) {
             // autosaved background kill, not an active crash
             return
         }
 
-        if (runningMarker.exists() || crashMarker.exists()) {
-            runningMarker.delete()
-            val crashReason = if (crashMarker.exists()) {
-                val reason = try { crashMarker.readText().trim() } catch (e: Exception) { "" }
-                crashMarker.delete()
-                if (reason.isNotBlank()) reason else "Crash Detected"
-            } else {
-                "Game Process Terminated"
-            }
+        if (crashMarker.exists()) {
+            val reason = try { crashMarker.readText().trim() } catch (e: Exception) { "" }
+            crashMarker.delete()
+            val crashReason = if (reason.isNotBlank()) reason else "Crash Detected"
 
             val intent = Intent(this, CrashActivity::class.java).apply {
                 putExtra(CrashActivity.EXTRA_GAME_DIR, dir)

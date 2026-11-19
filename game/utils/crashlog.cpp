@@ -54,8 +54,10 @@ static void signalHandler(int sig) {
     sname = "SIGABRT";
   else if(sig==SIGFPE)
     sname = "SIGFPE";
-  else if(sig==SIGABRT)
-    sname = "SIGABRT";
+  else if(sig==SIGBUS)
+    sname = "SIGBUS";
+  else if(sig==SIGILL)
+    sname = "SIGILL";
   else {
     std::snprintf(buf,16,"%d",sig);
     sname = buf;
@@ -116,7 +118,8 @@ void CrashLog::setup() {
   std::signal(SIGSEGV, &signalHandler);
   std::signal(SIGABRT, &signalHandler);
   std::signal(SIGFPE,  &signalHandler);
-  std::signal(SIGABRT, &signalHandler);
+  std::signal(SIGBUS,  &signalHandler);
+  std::signal(SIGILL,  &signalHandler);
   std::set_terminate(terminateHandler);
   }
 

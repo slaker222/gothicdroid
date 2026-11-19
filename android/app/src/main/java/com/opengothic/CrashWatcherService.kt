@@ -44,17 +44,21 @@ class CrashWatcherService : Service() {
         if (normalExit.exists() || resumeMark.exists()) {
             Log.i(TAG, "Normal exit or resume detected; no crash window.")
             normalExit.delete()
+            File(gdir, "game_running.marker").delete()
             return
         }
 
         val crashMarker = File(gdir, "crash_marker.txt")
-        val crashReason = if (crashMarker.exists()) {
-            val r = try { crashMarker.readText().trim() } catch (e: Exception) { "" }
-            crashMarker.delete()
-            if (r.isNotBlank()) r else "Game Process Crashed"
-        } else {
-            "Fatal Signal / Process Terminated"
+        if (!crashMarker.exists()) {
+            Log.i(TAG, "Process died without crash marker (user closed / killed by OS). No crash window.")
+            File(gdir, "game_running.marker").delete()
+            return
         }
+
+        val r = try { crashMarker.readText().trim() } catch (e: Exception) { "" }
+        crashMarker.delete()
+        File(gdir, "game_running.marker").delete()
+        val crashReason = if (r.isNotBlank()) r else "Game Process Crashed"
 
         Log.w(TAG, "Launching CrashActivity due to crash: $crashReason")
         // 1. Ensure MainActivity (launcher) is active in background

@@ -608,6 +608,12 @@ class GameActivity : AppCompatActivity(), SurfaceHolder.Callback {
     override fun onDestroy() {
         flog("GameActivity onDestroy: finishing=$isFinishing")
         stopGyro()
+        if (isFinishing) {
+            try {
+                File(gameDir, "game_running.marker").delete()
+                File(gameDir, "normal_exit.marker").createNewFile()
+            } catch (e: Exception) {}
+        }
         try { unbindService(crashWatcherConn) } catch (e: Exception) {}
         super.onDestroy()
     }
