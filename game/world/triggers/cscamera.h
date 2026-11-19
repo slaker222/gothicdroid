@@ -12,6 +12,7 @@ class CsCamera : public AbstractTrigger {
     CsCamera(Vob* parent, World& world, const zenkit::VCutsceneCamera& data, Flags flags);
 
     bool isPlayerMovable() const;
+    void untrigger();
 
     void debugDraw(DbgPainter& p) const;
     static bool dbgDraw; // the debug drawing of the camera splines

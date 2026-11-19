@@ -192,6 +192,7 @@ class MainWindow : public Tempest::Window {
     RuntimeMode               runtimeMode = R_Normal;
 
     Tempest::Widget*          uiKeyUp=nullptr;
+    bool                      cutsceneSkipped=false;
     Tempest::Point            dMouse;
 #if defined(__EMSCRIPTEN__)
     Tempest::Point        lastMouse;

@@ -22,6 +22,7 @@
 #include "utils/mouseutil.h"
 #include "utils/string_frm.h"
 #include "world/triggers/abstracttrigger.h"
+#include "world/triggers/cscamera.h"
 #include "world/objects/npc.h"
 #include "world/objects/item.h"
 #include "world/world.h"
@@ -993,7 +994,7 @@ int MainWindow::webUiState() const {
     s |= 1<<4;
     s |= int(inventory.isOpen())<<20;
     }
-  if(auto c = gothic.camera(); c!=nullptr && c->isCutscene())
+  if(auto c = gothic.camera(); c!=nullptr && c->isCutscene() && !dialogs.isActive())
     s |= 1<<7;
   auto pl = gothic.player();
   if(gothic.world()!=nullptr && pl!=nullptr && gothic.isInGame())
@@ -1140,6 +1141,17 @@ void MainWindow::keyDownEvent(KeyEvent &event) {
     }
   uiKeyUp=nullptr;
 
+  if(event.key==Event::K_ESCAPE || event.key==Event::K_Space || event.key==Event::K_Return) {
+    if(auto w = Gothic::inst().world()) {
+      if(auto cs = w->currentCs()) {
+        cs->untrigger();
+        cutsceneSkipped = true;
+        event.accept();
+        return;
+        }
+      }
+    }
+
   auto act = keycodec.tr(event);
   auto mapping = keycodec.mapping(event);
   player.onKeyPressed(act,event.key,mapping);
@@ -1210,6 +1222,12 @@ void MainWindow::keyUpEvent(KeyEvent &event) {
     inventory.keyUpEvent(event);
     if(event.isAccepted())
       return;
+    }
+
+  if(cutsceneSkipped) {
+    cutsceneSkipped = false;
+    event.accept();
+    return;
     }
 
 
@@ -1693,6 +1711,14 @@ void MainWindow::tickCamera(uint64_t dt) {
   if(pcamera==nullptr)
     return;
 
+  if(dialogs.isActive()) {
+    if(auto w = Gothic::inst().world()) {
+      if(auto cs = w->currentCs()) {
+        cs->untrigger();
+        }
+      }
+    }
+
   auto&      camera       = *pcamera;
   const auto ws           = pl!=nullptr ? pl->weaponState() : WeaponState::NoWeapon;
   const bool meleeFocus   = (ws==WeaponState::Fist ||
@@ -1700,7 +1726,7 @@ void MainWindow::tickCamera(uint64_t dt) {
                              ws==WeaponState::W2H);
   auto       pos          = pl!=nullptr ? pl->cameraBone(camera.isFirstPerson()) : Vec3();
 
-  if(!camera.isCutscene() && !camera.isFree()) {
+  if((!camera.isCutscene() || dialogs.isActive()) && !camera.isFree()) {
     const bool fs = SystemApi::isFullscreen(hwnd());
     if(!fs && mouseP[Event::ButtonLeft]) {
       camera.setSpin(camera.spin());
@@ -1731,7 +1757,7 @@ void MainWindow::tickCamera(uint64_t dt) {
 
   if(dt==0)
     return;
-  if(camera.isToggleEnabled() && !camera.isCutscene())
+  if(camera.isToggleEnabled() && (!camera.isCutscene() || dialogs.isActive()))
     camera.setMode(solveCameraMode());
   camera.tick(dt);
   }

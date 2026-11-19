@@ -6123,10 +6123,10 @@ async function installChunks(m) {
         if (st === 0) return 'none';                        // the game is not running yet
         if (st & (1 << 10)) return 'none';                 // loading
         if (st & (1 << 25)) return 'chapter';               // new chapter screen
+        if (st & (1 << 3)) return 'choice';
         if (st & ((1 << 6) | (1 << 7))) return 'cutscene'; // video, cutscene
         if (st & ((1 << 1) | (1 << 5))) return 'menu';     // menu, document
         if (st & (1 << 4)) return 'inv';
-        if (st & (1 << 3)) return 'choice';
         if (st & (1 << 2)) return 'talk';
         if (st & 1) return 'world';
         return 'menu';

@@ -371,7 +371,7 @@ bool TouchInput::onTouch(int action, float x, float y, int pointerId) {
                 Gothic::inst().checkLoading() == Gothic::LoadState::Idle;
 
   auto c = Gothic::inst().camera();
-  if(c && c->isCutscene()) {
+  if(c && c->isCutscene() && !Gothic::inst().isInDialog()) {
     releaseAll();
     return false;
   }
@@ -528,7 +528,7 @@ void TouchInput::paintEvent(PaintEvent& e) {
                 Gothic::inst().checkLoading() == Gothic::LoadState::Idle;
 
   auto c = Gothic::inst().camera();
-  if(c && c->isCutscene())
+  if(c && c->isCutscene() && !Gothic::inst().isInDialog())
     return;
 
   Painter p(e);

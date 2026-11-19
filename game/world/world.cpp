@@ -661,6 +661,8 @@ CsCamera* World::currentCs() const {
   }
 
 bool World::isCutsceneLock() const {
+  if(Gothic::inst().isInDialog())
+    return false;
   if(auto cs = wobj.currentCs())
     return !cs->isPlayerMovable();
   return false;

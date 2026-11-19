@@ -193,11 +193,20 @@ void CsCamera::onUntrigger(const TriggerEvent& evt) {
     Gothic::inst().onBenchmarkFinished();
   }
 
+void CsCamera::untrigger() {
+  TriggerEvent e("","",TriggerEvent::T_Untrigger);
+  onUntrigger(e);
+  }
+
 void CsCamera::tick(uint64_t /*dt*/) {
+  if(world.gameSession().isInDialog()) {
+    untrigger();
+    return;
+    }
+
   const uint64_t time = world.tickCount() - timeTrigger;
-  if(time>duration+delay && (autoUntrigger || vobName=="TIMEDEMO")) {
-    TriggerEvent e("","",TriggerEvent::T_Untrigger);
-    onUntrigger(e);
+  if(time>duration+delay) {
+    untrigger();
     return;
     }
 
