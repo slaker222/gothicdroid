@@ -538,6 +538,51 @@ Focus World::validateFocus(const Focus &def) {
   return ret;
   }
 
+Interactive* World::validateInteractive(Interactive* def) {
+  return wobj.validateInteractive(def);
+  }
+
+static bool containsIgnoreCase(std::string_view str, std::string_view sub) {
+  if(sub.empty())
+    return true;
+  if(str.size() < sub.size())
+    return false;
+  auto it = std::search(
+    str.begin(), str.end(),
+    sub.begin(), sub.end(),
+    [](char ch1, char ch2) { return std::tolower(static_cast<unsigned char>(ch1)) == std::tolower(static_cast<unsigned char>(ch2)); }
+    );
+  return it != str.end();
+  }
+
+bool World::isLockSpell(const Item* weapon) const {
+  if(weapon == nullptr || !weapon->isSpellOrRune())
+    return false;
+
+  auto* sym = game.script()->findSymbol(weapon->clsId());
+  if(sym != nullptr) {
+    auto name = sym->name();
+    if(containsIgnoreCase(name, "picklock") ||
+       containsIgnoreCase(name, "lockpick") ||
+       containsIgnoreCase(name, "openlock") ||
+       containsIgnoreCase(name, "unlock"))
+      return true;
+    }
+
+  int32_t splId = weapon->spellId();
+  if(splId >= 0) {
+    auto tag = game.script()->spellTag(splId);
+    if(!tag.empty() && (
+       containsIgnoreCase(tag, "picklock") ||
+       containsIgnoreCase(tag, "lockpick") ||
+       containsIgnoreCase(tag, "openlock") ||
+       containsIgnoreCase(tag, "unlock")))
+      return true;
+    }
+
+  return false;
+  }
+
 Focus World::findFocus(const Npc &pl, const Focus& def) {
   auto  opt      = WorldObjects::NoFlg;
   auto  collAlgo = TARGET_COLLECT_FOCUS;
@@ -555,6 +600,52 @@ Focus World::findFocus(const Npc &pl, const Focus& def) {
   if(ws==WeaponState::Bow || ws==WeaponState::CBow) {
     optMob.flags = WorldObjects::SearchFlg(WorldObjects::FcOverride | WorldObjects::NoRay);
     inter = wobj.findInteractive(pl,def.interactive,optMob);
+    }
+  else if(ws==WeaponState::Mage) {
+    auto activeWeapon = pl.inventory().activeWeapon();
+    const bool isLock = isLockSpell(activeWeapon);
+    if(isLock || bool(collType & TARGET_TYPE_ALL)) {
+      auto& norm = script().focusNorm();
+      float rMax = norm.mob_range2;
+      float azi  = norm.mob_azi;
+      if(activeWeapon != nullptr && activeWeapon->spellId() >= 0) {
+        auto& spl = script().spellDesc(activeWeapon->spellId());
+        if(spl.target_collect_range > 0)
+          rMax = float(spl.target_collect_range);
+        if(spl.target_collect_azi > 0)
+          azi = float(spl.target_collect_azi);
+        }
+      if(isLock) {
+        rMax = std::max(rMax, 1000.f);
+        azi  = std::max(azi, 40.f);
+        } else {
+        rMax = std::max(rMax, norm.mob_range2);
+        }
+      optMob = WorldObjects::SearchOpt(0.f, rMax, azi, collAlgo);
+      inter = wobj.findInteractive(pl, def.interactive, optMob);
+      if(isLock) {
+        if(inter && !inter->isContainer() && !inter->isDoor())
+          inter = nullptr;
+        if(inter != nullptr) {
+          n  = nullptr;
+          it = nullptr;
+          }
+        }
+      }
+    if(bool(collType & TARGET_TYPE_ITEMS)) {
+      auto& norm = script().focusNorm();
+      float rMax = norm.item_range2 > 0 ? norm.item_range2 : 2500.f;
+      float azi  = norm.item_azi > 0 ? norm.item_azi : 30.f;
+      if(activeWeapon != nullptr && activeWeapon->spellId() >= 0) {
+        auto& spl = script().spellDesc(activeWeapon->spellId());
+        if(spl.target_collect_range > 0)
+          rMax = float(spl.target_collect_range);
+        if(spl.target_collect_azi > 0)
+          azi = float(spl.target_collect_azi);
+        }
+      optItm = WorldObjects::SearchOpt(0.f, rMax, azi, collAlgo, collType);
+      it = wobj.findItem(pl, def.item, optItm);
+      }
     }
 
   if(policy.npc_prio>=policy.item_prio &&
@@ -763,7 +854,7 @@ size_t World::hasItems(std::string_view tag, size_t itemCls) {
   return wobj.hasItems(tag,itemCls);
   }
 
-Bullet& World::shootSpell(const Item &itm, const Npc &npc, const Npc *target) {
+Bullet& World::shootSpell(const Item &itm, const Npc &npc, const Npc *target, const Interactive *inter) {
   Tempest::Vec3   dir     = {1.f,0.f,0.f};
   auto            pos     = npc.position();
   const VisualFx* vfx     = script().spellVfx(itm.spellId());
@@ -774,6 +865,12 @@ Bullet& World::shootSpell(const Item &itm, const Npc &npc, const Npc *target) {
     if(vfx!=nullptr) {
       pos   = npc.mapBone(vfx->emTrjOriginNode);
       tgPos = target->mapBone(vfx->emTrjTargetNode);
+      }
+    dir = tgPos-pos;
+    } else if(inter!=nullptr) {
+    auto tgPos = inter->position();
+    if(vfx!=nullptr) {
+      pos = npc.mapBone(vfx->emTrjOriginNode);
       }
     dir = tgPos-pos;
     } else {

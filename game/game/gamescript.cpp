@@ -953,6 +953,12 @@ const VisualFx* GameScript::spellVfx(int32_t splId) {
   return Gothic::inst().loadVisualFx(name);
   }
 
+std::string_view GameScript::spellTag(int32_t splId) const {
+  if(spellFxInstanceNames==nullptr || splId < 0 || size_t(splId) >= spellFxInstanceNames->count())
+    return "";
+  return spellFxInstanceNames->get_string(uint16_t(splId));
+  }
+
 std::vector<GameScript::DlgChoice> GameScript::dialogChoices(std::shared_ptr<zenkit::INpc> player,
                                                              std::shared_ptr<zenkit::INpc> hnpc,
                                                              const std::vector<uint32_t>& except,

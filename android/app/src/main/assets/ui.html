@@ -6474,7 +6474,7 @@ async function installChunks(m) {
         // the action button says what it will do now; with nothing in focus and
         // no weapon out there is nothing to do and it stays hidden
         let act = 'action';
-        if (drawn && (focus === 1 || focus === 0)) act = weapon === 1 ? 'fist' : weapon >= 4 && weapon <= 5 ? 'arrow' : weapon === 6 ? 'orb' : 'strike';
+        if (drawn && (focus === 1 || focus === 0 || (weapon === 6 && focus === 4))) act = weapon === 1 ? 'fist' : weapon >= 4 && weapon <= 5 ? 'arrow' : weapon === 6 ? 'orb' : 'strike';
         else if (focus === 1) act = hostile ? 'attack' : canTalk ? 'talk' : 'action'; // a beast that does not fight: nothing to do
         else if (focus === 2) act = 'loot';
         else if (focus === 3) act = 'take';

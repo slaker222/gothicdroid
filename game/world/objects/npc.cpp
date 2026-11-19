@@ -3057,11 +3057,24 @@ void Npc::commitSpell() {
   if(active==nullptr || !active->isSpellOrRune())
     return;
 
+  if(castTargetInteractive != nullptr)
+    castTargetInteractive = owner.validateInteractive(castTargetInteractive);
+
   const int32_t splId = active->spellId();
   const auto&   spl   = owner.script().spellDesc(splId);
 
   if(owner.version().game==2)
     owner.script().invokeSpell(*this,currentTarget,*active);
+
+  if(castTargetInteractive != nullptr && owner.isLockSpell(active)) {
+    if(!castTargetInteractive->pickLockCode().empty()) {
+      castTargetInteractive->setAsCracked(true);
+      owner.script().invokePickLock(*this, 1, 1);
+      castTargetInteractive->emitSoundEffect("DRA_LOCKS_CLICK", 500, true);
+      } else if(castTargetInteractive->hasKey()) {
+      owner.script().printMobMissingKey(*this);
+      }
+    }
 
   if(active->isSpellShoot()) {
     const int lvl = (castLevel-CS_Emit_0)+1;
@@ -3071,7 +3084,7 @@ void Npc::commitSpell() {
         dmg[i] = spl.damage_per_level*lvl;
         }
 
-    auto& b = owner.shootSpell(*active, *this, currentTarget);
+    auto& b = owner.shootSpell(*active, *this, currentTarget, castTargetInteractive);
     b.setDamage(dmg);
     b.setOrigin(this);
     b.setTarget(nullptr);
@@ -3086,6 +3099,13 @@ void Npc::commitSpell() {
       e.setSpellId(splId,owner);
       e.setActive(true);
       visual.startEffect(owner,std::move(e),0,true);
+
+      if(castTargetInteractive!=nullptr) {
+        auto eTarget = Effect(*vfx,owner,castTargetInteractive->displayPosition(),SpellFxKey::Cast);
+        eTarget.setSpellId(splId,owner);
+        eTarget.setActive(true);
+        owner.runEffect(std::move(eTarget));
+        }
       }
     visual.setMagicWeaponKey(owner,SpellFxKey::Init);
     if(currentTarget!=nullptr) {
@@ -3123,6 +3143,7 @@ void Npc::commitSpell() {
     spellInfo  = 0;
     hnpc->level = transformSpl->hnpc->level;
     }
+  castTargetInteractive = nullptr;
   }
 
 const Npc::Routine& Npc::currentRoutine(bool assertWp) const {
@@ -3582,6 +3603,7 @@ bool Npc::closeWeapon(bool noAnim) {
   castLevel        = CS_NoCast;
   currentSpellCast = size_t(-1);
   castNextTime     = 0;
+  castTargetInteractive = nullptr;
   if(isPlayer())
     owner.sendPassivePerc(*this,*this,PERC_ASSESSREMOVEWEAPON);
   return true;
@@ -3788,7 +3810,7 @@ bool Npc::blockSword() {
   // return setAnimAngGet(Anim::AttackBlock,calcAniComb())!=nullptr;
   }
 
-Npc::BeginCastResult Npc::beginCastSpell() {
+Npc::BeginCastResult Npc::beginCastSpell(Interactive* focOverride) {
   if(castLevel!=CS_NoCast)
     return BeginCastResult::BC_No;
 
@@ -3805,10 +3827,53 @@ Npc::BeginCastResult Npc::beginCastSpell() {
     }
 
   // castLevel        = CS_Invest_0;
+  castTargetInteractive = focOverride;
   currentSpellCast = active->clsId();
   castNextTime     = owner.tickCount();
   hnpc->aivar[88]  = 0; // HACK: clear AIV_SpellLevel
   manaInvested     = 0;
+
+  if(owner.isLockSpell(active)) {
+    bool canUnlock = false;
+    if(castTargetInteractive != nullptr &&
+       (castTargetInteractive->isContainer() || castTargetInteractive->isDoor())) {
+      if(!castTargetInteractive->isCracked() && !castTargetInteractive->pickLockCode().empty()) {
+        canUnlock = true;
+        }
+      }
+
+    if(!canUnlock) {
+      if(castTargetInteractive != nullptr && castTargetInteractive->hasKey() && castTargetInteractive->pickLockCode().empty()) {
+        owner.script().printMobMissingKey(*this);
+        }
+      setAnim(Anim::MagNoMana);
+      castLevel             = CS_NoCast;
+      currentSpellCast      = size_t(-1);
+      castNextTime          = 0;
+      castTargetInteractive = nullptr;
+      return BeginCastResult::BC_NoMana;
+      }
+
+    int32_t manaCost = 5;
+    if(active->spellId() >= 0) {
+      const auto& spl = owner.script().spellDesc(active->spellId());
+      if(spl.damage_per_level > 0)
+        manaCost = spl.damage_per_level;
+      }
+
+    if(attribute(ATR_MANA) < manaCost) {
+      setAnim(Anim::MagNoMana);
+      castLevel             = CS_NoCast;
+      currentSpellCast      = size_t(-1);
+      castNextTime          = 0;
+      castTargetInteractive = nullptr;
+      return BeginCastResult::BC_NoMana;
+      }
+
+    changeAttribute(ATR_MANA, -manaCost, false);
+    castLevel = CS_Cast_0;
+    return BeginCastResult::BC_Cast;
+    }
 
   const SpellCode code = SpellCode(owner.script().invokeMana(*this,currentTarget,manaInvested));
   switch(code) {
@@ -3818,6 +3883,7 @@ Npc::BeginCastResult Npc::beginCastSpell() {
       castLevel        = CS_NoCast;
       currentSpellCast = size_t(-1);
       castNextTime     = 0;
+      castTargetInteractive = nullptr;
       return BeginCastResult::BC_NoMana;
     case SPL_STATUS_CANINVEST_NO_MANADEC:
     case SPL_RECEIVEINVEST:
@@ -3854,6 +3920,7 @@ bool Npc::tickCast(uint64_t dt) {
       castLevel        = CS_NoCast;
       currentSpellCast = size_t(-1);
       castNextTime     = 0;
+      castTargetInteractive = nullptr;
       return true;
       }
 
@@ -3867,9 +3934,16 @@ bool Npc::tickCast(uint64_t dt) {
     if(active!=nullptr) {
       auto ani = owner.script().spellCastAnim(*this,*active);
       bool g2  = owner.version().game==2;
-      if(g2 || visual.isAnimExist(string_frm("T_MAGRUN_2_",ani,"CAST")))
-        if(!visual.startAnimSpell(*this,ani,false))
-          return true;
+      if(g2 || visual.isAnimExist(string_frm("T_MAGRUN_2_",ani,"CAST"))) {
+        if(!visual.startAnimSpell(*this,ani,false)) {
+          if(!visual.isAnimExist(string_frm("T_MAGRUN_2_",ani,"SHOOT")) &&
+             !visual.isAnimExist(string_frm("S_",ani,"SHOOT"))) {
+            visual.startAnimSpell(*this,"FIB",false);
+            } else {
+            return true;
+            }
+          }
+        }
       }
     castLevel    = CastState(int(castLevel) + int(CS_Emit_0) - int(CS_Cast_0));
     castNextTime = 0;
@@ -3886,6 +3960,7 @@ bool Npc::tickCast(uint64_t dt) {
     currentSpellCast = size_t(-1);
     castNextTime     = 0;
     spellInfo        = 0;
+    castTargetInteractive = nullptr;
     return false;
     }
 

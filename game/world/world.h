@@ -127,9 +127,11 @@ class World final {
     gtime                time() const;
 
     Focus                validateFocus(const Focus& def);
+    Interactive*         validateInteractive(Interactive* def);
     Focus                findFocus(const Npc& pl, const Focus &def);
     Focus                findFocus(const Focus& def);
     bool                 testFocusNpc(Npc *def);
+    bool                 isLockSpell(const Item* weapon) const;
 
     void                 triggerOnStart(bool firstTime);
     void                 triggerEvent(const TriggerEvent& e);
@@ -174,7 +176,7 @@ class World final {
     size_t               hasItems(std::string_view tag, size_t itemCls);
 
     Bullet&              shootBullet(const Item &itmId, const Npc& npc, const Npc* target, const Interactive* inter);
-    Bullet&              shootSpell(const Item &itm, const Npc &npc, const Npc *target);
+    Bullet&              shootSpell(const Item &itm, const Npc &npc, const Npc *target, const Interactive *inter = nullptr);
 
     void                 sendPassivePerc  (Npc& self, Npc& other, int32_t perc);
     void                 sendPassivePerc  (Npc& self, Npc& other, Npc& victim, int32_t perc);

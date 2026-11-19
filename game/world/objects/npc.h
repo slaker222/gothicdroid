@@ -274,7 +274,7 @@ class Npc final {
     bool      swingSwordL();
     bool      swingSwordR();
     bool      blockSword();
-    auto      beginCastSpell() -> BeginCastResult;
+    auto      beginCastSpell(Interactive* focOverride = nullptr) -> BeginCastResult;
     void      endCastSpell(bool playerCtrl = false);
     void      setActiveSpellInfo(int32_t info);
     int32_t   activeSpellLevel() const;
@@ -609,6 +609,7 @@ class Npc final {
     size_t                         currentSpellCast = size_t(-1);
     uint64_t                       castNextTime     = 0;
     int32_t                        spellInfo        = 0;
+    Interactive*                   castTargetInteractive = nullptr;
 
     // transform-backshape
     struct TransformBack;
