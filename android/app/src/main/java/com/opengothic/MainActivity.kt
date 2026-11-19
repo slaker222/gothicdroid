@@ -784,6 +784,29 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        @JavascriptInterface
+        fun systemLang(): String {
+            val loc = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                resources.configuration.locales[0]
+            } else {
+                @Suppress("DEPRECATION")
+                resources.configuration.locale
+            }
+            return loc?.language?.lowercase() ?: "en"
+        }
+
+        @JavascriptInterface
+        fun getAppLang(): String = try {
+            getSharedPreferences("prefs", Context.MODE_PRIVATE).getString("app_lang", "auto") ?: "auto"
+        } catch (e: Exception) { "auto" }
+
+        @JavascriptInterface
+        fun setAppLang(lang: String) {
+            try {
+                getSharedPreferences("prefs", Context.MODE_PRIVATE).edit().putString("app_lang", lang).apply()
+            } catch (e: Exception) { Log.e(TAG, "setAppLang: ${e.message}") }
+        }
+
         // the icon of the app as a png data url (the About page)
         @JavascriptInterface
         fun appIcon(): String = try {

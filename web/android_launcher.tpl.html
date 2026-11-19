@@ -283,8 +283,8 @@
     <div class="topbar">
       <h1>GothicDroid</h1>
       <div class="support">
-        <button type="button" class="donate" onclick="openDonate()"><svg class="dn-gift" viewBox="0 0 24 24" style="fill:none;stroke:currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13M12 8C10 8 7.5 7.3 7.5 5.4 7.5 3.5 10.6 3.6 12 8zM12 8c2 0 4.5-.7 4.5-2.6 0-1.9-3.1-1.8-4.5 2.6z"/></svg>Donate</button>
-        <button type="button" class="join" onclick="Launcher.openUrl('https://discord.gg/CFnpSBVsbU')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.2.5a18 18 0 0 0-6.4 0L8.6 3a19.8 19.8 0 0 0-4.9 1.4C.6 9-.2 13.5.2 18a19.9 19.9 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14.2 14.2 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.9 19.9 0 0 0 6-3c.5-5.2-.8-9.7-3.5-13.6zM8.5 15.3c-1.200 0-2.100-1.100-2.100-2.400s.9-2.400 2.100-2.400 2.100 1.100 2.100 2.400-.9 2.400-2.100 2.400zm7 0c-1.200 0-2.100-1.100-2.100-2.400s.9-2.400 2.100-2.400 2.100 1.100 2.100 2.400-.9 2.400-2.100 2.400z"/></svg>Join</button>
+        <button type="button" class="donate" onclick="openDonate()"><svg class="dn-gift" viewBox="0 0 24 24" style="fill:none;stroke:currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="8" width="17" height="4" rx="1"/><path d="M5 12v8a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8M12 8v13M12 8C10 8 7.5 7.3 7.5 5.4 7.5 3.5 10.6 3.6 12 8zM12 8c2 0 4.5-.7 4.5-2.6 0-1.9-3.1-1.8-4.5 2.6z"/></svg><span data-i18n="donate">Donate</span></button>
+        <button type="button" class="join" onclick="Launcher.openUrl('https://discord.gg/CFnpSBVsbU')"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.3 4.4A19.8 19.8 0 0 0 15.4 3l-.2.5a18 18 0 0 0-6.4 0L8.6 3a19.8 19.8 0 0 0-4.9 1.4C.6 9-.2 13.5.2 18a19.9 19.9 0 0 0 6 3l1.3-2.1c-.7-.3-1.4-.6-2-1l.5-.4a14.2 14.2 0 0 0 12 0l.5.4c-.6.4-1.3.7-2 1l1.3 2.1a19.9 19.9 0 0 0 6-3c.5-5.2-.8-9.7-3.5-13.6zM8.5 15.3c-1.200 0-2.100-1.100-2.100-2.400s.9-2.400 2.100-2.400 2.100 1.100 2.100 2.400-.9 2.400-2.100 2.400zm7 0c-1.200 0-2.100-1.100-2.100-2.400s.9-2.400 2.100-2.400 2.100 1.100 2.100 2.400-.9 2.400-2.100 2.400z"/></svg><span data-i18n="join">Join</span></button>
       </div>
     </div>
     <div id="mod-prog"><span id="mod-prog-t"></span><button type="button" id="mod-prog-x">Cancel</button></div>
@@ -296,7 +296,7 @@
    </div>
 
    <div class="tab" id="tab-explore">
-    <div class="page-title">Explore</div>
+    <div class="page-title" data-i18n="nav_explore">Explore</div>
     <div class="ex-roots" id="ex-roots"></div>
     <div id="ex-path"></div>
     <div class="ex-bar" id="ex-bar"></div>
@@ -305,70 +305,82 @@
    </div>
 
    <div class="tab" id="tab-controls">
-    <div class="page-title">Controls</div>
+    <div class="page-title" data-i18n="nav_controls">Controls</div>
     <div class="card">
       <div class="ctl-row">
-        <div class="lab"><span>Look sensitivity</span><output id="sens-val">1.00</output></div>
+        <div class="lab"><span data-i18n="ctl_look_sens">Look sensitivity</span><output id="sens-val">1.00</output></div>
         <input type="range" class="big" id="sens" min="0.2" max="3" step="0.05" value="1">
-        <small>How far the camera turns for a swipe on the screen.</small>
+        <small data-i18n="ctl_look_sens_hint">How far the camera turns for a swipe on the screen.</small>
       </div>
       <div class="ctl-row" id="gyro-row">
-        <div class="lab"><label for="gyro-chk" style="cursor:pointer;user-select:none">Gyroscope sensitivity</label><output id="gyro-sens-val">1.00</output></div>
+        <div class="lab"><label for="gyro-chk" data-i18n="ctl_gyro_sens" style="cursor:pointer;user-select:none">Gyroscope sensitivity</label><output id="gyro-sens-val">1.00</output></div>
         <div style="display:flex;align-items:center;gap:12px">
-          <input type="checkbox" id="gyro-chk" style="width:22px;height:22px;flex:none;accent-color:var(--accent);cursor:pointer" title="Enable gyroscope camera">
+          <input type="checkbox" id="gyro-chk" style="width:22px;height:22px;flex:none;accent-color:var(--accent);cursor:pointer" data-i18n-title="ctl_gyro_chk_tip" title="Enable gyroscope camera">
           <input type="range" class="big" id="gyro-sens" min="0.2" max="4" step="0.05" value="1" style="flex:1">
         </div>
-        <small>Tilt or rotate the phone to turn the camera.</small>
+        <small data-i18n="ctl_gyro_hint">Tilt or rotate the phone to turn the camera.</small>
       </div>
       <div class="ctl-row">
-        <div class="lab"><span>Button transparency</span><output id="opa-val">100%</output></div>
+        <div class="lab"><span data-i18n="ctl_btn_opa">Button transparency</span><output id="opa-val">100%</output></div>
         <input type="range" class="big" id="opa" min="10" max="100" step="5" value="100">
         <div id="pv"></div>
       </div>
     </div>
     <div class="card">
-      <h2>On-screen buttons</h2>
-      <p class="hint" style="margin:0 0 12px">Move the buttons on a grid and change their size. The game picture is sideways, so the screen turns.</p>
-      <div class="btn-row"><button class="wide primary" id="ed-open">Edit layout</button><button class="wide" id="ctl-reset">Reset all</button></div>
+      <h2 data-i18n="ctl_onscreen_btns">On-screen buttons</h2>
+      <p class="hint" data-i18n="ctl_onscreen_hint" style="margin:0 0 12px">Move the buttons on a grid and change their size. The game picture is sideways, so the screen turns.</p>
+      <div class="btn-row"><button class="wide primary" id="ed-open" data-i18n="ctl_btn_edit">Edit layout</button><button class="wide" id="ctl-reset" data-i18n="ctl_btn_reset">Reset all</button></div>
     </div>
    </div>
 
    <div class="tab about" id="tab-about">
-    <div class="page-title">About</div>
+    <div class="page-title" data-i18n="nav_about">About</div>
     <div class="card">
       <div class="about-logo"><img id="app-icon" src="img/icon_g2.png" alt=""><div><h2>GothicDroid</h2><small id="ver">Android</small></div></div>
     </div>
+    <div class="card" id="lang-card">
+      <div class="ctl-row" style="padding:0">
+        <div class="lab"><span data-i18n="about_lang">Interface language</span></div>
+        <select id="lang-sel" class="big" style="width:100%;height:38px;background:#18181c;color:#fff;border:1px solid var(--line);border-radius:8px;padding:0 12px;font:inherit;font-size:15px;cursor:pointer">
+          <option value="auto" data-i18n="lang_auto">System default (Auto)</option>
+          <option value="en">English</option>
+          <option value="ru">Русский</option>
+          <option value="pl">Polski</option>
+        </select>
+        <small data-i18n="about_lang_hint">Interface language of the GothicDroid application.</small>
+      </div>
+    </div>
     <div class="card">
-      <h2>The project</h2>
-      <p><b>GothicDroid</b> brings Gothic and Gothic II (and the Chronicles of Myrtana: Archolos mod) to Android phones: a launcher that finds or downloads the games, touch controls with an editable layout, graphics settings and a renderer made for mobile GPUs. It needs the game files of your own copy of the game.</p>
+      <h2 data-i18n="about_project">The project</h2>
+      <p id="about-desc"><b>GothicDroid</b> brings Gothic and Gothic II (and the Chronicles of Myrtana: Archolos mod) to Android phones: a launcher that finds or downloads the games, touch controls with an editable layout, graphics settings and a renderer made for mobile GPUs. It needs the game files of your own copy of the game.</p>
       <button class="link-card main" onclick="Launcher.openUrl('https://github.com/slaker222/gothicdroid')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>GothicDroid on GitHub</b><span>github.com/slaker222/gothicdroid</span></div></button>
     </div>
     <div class="card">
-      <h2>Based on</h2>
-      <p class="dim">GothicDroid is a fork of the open source engine OpenGothic by Try (MIT license).</p>
+      <h2 data-i18n="about_based">Based on</h2>
+      <p class="dim" id="about-based-desc">GothicDroid is a fork of the open source engine OpenGothic by Try (MIT license).</p>
       <button class="link-card" onclick="Launcher.openUrl('https://github.com/Try/OpenGothic')"><svg viewBox="0 0 24 24"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.04-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.55-.29-5.24-1.28-5.24-5.69 0-1.26.45-2.28 1.19-3.09-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.78 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.83 1.19 3.09 0 4.42-2.7 5.4-5.26 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5z"/></svg><div><b>OpenGothic (original project)</b><span>github.com/Try/OpenGothic</span></div></button>
     </div>
     <div class="card" id="upd-card">
-      <h2>Updates</h2>
+      <h2 data-i18n="about_updates">Updates</h2>
       <p class="dim" id="upd-line">Checking…</p>
       <div class="upd-bar" id="upd-card-bar" hidden><i></i></div>
       <div class="upd-err" id="upd-card-err" hidden></div>
-      <div class="upd-btns"><button type="button" class="pri" id="upd-card-go" hidden></button><button type="button" id="upd-card-check">Check for updates</button></div>
+      <div class="upd-btns"><button type="button" class="pri" id="upd-card-go" hidden></button><button type="button" id="upd-card-check" data-i18n="about_upd_check">Check for updates</button></div>
     </div>
     <div class="card">
-      <h2>Log</h2>
-      <div class="row2"><button id="log-show">Show</button><button id="log-copy">Copy</button></div>
+      <h2 data-i18n="about_log">Log</h2>
+      <div class="row2"><button id="log-show" data-i18n="about_log_show">Show</button><button id="log-copy" data-i18n="about_log_copy">Copy</button></div>
       <div id="log"></div>
     </div>
-    <p class="dim" style="font-size:11px;color:var(--dim);text-align:center">Gothic is a trademark of its owners. The game files are not part of this app.</p>
+    <p class="dim" id="about-disclaimer" style="font-size:11px;color:var(--dim);text-align:center">Gothic is a trademark of its owners. The game files are not part of this app.</p>
    </div>
   </div>
 
   <nav id="nav">
-    <button type="button" data-tab="main" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>Main</button>
-    <button type="button" data-tab="explore"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>Explore</button>
-    <button type="button" data-tab="controls"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg>Controls</button>
-    <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg>About</button>
+    <button type="button" data-tab="main" class="on"><svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg><span data-i18n="nav_main">Main</span></button>
+    <button type="button" data-tab="explore"><svg viewBox="0 0 24 24"><path d="M10 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg><span data-i18n="nav_explore">Explore</span></button>
+    <button type="button" data-tab="controls"><svg viewBox="0 0 24 24"><path d="M21 6H3c-1.1 0-2 .9-2 2v8c0 1.1.9 2 2 2h18c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-10 7H8v3H6v-3H3v-2h3V8h2v3h3v2zm4.5 2c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4-3c-.83 0-1.5-.67-1.5-1.5S18.67 9 19.5 9s1.5.67 1.5 1.5-.67 1.5-1.5 1.5z"/></svg><span data-i18n="nav_controls">Controls</span></button>
+    <button type="button" data-tab="about"><svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm1 15h-2v-6h2zm0-8h-2V7h2z"/></svg><span data-i18n="nav_about">About</span></button>
   </nav>
 
   <div id="ex-edit">
@@ -407,6 +419,345 @@
   <script>
     'use strict';
     const $ = id => document.getElementById(id);
+
+    const I18N = {
+      en: {
+        nav_main: "Main",
+        nav_explore: "Explore",
+        nav_controls: "Controls",
+        nav_about: "About",
+        donate: "Donate",
+        join: "Join",
+        btn_play: "Play",
+        btn_folder: "Folder",
+        btn_folder_tip: "Choose the game folder",
+        btn_dl: "Download",
+        btn_dl_tip: "Download from the PC on the local network",
+        btn_mods: "Mods",
+        btn_mods_tip: "Mods of this game",
+        btn_home_tip: "Add to the home screen",
+        btn_del_tip: "Delete the downloaded game",
+        btn_import: "Import",
+        btn_all_mods: "All mods",
+        badge_installed: "Installed",
+        badge_searching: "Searching",
+        badge_not_found: "Not found",
+        path_hint: "Choose the folder with Data/*.vdf",
+        lang_text: "Text: ",
+        lang_voice: "Voice: ",
+        lang_text_tip: "Change the text language",
+        lang_voice_tip: "Change the voice language",
+        btn_settings: "Settings",
+        btn_cancel: "Cancel",
+        ctl_title: "Controls",
+        ctl_look_sens: "Look sensitivity",
+        ctl_look_sens_hint: "How far the camera turns for a swipe on the screen.",
+        ctl_gyro_sens: "Gyroscope sensitivity",
+        ctl_gyro_chk_tip: "Enable gyroscope camera",
+        ctl_gyro_hint: "Tilt or rotate the phone to turn the camera.",
+        ctl_btn_opa: "Button transparency",
+        ctl_onscreen_btns: "On-screen buttons",
+        ctl_onscreen_hint: "Move the buttons on a grid and change their size. The game picture is sideways, so the screen turns.",
+        ctl_btn_edit: "Edit layout",
+        ctl_btn_reset: "Reset all",
+        about_title: "About",
+        about_lang: "Interface language",
+        about_lang_hint: "Interface language of the GothicDroid application.",
+        lang_auto: "System default (Auto)",
+        about_project: "The project",
+        about_desc: "<b>GothicDroid</b> brings Gothic and Gothic II (and the Chronicles of Myrtana: Archolos mod) to Android phones: a launcher that finds or downloads the games, touch controls with an editable layout, graphics settings and a renderer made for mobile GPUs. It needs the game files of your own copy of the game.",
+        about_based: "Based on",
+        about_based_desc: "GothicDroid is a fork of the open source engine OpenGothic by Try (MIT license).",
+        about_updates: "Updates",
+        about_upd_check: "Check for updates",
+        about_upd_checking: "Checking…",
+        about_log: "Log",
+        about_log_show: "Show",
+        about_log_hide: "Hide",
+        about_log_copy: "Copy",
+        about_disclaimer: "Gothic is a trademark of its owners. The game files are not part of this app.",
+        ex_title: "Explore",
+        ex_close: "Close",
+        ex_save: "Save",
+        ex_undo: "Undo",
+        ex_redo: "Redo",
+        ex_find: "Find",
+        ex_wrap: "Wrap",
+        ex_next: "Next",
+        ex_replace: "Replace",
+        ex_rep_all: "Replace all",
+        ex_copy: "Copy",
+        ex_cut: "Cut",
+        ex_ren: "Rename",
+        ex_del: "Delete",
+        ex_all: "All",
+        ex_up: "Up",
+        ex_new: "New",
+        ex_ref: "Refresh",
+        ex_paste: "Paste",
+        ex_empty: "Empty folder",
+        del_title: "Delete",
+        del_msg: "The downloaded game is removed from the phone, with its savegames and settings. It can be downloaded again.",
+        btn_del: "Delete",
+        del_cancel: "Cancel",
+        preset_ultralow: "Ultra low",
+        preset_low: "Low",
+        preset_classic: "Classic",
+        preset_ultra: "Ultra"
+      },
+      ru: {
+        nav_main: "Главная",
+        nav_explore: "Файлы",
+        nav_controls: "Управление",
+        nav_about: "О программе",
+        donate: "Поддержать",
+        join: "Discord",
+        btn_play: "Играть",
+        btn_folder: "Папка",
+        btn_folder_tip: "Выбрать папку с игрой",
+        btn_dl: "Скачать",
+        btn_dl_tip: "Скачать с ПК по локальной сети",
+        btn_mods: "Моды",
+        btn_mods_tip: "Моды для этой игры",
+        btn_home_tip: "Добавить на главный экран",
+        btn_del_tip: "Удалить скачанную игру",
+        btn_import: "Импорт",
+        btn_all_mods: "Все моды",
+        badge_installed: "Установлено",
+        badge_searching: "Поиск",
+        badge_not_found: "Не найдено",
+        path_hint: "Выберите папку с Data/*.vdf",
+        lang_text: "Текст: ",
+        lang_voice: "Озвучка: ",
+        lang_text_tip: "Изменить язык текста",
+        lang_voice_tip: "Изменить язык озвучки",
+        btn_settings: "Настройки",
+        btn_cancel: "Отмена",
+        ctl_title: "Управление",
+        ctl_look_sens: "Чувствительность обзора",
+        ctl_look_sens_hint: "Насколько поворачивается камера при свайпе по экрану.",
+        ctl_gyro_sens: "Чувствительность гироскопа",
+        ctl_gyro_chk_tip: "Включить поворот камеры гироскопом",
+        ctl_gyro_hint: "Наклоняйте или поворачивайте телефон для поворота камеры.",
+        ctl_btn_opa: "Прозрачность кнопок",
+        ctl_onscreen_btns: "Экранные кнопки",
+        ctl_onscreen_hint: "Перемещайте кнопки по сетке и меняйте их размер. Игра открывается в горизонтальном режиме.",
+        ctl_btn_edit: "Редактор раскладки",
+        ctl_btn_reset: "Сбросить всё",
+        about_title: "О программе",
+        about_lang: "Язык интерфейса",
+        about_lang_hint: "Язык интерфейса приложения GothicDroid.",
+        lang_auto: "Язык системы (Авто)",
+        about_project: "О проекте",
+        about_desc: "<b>GothicDroid</b> переносит Готику и Готику II (а также мод «Хроники Миртаны: Архолос») на Android: лаунчер, настраиваемое сенсорное управление, графические настройки и рендерер под мобильные GPU. Требуются файлы вашей копии игры.",
+        about_based: "Основано на",
+        about_based_desc: "GothicDroid — форк открытого движка OpenGothic от Try (лицензия MIT).",
+        about_updates: "Обновления",
+        about_upd_check: "Проверить обновления",
+        about_upd_checking: "Проверка…",
+        about_log: "Лог",
+        about_log_show: "Показать",
+        about_log_hide: "Скрыть",
+        about_log_copy: "Копировать",
+        about_disclaimer: "Gothic является товарным знаком правообладателей. Файлы игры не входят в состав приложения.",
+        ex_title: "Файлы",
+        ex_close: "Закрыть",
+        ex_save: "Сохранить",
+        ex_undo: "Назад",
+        ex_redo: "Вперёд",
+        ex_find: "Найти",
+        ex_wrap: "Перенос",
+        ex_next: "Далее",
+        ex_replace: "Заменить",
+        ex_rep_all: "Заменить всё",
+        ex_copy: "Копировать",
+        ex_cut: "Вырезать",
+        ex_ren: "Переименовать",
+        ex_del: "Удалить",
+        ex_all: "Все",
+        ex_up: "Вверх",
+        ex_new: "Создать",
+        ex_ref: "Обновить",
+        ex_paste: "Вставить",
+        ex_empty: "Папка пуста",
+        del_title: "Удалить",
+        del_msg: "Скачанная игра будет удалена с телефона вместе с сохранениями и настройками. Её можно будет скачать снова.",
+        btn_del: "Удалить",
+        del_cancel: "Отмена",
+        preset_ultralow: "Ультра низкие",
+        preset_low: "Низкие",
+        preset_classic: "Классика",
+        preset_ultra: "Ультра"
+      },
+      pl: {
+        nav_main: "Główna",
+        nav_explore: "Pliki",
+        nav_controls: "Sterowanie",
+        nav_about: "O programie",
+        donate: "Wesprzyj",
+        join: "Discord",
+        btn_play: "Graj",
+        btn_folder: "Folder",
+        btn_folder_tip: "Wybierz folder z grą",
+        btn_dl: "Pobierz",
+        btn_dl_tip: "Pobierz z komputera w sieci lokalnej",
+        btn_mods: "Mody",
+        btn_mods_tip: "Mody do tej gry",
+        btn_home_tip: "Dodaj skrót na ekran główny",
+        btn_del_tip: "Usuń pobraną grę",
+        btn_import: "Importuj",
+        btn_all_mods: "Wszystkie mody",
+        badge_installed: "Zainstalowano",
+        badge_searching: "Szukanie",
+        badge_not_found: "Nie znaleziono",
+        path_hint: "Wybierz folder z Data/*.vdf",
+        lang_text: "Tekst: ",
+        lang_voice: "Głos: ",
+        lang_text_tip: "Zmień język tekstu",
+        lang_voice_tip: "Zmień język głosów",
+        btn_settings: "Ustawienia",
+        btn_cancel: "Anuluj",
+        ctl_title: "Sterowanie",
+        ctl_look_sens: "Czułość rozglądania",
+        ctl_look_sens_hint: "Jak bardzo obraca się kamera przy przeciągnięciu po ekranie.",
+        ctl_gyro_sens: "Czułość żyroskopu",
+        ctl_gyro_chk_tip: "Włącz obracanie kamery żyroskopem",
+        ctl_gyro_hint: "Przechyl lub obróć telefon, aby sterować kamerą.",
+        ctl_btn_opa: "Przezroczystość przycisków",
+        ctl_onscreen_btns: "Przyciski ekranowe",
+        ctl_onscreen_hint: "Przesuwaj przyciski na siatce i zmieniaj ich rozmiar. Gra uruchamia się w trybie poziomym.",
+        ctl_btn_edit: "Edytuj układ",
+        ctl_btn_reset: "Zresetuj wszystko",
+        about_title: "O programie",
+        about_lang: "Język interfejsu",
+        about_lang_hint: "Język interfejsu aplikacji GothicDroid.",
+        lang_auto: "Domyślny systemowy (Auto)",
+        about_project: "O projekcie",
+        about_desc: "<b>GothicDroid</b> przenosi Gothic i Gothic II (oraz modyfikację Kroniki Myrtany: Archolos) na telefony z Androidem: launcher, konfigurowalne sterowanie dotykowe, ustawienia graficzne i renderer dla mobilnych GPU. Wymaga plików z Twojej kopii gry.",
+        about_based: "Oparte na",
+        about_based_desc: "GothicDroid to fork silnika open-source OpenGothic autorstwa Try (licencja MIT).",
+        about_updates: "Aktualizacje",
+        about_upd_check: "Sprawdź aktualizacje",
+        about_upd_checking: "Sprawdzanie…",
+        about_log: "Dziennik",
+        about_log_show: "Pokaż",
+        about_log_hide: "Ukryj",
+        about_log_copy: "Kopiuj",
+        about_disclaimer: "Gothic jest znakiem towarowym jego właścicieli. Pliki gry nie są częścią tej aplikacji.",
+        ex_title: "Pliki",
+        ex_close: "Zamknij",
+        ex_save: "Zapisz",
+        ex_undo: "Cofnij",
+        ex_redo: "Ponów",
+        ex_find: "Szukaj",
+        ex_wrap: "Zawijaj",
+        ex_next: "Dalej",
+        ex_replace: "Zastąp",
+        ex_rep_all: "Zastąp wszystko",
+        ex_copy: "Kopiuj",
+        ex_cut: "Wytnij",
+        ex_ren: "Zmień nazwę",
+        ex_del: "Usuń",
+        ex_all: "Wszystko",
+        ex_up: "W górę",
+        ex_new: "Nowy",
+        ex_ref: "Odśwież",
+        ex_paste: "Wklej",
+        ex_empty: "Pusty folder",
+        del_title: "Usuń",
+        del_msg: "Pobrana gra zostanie usunięta z telefonu wraz z zapisami i ustawieniami. Będzie można ją pobrać ponownie.",
+        btn_del: "Usuń",
+        del_cancel: "Anuluj",
+        preset_ultralow: "Najniższe",
+        preset_low: "Niskie",
+        preset_classic: "Klasyczne",
+        preset_ultra: "Ultra"
+      }
+    };
+
+    function getSystemLang() {
+      try {
+        if (typeof Launcher !== 'undefined' && Launcher.systemLang) {
+          const l = Launcher.systemLang().toLowerCase();
+          if (l.startsWith('ru')) return 'ru';
+          if (l.startsWith('pl')) return 'pl';
+          return 'en';
+        }
+      } catch (e) {}
+      const nav = (navigator.language || navigator.userLanguage || 'en').toLowerCase();
+      if (nav.startsWith('ru')) return 'ru';
+      if (nav.startsWith('pl')) return 'pl';
+      return 'en';
+    }
+
+    function getSavedLang() {
+      try {
+        if (typeof Launcher !== 'undefined' && Launcher.getAppLang) {
+          const l = Launcher.getAppLang();
+          if (l) return l;
+        }
+      } catch (e) {}
+      try { return localStorage.getItem('gothic_app_lang') || 'auto'; } catch (e) { return 'auto'; }
+    }
+
+    function getActiveLang() {
+      const saved = getSavedLang();
+      if (saved && saved !== 'auto' && I18N[saved]) return saved;
+      return getSystemLang();
+    }
+
+    function t(key, fallback) {
+      const lang = getActiveLang();
+      return (I18N[lang] && I18N[lang][key]) || (I18N.en && I18N.en[key]) || fallback || key;
+    }
+
+    function exUpdateLang() {
+      const c = $('ee-close'); if (c) c.textContent = t('ex_close');
+      const s = $('ee-save'); if (s) s.textContent = t('ex_save');
+      const u = $('ee-undo'); if (u) u.textContent = t('ex_undo');
+      const r = $('ee-redo'); if (r) r.textContent = t('ex_redo');
+      const f = $('ee-find'); if (f) f.textContent = t('ex_find');
+      const w = $('ee-wrap'); if (w) w.textContent = t('ex_wrap');
+      const n = $('ee-next'); if (n) n.textContent = t('ex_next');
+      const rp = $('ee-rep'); if (rp) rp.textContent = t('ex_rep_all');
+      const q = $('ee-q'); if (q) q.placeholder = t('ex_find');
+      const rep = $('ee-r'); if (rep) rep.placeholder = t('ex_replace');
+      const progX = $('ex-prog-x'); if (progX) progX.textContent = t('btn_cancel');
+      const modX = $('mod-prog-x'); if (modX) modX.textContent = t('btn_cancel');
+    }
+
+    function applyLang() {
+      const cur = getActiveLang();
+      document.querySelectorAll('[data-i18n]').forEach(el => {
+        const k = el.dataset.i18n;
+        if (k && I18N[cur] && I18N[cur][k]) el.textContent = I18N[cur][k];
+      });
+      document.querySelectorAll('[data-i18n-title]').forEach(el => {
+        const k = el.dataset.i18nTitle;
+        if (k && I18N[cur] && I18N[cur][k]) el.title = I18N[cur][k];
+      });
+      const descEl = $('about-desc');
+      if (descEl && I18N[cur] && I18N[cur].about_desc) descEl.innerHTML = I18N[cur].about_desc;
+      const basedEl = $('about-based-desc');
+      if (basedEl && I18N[cur] && I18N[cur].about_based_desc) basedEl.textContent = I18N[cur].about_based_desc;
+      const discEl = $('about-disclaimer');
+      if (discEl && I18N[cur] && I18N[cur].about_disclaimer) discEl.textContent = I18N[cur].about_disclaimer;
+
+      const presets = $('gfx-presets');
+      if (presets) {
+        ['ultralow', 'low', 'classic', 'ultra'].forEach(p => {
+          const b = presets.querySelector('[data-preset="' + p + '"]');
+          if (b && I18N[cur] && I18N[cur]['preset_' + p]) b.textContent = I18N[cur]['preset_' + p];
+        });
+      }
+
+      const sel = $('lang-sel');
+      if (sel) sel.value = getSavedLang();
+
+      exUpdateLang();
+      if (typeof refresh === 'function') refresh();
+      if (typeof exRender === 'function' && typeof curTab !== 'undefined' && curTab === 'explore') exRender();
+    }
     const PICS = { 1: 'img/g1.png', 2: 'img/g2.png', 3: 'img/myrtana.jpg' };
     const POS = { 1: '25%', 2: '80%', 3: '12%' };
     const ICON_HOME = '<svg viewBox="0 0 24 24"><path d="M12 3 2 12h3v8h5v-6h4v6h5v-8h3L12 3z"/></svg>';
@@ -440,23 +791,23 @@
         el.innerHTML =
           '<div class="pic" style="background-image:url(' + PICS[g.id] + ');background-position:center ' + POS[g.id] + '">' +
             '<span class="badge"></span><div class="langs"></div></div>' +
-          '<div class="body"><div class="title"><h3></h3><span class="dl-info"><span class="dl-text"></span><button class="dl-cancel">Cancel</button></span></div>' +
+          '<div class="body"><div class="title"><h3></h3><span class="dl-info"><span class="dl-text"></span><button class="dl-cancel">' + t('btn_cancel') + '</button></span></div>' +
           '<div class="path"></div><div class="btns">' +
-            '<button class="play">Play</button>' +
-            '<button class="folder" title="Choose the game folder">' + ICON_FOLDER + ' Folder</button>' +
-            (g.canDownload && !g.downloaded ? '<button class="dl" title="Download from the PC on the local network">Download</button>' : '') +
-            '<button class="modtab' + (modsOpen.has(g.id) ? ' on' : '') + '" title="Mods of this game">' + ICON_MOD + ' Mods</button>' +
-            '<button class="icon home" title="Add to the home screen" aria-label="Add to the home screen">' + ICON_HOME + '</button>' +
-            (g.canDownload && g.downloaded ? '<button class="icon dl" title="Delete the downloaded game" aria-label="Delete the downloaded game">' + ICON_TRASH + '</button>' : '') +
+            '<button class="play">' + t('btn_play') + '</button>' +
+            '<button class="folder" title="' + t('btn_folder_tip') + '">' + ICON_FOLDER + ' ' + t('btn_folder') + '</button>' +
+            (g.canDownload && !g.downloaded ? '<button class="dl" title="' + t('btn_dl_tip') + '">' + t('btn_dl') + '</button>' : '') +
+            '<button class="modtab' + (modsOpen.has(g.id) ? ' on' : '') + '" title="' + t('btn_mods_tip') + '">' + ICON_MOD + ' ' + t('btn_mods') + '</button>' +
+            '<button class="icon home" title="' + t('btn_home_tip') + '" aria-label="' + t('btn_home_tip') + '">' + ICON_HOME + '</button>' +
+            (g.canDownload && g.downloaded ? '<button class="icon dl" title="' + t('btn_del_tip') + '" aria-label="' + t('btn_del_tip') + '">' + ICON_TRASH + '</button>' : '') +
           '</div>' +
-          '<div class="modpanel"' + (modsOpen.has(g.id) ? '' : ' hidden') + '><button type="button" class="mp-imp">' + ICON_FOLDER + ' Import</button><button type="button" class="mp-all">All mods</button></div></div>';
+          '<div class="modpanel"' + (modsOpen.has(g.id) ? '' : ' hidden') + '><button type="button" class="mp-imp">' + ICON_FOLDER + ' ' + t('btn_import') + '</button><button type="button" class="mp-all">' + t('btn_all_mods') + '</button></div></div>';
         el.querySelector('h3').textContent = g.title;
         const badge = el.querySelector('.badge');
-        if (found) { badge.textContent = 'Installed'; badge.classList.add('ok'); }
-        else if (scanning) { badge.innerHTML = 'Searching<span class="dots"></span>'; }
-        else badge.textContent = 'Not found';
+        if (found) { badge.textContent = t('badge_installed'); badge.classList.add('ok'); }
+        else if (scanning) { badge.innerHTML = t('badge_searching') + '<span class="dots"></span>'; }
+        else badge.textContent = t('badge_not_found');
         // the folder of the game is shown in its settings window (the gear), the card only says when there is none
-        el.querySelector('.path').textContent = found ? '' : (scanning ? '' : 'Choose the folder with Data/*.vdf');
+        el.querySelector('.path').textContent = found ? '' : (scanning ? '' : t('path_hint'));
         el.querySelector('.modtab').addEventListener('click', () => {
           if (modsOpen.has(g.id)) modsOpen.delete(g.id); else modsOpen.add(g.id);
           el.querySelector('.modpanel').hidden = !modsOpen.has(g.id);
@@ -484,15 +835,15 @@
           const lg = Launcher.langs(g.id);
           if (lg) {
             const l = JSON.parse(lg);
-            el.querySelector('.langs').innerHTML = '<span data-kind="text" title="Change the text language">Text: ' + l.text.toUpperCase() + '</span>' +
-              '<span data-kind="voice" title="Change the voice language">Voice: ' + (l.voice === 'none' ? '—' : l.voice.toUpperCase()) + '</span>';
+            el.querySelector('.langs').innerHTML = '<span data-kind="text" title="' + t('lang_text_tip') + '">' + t('lang_text') + l.text.toUpperCase() + '</span>' +
+              '<span data-kind="voice" title="' + t('lang_voice_tip') + '">' + t('lang_voice') + (l.voice === 'none' ? '—' : l.voice.toUpperCase()) + '</span>';
             el.querySelectorAll('.langs span').forEach(c => c.addEventListener('click', e => { e.stopPropagation(); openSheet(g, c.dataset.kind); }));
           }
         } catch (e) {}
         // the gear left of the languages: the settings of this game (graphics and its folder)
         if (found) {
           const gear = document.createElement('span');
-          gear.className = 'gear'; gear.title = 'Settings'; gear.innerHTML = ICON_GEAR;
+          gear.className = 'gear'; gear.title = t('btn_settings'); gear.innerHTML = ICON_GEAR;
           gear.addEventListener('click', e => { e.stopPropagation(); openSettings(g.id); });
           el.querySelector('.langs').prepend(gear);
         }
@@ -500,7 +851,7 @@
       }
       let foundMods = []; try { foundMods = JSON.parse(Launcher.mods()); } catch (e) {}
       const g = games.find(x => x.id === sel) || games[0];
-      $('settings-title').textContent = 'Settings: ' + g.title;
+      $('settings-title').textContent = t('btn_settings') + ': ' + g.title;
       $('gset-path').textContent = g.path ? g.path + (g.vdf ? '  (' + g.vdf + ' VDF)' : '') : '';
       // the barrier is only in Gothic 1
       document.querySelectorAll('#settings-panel .g1only').forEach(e => { e.style.display = g.id === 1 ? '' : 'none'; });
@@ -642,9 +993,9 @@
     // ---- delete of a game downloaded from the PC (asks first)
     function confirmDelete(g) {
       const sheet = $('sheet'), box = $('sheet-box');
-      box.innerHTML = '<h2>Delete ' + g.title + '?</h2>' +
-        '<div class="msg">The downloaded game is removed from the phone (' + g.path.replace(/</g, '&lt;') + '), with its savegames and settings. It can be downloaded again.</div>' +
-        '<button class="go" id="del-yes" style="background:#e5484d;color:#fff">Delete</button><button class="sec" id="del-no">Cancel</button>';
+      box.innerHTML = '<h2>' + t('del_title') + ' ' + g.title + '?</h2>' +
+        '<div class="msg">' + t('del_msg') + ' (' + g.path.replace(/</g, '&lt;') + ')</div>' +
+        '<button class="go" id="del-yes" style="background:#e5484d;color:#fff">' + t('btn_del') + '</button><button class="sec" id="del-no">' + t('del_cancel') + '</button>';
       sheet.classList.add('open');
       $('del-no').addEventListener('click', () => sheet.classList.remove('open'));
       $('del-yes').addEventListener('click', () => { sheet.classList.remove('open'); Launcher.deleteGame(g.id); });
@@ -929,10 +1280,10 @@
       const atRoot = EX.path === rootPath();
       let bar = '';
       if (n) {
-        bar = btn('x-copy', 'copy', 'Copy') + btn('x-cut', 'cut', 'Cut') + (n === 1 ? btn('x-ren', 'ren', 'Rename') : '') + btn('x-del', 'del', 'Delete', 'danger') + '<span class="sp"></span>' + btn('x-all', 'all', 'All');
+        bar = btn('x-copy', 'copy', t('ex_copy')) + btn('x-cut', 'cut', t('ex_cut')) + (n === 1 ? btn('x-ren', 'ren', t('ex_ren')) : '') + btn('x-del', 'del', t('ex_del'), 'danger') + '<span class="sp"></span>' + btn('x-all', 'all', t('ex_all'));
       } else {
-        bar = btn('x-up', 'up', 'Up') + btn('x-new', 'add', 'New') + btn('x-imp', 'imp', 'Import') + btn('x-ref', 'ref', 'Refresh');
-        if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', 'Paste (' + EX.clip.paths.length + ')');
+        bar = btn('x-up', 'up', t('ex_up')) + btn('x-new', 'add', t('ex_new')) + btn('x-imp', 'imp', t('btn_import')) + btn('x-ref', 'ref', t('ex_ref'));
+        if (EX.clip) bar += '<span class="sp"></span>' + btn('x-paste', 'paste', t('ex_paste') + ' (' + EX.clip.paths.length + ')');
       }
       $('ex-bar').innerHTML = bar;
       const on = (id, f) => { const e = $(id); if (e) e.addEventListener('click', f); };
@@ -941,7 +1292,7 @@
       on('x-all', () => { EX.items.forEach(it => EX.sel.add(it.n)); exRender(); });
       if (atRoot && $('x-up')) $('x-up').disabled = true;
       const l = $('ex-list');
-      if (!EX.items.length) { l.innerHTML = '<div class="ex-empty">Empty folder</div>'; return; }
+      if (!EX.items.length) { l.innerHTML = '<div class="ex-empty">' + t('ex_empty') + '</div>'; return; }
       l.innerHTML = EX.items.map((it, i) => '<div class="ex-row ' + (it.d ? 'dir' : '') + (EX.sel.has(it.n) ? ' sel' : '') + '" data-i="' + i + '"><span class="ex-chk"></span>' + (it.d ? I.dir : I.file) +
         '<span class="nm">' + esc(it.n) + '</span><span class="meta">' + (it.d ? it.s + ' items' : fmt(it.s)) + '</span></div>').join('');
       l.querySelectorAll('.ex-row').forEach(r => {
@@ -1198,8 +1549,18 @@
 
 
 
-    window.onResumed = () => { refresh(); window.refreshDrivers && refreshDrivers(); if (curTab === 'explore' && EX.roots.length) exPoll(); modPoll(); };
-    refresh();
+    const langSel = $('lang-sel');
+    if (langSel) {
+      langSel.addEventListener('change', e => {
+        const val = e.target.value;
+        try { if (typeof Launcher !== 'undefined' && Launcher.setAppLang) Launcher.setAppLang(val); } catch (err) {}
+        try { localStorage.setItem('gothic_app_lang', val); } catch (err) {}
+        applyLang();
+      });
+    }
+
+    window.onResumed = () => { applyLang(); window.refreshDrivers && refreshDrivers(); if (curTab === 'explore' && EX.roots.length) exPoll(); modPoll(); };
+    applyLang();
   </script>
 </body>
 </html>
